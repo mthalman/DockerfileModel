@@ -21,7 +21,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(FromInstructionInput))]
         public void FromInstruction(InstructionTestInput testInput)
         {
-            var parser = DockerfileParser.FromInstruction(testInput.LineNumber, testInput.EscapeChar);
+            var parser = DockerfileParser.FromInstruction(testInput.EscapeChar);
             var result = parser.Parse(testInput.Content);
             testInput.Validate(result);
         }
@@ -73,12 +73,10 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> FromInstructionInput()
         {
-            void Validate(Instruction instruction, int lineNumber, string instructionName, string args, string leadingWhitespace)
+            void Validate(Instruction instruction, string instructionName, string args)
             {
-                Assert.Equal(lineNumber, instruction.LineNumber);
                 Assert.Equal(instructionName, instruction.InstructionName);
                 Assert.Equal(args, instruction.Args);
-                Assert.Equal(leadingWhitespace, instruction.LeadingWhitespace);
             }
 
             var testInputs = new TestInput[]
@@ -86,21 +84,19 @@ namespace DockerfileModel.Tests
                 new InstructionTestInput
                 {
                     Content = "FROM base",
-                    LineNumber = 2,
                     Validate = result =>
                     {
                         var inst = (Instruction)result;
-                        Validate(inst, 2, "FROM", "base", "");
+                        Validate(inst, "FROM", "base");
                     }
                 },
                 new InstructionTestInput
                 {
                     Content = "FROM \\\n  base",
-                    LineNumber = 1,
                     Validate = result =>
                     {
                         var inst = (Instruction)result;
-                        Validate(inst, 1, "FROM", "base", "");
+                        Validate(inst, "FROM", "base");
                     }
                 }
             };
@@ -117,7 +113,6 @@ namespace DockerfileModel.Tests
         public class InstructionTestInput : TestInput
         {
             public char EscapeChar { get; set; } = '\\';
-            public int LineNumber { get; set; } = 1;
         }
 
         public class InstructionArgsTestInput : TestInput
