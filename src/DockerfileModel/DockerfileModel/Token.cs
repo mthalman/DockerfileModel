@@ -11,17 +11,6 @@ namespace DockerfileModel
         }
 
         public string Value { get; set; }
-
-        internal static IEnumerable<Token> ConcatTokens(params Token[] tokens) =>
-            tokens
-                .Where(token => token != null)
-                .ToList();
-
-        internal static IEnumerable<Token> ConcatTokens(params IEnumerable<Token>[] tokens) =>
-            ConcatTokens(
-                tokens
-                    .SelectMany(tokens => tokens)
-                    .ToArray());
     }
 
     public class KeywordToken : Token

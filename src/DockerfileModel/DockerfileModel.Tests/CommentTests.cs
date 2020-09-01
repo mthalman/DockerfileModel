@@ -8,7 +8,7 @@ using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
 {
-    public class ParserDirectiveTests
+    public class CommentTests
     {
         [Theory]
         [MemberData(nameof(CreateFromRawTextTestInput))]
@@ -16,7 +16,7 @@ namespace DockerfileModel.Tests
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                ParserDirective result = ParserDirective.CreateFromRawText(scenario.Text);
+                Comment result = Comment.CreateFromRawText(scenario.Text);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate(result);
@@ -34,7 +34,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ParserDirective result = ParserDirective.Create(scenario.Directive, scenario.Value);
+            Comment result = Comment.Create(scenario.Comment);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate(result);
         }
@@ -45,53 +45,43 @@ namespace DockerfileModel.Tests
             {
                 new CreateFromRawTextTestScenario
                 {
-                    Text = "#directive=value",
+                    Text = "#mycomment",
                     TokenValidators = new Action<Token>[]
                     {
                         ValidateComment,
-                        token => ValidateKeyword(token, "directive"),
-                        ValidateOperator,
-                        token => ValidateLiteral(token, "value")
+                        token => ValidateLiteral(token, "mycomment")
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("directive", result.Directive.Value);
-                        Assert.Equal("value", result.Value.Value);
+                        Assert.Equal("mycomment", result.Text.Value);
 
-                        result.Directive.Value = "directive2";
-                        result.Value.Value = "newvalue";
-                        Assert.Equal($"#{result.Directive.Value}={result.Value.Value}", result.ToString());
+                        result.Text.Value += "2  ";
+                        Assert.Equal($"#mycomment2  ", result.ToString());
                     }
                 },
                 new CreateFromRawTextTestScenario
                 {
-                    Text = " # directive   = value  ",
+                    Text = " \t#\tmycomment\t  ",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateWhitespace(token, " "),
+                        token => ValidateWhitespace(token, " \t"),
                         ValidateComment,
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateKeyword(token, "directive"),
-                        token => ValidateWhitespace(token, "   "),
-                        ValidateOperator,
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "value"),
-                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateWhitespace(token, "\t"),
+                        token => ValidateLiteral(token, "mycomment"),
+                        token => ValidateWhitespace(token, "\t  ")
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("directive", result.Directive.Value);
-                        Assert.Equal("value", result.Value.Value);
+                        Assert.Equal("mycomment", result.Text.Value);
 
-                        result.Directive.Value = "directive2";
-                        result.Value.Value = "newvalue";
-                        Assert.Equal($" # {result.Directive.Value}   = {result.Value.Value}  ", result.ToString());
+                        result.Text.Value += "2  ";
+                        Assert.Equal($" \t#\tmycomment2  \t  ", result.ToString());
                     }
                 },
                 new CreateFromRawTextTestScenario
                 {
-                    Text = "#comment",
-                    ParseExceptionPosition = new Position(0, 1, 9)
+                    Text = "comment",
+                    ParseExceptionPosition = new Position(0, 1, 1)
                 }
             };
 
@@ -104,48 +94,37 @@ namespace DockerfileModel.Tests
             {
                 new CreateTestScenario
                 {
-                    Directive = "directive",
-                    Value = "value",
+                    Comment = "test",
                     TokenValidators = new Action<Token>[]
                     {
                         ValidateComment,
-                        token => ValidateKeyword(token, "directive"),
-                        ValidateOperator,
-                        token => ValidateLiteral(token, "value")
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "test"),
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("directive", result.Directive.Value);
-                        Assert.Equal("value", result.Value.Value);
+                        Assert.Equal("test", result.Text.Value);
 
-                        result.Directive.Value = "directive2";
-                        result.Value.Value = "newvalue";
-                        Assert.Equal($"#{result.Directive.Value}={result.Value.Value}", result.ToString());
+                        result.Text.Value = "override";
+                        Assert.Equal("# override", result.ToString());
                     }
                 },
                 new CreateTestScenario
                 {
-                    Directive = " directive   ",
-                    Value = " value  ",
+                    Comment = "comment   ",
                     TokenValidators = new Action<Token>[]
                     {
                         ValidateComment,
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateKeyword(token, "directive"),
+                        token => ValidateLiteral(token, "comment"),
                         token => ValidateWhitespace(token, "   "),
-                        ValidateOperator,
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "value"),
-                        token => ValidateWhitespace(token, "  "),
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("directive", result.Directive.Value);
-                        Assert.Equal("value", result.Value.Value);
+                        Assert.Equal("comment", result.Text.Value);
 
-                        result.Directive.Value = "directive2";
-                        result.Value.Value = "newvalue";
-                        Assert.Equal($"# {result.Directive.Value}   = {result.Value.Value}  ", result.ToString());
+                        result.Text.Value = "newcomment";
+                        Assert.Equal($"# newcomment   ", result.ToString());
                     }
                 }
             };
@@ -155,7 +134,7 @@ namespace DockerfileModel.Tests
 
         public abstract class TestScenario
         {
-            public Action<ParserDirective> Validate { get; set; }
+            public Action<Comment> Validate { get; set; }
             public Action<Token>[] TokenValidators { get; set; }
         }
 
@@ -167,8 +146,7 @@ namespace DockerfileModel.Tests
 
         public class CreateTestScenario : TestScenario
         {
-            public string Directive { get; set; }
-            public string Value { get; set; }
+            public string Comment { get; set; }
         }
     }
 }
