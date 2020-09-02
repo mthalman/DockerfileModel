@@ -1,22 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using Sprache;
 
 namespace DockerfileModel
 {
-    public class Comment : IDockerfileLine
+    public class Comment : DockerfileLine
     {
         private Comment(string text)
+            : base(text, DockerfileParser.CommentText())
         {
-            Tokens = DockerfileParser.FilterNulls(DockerfileParser.CommentText().Parse(text));
         }
-
-        public IEnumerable<Token> Tokens { get; }
 
         public LiteralToken Text => Tokens.OfType<LiteralToken>().First();
 
-        public LineType Type => LineType.Comment;
+        public override LineType Type => LineType.Comment;
 
         public static Comment Create(string comment) =>
             new Comment($"# {comment}");
@@ -24,9 +20,7 @@ namespace DockerfileModel
         public static Comment CreateFromRawText(string text) =>
             new Comment(text);
 
-        public override string ToString() =>
-            String.Join("", Tokens
-                .Select(token => token.Value)
-                .ToArray());
+        public static bool IsComment(string text) =>
+            DockerfileParser.CommentText().TryParse(text).WasSuccessful;
     }
 }

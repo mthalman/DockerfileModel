@@ -150,9 +150,9 @@ namespace DockerfileModel
                 op,
                 value);
 
-        private static Parser<Whitespace> Whitespace() =>
-            from whitespace in Parse.WhiteSpace.Except(Parse.LineEnd).Many().Text()
-            select new Whitespace(whitespace);
+        public static Parser<WhitespaceToken> Whitespace() =>
+            from whitespace in Parse.WhiteSpace.Until(Parse.LineTerminator).XMany()
+            select new WhitespaceToken(new string(whitespace.SelectMany(chars => chars).ToArray()));
 
         internal static Parser<string> Identifier() =>
             Parse.Identifier(Parse.Letter, Parse.LetterOrDigit);

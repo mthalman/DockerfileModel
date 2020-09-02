@@ -1,16 +1,23 @@
-﻿using System;
+﻿using System.Linq;
+using Sprache;
 
 namespace DockerfileModel
 {
-    public class Whitespace : IDockerfileLine
+    public class Whitespace : DockerfileLine
     {
-        public Whitespace(string whitespaceContent)
+        private Whitespace(string text)
+            : base(text, DockerfileParser.Whitespace())
         {
-            this.WhitespaceContent = whitespaceContent ?? throw new ArgumentNullException(nameof(whitespaceContent));
         }
 
-        public string WhitespaceContent { get; }
+        public WhitespaceToken Text => Tokens.OfType<WhitespaceToken>().First();
 
-        public LineType Type => LineType.Whitespace;
+        public override LineType Type => LineType.Whitespace;
+
+        public static Whitespace Create(string text) =>
+            new Whitespace(text);
+
+        public static bool IsWhitespace(string text) =>
+            DockerfileParser.Whitespace().TryParse(text).WasSuccessful;
     }
 }

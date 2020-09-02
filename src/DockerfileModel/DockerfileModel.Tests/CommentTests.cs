@@ -24,7 +24,7 @@ namespace DockerfileModel.Tests
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => ParserDirective.CreateFromRawText(scenario.Text));
+                    () => Comment.CreateFromRawText(scenario.Text));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
