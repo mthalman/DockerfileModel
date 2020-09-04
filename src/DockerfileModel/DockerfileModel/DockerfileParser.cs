@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Sprache;
 
@@ -93,12 +92,46 @@ namespace DockerfileModel
         public static Parser<IEnumerable<Token>> CommentText() =>
             from leading in WhitespaceChars.AsEnumerable()
             from comment in TokenWithTrailingWhitespace(CommentChar)
-            from text in CommentLiteral
+            from text in TokenWithTrailingWhitespace(str => new CommentTextToken(str))
             select ConcatTokens(leading, comment, text);
 
-        private readonly static Parser<IEnumerable<Token>> CommentLiteral =
+        private static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Func<string, Token> createToken) =>
             from val in Parse.AnyChar.Except(Parse.LineEnd).Many().Text()
-            select ConcatTokens(new LiteralToken(val.Trim()), GetTrailingWhitespaceToken(val)!);
+            select ConcatTokens(createToken(val.Trim()), GetTrailingWhitespaceToken(val)!);
+
+        private static Parser<LineContinuationToken> LineContinuation(char escapeChar) =>
+            from lineCont in Parse.Char(escapeChar)
+            from lineEnding in Parse.LineTerminator
+            select new LineContinuationToken(lineCont + lineEnding);
+
+        private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
+            from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Many().Text()
+            from lineContinuation in LineContinuation(escapeChar).Optional()
+            select ConcatTokens(
+                GetLeadingWhitespaceToken(text)!,
+                new LiteralToken(text.Trim()),
+                GetTrailingWhitespaceToken(text)!,
+                lineContinuation.GetOrDefault());
+
+        private static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
+            from lineSets in InstructionArgLine(escapeChar).Many()
+            select lineSets.SelectMany(lineSet => lineSet);
+
+
+        private static WhitespaceToken? GetLeadingWhitespaceToken(string text)
+        {
+            var whitespace = new string(
+                text
+                    .TakeWhile(ch => Char.IsWhiteSpace(ch))
+                    .ToArray());
+
+            if (whitespace == String.Empty)
+            {
+                return null;
+            }
+
+            return new WhitespaceToken(whitespace);
+        }
 
         private static WhitespaceToken? GetTrailingWhitespaceToken(string text)
         {
@@ -157,52 +190,22 @@ namespace DockerfileModel
         internal static Parser<string> Identifier() =>
             Parse.Identifier(Parse.Letter, Parse.LetterOrDigit);
 
-        internal static Parser<string> InstructionArgs(char escapeChar) =>
-            from args in Parse.AnyChar.Many().Text()//.Until(AnyStatement(escapeChar))
-                                                    //select args.Any() ? args.First() : null;
-                                                    
-            select args;
-
         private static Parser<string> InstructionIdentifier(string instructionName) =>
-            from leading in Parse.WhiteSpace.Many().Text()
-            from instruction in Parse.IgnoreCase(instructionName).Text()
-            from trailing in Parse.WhiteSpace.Many().Text()
-            select instruction;
+            Parse.IgnoreCase(instructionName).Text();
 
-        private static Parser<string> ArgInstructionIdentifier() => InstructionIdentifier("ARG");
-        private static Parser<string> FromInstructionIdentifier() => InstructionIdentifier("FROM");
-        private static Parser<string> EnvInstructionIdentifier() => InstructionIdentifier("ENV");
-        private static Parser<string> RunInstructionIdentifier() => InstructionIdentifier("RUN");
+        private static Parser<KeywordToken> InstructionIdentifier() =>
+            from identifier in
+                InstructionIdentifier("ARG")
+                .Or(InstructionIdentifier("FROM"))
+                .Or(InstructionIdentifier("ENV"))
+                .Or(InstructionIdentifier("RUN"))
+            select new KeywordToken(identifier);
 
-        private static Parser<T> LineContent<T>(Parser<T> parser) =>
-            from leading in Parse.WhiteSpace.Many()
-            from item in parser
-            from trailing in Parse.WhiteSpace.Many()
-            select item;
-
-        internal static Parser<Instruction> FromInstruction(char escapeChar) =>
-            from leading in Parse.WhiteSpace.Many().Text()
-            from inst in FromInstructionIdentifier()
+        public static Parser<IEnumerable<Token>> Instruction(char escapeChar) =>
+            from leading in WhitespaceChars.AsEnumerable()
+            from inst in TokenWithTrailingWhitespace(InstructionIdentifier())
             from instArgs in InstructionArgs(escapeChar)
-            select new Instruction(inst, instArgs.Trim());
-
-        private static Parser<Instruction> ArgInstruction(char escapeChar) =>
-            from leading in Parse.WhiteSpace.Many().Text()
-            from inst in ArgInstructionIdentifier()
-            from instArgs in InstructionArgs(escapeChar)
-            select new Instruction(inst, instArgs);
-
-        private static Parser<Instruction> RunInstruction(char escapeChar) =>
-            from leading in Parse.WhiteSpace.Many().Text()
-            from inst in RunInstructionIdentifier()
-            from instArgs in InstructionArgs(escapeChar)
-            select new Instruction(inst, instArgs);
-
-        private static Parser<Instruction> EnvInstruction(char escapeChar) =>
-            from leading in Parse.WhiteSpace.Many().Text()
-            from inst in EnvInstructionIdentifier()
-            from instArgs in InstructionArgs(escapeChar)
-            select new Instruction(inst, instArgs);
+            select ConcatTokens(leading, inst, instArgs);
 
         private static string Concat(params string[] strings) =>
             String.Join("", strings);

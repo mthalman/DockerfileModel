@@ -49,7 +49,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         ValidateComment,
-                        token => ValidateLiteral(token, "mycomment")
+                        token => ValidateCommentText(token, "mycomment")
                     },
                     Validate = result =>
                     {
@@ -67,7 +67,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " \t"),
                         ValidateComment,
                         token => ValidateWhitespace(token, "\t"),
-                        token => ValidateLiteral(token, "mycomment"),
+                        token => ValidateCommentText(token, "mycomment"),
                         token => ValidateWhitespace(token, "\t  ")
                     },
                     Validate = result =>
@@ -99,7 +99,7 @@ namespace DockerfileModel.Tests
                     {
                         ValidateComment,
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "test"),
+                        token => ValidateCommentText(token, "test"),
                     },
                     Validate = result =>
                     {
@@ -116,7 +116,7 @@ namespace DockerfileModel.Tests
                     {
                         ValidateComment,
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "comment"),
+                        token => ValidateCommentText(token, "comment"),
                         token => ValidateWhitespace(token, "   "),
                     },
                     Validate = result =>

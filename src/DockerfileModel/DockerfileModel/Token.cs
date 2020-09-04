@@ -1,13 +1,10 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-
-namespace DockerfileModel
+﻿namespace DockerfileModel
 {
     public abstract class Token
     {
-        public Token(string content)
+        public Token(string value)
         {
-            this.Value = content;
+            this.Value = value;
         }
 
         public string Value { get; set; }
@@ -15,35 +12,49 @@ namespace DockerfileModel
 
     public class KeywordToken : Token
     {
-        public KeywordToken(string content) : base(content)
+        public KeywordToken(string value) : base(value)
         {
         }
     }
 
     public class OperatorToken : Token
     {
-        public OperatorToken(string content) : base(content)
+        public OperatorToken(string value) : base(value)
         {
         }
     }
 
     public class LiteralToken : Token
     {
-        public LiteralToken(string content) : base(content)
+        public LiteralToken(string value) : base(value)
         {
         }
     }
 
     public class WhitespaceToken : Token
     {
-        public WhitespaceToken(string content) : base(content)
+        public WhitespaceToken(string value) : base(value)
         {
         }
     }
 
     public class CommentToken : Token
     {
-        public CommentToken(string content) : base(content)
+        public CommentToken(string value) : base(value)
+        {
+        }
+    }
+
+    public class CommentTextToken : Token
+    {
+        public CommentTextToken(string value) : base(value)
+        {
+        }
+    }
+
+    public class LineContinuationToken : Token
+    {
+        public LineContinuationToken(string value) : base(value)
         {
         }
     }

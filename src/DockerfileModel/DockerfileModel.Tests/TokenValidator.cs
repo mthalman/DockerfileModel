@@ -33,5 +33,17 @@ namespace DockerfileModel.Tests
             Assert.IsType<LiteralToken>(token);
             Assert.Equal(literal, token.Value);
         }
+
+        public static void ValidateCommentText(Token token, string text)
+        {
+            Assert.IsType<CommentTextToken>(token);
+            Assert.Equal(text, token.Value);
+        }
+
+        public static void ValidateLineContinuation(Token token, string text)
+        {
+            Assert.IsType<LineContinuationToken>(token);
+            Assert.Equal(text, token.Value);
+        }
     }
 }
