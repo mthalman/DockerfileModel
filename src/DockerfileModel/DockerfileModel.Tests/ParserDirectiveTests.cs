@@ -11,12 +11,12 @@ namespace DockerfileModel.Tests
     public class ParserDirectiveTests
     {
         [Theory]
-        [MemberData(nameof(CreateFromRawTextTestInput))]
-        public void CreateFromRawText(CreateFromRawTextTestScenario scenario)
+        [MemberData(nameof(ParseTestInput))]
+        public void Parse(ParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                ParserDirective result = ParserDirective.CreateFromRawText(scenario.Text);
+                ParserDirective result = ParserDirective.Parse(scenario.Text);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate(result);
@@ -24,7 +24,7 @@ namespace DockerfileModel.Tests
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => ParserDirective.CreateFromRawText(scenario.Text));
+                    () => ParserDirective.Parse(scenario.Text));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
@@ -39,11 +39,11 @@ namespace DockerfileModel.Tests
             scenario.Validate(result);
         }
 
-        public static IEnumerable<object[]> CreateFromRawTextTestInput()
+        public static IEnumerable<object[]> ParseTestInput()
         {
-            var testInputs = new CreateFromRawTextTestScenario[]
+            var testInputs = new ParseTestScenario[]
             {
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
                 {
                     Text = "#directive=value",
                     TokenValidators = new Action<Token>[]
@@ -63,7 +63,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal($"#{result.Directive.Value}={result.Value.Value}", result.ToString());
                     }
                 },
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
                 {
                     Text = " # directive   = value  ",
                     TokenValidators = new Action<Token>[]
@@ -88,7 +88,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal($" # {result.Directive.Value}   = {result.Value.Value}  ", result.ToString());
                     }
                 },
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
                 {
                     Text = "#comment",
                     ParseExceptionPosition = new Position(0, 1, 9)
@@ -159,7 +159,7 @@ namespace DockerfileModel.Tests
             public Action<Token>[] TokenValidators { get; set; }
         }
 
-        public class CreateFromRawTextTestScenario : TestScenario
+        public class ParseTestScenario : TestScenario
         {
             public string Text { get; set; }
             public Position ParseExceptionPosition { get; set; }

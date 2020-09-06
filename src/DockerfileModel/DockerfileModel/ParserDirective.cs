@@ -22,9 +22,9 @@ namespace DockerfileModel
             DockerfileParser.ParserDirectiveParser().TryParse(text).WasSuccessful;
 
         public static ParserDirective Create(string directive, string value) =>
-            CreateFromRawText($"#{directive}={value}");
+            Parse($"#{directive}={value}");
 
-        public static ParserDirective CreateFromRawText(string text) =>
+        public static ParserDirective Parse(string text) =>
             new ParserDirective(text);
     }
 }

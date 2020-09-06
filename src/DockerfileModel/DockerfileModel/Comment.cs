@@ -17,7 +17,7 @@ namespace DockerfileModel
         public static Comment Create(string comment) =>
             new Comment($"# {comment}");
 
-        public static Comment CreateFromRawText(string text) =>
+        public static Comment Parse(string text) =>
             new Comment(text);
 
         public static bool IsComment(string text) =>

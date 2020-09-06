@@ -10,7 +10,9 @@ namespace DockerfileModel
         {
         }
 
-        public WhitespaceToken Text => Tokens.OfType<WhitespaceToken>().First();
+        public WhitespaceToken? Text => Tokens.OfType<WhitespaceToken>().FirstOrDefault();
+
+        public NewLineToken? NewLine => Tokens.OfType<NewLineToken>().FirstOrDefault();
 
         public override LineType Type => LineType.Whitespace;
 

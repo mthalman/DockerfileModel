@@ -19,7 +19,7 @@ namespace DockerfileModel.Tests
                 Whitespace result = Whitespace.Create(scenario.Text);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
-                scenario.Validate(result);
+                scenario.Validate?.Invoke(result);
             }
             else
             {
@@ -54,14 +54,6 @@ namespace DockerfileModel.Tests
                     Text = "",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateWhitespace(token, "")
-                    },
-                    Validate = result =>
-                    {
-                        Assert.Equal("", result.Text.Value);
-
-                        result.Text.Value = "  ";
-                        Assert.Equal($"  ", result.ToString());
                     }
                 },
                 new TestScenario
@@ -77,6 +69,35 @@ namespace DockerfileModel.Tests
 
                         result.Text.Value = "";
                         Assert.Equal("", result.ToString());
+                    }
+                },
+                new TestScenario
+                {
+                    Text = "\t \n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateWhitespace(token, "\t "),
+                        token => ValidateNewLine(token, "\n"),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Equal("\t ", result.Text.Value);
+                        Assert.Equal("\n", result.NewLine.Value);
+
+                        result.Text.Value = "";
+                        Assert.Equal("\n", result.ToString());
+                    }
+                },
+                new TestScenario
+                {
+                    Text = "\r\n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateNewLine(token, "\r\n"),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Equal("\r\n", result.Text.Value);
                     }
                 },
                 new TestScenario

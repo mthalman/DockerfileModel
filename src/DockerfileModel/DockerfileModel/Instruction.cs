@@ -14,8 +14,8 @@ namespace DockerfileModel
         }
 
         public KeywordToken InstructionName => Tokens.OfType<KeywordToken>().First();
-        public IEnumerable<LiteralToken> ArgLines => Tokens.GetNonCommentLiterals();
-        public IEnumerable<LiteralToken> Comments => Tokens.GetCommentLiterals();
+        public IEnumerable<LiteralToken> ArgLines => Tokens.OfType<LiteralToken>();
+        public IEnumerable<CommentTextToken> Comments => Tokens.OfType<CommentTextToken>();
             
         public override LineType Type => LineType.Instruction;
 
@@ -23,9 +23,9 @@ namespace DockerfileModel
             DockerfileParser.Instruction(escapeChar).TryParse(text).WasSuccessful;
 
         public static Instruction Create(string instruction, string args) =>
-            CreateFromRawText($"{instruction} {args}", DefaultEscapeChar);
+            Parse($"{instruction} {args}", DefaultEscapeChar);
 
-        public static Instruction CreateFromRawText(string text, char escapeChar) =>
+        public static Instruction Parse(string text, char escapeChar) =>
             new Instruction(text, escapeChar);
     }
 }

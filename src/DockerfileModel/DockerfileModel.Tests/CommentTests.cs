@@ -11,12 +11,12 @@ namespace DockerfileModel.Tests
     public class CommentTests
     {
         [Theory]
-        [MemberData(nameof(CreateFromRawTextTestInput))]
-        public void CreateFromRawText(CreateFromRawTextTestScenario scenario)
+        [MemberData(nameof(ParseTestInput))]
+        public void Parse(ParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                Comment result = Comment.CreateFromRawText(scenario.Text);
+                Comment result = Comment.Parse(scenario.Text);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate(result);
@@ -24,7 +24,7 @@ namespace DockerfileModel.Tests
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => Comment.CreateFromRawText(scenario.Text));
+                    () => Comment.Parse(scenario.Text));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
@@ -39,11 +39,11 @@ namespace DockerfileModel.Tests
             scenario.Validate(result);
         }
 
-        public static IEnumerable<object[]> CreateFromRawTextTestInput()
+        public static IEnumerable<object[]> ParseTestInput()
         {
-            var testInputs = new CreateFromRawTextTestScenario[]
+            var testInputs = new ParseTestScenario[]
             {
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
                 {
                     Text = "#mycomment",
                     TokenValidators = new Action<Token>[]
@@ -59,7 +59,24 @@ namespace DockerfileModel.Tests
                         Assert.Equal($"#mycomment2  ", result.ToString());
                     }
                 },
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
+                {
+                    Text = "#mycomment\n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        ValidateComment,
+                        token => ValidateCommentText(token, "mycomment"),
+                        token => ValidateNewLine(token, "\n")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Equal("mycomment", result.Text.Value);
+
+                        result.Text.Value += "2  ";
+                        Assert.Equal($"#mycomment2  \n", result.ToString());
+                    }
+                },
+                new ParseTestScenario
                 {
                     Text = " \t#\tmycomment\t  ",
                     TokenValidators = new Action<Token>[]
@@ -78,7 +95,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal($" \t#\tmycomment2  \t  ", result.ToString());
                     }
                 },
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
                 {
                     Text = "comment",
                     ParseExceptionPosition = new Position(0, 1, 1)
@@ -138,7 +155,7 @@ namespace DockerfileModel.Tests
             public Action<Token>[] TokenValidators { get; set; }
         }
 
-        public class CreateFromRawTextTestScenario : TestScenario
+        public class ParseTestScenario : TestScenario
         {
             public string Text { get; set; }
             public Position ParseExceptionPosition { get; set; }

@@ -11,20 +11,19 @@ namespace DockerfileModel.Tests
     public class InstructionTests
     {
         [Theory]
-        [MemberData(nameof(CreateFromRawTextTestInput))]
-        public void CreateFromRawText(CreateFromRawTextTestScenario scenario)
+        [MemberData(nameof(ParseTestInput))]
+        public void Parse(ParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                Instruction result = Instruction.CreateFromRawText(scenario.Text, scenario.EscapeChar);
-                Assert.Equal(scenario.Text, result.ToString());
-                Assert.Collection(result.Tokens, scenario.TokenValidators);
-                scenario.Validate(result);
+                Instruction result = Instruction.Parse(scenario.Text, scenario.EscapeChar);
+                LineValidator.ValidateLine<Instruction>(result, scenario.Text, scenario.TokenValidators);
+                scenario.Validate?.Invoke(result);
             }
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => Instruction.CreateFromRawText(scenario.Text, scenario.EscapeChar));
+                    () => Instruction.Parse(scenario.Text, scenario.EscapeChar));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
@@ -39,11 +38,11 @@ namespace DockerfileModel.Tests
             scenario.Validate(result);
         }
 
-        public static IEnumerable<object[]> CreateFromRawTextTestInput()
+        public static IEnumerable<object[]> ParseTestInput()
         {
-            var testInputs = new CreateFromRawTextTestScenario[]
+            var testInputs = new ParseTestScenario[]
             {
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
                 {
                     Text = @"run echo ""hello world""",
                     TokenValidators = new Action<Token>[]
@@ -62,9 +61,29 @@ namespace DockerfileModel.Tests
                         Assert.Equal($"{result.InstructionName.Value} MY_ARG", result.ToString());
                     }
                 },
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
                 {
-                    Text = "run echo \"hello world\"  \\\n  && ls -a",
+                    Text = "run echo \"hello world\"\n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "run"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, @"echo ""hello world"""),
+                        token => ValidateNewLine(token, "\n")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Equal("run", result.InstructionName.Value);
+                        Assert.Equal(@"echo ""hello world""", result.ArgLines.Single().Value);
+
+                        result.InstructionName.Value = "ARG";
+                        result.ArgLines.Single().Value = "MY_ARG";
+                        Assert.Equal($"{result.InstructionName.Value} MY_ARG\n", result.ToString());
+                    }
+                },
+                new ParseTestScenario
+                {
+                    Text = $"run echo \"hello world\"  \\\r\n  && ls -a",
                     EscapeChar = '\\',
                     TokenValidators = new Action<Token>[]
                     {
@@ -72,7 +91,8 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, @"echo ""hello world"""),
                         token => ValidateWhitespace(token, "  "),
-                        token => ValidateLineContinuation(token, "\\\n"),
+                        token => ValidateLineContinuation(token, "\\"),
+                        token => ValidateNewLine(token, "\r\n"),
                         token => ValidateWhitespace(token, "  "),
                         token => ValidateLiteral(token, "&& ls -a"),
                     },
@@ -88,15 +108,96 @@ namespace DockerfileModel.Tests
                         argLines[0].Value = @"echo ""hello WORLD""";
                         argLines[1].Value = "&& ls";
                         Assert.Equal(
-                            $"{result.InstructionName.Value} {argLines[0].Value}  \\\n  {argLines[1].Value}",
+                            $"{result.InstructionName.Value} {argLines[0].Value}  \\\r\n  {argLines[1].Value}",
                             result.ToString());
                     }
                 },
-                new CreateFromRawTextTestScenario
+                new ParseTestScenario
+                {
+                    Text = $"run echo \"hello world\"  \\\r\n \\\n  && ls -a",
+                    EscapeChar = '\\',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "run"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, @"echo ""hello world"""),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateLineContinuation(token, "\\"),
+                        token => ValidateNewLine(token, "\r\n"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, "\\"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateLiteral(token, "&& ls -a"),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Equal("run", result.InstructionName.Value);
+                        var argLines = result.ArgLines.ToArray();
+                        Assert.Equal(2, argLines.Length);
+                        Assert.Equal(@"echo ""hello world""", argLines[0].Value);
+                        Assert.Equal(@"&& ls -a", argLines[1].Value);
+
+                        result.InstructionName.Value = "ARG";
+                        argLines[0].Value = @"echo ""hello WORLD""";
+                        argLines[1].Value = "&& ls";
+                        Assert.Equal(
+                            $"{result.InstructionName.Value} {argLines[0].Value}  \\\r\n \\\n  {argLines[1].Value}",
+                            result.ToString());
+                    }
+                },
+                new ParseTestScenario
                 {
                     Text = "echo hello",
                     EscapeChar = '\\',
                     ParseExceptionPosition = new Position(1, 1, 2)
+                },
+                new ParseTestScenario
+                {
+                    Text = $"ENV \\\n  # comment1\n  # comment 2\n  VAR=value",
+                    EscapeChar = '\\',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ENV"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, "\\"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateComment(token),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateCommentText(token, "comment1"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateComment(token),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateCommentText(token, "comment 2"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateLiteral(token, "VAR=value")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Collection(result.Comments,
+                            token => ValidateCommentText(token, "comment1"),
+                            token => ValidateCommentText(token, "comment 2"));
+                        Assert.Collection(result.ArgLines,
+                            token => ValidateLiteral(token, "VAR=value"));
+                    }
+                },
+                new ParseTestScenario
+                {
+                    Text = $"ENV \\ \n  VAR=value",
+                    EscapeChar = '\\',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ENV"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, "\\"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateLiteral(token, "VAR=value")
+                    }
                 }
             };
 
@@ -137,7 +238,7 @@ namespace DockerfileModel.Tests
             public Action<Token>[] TokenValidators { get; set; }
         }
 
-        public class CreateFromRawTextTestScenario : TestScenario
+        public class ParseTestScenario : TestScenario
         {
             public string Text { get; set; }
             public char EscapeChar { get; set; }
