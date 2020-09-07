@@ -8,8 +8,8 @@
 
   <PropertyGroup>
     <PackageId>DockerfileModel</PackageId>
-    <VersionPrefix>0.1.0</VersionPrefix>
     <PackageDescription>Structured model for parsing and generating Dockerfiles.</PackageDescription>
+    <PackageTags>docker dockerfile dockerfile-parsing dockerfile-generation</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

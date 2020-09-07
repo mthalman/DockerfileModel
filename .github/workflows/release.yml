@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      packageVersion:
+        description: 'Package version'
+        required: true
+
+defaults:
+  run:
+    working-directory: src/DockerfileModel
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup .NET Core SDK
+        uses: actions/setup-dotnet@v1.6.0
+        with:
+          # SDK version to use. Examples: 2.2.104, 3.1, 3.1.x
+          dotnet-version: "5.0.100-preview.8.20417.9"
+          # Optional package source for which to set up authentication. Will consult any existing NuGet.config in the root of the repo and provide a temporary NuGet.config using the NUGET_AUTH_TOKEN environment variable as a ClearTextPassword
+          source-url: https://api.nuget.org/v3/index.json
+          # Optional OWNER for using packages from GitHub Package Registry organizations/users other than the current repository's owner. Only used if a GPR URL is also provided in source-url
+          #owner: # optional
+          # Optional NuGet.config location, if your NuGet.config isn't located in the root of the repo.
+          #config-file: src/DockerfileModel/DockerfileModel/GitHub.NuGet.config
+        env:
+          NUGET_AUTH_TOKEN: ${{secrets.NUGET_ORG_API_KEY}}
+
+      - name: Install dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test --no-restore -v normal -c Release -r test-results -l trx
+        
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v2.1.4
+        if: always()
+        with:
+          name: test-results
+          path: src/DockerfileModel/test-results/*
+
+      - name: Pack
+        env:
+          PACKAGE_VERSION: ${{ github.event.inputs.packageVersion }}
+        run: dotnet pack -c Release -p:Version=$(PACKAGE_VERSION) DockerfileModel
+      
+      - name: Publish Package
+        run: dotnet nuget push "DockerfileModel/bin/Release/*.nupkg"
