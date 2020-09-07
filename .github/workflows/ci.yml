@@ -35,7 +35,7 @@ jobs:
           #config-file: # optional
 
       - name: Set Source Directory
-        run: cd DockerfileModel
+        run: cd src/DockerfileModel
 
       - name: Install dependencies
         run: dotnet restore
