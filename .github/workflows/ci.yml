@@ -37,6 +37,9 @@ jobs:
       - name: Set Source Directory
         run: cd src/DockerfileModel
 
+      - name: Get Source Directory
+        run: echo $PWD
+
       - name: Install dependencies
         run: dotnet restore
 
