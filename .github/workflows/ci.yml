@@ -1,9 +1,5 @@
-# This is a basic workflow to help you get started with Actions
-
 name: CI
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the main branch
 on:
   push:
     branches: [ main ]
@@ -14,17 +10,11 @@ defaults:
   run:
     working-directory: src/DockerfileModel
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
       - name: Setup .NET Core SDK
@@ -33,23 +23,33 @@ jobs:
           # SDK version to use. Examples: 2.2.104, 3.1, 3.1.x
           dotnet-version: "5.0.100-preview.8.20417.9"
           # Optional package source for which to set up authentication. Will consult any existing NuGet.config in the root of the repo and provide a temporary NuGet.config using the NUGET_AUTH_TOKEN environment variable as a ClearTextPassword
-          #source-url: # optional
+          source-url: https://nuget.pkg.github.com/mthalman/index.json
           # Optional OWNER for using packages from GitHub Package Registry organizations/users other than the current repository's owner. Only used if a GPR URL is also provided in source-url
           #owner: # optional
           # Optional NuGet.config location, if your NuGet.config isn't located in the root of the repo.
           #config-file: # optional
+        env:
+          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Install dependencies
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build -c Release --no-restore
 
       - name: Test
-        run: dotnet test --no-restore --verbosity normal --configuration Release -r test-results --logger trx
+        run: dotnet test --no-restore -v normal -c Release -r test-results -l trx
         
       - name: Upload Test Results
         uses: actions/upload-artifact@v2.1.4
         with:
           name: test-results
           path: src/DockerfileModel/test-results/*
+
+      - name: Pack
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: dotnet pack -c Release --version-suffix prerelease-$(date +%Y%m%d%H%M%S) DockerfileModel
+      
+      - name: Publish Package
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: dotnet nuget push "DockerfileModel/bin/Release/*.nupkg"
