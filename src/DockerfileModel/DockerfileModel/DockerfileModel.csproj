@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <PackageId>DockerfileModel</PackageId>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PackageDescription>Structured model for parsing and generating Dockerfiles.</PackageDescription>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Sprache" Version="2.3.0" />
   </ItemGroup>
