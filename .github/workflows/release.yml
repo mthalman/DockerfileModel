@@ -51,7 +51,7 @@ jobs:
       - name: Pack
         env:
           PACKAGE_VERSION: ${{ github.event.inputs.packageVersion }}
-        run: dotnet pack -c Release -p:Version=$(PACKAGE_VERSION) DockerfileModel
+        run: dotnet pack -c Release -p:Version=$PACKAGE_VERSION DockerfileModel
       
       - name: Publish Package
         run: dotnet nuget push "DockerfileModel/bin/Release/*.nupkg"
