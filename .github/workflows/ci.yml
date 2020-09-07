@@ -20,14 +20,7 @@ jobs:
       - name: Setup .NET Core SDK
         uses: actions/setup-dotnet@v1.6.0
         with:
-          # SDK version to use. Examples: 2.2.104, 3.1, 3.1.x
           dotnet-version: "5.0.100-preview.8.20417.9"
-          # Optional package source for which to set up authentication. Will consult any existing NuGet.config in the root of the repo and provide a temporary NuGet.config using the NUGET_AUTH_TOKEN environment variable as a ClearTextPassword
-          source-url: https://nuget.pkg.github.com/mthalman/index.json
-          # Optional OWNER for using packages from GitHub Package Registry organizations/users other than the current repository's owner. Only used if a GPR URL is also provided in source-url
-          #owner: # optional
-          # Optional NuGet.config location, if your NuGet.config isn't located in the root of the repo.
-          #config-file: # optional
         env:
           NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
@@ -42,14 +35,7 @@ jobs:
         
       - name: Upload Test Results
         uses: actions/upload-artifact@v2.1.4
+        if: always()
         with:
           name: test-results
           path: src/DockerfileModel/test-results/*
-
-      - name: Pack
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: dotnet pack -c Release --version-suffix prerelease-$(date +%Y%m%d%H%M%S) DockerfileModel
-      
-      - name: Publish Package
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: dotnet nuget push "DockerfileModel/bin/Release/*.nupkg"
