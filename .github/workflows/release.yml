@@ -54,4 +54,8 @@ jobs:
         run: dotnet pack -c Release -p:Version=$PACKAGE_VERSION DockerfileModel
       
       - name: Publish Package
-        run: dotnet nuget push "DockerfileModel/bin/Release/*.nupkg"
+        env:
+          NUGET_AUTH_TOKEN: ${{secrets.NUGET_ORG_API_KEY}}
+        run: |
+          dotnet nuget add source https://api.nuget.org/v3/index.json -n nuget -u thalman -p $NUGET_AUTH_TOKEN
+          dotnet nuget push "DockerfileModel/bin/Release/*.nupkg" --source nuget
