@@ -5,7 +5,6 @@ using System.Linq;
 using Sprache;
 using Xunit;
 
-using static DockerfileModel.Tests.LineValidator;
 using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
@@ -14,13 +13,13 @@ namespace DockerfileModel.Tests
     {
         [Theory]
         [MemberData(nameof(ParseTestInput))]
-        public void Parse(ParseTestScenario scenario)
+        public void Parse(ParseTestScenario<Dockerfile> scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
                 Dockerfile result = Dockerfile.Parse(scenario.Text);
                 Assert.Equal(scenario.Text, result.ToString());
-                Assert.Collection(result.Lines, scenario.LineValidators);
+                Assert.Collection(result.Lines, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
             }
             else
@@ -34,31 +33,31 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            var testInputs = new ParseTestScenario[]
+            var testInputs = new ParseTestScenario<Dockerfile>[]
             {
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = "FROM scratch",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<Instruction>(line, "FROM scratch")
+                        line => ValidateAggregate<Instruction>(line, "FROM scratch")
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = "FROM \\\r\nscratch",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<Instruction>(line, $"FROM \\\r\nscratch")
+                        line => ValidateAggregate<Instruction>(line, $"FROM \\\r\nscratch")
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = $"# escape=`\nFROM `\r\n  scratch",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<ParserDirective>(line, "# escape=`\n"),
-                        line => ValidateLine<Instruction>(line, $"FROM `\r\n  scratch",
+                        line => ValidateAggregate<ParserDirective>(line, "# escape=`\n"),
+                        line => ValidateAggregate<Instruction>(line, $"FROM `\r\n  scratch",
                             token => ValidateKeyword(token, "FROM"),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLineContinuation(token, $"`"),
@@ -67,32 +66,32 @@ namespace DockerfileModel.Tests
                             token => ValidateLiteral(token, "scratch"))
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = $"#comment\r\nFROM scratch",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<Comment>(line, "#comment\r\n"),
-                        line => ValidateLine<Instruction>(line, "FROM scratch")
+                        line => ValidateAggregate<Comment>(line, "#comment\r\n"),
+                        line => ValidateAggregate<Instruction>(line, "FROM scratch")
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = $"\r\nFROM scratch\n# test\nRUN foo=\"bar\"\n",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<Whitespace>(line, "\r\n"),
-                        line => ValidateLine<Instruction>(line, "FROM scratch\n"),
-                        line => ValidateLine<Comment>(line, "# test\n"),
-                        line => ValidateLine<Instruction>(line, "RUN foo=\"bar\"\n"),
+                        line => ValidateAggregate<Whitespace>(line, "\r\n"),
+                        line => ValidateAggregate<Instruction>(line, "FROM scratch\n"),
+                        line => ValidateAggregate<Comment>(line, "# test\n"),
+                        line => ValidateAggregate<Instruction>(line, "RUN foo=\"bar\"\n"),
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = $"FROM \\\n#comment\nscratch",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<Instruction>(line, "FROM \\\n#comment\nscratch",
+                        line => ValidateAggregate<Instruction>(line, "FROM \\\n#comment\nscratch",
                             token => ValidateKeyword(token, "FROM"),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLineContinuation(token, "\\"),
@@ -104,12 +103,12 @@ namespace DockerfileModel.Tests
                         ),
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = $"RUN apt-get update \\\r\n  && apt-get install curl\r\n\r\n#testing",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<Instruction>(line, "RUN apt-get update \\\r\n  && apt-get install curl\r\n",
+                        line => ValidateAggregate<Instruction>(line, "RUN apt-get update \\\r\n  && apt-get install curl\r\n",
                             new Action<Token>[]
                             {
                                 token => ValidateKeyword(token, "RUN"),
@@ -122,16 +121,16 @@ namespace DockerfileModel.Tests
                                 token => ValidateLiteral(token, "&& apt-get install curl"),
                                 token => ValidateNewLine(token, "\r\n"),
                             }),
-                        line => ValidateLine<Whitespace>(line, "\r\n"),
-                        line => ValidateLine<Comment>(line, "#testing")
+                        line => ValidateAggregate<Whitespace>(line, "\r\n"),
+                        line => ValidateAggregate<Comment>(line, "#testing")
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = $"RUN apk add \\\n  userspace-rcu",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<Instruction>(line, "RUN apk add \\\n  userspace-rcu",
+                        line => ValidateAggregate<Instruction>(line, "RUN apk add \\\n  userspace-rcu",
                             new Action<Token>[]
                             {
                                 token => ValidateKeyword(token, "RUN"),
@@ -145,12 +144,12 @@ namespace DockerfileModel.Tests
                             })
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Dockerfile>
                 {
                     Text = $"ENV \\\t \n VAR=VAL",
-                    LineValidators = new Action<DockerfileLine>[]
+                    TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateLine<Instruction>(line, "ENV \\\t \n VAR=VAL",
+                        line => ValidateAggregate<Instruction>(line, "ENV \\\t \n VAR=VAL",
                             new Action<Token>[]
                             {
                                 token => ValidateKeyword(token, "ENV"),
@@ -166,23 +165,6 @@ namespace DockerfileModel.Tests
             };
 
             return testInputs.Select(input => new object[] { input });
-        }
-
-        public abstract class TestScenario
-        {
-            public Action<Dockerfile> Validate { get; set; }
-            public Action<DockerfileLine>[] LineValidators { get; set; }
-        }
-
-        public class ParseTestScenario : TestScenario
-        {
-            public string Text { get; set; }
-            public Position ParseExceptionPosition { get; set; }
-        }
-
-        public class CreateTestScenario : TestScenario
-        {
-            public string Comment { get; set; }
         }
     }
 }

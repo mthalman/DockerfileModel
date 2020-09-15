@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using Sprache;
 
+using static DockerfileModel.ParseHelper;
+
 namespace DockerfileModel
 {
     internal static class DockerfileParser
@@ -11,7 +13,7 @@ namespace DockerfileModel
         public static Dockerfile ParseContent(string text)
         {
             bool parserDirectivesComplete = false;
-            char escapeChar = '\\';
+            char escapeChar = DockerfileModel.Instruction.DefaultEscapeChar;
 
             List<string> inputLines = new List<string>();
             StringBuilder lineBuilder = new StringBuilder();
@@ -45,10 +47,10 @@ namespace DockerfileModel
                         var parserDirective = ParserDirective.Parse(line);
                         dockerfileLines.Add(parserDirective);
 
-                        if (parserDirective.Directive.Value.Equals(
+                        if (parserDirective.DirectiveName.Value.Equals(
                             ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase))
                         {
-                            escapeChar = parserDirective.Value.Value[0];
+                            escapeChar = parserDirective.DirectiveValue.Value[0];
                         }
                         continue;
                     }
@@ -58,9 +60,9 @@ namespace DockerfileModel
                     }
                 }
 
-                if (DockerfileModel.Whitespace.IsWhitespace(line))
+                if (Whitespace.IsWhitespace(line))
                 {
-                    dockerfileLines.Add(DockerfileModel.Whitespace.Create(line));
+                    dockerfileLines.Add(Whitespace.Create(line));
                 }
                 else if (Comment.IsComment(line))
                 {
@@ -104,29 +106,16 @@ namespace DockerfileModel
             return new Dockerfile(dockerfileLines);
         }
 
-        public static IEnumerable<T> FilterNulls<T>(IEnumerable<T?>? items) where T : class
-        {
-            if (items is null)
-            {
-                yield break;
-            }
-
-            foreach (T? item in items.Where(item => item != null))
-            {
-                yield return item!;
-            }
-        }
-
         public static Parser<IEnumerable<Token>> Instruction(char escapeChar) =>
-            from leading in WhitespaceChars.AsEnumerable()
+            from leading in WhitespaceChars().AsEnumerable()
             from instruction in TokenWithTrailingWhitespace(InstructionIdentifier())
             from lineContinuation in LineContinuation(escapeChar).Optional()
             from instructionArgs in InstructionArgs(escapeChar)
             select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs);
 
         public static Parser<IEnumerable<Token>> ParserDirectiveParser() =>
-            from leading in WhitespaceChars.AsEnumerable()
-            from commentChar in TokenWithTrailingWhitespace(CommentChar)
+            from leading in WhitespaceChars().AsEnumerable()
+            from commentChar in TokenWithTrailingWhitespace(CommentChar())
             from directive in TokenWithTrailingWhitespace(DirectiveName)
             from op in TokenWithTrailingWhitespace(OperatorChar)
             from value in TokenWithTrailingWhitespace(DirectiveValue)
@@ -137,60 +126,7 @@ namespace DockerfileModel
                 op,
                 value);
 
-        public static Parser<IEnumerable<Token>> Whitespace() =>
-            from whitespace in Parse.WhiteSpace.Except(Parse.LineTerminator).XMany().Text()
-            from newLine in OptionalNewLine().End()
-            select ConcatTokens(
-                whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null,
-                newLine);
-
-        public static Parser<IEnumerable<Token>> CommentText() =>
-            from leading in WhitespaceChars.AsEnumerable()
-            from comment in TokenWithTrailingWhitespace(CommentChar)
-            from text in TokenWithTrailingWhitespace(str => new CommentTextToken(str))
-            from lineEnd in OptionalNewLine().AsEnumerable()
-            select ConcatTokens(leading, comment, text, lineEnd);
-
-        private readonly static Parser<WhitespaceToken> WhitespaceChars =
-            from whitespace in Parse.WhiteSpace.Many().Text()
-            select whitespace != "" ? new WhitespaceToken(whitespace) : null;
-
-        private readonly static Parser<OperatorToken> OperatorChar =
-            from op in Parse.String("=").Text()
-            select new OperatorToken(op);
-
-        private static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Parser<Token> parser) =>
-            from token in parser
-            from trailingWhitespace in WhitespaceChars
-            select ConcatTokens(token, trailingWhitespace);
-
-        private readonly static Parser<CommentToken> CommentChar =
-            from comment in Parse.String("#").Text()
-            select new CommentToken(comment);
-
-        private static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Func<string, Token> createToken) =>
-            from val in Parse.AnyChar.Except(Parse.LineEnd).Many().Text()
-            select ConcatTokens(createToken(val.Trim()), GetTrailingWhitespaceToken(val)!);
-
-        private static Parser<IEnumerable<Token>> EndsInLineContinuation(char escapeChar) =>
-            from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Many().Text()
-            from lineCont in LineContinuation(escapeChar)
-            select lineCont;
-
-        private static Parser<IEnumerable<Token?>> LineContinuation(char escapeChar) =>
-            from lineCont in Parse.Char(escapeChar)
-            from whitespace in Parse.WhiteSpace.Except(Parse.LineEnd).Many()
-            from lineEnding in Parse.LineEnd
-            select ConcatTokens(
-                new LineContinuationToken(lineCont.ToString()),
-                whitespace.Any() ? new WhitespaceToken(new string(whitespace.ToArray())) : null,
-                new NewLineToken(lineEnding));
-
-        private static Parser<NewLineToken> OptionalNewLine() =>
-            from lineEnd in Parse.LineEnd.Optional()
-            select lineEnd.IsDefined ? new NewLineToken(lineEnd.Get()) : null;
-
-        private static Parser<IEnumerable<Token?>> InstructionArgLine(char escapeChar) =>
+        private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
             from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Except(Parse.LineEnd).Many().Text()
             from lineContinuation in LineContinuation(escapeChar).Optional()
             from lineEnd in OptionalNewLine().AsEnumerable()
@@ -199,69 +135,18 @@ namespace DockerfileModel
                 lineContinuation.GetOrDefault(),
                 lineEnd);
 
-        private static IEnumerable<Token?> GetInstructionArgLineContent(string text)
-        {
-            if (text.Length == 0)
-            {
-                yield break;
-            }
+        private readonly static Parser<OperatorToken> OperatorChar =
+            from op in Parse.String("=").Text()
+            select new OperatorToken(op);
 
-            if (text.Trim().Length == 0)
-            {
-                yield return new WhitespaceToken(text);
-                yield break;
-            }
-
-            yield return GetLeadingWhitespaceToken(text);
-            yield return new LiteralToken(text.Trim());
-            yield return GetTrailingWhitespaceToken(text);
-        }
+        private static Parser<IEnumerable<Token>> EndsInLineContinuation(char escapeChar) =>
+            from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Many().Text()
+            from lineCont in LineContinuation(escapeChar)
+            select lineCont;
 
         private static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
             from lineSets in (CommentText().Or(InstructionArgLine(escapeChar))).Many()
             select lineSets.SelectMany(lineSet => lineSet);
-
-
-        private static WhitespaceToken? GetLeadingWhitespaceToken(string text)
-        {
-            var whitespace = new string(
-                text
-                    .TakeWhile(ch => Char.IsWhiteSpace(ch))
-                    .ToArray());
-
-            if (whitespace == String.Empty)
-            {
-                return null;
-            }
-
-            return new WhitespaceToken(whitespace);
-        }
-
-        private static WhitespaceToken? GetTrailingWhitespaceToken(string text)
-        {
-            var whitespace = new string(
-                text
-                    .Reverse()
-                    .TakeWhile(ch => Char.IsWhiteSpace(ch))
-                    .Reverse()
-                    .ToArray());
-
-            if (whitespace == String.Empty)
-            {
-                return null;
-            }
-
-            return new WhitespaceToken(whitespace);
-        }
-
-        private static IEnumerable<Token?> ConcatTokens(params Token?[]? tokens) =>
-            FilterNulls(tokens).ToList();
-
-        private static IEnumerable<Token?> ConcatTokens(params IEnumerable<Token?>[] tokens) =>
-            ConcatTokens(
-                FilterNulls(tokens)
-                    .SelectMany(tokens => tokens)
-                    .ToArray());
         
         private readonly static Parser<KeywordToken> DirectiveName =
             from name in Identifier()
@@ -271,28 +156,25 @@ namespace DockerfileModel
             from val in Parse.AnyChar.Except(Parse.WhiteSpace).Many().Text()
             select new LiteralToken(val);
 
-        private static Parser<string> Identifier() =>
-            Parse.Identifier(Parse.Letter, Parse.LetterOrDigit);
-
-        private static Parser<string> InstructionIdentifier(string instructionName) =>
-            Parse.IgnoreCase(instructionName).Text();
-
         private static Parser<KeywordToken> InstructionIdentifier() =>
-            from identifier in
-                InstructionIdentifier("ADD")
-                .Or(InstructionIdentifier("ARG"))
-                .Or(InstructionIdentifier("CMD"))
-                .Or(InstructionIdentifier("COPY"))
-                .Or(InstructionIdentifier("ENTRYPOINT"))
-                .Or(InstructionIdentifier("EXPOSE"))
-                .Or(InstructionIdentifier("ENV"))
-                .Or(InstructionIdentifier("FROM"))
-                .Or(InstructionIdentifier("LABEL"))
-                .Or(InstructionIdentifier("RUN"))
-                .Or(InstructionIdentifier("SHELL"))
-                .Or(InstructionIdentifier("USER"))
-                .Or(InstructionIdentifier("WORKDIR"))
-            select new KeywordToken(identifier);
+            ParseHelper.InstructionIdentifier("ADD")
+                .Or(ParseHelper.InstructionIdentifier("ARG"))
+                .Or(ParseHelper.InstructionIdentifier("CMD"))
+                .Or(ParseHelper.InstructionIdentifier("COPY"))
+                .Or(ParseHelper.InstructionIdentifier("ENTRYPOINT"))
+                .Or(ParseHelper.InstructionIdentifier("EXPOSE"))
+                .Or(ParseHelper.InstructionIdentifier("ENV"))
+                .Or(ParseHelper.InstructionIdentifier("FROM"))
+                .Or(ParseHelper.InstructionIdentifier("HEALTHCHECK"))
+                .Or(ParseHelper.InstructionIdentifier("LABEL"))
+                .Or(ParseHelper.InstructionIdentifier("MAINTAINER"))
+                .Or(ParseHelper.InstructionIdentifier("ONBUILD"))
+                .Or(ParseHelper.InstructionIdentifier("RUN"))
+                .Or(ParseHelper.InstructionIdentifier("SHELL"))
+                .Or(ParseHelper.InstructionIdentifier("STOPSIGNAL"))
+                .Or(ParseHelper.InstructionIdentifier("USER"))
+                .Or(ParseHelper.InstructionIdentifier("VOLUME"))
+                .Or(ParseHelper.InstructionIdentifier("WORKDIR"));
 
         private static string Concat(params string[] strings) =>
             String.Join("", strings);

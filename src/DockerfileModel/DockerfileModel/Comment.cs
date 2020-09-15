@@ -6,7 +6,7 @@ namespace DockerfileModel
     public class Comment : DockerfileLine
     {
         private Comment(string text)
-            : base(text, DockerfileParser.CommentText())
+            : base(text, ParseHelper.CommentText())
         {
         }
 
@@ -21,6 +21,6 @@ namespace DockerfileModel
             new Comment(text);
 
         public static bool IsComment(string text) =>
-            DockerfileParser.CommentText().TryParse(text).WasSuccessful;
+            ParseHelper.CommentText().TryParse(text).WasSuccessful;
     }
 }

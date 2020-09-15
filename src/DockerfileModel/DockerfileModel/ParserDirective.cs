@@ -14,8 +14,8 @@ namespace DockerfileModel
         {
         }
 
-        public KeywordToken Directive => Tokens.OfType<KeywordToken>().First();
-        public LiteralToken Value => Tokens.OfType<LiteralToken>().First();
+        public KeywordToken DirectiveName => Tokens.OfType<KeywordToken>().First();
+        public LiteralToken DirectiveValue => Tokens.OfType<LiteralToken>().First();
         public override LineType Type => LineType.ParserDirective;
 
         public static bool IsParserDirective(string text) =>

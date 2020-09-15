@@ -1,4 +1,6 @@
-﻿using Xunit;
+﻿using System;
+using System.Linq;
+using Xunit;
 
 namespace DockerfileModel.Tests
 {
@@ -22,6 +24,12 @@ namespace DockerfileModel.Tests
             Assert.Equal("#", token.Value);
         }
 
+        public static void ValidateSeparator(Token token, string separator)
+        {
+            Assert.IsType<SeparatorToken>(token);
+            Assert.Equal(separator, token.Value);
+        }
+
         public static void ValidateKeyword(Token token, string keyword)
         {
             Assert.IsType<KeywordToken>(token);
@@ -32,6 +40,12 @@ namespace DockerfileModel.Tests
         {
             Assert.IsType<LiteralToken>(token);
             Assert.Equal(literal, token.Value);
+        }
+
+        public static void ValidateIdentifier(Token token, string identifier)
+        {
+            Assert.IsType<IdentifierToken>(token);
+            Assert.Equal(identifier, token.Value);
         }
 
         public static void ValidateCommentText(Token token, string text)
@@ -50,6 +64,18 @@ namespace DockerfileModel.Tests
         {
             Assert.IsType<NewLineToken>(token);
             Assert.Equal(text, token.Value);
+        }
+
+        public static void ValidateAggregate<T>(Token token, string text, params Action<Token>[] tokenValidators)
+            where T : AggregateToken
+        {
+            Assert.IsType<T>(token);
+            Assert.Equal(text, token.ToString());
+
+            if (tokenValidators.Any())
+            {
+                Assert.Collection(((T)token).Tokens, tokenValidators);
+            }
         }
     }
 }

@@ -1,29 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
 using Sprache;
 
 namespace DockerfileModel
 {
-    public abstract class DockerfileLine
+    public abstract class DockerfileLine : AggregateToken
     {
-        protected DockerfileLine(string text, Parser<IEnumerable<Token>> parser)
+        protected DockerfileLine(string text, Parser<IEnumerable<Token?>> parser)
+            : base(text, parser)
         {
-            Tokens = DockerfileParser.FilterNulls(parser.Parse(text));
         }
 
         protected DockerfileLine(string text, Parser<Token> parser)
+            : base(text, parser)
         {
-            Tokens = new Token[] { parser.Parse(text) };
         }
 
         public abstract LineType Type { get; }
-
-        public IEnumerable<Token> Tokens { get; }
-
-        public override string ToString() =>
-            String.Join("", Tokens
-                .Select(token => token.Value)
-                .ToArray());
     }
 }

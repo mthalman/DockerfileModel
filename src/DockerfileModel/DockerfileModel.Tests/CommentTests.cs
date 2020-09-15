@@ -12,7 +12,7 @@ namespace DockerfileModel.Tests
     {
         [Theory]
         [MemberData(nameof(ParseTestInput))]
-        public void Parse(ParseTestScenario scenario)
+        public void Parse(ParseTestScenario<Comment> scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
@@ -41,9 +41,9 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            var testInputs = new ParseTestScenario[]
+            var testInputs = new ParseTestScenario<Comment>[]
             {
-                new ParseTestScenario
+                new ParseTestScenario<Comment>
                 {
                     Text = "#mycomment",
                     TokenValidators = new Action<Token>[]
@@ -59,7 +59,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal($"#mycomment2  ", result.ToString());
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Comment>
                 {
                     Text = "#mycomment\n",
                     TokenValidators = new Action<Token>[]
@@ -76,7 +76,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal($"#mycomment2  \n", result.ToString());
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Comment>
                 {
                     Text = " \t#\tmycomment\t  ",
                     TokenValidators = new Action<Token>[]
@@ -95,7 +95,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal($" \t#\tmycomment2  \t  ", result.ToString());
                     }
                 },
-                new ParseTestScenario
+                new ParseTestScenario<Comment>
                 {
                     Text = "comment",
                     ParseExceptionPosition = new Position(0, 1, 1)
@@ -149,19 +149,7 @@ namespace DockerfileModel.Tests
             return testInputs.Select(input => new object[] { input });
         }
 
-        public abstract class TestScenario
-        {
-            public Action<Comment> Validate { get; set; }
-            public Action<Token>[] TokenValidators { get; set; }
-        }
-
-        public class ParseTestScenario : TestScenario
-        {
-            public string Text { get; set; }
-            public Position ParseExceptionPosition { get; set; }
-        }
-
-        public class CreateTestScenario : TestScenario
+        public class CreateTestScenario : TestScenario<Comment>
         {
             public string Comment { get; set; }
         }

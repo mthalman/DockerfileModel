@@ -7,7 +7,7 @@
             this.Value = value;
         }
 
-        public string Value { get; set; }
+        public virtual string Value { get; set; }
     }
 
     public class KeywordToken : Token
@@ -20,6 +20,20 @@
     public class OperatorToken : Token
     {
         public OperatorToken(string value) : base(value)
+        {
+        }
+    }
+
+    public class SeparatorToken : Token
+    {
+        public SeparatorToken(string value) : base(value)
+        {
+        }
+    }
+
+    public class IdentifierToken : Token
+    {
+        public IdentifierToken(string value) : base(value)
         {
         }
     }
