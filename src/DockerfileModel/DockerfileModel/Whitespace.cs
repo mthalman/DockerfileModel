@@ -6,7 +6,7 @@ namespace DockerfileModel
     public class Whitespace : DockerfileLine
     {
         private Whitespace(string text)
-            : base(text, DockerfileParser.Whitespace())
+            : base(text, ParseHelper.Whitespace())
         {
         }
 
@@ -20,6 +20,6 @@ namespace DockerfileModel
             new Whitespace(text);
 
         public static bool IsWhitespace(string text) =>
-            DockerfileParser.Whitespace().TryParse(text).WasSuccessful;
+            ParseHelper.Whitespace().TryParse(text).WasSuccessful;
     }
 }

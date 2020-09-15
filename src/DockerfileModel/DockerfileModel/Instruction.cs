@@ -4,7 +4,7 @@ using Sprache;
 
 namespace DockerfileModel
 {
-    public class Instruction : DockerfileLine
+    public class Instruction : InstructionBase
     {
         public const char DefaultEscapeChar = '\\';
 
@@ -13,11 +13,7 @@ namespace DockerfileModel
         {
         }
 
-        public KeywordToken InstructionName => Tokens.OfType<KeywordToken>().First();
         public IEnumerable<LiteralToken> ArgLines => Tokens.OfType<LiteralToken>();
-        public IEnumerable<CommentTextToken> Comments => Tokens.OfType<CommentTextToken>();
-            
-        public override LineType Type => LineType.Instruction;
 
         public static bool IsInstruction(string text, char escapeChar) =>
             DockerfileParser.Instruction(escapeChar).TryParse(text).WasSuccessful;

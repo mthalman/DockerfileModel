@@ -12,12 +12,12 @@ namespace DockerfileModel.Tests
     {
         [Theory]
         [MemberData(nameof(ParseTestInput))]
-        public void Parse(ParseTestScenario scenario)
+        public void Parse(InstructionParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
                 Instruction result = Instruction.Parse(scenario.Text, scenario.EscapeChar);
-                LineValidator.ValidateLine<Instruction>(result, scenario.Text, scenario.TokenValidators);
+                ValidateAggregate<Instruction>(result, scenario.Text, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
             }
             else
@@ -40,9 +40,9 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            var testInputs = new ParseTestScenario[]
+            var testInputs = new InstructionParseTestScenario[]
             {
-                new ParseTestScenario
+                new InstructionParseTestScenario
                 {
                     Text = @"run echo ""hello world""",
                     TokenValidators = new Action<Token>[]
@@ -53,15 +53,15 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("run", result.InstructionName.Value);
+                        Assert.Equal("run", result.InstructionName);
                         Assert.Equal(@"echo ""hello world""", result.ArgLines.Single().Value);
 
-                        result.InstructionName.Value = "ARG";
+                        result.InstructionName = "ARG";
                         result.ArgLines.Single().Value = "MY_ARG";
-                        Assert.Equal($"{result.InstructionName.Value} MY_ARG", result.ToString());
+                        Assert.Equal($"{result.InstructionName} MY_ARG", result.ToString());
                     }
                 },
-                new ParseTestScenario
+                new InstructionParseTestScenario
                 {
                     Text = "run echo \"hello world\"\n",
                     TokenValidators = new Action<Token>[]
@@ -73,15 +73,15 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("run", result.InstructionName.Value);
+                        Assert.Equal("run", result.InstructionName);
                         Assert.Equal(@"echo ""hello world""", result.ArgLines.Single().Value);
 
-                        result.InstructionName.Value = "ARG";
+                        result.InstructionName = "ARG";
                         result.ArgLines.Single().Value = "MY_ARG";
-                        Assert.Equal($"{result.InstructionName.Value} MY_ARG\n", result.ToString());
+                        Assert.Equal($"{result.InstructionName} MY_ARG\n", result.ToString());
                     }
                 },
-                new ParseTestScenario
+                new InstructionParseTestScenario
                 {
                     Text = $"run echo \"hello world\"  \\\r\n  && ls -a",
                     EscapeChar = '\\',
@@ -98,21 +98,21 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("run", result.InstructionName.Value);
+                        Assert.Equal("run", result.InstructionName);
                         var argLines = result.ArgLines.ToArray();
                         Assert.Equal(2, argLines.Length);
                         Assert.Equal(@"echo ""hello world""", argLines[0].Value);
                         Assert.Equal(@"&& ls -a", argLines[1].Value);
 
-                        result.InstructionName.Value = "ARG";
+                        result.InstructionName = "ARG";
                         argLines[0].Value = @"echo ""hello WORLD""";
                         argLines[1].Value = "&& ls";
                         Assert.Equal(
-                            $"{result.InstructionName.Value} {argLines[0].Value}  \\\r\n  {argLines[1].Value}",
+                            $"{result.InstructionName} {argLines[0].Value}  \\\r\n  {argLines[1].Value}",
                             result.ToString());
                     }
                 },
-                new ParseTestScenario
+                new InstructionParseTestScenario
                 {
                     Text = $"run echo \"hello world\"  \\\r\n \\\n  && ls -a",
                     EscapeChar = '\\',
@@ -132,27 +132,27 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("run", result.InstructionName.Value);
+                        Assert.Equal("run", result.InstructionName);
                         var argLines = result.ArgLines.ToArray();
                         Assert.Equal(2, argLines.Length);
                         Assert.Equal(@"echo ""hello world""", argLines[0].Value);
                         Assert.Equal(@"&& ls -a", argLines[1].Value);
 
-                        result.InstructionName.Value = "ARG";
+                        result.InstructionName = "ARG";
                         argLines[0].Value = @"echo ""hello WORLD""";
                         argLines[1].Value = "&& ls";
                         Assert.Equal(
-                            $"{result.InstructionName.Value} {argLines[0].Value}  \\\r\n \\\n  {argLines[1].Value}",
+                            $"{result.InstructionName} {argLines[0].Value}  \\\r\n \\\n  {argLines[1].Value}",
                             result.ToString());
                     }
                 },
-                new ParseTestScenario
+                new InstructionParseTestScenario
                 {
                     Text = "echo hello",
                     EscapeChar = '\\',
                     ParseExceptionPosition = new Position(1, 1, 2)
                 },
-                new ParseTestScenario
+                new InstructionParseTestScenario
                 {
                     Text = $"ENV \\\n  # comment1\n  # comment 2\n  VAR=value",
                     EscapeChar = '\\',
@@ -184,7 +184,7 @@ namespace DockerfileModel.Tests
                             token => ValidateLiteral(token, "VAR=value"));
                     }
                 },
-                new ParseTestScenario
+                new InstructionParseTestScenario
                 {
                     Text = $"ENV \\ \n  VAR=value",
                     EscapeChar = '\\',
@@ -220,11 +220,11 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("ENV", result.InstructionName.Value);
+                        Assert.Equal("ENV", result.InstructionName);
                         Assert.Equal("VAL=1", result.ArgLines.Single().Value);
 
                         result.ArgLines.Single().Value = "VAL=2";
-                        Assert.Equal($"{result.InstructionName.Value} VAL=2", result.ToString());
+                        Assert.Equal($"{result.InstructionName} VAL=2", result.ToString());
                     }
                 }
             };
@@ -232,20 +232,12 @@ namespace DockerfileModel.Tests
             return testInputs.Select(input => new object[] { input });
         }
 
-        public abstract class TestScenario
+        public class InstructionParseTestScenario : ParseTestScenario<Instruction>
         {
-            public Action<Instruction> Validate { get; set; }
-            public Action<Token>[] TokenValidators { get; set; }
-        }
-
-        public class ParseTestScenario : TestScenario
-        {
-            public string Text { get; set; }
             public char EscapeChar { get; set; }
-            public Position ParseExceptionPosition { get; set; }
         }
 
-        public class CreateTestScenario : TestScenario
+        public class CreateTestScenario : TestScenario<Instruction>
         {
             public string InstructionName { get; set; }
             public string Args { get; set; }

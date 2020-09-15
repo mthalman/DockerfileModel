@@ -12,7 +12,7 @@ namespace DockerfileModel.Tests
     {
         [Theory]
         [MemberData(nameof(CreateTestInput))]
-        public void Create(TestScenario scenario)
+        public void Create(ParseTestScenario<Whitespace> scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
@@ -32,9 +32,9 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> CreateTestInput()
         {
-            var testInputs = new TestScenario[]
+            var testInputs = new ParseTestScenario<Whitespace>[]
             {
-                new TestScenario
+                new ParseTestScenario<Whitespace>
                 {
                     Text = "  \t  ",
                     TokenValidators = new Action<Token>[]
@@ -49,14 +49,14 @@ namespace DockerfileModel.Tests
                         Assert.Equal(" ", result.ToString());
                     }
                 },
-                new TestScenario
+                new ParseTestScenario<Whitespace>
                 {
                     Text = "",
                     TokenValidators = new Action<Token>[]
                     {
                     }
                 },
-                new TestScenario
+                new ParseTestScenario<Whitespace>
                 {
                     Text = "\t ",
                     TokenValidators = new Action<Token>[]
@@ -71,7 +71,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("", result.ToString());
                     }
                 },
-                new TestScenario
+                new ParseTestScenario<Whitespace>
                 {
                     Text = "\t \n",
                     TokenValidators = new Action<Token>[]
@@ -88,7 +88,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("\n", result.ToString());
                     }
                 },
-                new TestScenario
+                new ParseTestScenario<Whitespace>
                 {
                     Text = "\r\n",
                     TokenValidators = new Action<Token>[]
@@ -100,7 +100,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("\r\n", result.Text.Value);
                     }
                 },
-                new TestScenario
+                new ParseTestScenario<Whitespace>
                 {
                     Text = "  x  ",
                     ParseExceptionPosition = new Position(0, 1, 3)
@@ -108,14 +108,6 @@ namespace DockerfileModel.Tests
             };
 
             return testInputs.Select(input => new object[] { input });
-        }
-
-        public class TestScenario
-        {
-            public Action<Whitespace> Validate { get; set; }
-            public Action<Token>[] TokenValidators { get; set; }
-            public string Text { get; set; }
-            public Position ParseExceptionPosition { get; set; }
         }
     }
 }
