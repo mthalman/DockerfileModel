@@ -115,7 +115,7 @@ namespace DockerfileModel
             return Parse(builder.ToString(), Instruction.DefaultEscapeChar);
         }
 
-        public static Parser<IEnumerable<Token?>> GetParser(char escapeChar) =>
+        public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
             Instruction("FROM", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>

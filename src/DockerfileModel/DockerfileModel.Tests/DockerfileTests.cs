@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Sprache;
 using Xunit;
@@ -40,7 +39,7 @@ namespace DockerfileModel.Tests
                     Text = "FROM scratch",
                     TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateAggregate<Instruction>(line, "FROM scratch")
+                        line => ValidateAggregate<FromInstruction>(line, "FROM scratch")
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -48,7 +47,7 @@ namespace DockerfileModel.Tests
                     Text = "FROM \\\r\nscratch",
                     TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateAggregate<Instruction>(line, $"FROM \\\r\nscratch")
+                        line => ValidateAggregate<FromInstruction>(line, $"FROM \\\r\nscratch")
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -57,7 +56,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         line => ValidateAggregate<ParserDirective>(line, "# escape=`\n"),
-                        line => ValidateAggregate<Instruction>(line, $"FROM `\r\n  scratch",
+                        line => ValidateAggregate<FromInstruction>(line, $"FROM `\r\n  scratch",
                             token => ValidateKeyword(token, "FROM"),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLineContinuation(token, $"`"),
@@ -72,7 +71,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         line => ValidateAggregate<Comment>(line, "#comment\r\n"),
-                        line => ValidateAggregate<Instruction>(line, "FROM scratch")
+                        line => ValidateAggregate<FromInstruction>(line, "FROM scratch")
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -81,7 +80,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         line => ValidateAggregate<Whitespace>(line, "\r\n"),
-                        line => ValidateAggregate<Instruction>(line, "FROM scratch\n"),
+                        line => ValidateAggregate<FromInstruction>(line, "FROM scratch\n"),
                         line => ValidateAggregate<Comment>(line, "# test\n"),
                         line => ValidateAggregate<Instruction>(line, "RUN foo=\"bar\"\n"),
                     }
@@ -91,7 +90,7 @@ namespace DockerfileModel.Tests
                     Text = $"FROM \\\n#comment\nscratch",
                     TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateAggregate<Instruction>(line, "FROM \\\n#comment\nscratch",
+                        line => ValidateAggregate<FromInstruction>(line, "FROM \\\n#comment\nscratch",
                             token => ValidateKeyword(token, "FROM"),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLineContinuation(token, "\\"),
