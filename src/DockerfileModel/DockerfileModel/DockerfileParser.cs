@@ -10,6 +10,29 @@ namespace DockerfileModel
 {
     internal static class DockerfileParser
     {
+        private static readonly Dictionary<string, Func<string, char, InstructionBase>> instructionParsers =
+            new Dictionary<string, Func<string, char, InstructionBase>>
+            {
+                { "ADD", DockerfileModel.Instruction.Parse },
+                { "ARG", ArgInstruction.Parse },
+                { "CMD", DockerfileModel.Instruction.Parse },
+                { "COPY", DockerfileModel.Instruction.Parse },
+                { "ENTRYPOINT", DockerfileModel.Instruction.Parse },
+                { "EXPOSE", DockerfileModel.Instruction.Parse },
+                { "ENV", DockerfileModel.Instruction.Parse },
+                { "FROM", FromInstruction.Parse },
+                { "HEALTHCHECK", DockerfileModel.Instruction.Parse },
+                { "LABEL", DockerfileModel.Instruction.Parse },
+                { "MAINTAINER", DockerfileModel.Instruction.Parse },
+                { "ONBUILD", DockerfileModel.Instruction.Parse },
+                { "RUN", DockerfileModel.Instruction.Parse },
+                { "SHELL", DockerfileModel.Instruction.Parse },
+                { "STOPSIGNAL", DockerfileModel.Instruction.Parse },
+                { "USER", DockerfileModel.Instruction.Parse },
+                { "VOLUME", DockerfileModel.Instruction.Parse },
+                { "WORKDIR", DockerfileModel.Instruction.Parse },
+            };
+
         public static Dockerfile ParseContent(string text)
         {
             bool parserDirectivesComplete = false;
@@ -83,7 +106,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        dockerfileLines.Add(DockerfileModel.Instruction.Parse(line, escapeChar));
+                        dockerfileLines.Add(CreateInstruction(line, escapeChar));
                     }    
                 }
                 else
@@ -97,7 +120,7 @@ namespace DockerfileModel
 
                     if (!EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful)
                     {
-                        dockerfileLines.Add(DockerfileModel.Instruction.Parse(instructionContent.ToString(), escapeChar));
+                        dockerfileLines.Add(CreateInstruction(instructionContent.ToString(), escapeChar));
                         instructionContent = null;
                     }
                 }
@@ -105,6 +128,17 @@ namespace DockerfileModel
 
             return new Dockerfile(dockerfileLines);
         }
+
+        private static InstructionBase CreateInstruction(string text, char escapeChar)
+        {
+            string instructionName = InstructionName().Parse(text);
+            return instructionParsers[instructionName](text, escapeChar);
+        }
+
+        private static Parser<string> InstructionName() =>
+            from leading in WhitespaceChars().AsEnumerable()
+            from instruction in InstructionIdentifier()
+            select instruction.Value;
 
         public static Parser<IEnumerable<Token>> Instruction(char escapeChar) =>
             from leading in WhitespaceChars().AsEnumerable()
@@ -156,25 +190,23 @@ namespace DockerfileModel
             from val in Parse.AnyChar.Except(Parse.WhiteSpace).Many().Text()
             select new LiteralToken(val);
 
-        private static Parser<KeywordToken> InstructionIdentifier() =>
-            ParseHelper.InstructionIdentifier("ADD")
-                .Or(ParseHelper.InstructionIdentifier("ARG"))
-                .Or(ParseHelper.InstructionIdentifier("CMD"))
-                .Or(ParseHelper.InstructionIdentifier("COPY"))
-                .Or(ParseHelper.InstructionIdentifier("ENTRYPOINT"))
-                .Or(ParseHelper.InstructionIdentifier("EXPOSE"))
-                .Or(ParseHelper.InstructionIdentifier("ENV"))
-                .Or(ParseHelper.InstructionIdentifier("FROM"))
-                .Or(ParseHelper.InstructionIdentifier("HEALTHCHECK"))
-                .Or(ParseHelper.InstructionIdentifier("LABEL"))
-                .Or(ParseHelper.InstructionIdentifier("MAINTAINER"))
-                .Or(ParseHelper.InstructionIdentifier("ONBUILD"))
-                .Or(ParseHelper.InstructionIdentifier("RUN"))
-                .Or(ParseHelper.InstructionIdentifier("SHELL"))
-                .Or(ParseHelper.InstructionIdentifier("STOPSIGNAL"))
-                .Or(ParseHelper.InstructionIdentifier("USER"))
-                .Or(ParseHelper.InstructionIdentifier("VOLUME"))
-                .Or(ParseHelper.InstructionIdentifier("WORKDIR"));
+        private static Parser<KeywordToken> InstructionIdentifier()
+        {
+            Parser<KeywordToken>? parser = null;
+            foreach (string instructionName in instructionParsers.Keys)
+            {
+                if (parser is null)
+                {
+                    parser = ParseHelper.InstructionIdentifier(instructionName);
+                }
+                else
+                {
+                    parser = parser.Or(ParseHelper.InstructionIdentifier(instructionName));
+                }
+            }
+
+            return parser!;
+        }
 
         private static string Concat(params string[] strings) =>
             String.Join("", strings);

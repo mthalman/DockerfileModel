@@ -23,7 +23,7 @@ namespace DockerfileModel
 
         public static Parser<IEnumerable<Token>> Whitespace() =>
             from whitespace in Parse.WhiteSpace.Except(Parse.LineTerminator).XMany().Text()
-            from newLine in OptionalNewLine().End()
+            from newLine in OptionalNewLine()
             select ConcatTokens(
                 whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null,
                 newLine);
@@ -61,8 +61,8 @@ namespace DockerfileModel
             select whitespace != "" ? new WhitespaceToken(whitespace) : null;
 
         public static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Parser<Token> parser) =>
-            from token in parser
-            from trailingWhitespace in WhitespaceChars()
+            from token in parser.AsEnumerable()
+            from trailingWhitespace in Whitespace()
             select ConcatTokens(token, trailingWhitespace);
 
         public static Parser<CommentToken> CommentChar() =>
@@ -90,7 +90,7 @@ namespace DockerfileModel
             WithTrailingComments(
                 from leadingWhitespace in WhitespaceChars().AsEnumerable()
                 from token in tokenParser
-                from trailingWhitespace in WhitespaceChars().AsEnumerable().Optional()
+                from trailingWhitespace in Whitespace().Optional()
                 from lineContinuation in LineContinuation(escapeChar).Optional()
                 from lineEnd in OptionalNewLine().AsEnumerable()
                 select ConcatTokens(
@@ -131,15 +131,20 @@ namespace DockerfileModel
             from text in Parse.IgnoreCase(instructionName).Text()
             select new KeywordToken(text);
 
-        public static Parser<IEnumerable<Token>> Instruction(string instructionName, char escapeChar, Parser<IEnumerable<Token?>> instructionArgsParser) =>
-            from leading in WhitespaceChars().AsEnumerable()
-            from instruction in TokenWithTrailingWhitespace(InstructionIdentifier(instructionName))
-            from lineContinuation in LineContinuation(escapeChar).Optional()
+        public static Parser<IEnumerable<Token>> Instruction(string instructionName, char escapeChar, Parser<IEnumerable<Token>> instructionArgsParser) =>
+            from instructionNameTokens in InstructionNameWithTrailingContent(instructionName, escapeChar)
             from instructionArgs in instructionArgsParser
-            select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs);
+            select ConcatTokens(instructionNameTokens, instructionArgs);
 
         public static Parser<string> NonCommentToken(char escapeChar) =>
             Parse.AnyChar.Except(Parse.WhiteSpace).Except(Parse.Char(escapeChar)).AtLeastOnce().Text();
+
+        private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
+            WithTrailingComments(
+                from leading in WhitespaceChars().AsEnumerable()
+                from instruction in TokenWithTrailingWhitespace(InstructionIdentifier(instructionName))
+                from lineContinuation in LineContinuation(escapeChar).Optional()
+                select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault()));
 
         private static WhitespaceToken? GetLeadingWhitespaceToken(string text)
         {

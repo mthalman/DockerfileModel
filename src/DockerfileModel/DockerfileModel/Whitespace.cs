@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using Sprache;
 
 namespace DockerfileModel
@@ -6,7 +7,7 @@ namespace DockerfileModel
     public class Whitespace : DockerfileLine
     {
         private Whitespace(string text)
-            : base(text, ParseHelper.Whitespace())
+            : base(text, GetParser())
         {
         }
 
@@ -20,6 +21,9 @@ namespace DockerfileModel
             new Whitespace(text);
 
         public static bool IsWhitespace(string text) =>
-            ParseHelper.Whitespace().TryParse(text).WasSuccessful;
+            GetParser().TryParse(text).WasSuccessful;
+
+        public static Parser<IEnumerable<Token>> GetParser() =>
+            ParseHelper.Whitespace().End();
     }
 }
