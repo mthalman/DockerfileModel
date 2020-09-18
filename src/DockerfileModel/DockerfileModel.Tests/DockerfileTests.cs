@@ -30,6 +30,302 @@ namespace DockerfileModel.Tests
             }
         }
 
+        [Fact]
+        public void ResolveArgValues_SingleStage_LocalArg()
+        {
+            List<string> lines = new List<string>
+            {
+                "FROM image\n",
+                "ARG test=a\n",
+                "RUN echo $test `$test"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>();
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            Assert.Equal("RUN echo a `$test", dockerfile.Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_SingleStage_LocalArg_Override()
+        {
+            List<string> lines = new List<string>
+            {
+                "FROM image\n",
+                "ARG test=a\n",
+                "RUN echo $test `$test"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>
+            {
+                { "test", "b" }
+            };
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            Assert.Equal("RUN echo b `$test", dockerfile.Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_MultiStage_LocalArg()
+        {
+            List<string> lines = new List<string>
+            {
+                "FROM image as stage1\n",
+                "ARG test=a\n",
+                "RUN echo $test\n",
+                "FROM image2 as stage2\n",
+                "ARG test=\n",
+                "RUN echo $test-c",
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>();
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            StagesView stagesView = new StagesView(dockerfile);
+            Assert.Equal("RUN echo a\n", stagesView.Stages.First().Lines.Last().ToString());
+            Assert.Equal("RUN echo -c", stagesView.Stages.Last().Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_MultiStage_LocalArg_Override()
+        {
+            List<string> lines = new List<string>
+            {
+                "FROM image as stage1\n",
+                "ARG test=a\n",
+                "RUN echo $test\n",
+                "FROM image2 as stage2\n",
+                "ARG test=\n",
+                "RUN echo $test-c",
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>
+            {
+                { "test", "z" }
+            };
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            StagesView stagesView = new StagesView(dockerfile);
+            Assert.Equal("RUN echo z\n", stagesView.Stages.First().Lines.Last().ToString());
+            Assert.Equal("RUN echo z-c", stagesView.Stages.Last().Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_SingleStage_GlobalArg()
+        {
+            List<string> lines = new List<string>
+            {
+                "ARG test1=a\n",
+                "ARG test2=b\n",
+                "ARG test3=c\n",
+                "FROM image:$test1\n",
+                "ARG test2\n",
+                "ARG test3=c1\n",
+                "ARG test4=d\n",
+                "RUN echo $test1-$test2-$test3-$test4"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>();
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            Assert.Equal("FROM image:a\n", dockerfile.Lines.OfType<FromInstruction>().First().ToString());
+            Assert.Equal("RUN echo -b-c1-d", dockerfile.Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_SingleStage_GlobalArg_Override()
+        {
+            List<string> lines = new List<string>
+            {
+                "ARG test1=a\n",
+                "ARG test2=b\n",
+                "ARG test3=c\n",
+                "FROM image:$test1\n",
+                "ARG test2\n",
+                "ARG test3=c1\n",
+                "ARG test4=d\n",
+                "RUN echo $test1-$test2-$test3-$test4"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>
+            {
+                { "test1", "a1" },
+                { "test2", "b1" },
+                { "test3", "c2" },
+                { "test4", "d1" }
+            };
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            Assert.Equal("FROM image:a1\n", dockerfile.Lines.OfType<FromInstruction>().First().ToString());
+            Assert.Equal("RUN echo -b1-c2-d1", dockerfile.Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_MultiStage_GlobalArg()
+        {
+            List<string> lines = new List<string>
+            {
+                "ARG test1=a\n",
+                "ARG test2\n",
+                "ARG test3=c\n",
+                "FROM image:$test1 as stage1\n",
+                "ARG test2\n",
+                "ARG test3=c1\n",
+                "ARG test4=d\n",
+                "RUN echo $test1-$test2-$test3-$test4\n",
+                "FROM image:$test2 as stage2\n",
+                "ARG test2\n",
+                "ARG test3\n",
+                "ARG test4=d\n",
+                "RUN echo $test1-$test2-$test3-$test4"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>();
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            StagesView stagesView = new StagesView(dockerfile);
+
+            Assert.Equal("FROM image:a as stage1\n", stagesView.Stages.First().FromInstruction.ToString());
+            Assert.Equal("RUN echo --c1-d\n", stagesView.Stages.First().Lines.Last().ToString());
+            Assert.Equal("FROM image: as stage2\n", stagesView.Stages.Last().FromInstruction.ToString());
+            Assert.Equal("RUN echo --c-d", stagesView.Stages.Last().Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_MultiStage_GlobalArg_Override()
+        {
+            List<string> lines = new List<string>
+            {
+                "ARG test1=a\n",
+                "ARG test2\n",
+                "ARG test3=c\n",
+                "FROM image:$test1 as stage1\n",
+                "ARG test2\n",
+                "ARG test3=c1\n",
+                "ARG test4=d\n",
+                "RUN echo $test1-$test2-$test3-$test4\n",
+                "FROM image:$test2 as stage2\n",
+                "ARG test2\n",
+                "ARG test3\n",
+                "ARG test4=d\n",
+                "RUN echo $test1-$test2-$test3-$test4"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>
+            {
+                { "test1", "a1" },
+                { "test2", "b1" },
+                { "test3", "c2" },
+            };
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            StagesView stagesView = new StagesView(dockerfile);
+
+            Assert.Equal("FROM image:a1 as stage1\n", stagesView.Stages.First().FromInstruction.ToString());
+            Assert.Equal("RUN echo -b1-c2-d\n", stagesView.Stages.First().Lines.Last().ToString());
+            Assert.Equal("FROM image:b1 as stage2\n", stagesView.Stages.Last().FromInstruction.ToString());
+            Assert.Equal("RUN echo -b1-c2-d", stagesView.Stages.Last().Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_ArgOrder()
+        {
+            List<string> lines = new List<string>
+            {
+                "FROM image\n",
+                "RUN echo $test\n",
+                "ARG test=a\n",
+                "RUN echo $test"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>();
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            Assert.Equal("RUN echo \n", dockerfile.Lines.ElementAt(1).ToString());
+            Assert.Equal("RUN echo a", dockerfile.Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_LocalOverride()
+        {
+            List<string> lines = new List<string>
+            {
+                "ARG test=a\n",
+                "FROM image\n",
+                "ARG test\n",
+                "RUN echo $test\n",
+                "ARG test=b\n",
+                "RUN echo $test"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>();
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            Assert.Equal("RUN echo a\n", dockerfile.Lines.ElementAt(3).ToString());
+            Assert.Equal("RUN echo b", dockerfile.Lines.ElementAt(5).ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_UndeclaredArg()
+        {
+            List<string> lines = new List<string>
+            {
+                "FROM image\n",
+                "RUN echo $test"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>
+            {
+                { "test", "foo" }
+            };
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            Assert.Equal("RUN echo ", dockerfile.Lines.Last().ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_OverrideAsUnset()
+        {
+            List<string> lines = new List<string>
+            {
+                "ARG test=foo\n",
+                "FROM image\n",
+                "RUN echo $test"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>
+            {
+                { "test", null }
+            };
+            dockerfile.ResolveArgValues(argValues, '`');
+
+            Assert.Equal("RUN echo ", dockerfile.Lines.Last().ToString());
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             var testInputs = new ParseTestScenario<Dockerfile>[]

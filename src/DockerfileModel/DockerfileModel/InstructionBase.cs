@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Sprache;
 
 namespace DockerfileModel
@@ -24,37 +23,26 @@ namespace DockerfileModel
 
         public override LineType Type => LineType.Instruction;
 
-        public void ResolveArgValues(IDictionary<string, string> argValues, char escapeChar)
+        public void ResolveArgValues(IDictionary<string, string?> argValues, char escapeChar)
         {
-            new ArgResolver(argValues, escapeChar).Visit(this);
+            new ArgResolverVisitor(argValues, escapeChar).Visit(this);
         }
 
-        private class ArgResolver : TokenVisitor
+        private class ArgResolverVisitor : TokenVisitor
         {
-            private const string LeadingGroup = "leading";
-            private const string ArgGroup = "arg";
-            private const string TrailingGroup = "trailing";
-            private readonly IDictionary<string, (Regex Regex, string Value)> argValueReplacements;
+            private readonly IDictionary<string, string?> argValues;
+            private readonly char escapeChar;
 
-            public ArgResolver(IDictionary<string, string> argValues, char escapeChar)
+            public ArgResolverVisitor(IDictionary<string, string?> argValues, char escapeChar)
             {
-                argValueReplacements = argValues
-                    .ToDictionary(kvp => kvp.Key,
-                        kvp => (new Regex($@"(?<{LeadingGroup}>^|.*[^\{escapeChar}])(?<{ArgGroup}>\${kvp.Key})(?<{TrailingGroup}>\s|\W|$)"), kvp.Value));
+                this.argValues = argValues;
+                this.escapeChar = escapeChar;
             }
 
             protected override void VisitLiteralToken(LiteralToken token)
             {
                 base.VisitLiteralToken(token);
-                ReplaceArgs(token);
-            }
-
-            private void ReplaceArgs(Token token)
-            {
-                foreach (var kvp in argValueReplacements)
-                {
-                    token.Value = kvp.Value.Regex.Replace(token.Value, $"${{{LeadingGroup}}}{kvp.Value.Value}${{{TrailingGroup}}}");
-                }
+                token.Value = ArgResolver.Resolve(token.Value, argValues, escapeChar);
             }
         }
     }
