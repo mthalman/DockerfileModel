@@ -49,7 +49,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateAggregate<CommentToken>(token, "#mycomment",
-                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateSymbol(token, "#"),
                             token => ValidateLiteral(token, "mycomment"))
                     },
                     Validate = result =>
@@ -66,7 +66,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateAggregate<CommentToken>(token, "#mycomment",
-                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateSymbol(token, "#"),
                             token => ValidateLiteral(token, "mycomment")),
                         token => ValidateNewLine(token, "\n")
                     },
@@ -85,7 +85,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateWhitespace(token, " \t"),
                         token => ValidateAggregate<CommentToken>(token, "#\tmycomment\t  ",
-                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateSymbol(token, "#"),
                             token => ValidateWhitespace(token, "\t"),
                             token => ValidateLiteral(token, "mycomment"),
                             token => ValidateWhitespace(token, "\t  "))
@@ -118,7 +118,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateAggregate<CommentToken>(token, "# test",
-                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateSymbol(token, "#"),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "test")),
                     },
@@ -136,7 +136,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateAggregate<CommentToken>(token, "# comment   ",
-                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateSymbol(token, "#"),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "comment"),
                             token => ValidateWhitespace(token, "   "))

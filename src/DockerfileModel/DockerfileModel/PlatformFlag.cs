@@ -49,9 +49,9 @@ namespace DockerfileModel
             from platformSeparator in Sprache.Parse.String("=").Text()
             from platform in Literal(escapeChar)
             select ConcatTokens(
-                new PunctuationToken(flagSeparator),
+                new SymbolToken(flagSeparator),
                 new KeywordToken(platformKeyword),
-                new PunctuationToken(platformSeparator),
+                new SymbolToken(platformSeparator),
                 platform);
 
         private void Initialize()

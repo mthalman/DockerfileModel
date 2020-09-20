@@ -41,7 +41,7 @@ namespace DockerfileModel
                 {
                     this.TokenList.AddRange(new Token[]
                     {
-                        new PunctuationToken("="),
+                        new SymbolToken("="),
                         new LiteralToken(value)
                     });
                 }
@@ -80,7 +80,7 @@ namespace DockerfileModel
             from assignmentChar in Sprache.Parse.Char('=')
             from value in Literal(escapeChar).Optional()
             select ConcatTokens(
-                new PunctuationToken(assignmentChar.ToString()),
+                new SymbolToken(assignmentChar.ToString()),
                 value.GetOrElse(new LiteralToken("")));
     }
 }

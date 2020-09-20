@@ -76,7 +76,7 @@ namespace DockerfileModel
                     this.TokenList.InsertRange(0, new Token[]
                     {
                         this.registryToken!,
-                        new PunctuationToken("/")
+                        new SymbolToken("/")
                     });
                 }
                 else
@@ -117,7 +117,7 @@ namespace DockerfileModel
                     this.tagToken = value;
                     this.TokenList.AddRange(new Token[]
                     {
-                        new PunctuationToken(":"),
+                        new SymbolToken(":"),
                         this.tagToken!
                     });
                 }
@@ -157,7 +157,7 @@ namespace DockerfileModel
                     this.digestToken = value;
                     this.TokenList.AddRange(new Token[]
                     {
-                        new PunctuationToken("@"),
+                        new SymbolToken("@"),
                         this.digestToken!
                     });
                 }
@@ -194,7 +194,7 @@ namespace DockerfileModel
                  from repository in Repository()
                  select ConcatTokens(
                      registry,
-                     new PunctuationToken(separator.ToString()),
+                     new SymbolToken(separator.ToString()),
                      repository)).Or(
                 from repository in Repository()
                 select new Token[] { repository });
@@ -203,7 +203,7 @@ namespace DockerfileModel
                 from separator in Sprache.Parse.Char(':')
                 from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, Sprache.Parse.LetterOrDigit)
                 select ConcatTokens(
-                    new PunctuationToken(separator.ToString()),
+                    new SymbolToken(separator.ToString()),
                     new TagToken(tag));
 
             private static Parser<IEnumerable<Token>> Digest() =>
@@ -213,7 +213,7 @@ namespace DockerfileModel
                 from shaSeparator in Sprache.Parse.Char(':')
                 from digest in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, Sprache.Parse.LetterOrDigit)
                 select ConcatTokens(
-                    new PunctuationToken(digestSeparator.ToString()),
+                    new SymbolToken(digestSeparator.ToString()),
                     new DigestToken($"sha{digits}:{digest}"));
 
             private static Parser<IEnumerable<Token>> TagDigest() =>

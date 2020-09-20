@@ -30,7 +30,7 @@ namespace DockerfileModel
             from leading in WhitespaceChars().AsEnumerable()
             from commentChar in CommentToken.CommentCharParser()
             from directive in TokenWithTrailingWhitespace(DirectiveNameParser())
-            from op in TokenWithTrailingWhitespace(Punctuation("="))
+            from op in TokenWithTrailingWhitespace(Symbol("="))
             from value in TokenWithTrailingWhitespace(DirectiveValueParser())
             select ConcatTokens(
                 leading,

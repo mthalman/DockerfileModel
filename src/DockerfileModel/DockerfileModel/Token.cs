@@ -19,9 +19,9 @@
         }
     }
 
-    public class PunctuationToken : Token
+    public class SymbolToken : Token
     {
-        public PunctuationToken(string value) : base(value)
+        public SymbolToken(string value) : base(value)
         {
         }
     }

@@ -125,7 +125,7 @@ namespace DockerfileModel.Tests
                             token => ValidateLineContinuation(token, "`"),
                             token => ValidateNewLine(token, "\n"),
                             token => ValidateAggregate<CommentToken>(token, "#comment",
-                                token => ValidatePunctuation(token, "#"),
+                                token => ValidateSymbol(token, "#"),
                                 token => ValidateLiteral(token, "comment")),
                             token => ValidateNewLine(token, "\n"),
                             token => ValidateIdentifier(token, "build"))
@@ -134,7 +134,7 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Collection(result.Comments,
                             token => ValidateAggregate<CommentToken>(token, "#comment",
-                                token => ValidatePunctuation(token, "#"),
+                                token => ValidateSymbol(token, "#"),
                                 token => ValidateLiteral(token, "comment")));
                         Assert.Equal("alpine:latest", result.ImageName);
                         Assert.Equal("FROM", result.InstructionName);
@@ -150,9 +150,9 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
-                            token => ValidatePunctuation(token, "--"),
+                            token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
-                            token => ValidatePunctuation(token, "="),
+                            token => ValidateSymbol(token, "="),
                             token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine"),
@@ -179,9 +179,9 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
-                            token => ValidatePunctuation(token, "--"),
+                            token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
-                            token => ValidatePunctuation(token, "="),
+                            token => ValidateSymbol(token, "="),
                             token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine")
@@ -207,9 +207,9 @@ namespace DockerfileModel.Tests
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, "  "),
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
-                            token => ValidatePunctuation(token, "--"),
+                            token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
-                            token => ValidatePunctuation(token, "="),
+                            token => ValidateSymbol(token, "="),
                             token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateLineContinuation(token, "`"),
                         token => ValidateNewLine(token, "\n"),
@@ -304,9 +304,9 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=windows/amd64",
-                            token => ValidatePunctuation(token, "--"),
+                            token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
-                            token => ValidatePunctuation(token, "="),
+                            token => ValidateSymbol(token, "="),
                             token => ValidateLiteral(token, "windows/amd64")
                         ),
                         token => ValidateWhitespace(token, " "),
@@ -340,9 +340,9 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=windows/amd64",
-                            token => ValidatePunctuation(token, "--"),
+                            token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
-                            token => ValidatePunctuation(token, "="),
+                            token => ValidateSymbol(token, "="),
                             token => ValidateLiteral(token, "windows/amd64")
                         ),
                         token => ValidateWhitespace(token, " "),

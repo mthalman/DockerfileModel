@@ -34,7 +34,7 @@ namespace DockerfileModel
 
         internal static Parser<IEnumerable<Token>> CommentCharParser() =>
             TokenWithTrailingWhitespace(
-                from punc in Sprache.Parse.Char('#')
-                select new PunctuationToken(punc.ToString()));
+                from symbol in Sprache.Parse.Char('#')
+                select new SymbolToken(symbol.ToString()));
     }
 }
