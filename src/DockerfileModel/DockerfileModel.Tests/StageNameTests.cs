@@ -75,7 +75,7 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Single(result.Comments);
-                        Assert.Equal("comment", result.Comments.First().Text);
+                        Assert.Equal("comment", result.Comments.First());
                         Assert.Equal("installer", result.Stage);
                     }
                 },

@@ -13,7 +13,11 @@ namespace DockerfileModel
         {
         }
 
-        public IEnumerable<LiteralToken> ArgLines => Tokens.OfType<LiteralToken>();
+        public IList<string> ArgLines =>
+            new StringWrapperList<LiteralToken>(
+                Tokens.OfType<LiteralToken>(),
+                token => token.Value,
+                (token, value) => token.Value = value);
 
         public static bool IsInstruction(string text, char escapeChar) =>
             DockerfileParser.Instruction(escapeChar).TryParse(text).WasSuccessful;
