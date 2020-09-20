@@ -132,9 +132,9 @@ namespace DockerfileModel
             from instructionArgs in instructionArgsParser
             select ConcatTokens(instructionNameTokens, instructionArgs);
 
-        public static Parser<PunctuationToken> Punctuation(string value) =>
+        public static Parser<SymbolToken> Symbol(string value) =>
             from val in Parse.String(value).Text()
-            select new PunctuationToken(val);
+            select new SymbolToken(val);
 
         public static Parser<IdentifierToken> QuotableIdentifier(Parser<char> firstLetterParser, Parser<char> tailLetterParser, char escapeChar) =>
             WrappedInOptionalQuotes(

@@ -12,10 +12,10 @@ namespace DockerfileModel.Tests
             Assert.Equal(whitespace, token.Value);
         }
 
-        public static void ValidatePunctuation(Token token, string punctuation)
+        public static void ValidateSymbol(Token token, string symbol)
         {
-            Assert.IsType<PunctuationToken>(token);
-            Assert.Equal(punctuation, token.Value);
+            Assert.IsType<SymbolToken>(token);
+            Assert.Equal(symbol, token.Value);
         }
 
         public static void ValidateKeyword(Token token, string keyword)
