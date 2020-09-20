@@ -44,9 +44,6 @@ namespace DockerfileModel
                     .SelectMany(tokens => tokens)
                     .ToArray());
 
-        public static Parser<string> Identifier() =>
-            Parse.Identifier(Parse.Letter, Parse.LetterOrDigit);
-
         public static Parser<string> DelimitedIdentifier(char delimiter, int minimumDelimiters = 0) =>
             from segments in Parse.Identifier(Parse.LetterOrDigit, Parse.LetterOrDigit).Many().DelimitedBy(Parse.Char(delimiter))
             where (segments.Count() > minimumDelimiters)
@@ -136,8 +133,57 @@ namespace DockerfileModel
             from instructionArgs in instructionArgsParser
             select ConcatTokens(instructionNameTokens, instructionArgs);
 
-        public static Parser<string> NonCommentToken(char escapeChar) =>
-            Parse.AnyChar.Except(Parse.WhiteSpace).Except(Parse.Char(escapeChar)).AtLeastOnce().Text();
+        public static Parser<PunctuationToken> Punctuation(string value) =>
+            from val in Parse.String(value).Text()
+            select new PunctuationToken(val);
+
+        public static Parser<IdentifierToken> QuotableIdentifier(Parser<char> firstLetterParser, Parser<char> tailLetterParser, char escapeChar) =>
+            WrappedInOptionalQuotes(
+                Parse.Identifier(ExceptQuoteChars(firstLetterParser, escapeChar), ExceptQuoteChars(tailLetterParser, escapeChar)),
+                Parse.Identifier(firstLetterParser, tailLetterParser),
+                escapeChar,
+                val => new IdentifierToken(val));
+
+        public static Parser<LiteralToken> Literal(char escapeChar) =>
+            WrappedInOptionalQuotes(
+                ExceptQuoteChars(LiteralToken(escapeChar), escapeChar).AtLeastOnce().Text(),
+                LiteralToken(escapeChar).AtLeastOnce().Text(),
+                escapeChar, val => new LiteralToken(val));
+
+        private static Parser<char> LiteralToken(char escapeChar) =>
+            Parse.AnyChar.Except(Parse.WhiteSpace).Except(Parse.Char(escapeChar));
+
+        private static Parser<string> EscapedChar(char val, char escapeChar) =>
+            Parse.String($"{escapeChar}{val}").Text();
+
+        private static Parser<TToken> WrappedInOptionalQuotes<TToken>(Parser<string> quotableParser, Parser<string> nonQuotableParser, char escapeChar, Func<string, TToken> createToken)
+            where TToken : QuotableToken =>
+            WrappedInQuotes(quotableParser, escapeChar, createToken, '\'')
+            .Or(WrappedInQuotes(quotableParser, escapeChar, createToken, '\"'))
+            .Or(
+                from nonQuotedValue in nonQuotableParser
+                select CreateQuotableToken(createToken, nonQuotedValue));
+
+        private static Parser<char> ExceptQuoteChars(Parser<char> parser, char escapeChar) =>
+            parser.Except(Parse.Char('\'')).Except(Parse.Char('\"'));
+
+        private static Parser<TToken> WrappedInQuotes<TToken>(Parser<string> parser, char escapeChar, Func<string, TToken> createToken, char quoteChar)
+            where TToken : QuotableToken =>
+            from openingQuote in Parse.Char(quoteChar)
+            from val in EscapedChar('\'', escapeChar)
+                .Or(EscapedChar('\"', escapeChar))
+                .Or(parser)
+            from closingQuote in Parse.Char(quoteChar)
+            select CreateQuotableToken(createToken, val, quoteChar);
+
+        private static TToken CreateQuotableToken<TToken>(Func<string, TToken> createToken, string value, char? quoteChar = null)
+            where TToken : QuotableToken
+        {
+            TToken token = createToken(value);
+            token.QuoteChar = quoteChar;
+
+            return token;
+        }
 
         private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
             WithTrailingComments(

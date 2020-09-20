@@ -68,7 +68,7 @@ namespace DockerfileModel
 
         public string? StageName
         {
-            get => this.Tokens.OfType<StageName>().FirstOrDefault()?.Stage?.Value;
+            get => this.Tokens.OfType<StageName>().FirstOrDefault()?.Stage;
             set
             {
                 StageName stageName = this.Tokens.OfType<StageName>().FirstOrDefault();
@@ -80,7 +80,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        stageName.Stage.Value = value;
+                        stageName.Stage = value;
                     }
                 }
                 else if (value != null)
@@ -88,7 +88,7 @@ namespace DockerfileModel
                     this.TokenList.AddRange(new Token[]
                     {
                         Whitespace.Create(" "),
-                        DockerfileModel.StageName.Create(value, escapeChar),
+                        DockerfileModel.StageName.Create(value),
                     });
                 }
             }
@@ -137,8 +137,6 @@ namespace DockerfileModel
             select new StageName(tokens);
 
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
-            ArgTokens((
-                from text in NonCommentToken(escapeChar)
-                select new LiteralToken(text)).AsEnumerable(), escapeChar);
+            ArgTokens(Literal(escapeChar).AsEnumerable(), escapeChar);
     }
 }

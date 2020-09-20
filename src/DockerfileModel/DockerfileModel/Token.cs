@@ -8,6 +8,8 @@
         }
 
         public virtual string Value { get; set; }
+
+        public override string ToString() => this.Value;
     }
 
     public class KeywordToken : Token
@@ -17,28 +19,40 @@
         }
     }
 
-    public class OperatorToken : Token
+    public class PunctuationToken : Token
     {
-        public OperatorToken(string value) : base(value)
+        public PunctuationToken(string value) : base(value)
         {
         }
     }
 
-    public class SeparatorToken : Token
+    public abstract class QuotableToken : Token
     {
-        public SeparatorToken(string value) : base(value)
+        public QuotableToken(string value) : base(value)
         {
+        }
+
+        public char? QuoteChar { get; set; }
+
+        public override string ToString()
+        {
+            if (QuoteChar.HasValue)
+            {
+                return $"{QuoteChar}{Value}{QuoteChar}";
+            }
+
+            return base.ToString();
         }
     }
 
-    public class IdentifierToken : Token
+    public class IdentifierToken : QuotableToken
     {
         public IdentifierToken(string value) : base(value)
         {
         }
     }
 
-    public class LiteralToken : Token
+    public class LiteralToken : QuotableToken
     {
         public LiteralToken(string value) : base(value)
         {

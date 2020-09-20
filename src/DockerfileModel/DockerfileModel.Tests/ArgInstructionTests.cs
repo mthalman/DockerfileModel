@@ -19,7 +19,7 @@ namespace DockerfileModel.Tests
                 ArgInstruction result = ArgInstruction.Parse(scenario.Text, scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
-                scenario.Validate(result);
+                scenario.Validate?.Invoke(result);
             }
             else
             {
@@ -106,7 +106,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MYARG"),
-                        token => ValidateSeparator(token, "="),
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "")
                     },
                     Validate = result =>
@@ -133,7 +133,7 @@ namespace DockerfileModel.Tests
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, "  "),
                         token => ValidateIdentifier(token, "MYARG"),
-                        token => ValidateSeparator(token, "="),
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "")
                     },
                     Validate = result =>
@@ -153,7 +153,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "myarg"),
-                        token => ValidateSeparator(token, "="),
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "1")
                     },
                     Validate = result =>
@@ -175,15 +175,46 @@ namespace DockerfileModel.Tests
                         token => ValidateLineContinuation(token, "`"),
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateIdentifier(token, "MYARG"),
-                        token => ValidateSeparator(token, "="),
-                        token => ValidateLiteral(token, "\"test\"")
+                        token => ValidatePunctuation(token, "="),
+                        token => ValidateLiteral(token, "test", '\"')
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("ARG", result.InstructionName);
                         Assert.Equal("MYARG", result.ArgName);
-                        Assert.Equal("\"test\"", result.ArgValue);
+                        Assert.Equal("test", result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG MY_ARG",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MY_ARG"),
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG \"MY_ARG\"='value'",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MY_ARG", '\"'),
+                        token => ValidatePunctuation(token, "="),
+                        token => ValidateLiteral(token, "value", '\''),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MY_ARG", result.ArgName);
+                        Assert.Equal("value", result.ArgValue);
                     }
                 },
                 new ArgInstructionParseTestScenario
@@ -250,7 +281,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "TEST1"),
-                        token => ValidateSeparator(token, "="),
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "b")
                     }
                 },
@@ -263,7 +294,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "TEST1"),
-                        token => ValidateSeparator(token, "="),
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "")
                     }
                 }
