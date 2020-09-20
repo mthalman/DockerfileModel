@@ -10,23 +10,6 @@ namespace DockerfileModel.Tests
 {
     public class ArgInstructionTests
     {
-        [Fact]
-        public void Test()
-        {
-            var escapedQuote = Sprache.Parse.String("\\\'").Text();
-            var escape = Sprache.Parse.String("\\").Text();
-            var simpleLiteral = Sprache.Parse.AnyChar.Except(Sprache.Parse.Char('\'')).Except(Sprache.Parse.Char('\\')).Many().Text();
-            var foo = (from open in Sprache.Parse.Char('\'')
-                       from content in escapedQuote.Or(escape).Or(simpleLiteral).Many()
-                       from close in Sprache.Parse.Char('\'')
-                       select String.Concat(content));
-
-            var result = foo.Parse("'fdsf\\\'sdfdsf'");
-
-            var dockerfile = Dockerfile.Parse(System.IO.File.ReadAllText(@"C:\repos\docker-tools\src\Microsoft.DotNet.ImageBuilder\Dockerfile.linux"));
-            dockerfile.ResolveArgValues(new Dictionary<string, string>(), '\\');
-        }
-
         [Theory]
         [MemberData(nameof(ParseTestInput))]
         public void Parse(ArgInstructionParseTestScenario scenario)
