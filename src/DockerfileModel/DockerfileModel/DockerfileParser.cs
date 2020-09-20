@@ -151,7 +151,7 @@ namespace DockerfileModel
             from leading in WhitespaceChars().AsEnumerable()
             from commentChar in TokenWithTrailingWhitespace(CommentChar())
             from directive in TokenWithTrailingWhitespace(DirectiveName)
-            from op in TokenWithTrailingWhitespace(OperatorChar)
+            from op in TokenWithTrailingWhitespace(Punctuation("="))
             from value in TokenWithTrailingWhitespace(DirectiveValue)
             select ConcatTokens(
                 leading,
@@ -169,10 +169,6 @@ namespace DockerfileModel
                 lineContinuation.GetOrDefault(),
                 lineEnd);
 
-        private readonly static Parser<OperatorToken> OperatorChar =
-            from op in Parse.String("=").Text()
-            select new OperatorToken(op);
-
         private static Parser<IEnumerable<Token>> EndsInLineContinuation(char escapeChar) =>
             from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Many().Text()
             from lineCont in LineContinuation(escapeChar)
@@ -183,7 +179,7 @@ namespace DockerfileModel
             select lineSets.SelectMany(lineSet => lineSet);
         
         private readonly static Parser<KeywordToken> DirectiveName =
-            from name in Identifier()
+            from name in Parse.Identifier(Parse.Letter, Parse.LetterOrDigit)
             select new KeywordToken(name);
 
         private readonly static Parser<LiteralToken> DirectiveValue =

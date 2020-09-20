@@ -40,7 +40,7 @@ namespace DockerfileModel
 
         private static string TokensToString(IEnumerable<Token> tokens) =>
             String.Join("", tokens
-                .Select(token => token.Value)
+                .Select(token => token.ToString())
                 .ToArray());
 
         protected IEnumerable<CommentTextToken> GetComments()

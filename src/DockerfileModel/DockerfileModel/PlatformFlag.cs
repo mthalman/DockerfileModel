@@ -47,12 +47,12 @@ namespace DockerfileModel
             from flagSeparator in Sprache.Parse.String("--").Text()
             from platformKeyword in Sprache.Parse.IgnoreCase("platform").Text()
             from platformSeparator in Sprache.Parse.String("=").Text()
-            from platform in NonCommentToken(escapeChar)
+            from platform in Literal(escapeChar)
             select ConcatTokens(
-                new SeparatorToken(flagSeparator),
+                new PunctuationToken(flagSeparator),
                 new KeywordToken(platformKeyword),
-                new SeparatorToken(platformSeparator),
-                new LiteralToken(platform));
+                new PunctuationToken(platformSeparator),
+                platform);
 
         private void Initialize()
         {

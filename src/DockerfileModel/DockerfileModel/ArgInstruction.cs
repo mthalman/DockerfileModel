@@ -41,7 +41,7 @@ namespace DockerfileModel
                 {
                     this.TokenList.AddRange(new Token[]
                     {
-                        new SeparatorToken("="),
+                        new PunctuationToken("="),
                         new LiteralToken(value)
                     });
                 }
@@ -67,21 +67,20 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             ArgTokens(
-                from argName in GetArgNameParser().AsEnumerable()
+                from argName in GetArgNameParser(escapeChar).AsEnumerable()
                 from argAssignment in GetArgAssignmentParser(escapeChar).Optional()
                 select ConcatTokens(
                     argName,
                     argAssignment.GetOrDefault()), escapeChar).End();
 
-        private static Parser<IdentifierToken> GetArgNameParser() =>
-            from argName in Identifier()
-            select new IdentifierToken(argName);
+        private static Parser<IdentifierToken> GetArgNameParser(char escapeChar) =>
+            QuotableIdentifier(Sprache.Parse.Letter, Sprache.Parse.LetterOrDigit.Or(Sprache.Parse.Char('_')), escapeChar);
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
-            from separator in Sprache.Parse.Char('=')
-            from value in NonCommentToken(escapeChar).Optional()
+            from assignmentChar in Sprache.Parse.Char('=')
+            from value in Literal(escapeChar).Optional()
             select ConcatTokens(
-                new SeparatorToken(separator.ToString()),
-                new LiteralToken(value.GetOrElse("")));
+                new PunctuationToken(assignmentChar.ToString()),
+                value.GetOrElse(new LiteralToken("")));
     }
 }

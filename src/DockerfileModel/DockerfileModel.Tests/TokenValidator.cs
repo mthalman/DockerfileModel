@@ -6,12 +6,6 @@ namespace DockerfileModel.Tests
 {
     public static class TokenValidator
     {
-        public static void ValidateOperator(Token token)
-        {
-            Assert.IsType<OperatorToken>(token);
-            Assert.Equal("=", token.Value);
-        }
-
         public static void ValidateWhitespace(Token token, string whitespace)
         {
             Assert.IsType<WhitespaceToken>(token);
@@ -24,10 +18,10 @@ namespace DockerfileModel.Tests
             Assert.Equal("#", token.Value);
         }
 
-        public static void ValidateSeparator(Token token, string separator)
+        public static void ValidatePunctuation(Token token, string punctuation)
         {
-            Assert.IsType<SeparatorToken>(token);
-            Assert.Equal(separator, token.Value);
+            Assert.IsType<PunctuationToken>(token);
+            Assert.Equal(punctuation, token.Value);
         }
 
         public static void ValidateKeyword(Token token, string keyword)
@@ -36,16 +30,18 @@ namespace DockerfileModel.Tests
             Assert.Equal(keyword, token.Value);
         }
 
-        public static void ValidateLiteral(Token token, string literal)
+        public static void ValidateLiteral(Token token, string literal, char? quoteChar = null)
         {
             Assert.IsType<LiteralToken>(token);
             Assert.Equal(literal, token.Value);
+            Assert.Equal(quoteChar, ((LiteralToken)token).QuoteChar);
         }
 
-        public static void ValidateIdentifier(Token token, string identifier)
+        public static void ValidateIdentifier(Token token, string identifier, char? quoteChar = null)
         {
             Assert.IsType<IdentifierToken>(token);
             Assert.Equal(identifier, token.Value);
+            Assert.Equal(quoteChar, ((IdentifierToken)token).QuoteChar);
         }
 
         public static void ValidateCommentText(Token token, string text)

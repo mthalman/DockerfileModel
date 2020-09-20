@@ -50,7 +50,7 @@ namespace DockerfileModel.Tests
                     {
                         ValidateComment,
                         token => ValidateKeyword(token, "directive"),
-                        ValidateOperator,
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "value")
                     },
                     Validate = result =>
@@ -73,7 +73,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "directive"),
                         token => ValidateWhitespace(token, "   "),
-                        ValidateOperator,
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "value"),
                         token => ValidateWhitespace(token, "  "),
@@ -110,7 +110,7 @@ namespace DockerfileModel.Tests
                     {
                         ValidateComment,
                         token => ValidateKeyword(token, "directive"),
-                        ValidateOperator,
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "value")
                     },
                     Validate = result =>
@@ -133,7 +133,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "directive"),
                         token => ValidateWhitespace(token, "   "),
-                        ValidateOperator,
+                        token => ValidatePunctuation(token, "="),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "value"),
                         token => ValidateWhitespace(token, "  "),

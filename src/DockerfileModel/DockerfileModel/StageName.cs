@@ -26,19 +26,21 @@ namespace DockerfileModel
             Initialize();
         }
 
-        public IdentifierToken Stage
+        public string Stage
         {
-            get => this.stage;
+            get => this.stage.Value;
             set
             {
                 Requires.NotNull(value, nameof(value));
-                this.stage = value;
+                this.stage.Value = value;
                 this.TokenList[2] = this.stage;
             }
         }
 
-        public static StageName Create(string stageName, char escapeChar) =>
-            Parse($"AS {stageName}", escapeChar);
+        public IEnumerable<CommentTextToken> Comments => GetComments();
+
+        public static StageName Create(string stageName) =>
+            Parse($"AS {stageName}", Instruction.DefaultEscapeChar);
 
         public static StageName Parse(string text, char escapeChar) =>
             new StageName(text, escapeChar);
@@ -56,7 +58,9 @@ namespace DockerfileModel
             select new KeywordToken(asKeyword);
 
         private static Parser<IdentifierToken> StageNameIdentifier() =>
-            from stageName in Identifier()
+            from stageName in Sprache.Parse.Identifier(
+                Sprache.Parse.Letter,
+                Sprache.Parse.LetterOrDigit.Or(Sprache.Parse.Char('_')).Or(Sprache.Parse.Char('-')).Or(Sprache.Parse.Char('.')))
             select new IdentifierToken(stageName);
 
         private void Initialize()
