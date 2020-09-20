@@ -10,7 +10,11 @@ namespace DockerfileModel
         {
         }
 
-        public CommentTextToken Text => Tokens.OfType<CommentTextToken>().First();
+        public string Text
+        {
+            get => Tokens.OfType<CommentToken>().First().Text;
+            set => Tokens.OfType<CommentToken>().First().Text = value;
+        }
 
         public override LineType Type => LineType.Comment;
 

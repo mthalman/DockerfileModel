@@ -30,10 +30,9 @@ namespace DockerfileModel
 
         public static Parser<IEnumerable<Token>> CommentText() =>
             from leading in WhitespaceChars().AsEnumerable()
-            from comment in TokenWithTrailingWhitespace(CommentChar())
-            from text in TokenWithTrailingWhitespace(str => new CommentTextToken(str))
+            from comment in CommentToken.GetParser()
             from lineEnd in OptionalNewLine().AsEnumerable()
-            select ConcatTokens(leading, comment, text, lineEnd);
+            select ConcatTokens(leading, new Token[] { new CommentToken(comment) }, lineEnd);
 
         public static IEnumerable<Token> ConcatTokens(params Token?[]? tokens) =>
             FilterNulls(tokens).ToList();
@@ -62,9 +61,9 @@ namespace DockerfileModel
             from trailingWhitespace in Whitespace()
             select ConcatTokens(token, trailingWhitespace);
 
-        public static Parser<CommentToken> CommentChar() =>
-            from comment in Parse.String("#").Text()
-            select new CommentToken(comment);
+        public static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Func<string, Token> createToken) =>
+            from val in Parse.AnyChar.Except(Parse.LineEnd).Many().Text()
+            select ConcatTokens(createToken(val.Trim()), GetTrailingWhitespaceToken(val)!);
 
         public static WhitespaceToken? GetTrailingWhitespaceToken(string text)
         {
@@ -211,9 +210,5 @@ namespace DockerfileModel
             from tokens in parser
             from commentSets in CommentText().Many()
             select ConcatTokens(tokens, commentSets.SelectMany(comments => comments));
-
-        private static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Func<string, Token> createToken) =>
-            from val in Parse.AnyChar.Except(Parse.LineEnd).Many().Text()
-            select ConcatTokens(createToken(val.Trim()), GetTrailingWhitespaceToken(val)!);
     }
 }

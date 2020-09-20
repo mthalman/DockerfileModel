@@ -48,7 +48,7 @@ namespace DockerfileModel.Tests
                     Text = "#directive=value",
                     TokenValidators = new Action<Token>[]
                     {
-                        ValidateComment,
+                        token => ValidatePunctuation(token, "#"),
                         token => ValidateKeyword(token, "directive"),
                         token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "value")
@@ -69,7 +69,7 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateWhitespace(token, " "),
-                        ValidateComment,
+                        token => ValidatePunctuation(token, "#"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "directive"),
                         token => ValidateWhitespace(token, "   "),
@@ -108,7 +108,7 @@ namespace DockerfileModel.Tests
                     Value = "value",
                     TokenValidators = new Action<Token>[]
                     {
-                        ValidateComment,
+                        token => ValidatePunctuation(token, "#"),
                         token => ValidateKeyword(token, "directive"),
                         token => ValidatePunctuation(token, "="),
                         token => ValidateLiteral(token, "value")
@@ -129,7 +129,7 @@ namespace DockerfileModel.Tests
                     Value = " value  ",
                     TokenValidators = new Action<Token>[]
                     {
-                        ValidateComment,
+                        token => ValidatePunctuation(token, "#"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "directive"),
                         token => ValidateWhitespace(token, "   "),

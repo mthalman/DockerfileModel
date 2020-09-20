@@ -127,9 +127,10 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLineContinuation(token, "`"),
                         token => ValidateNewLine(token, "\n"),
-                        token => ValidateComment(token),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateCommentText(token, "my comment"),
+                        token => ValidateAggregate<CommentToken>(token, "# my comment",
+                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "my comment")),
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, "  "),
                         token => ValidateIdentifier(token, "MYARG"),
@@ -139,7 +140,10 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Collection(result.Comments,
-                            token => ValidateCommentText(token, "my comment"));
+                            token => ValidateAggregate<CommentToken>(token, "# my comment",
+                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "my comment")));
                         Assert.Equal("ARG", result.InstructionName);
                         Assert.Equal("MYARG", result.ArgName);
                         Assert.Equal("", result.ArgValue);

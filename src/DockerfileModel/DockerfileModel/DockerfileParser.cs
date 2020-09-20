@@ -147,19 +147,6 @@ namespace DockerfileModel
             from instructionArgs in InstructionArgs(escapeChar)
             select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs);
 
-        public static Parser<IEnumerable<Token>> ParserDirectiveParser() =>
-            from leading in WhitespaceChars().AsEnumerable()
-            from commentChar in TokenWithTrailingWhitespace(CommentChar())
-            from directive in TokenWithTrailingWhitespace(DirectiveName)
-            from op in TokenWithTrailingWhitespace(Punctuation("="))
-            from value in TokenWithTrailingWhitespace(DirectiveValue)
-            select ConcatTokens(
-                leading,
-                commentChar,
-                directive,
-                op,
-                value);
-
         private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
             from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Except(Parse.LineEnd).Many().Text()
             from lineContinuation in LineContinuation(escapeChar).Optional()
@@ -177,14 +164,6 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
             from lineSets in (CommentText().Or(InstructionArgLine(escapeChar))).Many()
             select lineSets.SelectMany(lineSet => lineSet);
-        
-        private readonly static Parser<KeywordToken> DirectiveName =
-            from name in Parse.Identifier(Parse.Letter, Parse.LetterOrDigit)
-            select new KeywordToken(name);
-
-        private readonly static Parser<LiteralToken> DirectiveValue =
-            from val in Parse.AnyChar.Except(Parse.WhiteSpace).Many().Text()
-            select new LiteralToken(val);
 
         private static Parser<KeywordToken> InstructionIdentifier()
         {

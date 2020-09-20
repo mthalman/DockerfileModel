@@ -43,11 +43,11 @@ namespace DockerfileModel
                 .Select(token => token.ToString())
                 .ToArray());
 
-        protected IEnumerable<CommentTextToken> GetComments()
+        protected IEnumerable<CommentToken> GetComments()
         {
             foreach (Token token in Tokens)
             {
-                if (token is CommentTextToken comment)
+                if (token is CommentToken comment)
                 {
                     yield return comment;
                 }
