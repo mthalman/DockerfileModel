@@ -54,10 +54,10 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Equal("run", result.InstructionName);
-                        Assert.Equal(@"echo ""hello world""", result.ArgLines.Single().Value);
+                        Assert.Equal(@"echo ""hello world""", result.ArgLines.Single());
 
                         result.InstructionName = "ARG";
-                        result.ArgLines.Single().Value = "MY_ARG";
+                        result.ArgLines[0] = "MY_ARG";
                         Assert.Equal($"{result.InstructionName} MY_ARG", result.ToString());
                     }
                 },
@@ -74,10 +74,10 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Equal("run", result.InstructionName);
-                        Assert.Equal(@"echo ""hello world""", result.ArgLines.Single().Value);
+                        Assert.Equal(@"echo ""hello world""", result.ArgLines.Single());
 
                         result.InstructionName = "ARG";
-                        result.ArgLines.Single().Value = "MY_ARG";
+                        result.ArgLines[0] = "MY_ARG";
                         Assert.Equal($"{result.InstructionName} MY_ARG\n", result.ToString());
                     }
                 },
@@ -99,16 +99,16 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Equal("run", result.InstructionName);
-                        var argLines = result.ArgLines.ToArray();
-                        Assert.Equal(2, argLines.Length);
-                        Assert.Equal(@"echo ""hello world""", argLines[0].Value);
-                        Assert.Equal(@"&& ls -a", argLines[1].Value);
+                        var argLines = result.ArgLines;
+                        Assert.Equal(2, argLines.Count);
+                        Assert.Equal(@"echo ""hello world""", argLines[0]);
+                        Assert.Equal(@"&& ls -a", argLines[1]);
 
                         result.InstructionName = "ARG";
-                        argLines[0].Value = @"echo ""hello WORLD""";
-                        argLines[1].Value = "&& ls";
+                        argLines[0] = @"echo ""hello WORLD""";
+                        argLines[1] = "&& ls";
                         Assert.Equal(
-                            $"{result.InstructionName} {argLines[0].Value}  \\\r\n  {argLines[1].Value}",
+                            $"{result.InstructionName} {argLines[0]}  \\\r\n  {argLines[1]}",
                             result.ToString());
                     }
                 },
@@ -133,16 +133,16 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Equal("run", result.InstructionName);
-                        var argLines = result.ArgLines.ToArray();
-                        Assert.Equal(2, argLines.Length);
-                        Assert.Equal(@"echo ""hello world""", argLines[0].Value);
-                        Assert.Equal(@"&& ls -a", argLines[1].Value);
+                        var argLines = result.ArgLines;
+                        Assert.Equal(2, argLines.Count);
+                        Assert.Equal(@"echo ""hello world""", argLines[0]);
+                        Assert.Equal(@"&& ls -a", argLines[1]);
 
                         result.InstructionName = "ARG";
-                        argLines[0].Value = @"echo ""hello WORLD""";
-                        argLines[1].Value = "&& ls";
+                        argLines[0] = @"echo ""hello WORLD""";
+                        argLines[1] = "&& ls";
                         Assert.Equal(
-                            $"{result.InstructionName} {argLines[0].Value}  \\\r\n \\\n  {argLines[1].Value}",
+                            $"{result.InstructionName} {argLines[0]}  \\\r\n \\\n  {argLines[1]}",
                             result.ToString());
                     }
                 },
@@ -180,16 +180,10 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Collection(result.Comments,
-                            token => ValidateAggregate<CommentToken>(token, "# comment1",
-                                token => ValidateSymbol(token, "#"),
-                                token => ValidateWhitespace(token, " "),
-                                token => ValidateLiteral(token, "comment1")),
-                            token => ValidateAggregate<CommentToken>(token, "# comment 2",
-                                token => ValidateSymbol(token, "#"),
-                                token => ValidateWhitespace(token, " "),
-                                token => ValidateLiteral(token, "comment 2")));
+                            comment => Assert.Equal("comment1", comment),
+                            comment => Assert.Equal("comment 2", comment));
                         Assert.Collection(result.ArgLines,
-                            token => ValidateLiteral(token, "VAR=value"));
+                            argLine => Assert.Equal("VAR=value", argLine));
                     }
                 },
                 new InstructionParseTestScenario
@@ -229,9 +223,9 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Equal("ENV", result.InstructionName);
-                        Assert.Equal("VAL=1", result.ArgLines.Single().Value);
+                        Assert.Equal("VAL=1", result.ArgLines.Single());
 
-                        result.ArgLines.Single().Value = "VAL=2";
+                        result.ArgLines[0] = "VAL=2";
                         Assert.Equal($"{result.InstructionName} VAL=2", result.ToString());
                     }
                 }

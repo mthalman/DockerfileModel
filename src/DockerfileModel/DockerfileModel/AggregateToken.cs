@@ -43,7 +43,15 @@ namespace DockerfileModel
                 .Select(token => token.ToString())
                 .ToArray());
 
-        protected IEnumerable<CommentToken> GetComments()
+        protected IList<string> GetComments()
+        {
+            return new StringWrapperList<CommentToken>(
+                GetCommentTokens(),
+                token => token.Text,
+                (token, value) => token.Text = value);
+        }
+
+        private IEnumerable<CommentToken> GetCommentTokens()
         {
             foreach (Token token in Tokens)
             {
@@ -53,7 +61,7 @@ namespace DockerfileModel
                 }
                 else if (token is AggregateToken aggToken)
                 {
-                    foreach (var subToken in aggToken.GetComments())
+                    foreach (var subToken in aggToken.GetCommentTokens())
                     {
                         yield return subToken;
                     }

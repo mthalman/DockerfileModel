@@ -19,7 +19,7 @@ namespace DockerfileModel
 
         private KeywordToken InstructionNameToken => Tokens.OfType<KeywordToken>().First();
 
-        public IEnumerable<CommentToken> Comments => GetComments();
+        public IList<string> Comments => GetComments();
 
         public override LineType Type => LineType.Instruction;
 

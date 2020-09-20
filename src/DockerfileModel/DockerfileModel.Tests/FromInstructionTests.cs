@@ -133,9 +133,13 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Collection(result.Comments,
-                            token => ValidateAggregate<CommentToken>(token, "#comment",
-                                token => ValidateSymbol(token, "#"),
-                                token => ValidateLiteral(token, "comment")));
+                            comment => Assert.Equal("comment", comment));
+
+                        result.Comments[0] = "new comment";
+                        Assert.Collection(result.Comments,
+                            comment => Assert.Equal("new comment", comment));
+                        Assert.Equal("FROM `\nalpine:latest `\nas `\n#new comment\nbuild", result.ToString());
+
                         Assert.Equal("alpine:latest", result.ImageName);
                         Assert.Equal("FROM", result.InstructionName);
                         Assert.Null(result.Platform);

@@ -140,10 +140,7 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Collection(result.Comments,
-                            token => ValidateAggregate<CommentToken>(token, "# my comment",
-                            token => ValidateSymbol(token, "#"),
-                            token => ValidateWhitespace(token, " "),
-                            token => ValidateLiteral(token, "my comment")));
+                            comment => Assert.Equal("my comment", comment));
                         Assert.Equal("ARG", result.InstructionName);
                         Assert.Equal("MYARG", result.ArgName);
                         Assert.Equal("", result.ArgValue);
