@@ -12,12 +12,6 @@ namespace DockerfileModel.Tests
             Assert.Equal(whitespace, token.Value);
         }
 
-        public static void ValidateComment(Token token)
-        {
-            Assert.IsType<CommentToken>(token);
-            Assert.Equal("#", token.Value);
-        }
-
         public static void ValidatePunctuation(Token token, string punctuation)
         {
             Assert.IsType<PunctuationToken>(token);
@@ -42,12 +36,6 @@ namespace DockerfileModel.Tests
             Assert.IsType<IdentifierToken>(token);
             Assert.Equal(identifier, token.Value);
             Assert.Equal(quoteChar, ((IdentifierToken)token).QuoteChar);
-        }
-
-        public static void ValidateCommentText(Token token, string text)
-        {
-            Assert.IsType<CommentTextToken>(token);
-            Assert.Equal(text, token.Value);
         }
 
         public static void ValidateLineContinuation(Token token, string text)

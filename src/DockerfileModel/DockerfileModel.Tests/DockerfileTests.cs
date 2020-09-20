@@ -391,8 +391,9 @@ namespace DockerfileModel.Tests
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLineContinuation(token, "\\"),
                             token => ValidateNewLine(token, "\n"),
-                            token => ValidateComment(token),
-                            token => ValidateCommentText(token, "comment"),
+                            token => ValidateAggregate<CommentToken>(token, "#comment",
+                                token => ValidatePunctuation(token, "#"),
+                                token => ValidateLiteral(token, "comment")),
                             token => ValidateNewLine(token, "\n"),
                             token => ValidateLiteral(token, "scratch")
                         ),

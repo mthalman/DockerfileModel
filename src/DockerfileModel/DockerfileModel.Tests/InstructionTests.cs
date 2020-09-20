@@ -163,14 +163,16 @@ namespace DockerfileModel.Tests
                         token => ValidateLineContinuation(token, "\\"),
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, "  "),
-                        token => ValidateComment(token),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateCommentText(token, "comment1"),
+                        token => ValidateAggregate<CommentToken>(token, "# comment1",
+                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "comment1")),
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, "  "),
-                        token => ValidateComment(token),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateCommentText(token, "comment 2"),
+                        token => ValidateAggregate<CommentToken>(token, "# comment 2",
+                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "comment 2")),
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, "  "),
                         token => ValidateLiteral(token, "VAR=value")
@@ -178,8 +180,14 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Collection(result.Comments,
-                            token => ValidateCommentText(token, "comment1"),
-                            token => ValidateCommentText(token, "comment 2"));
+                            token => ValidateAggregate<CommentToken>(token, "# comment1",
+                                token => ValidatePunctuation(token, "#"),
+                                token => ValidateWhitespace(token, " "),
+                                token => ValidateLiteral(token, "comment1")),
+                            token => ValidateAggregate<CommentToken>(token, "# comment 2",
+                                token => ValidatePunctuation(token, "#"),
+                                token => ValidateWhitespace(token, " "),
+                                token => ValidateLiteral(token, "comment 2")));
                         Assert.Collection(result.ArgLines,
                             token => ValidateLiteral(token, "VAR=value"));
                     }

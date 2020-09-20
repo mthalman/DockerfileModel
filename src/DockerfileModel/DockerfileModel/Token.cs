@@ -73,20 +73,6 @@
         }
     }
 
-    public class CommentToken : Token
-    {
-        public CommentToken(string value) : base(value)
-        {
-        }
-    }
-
-    public class CommentTextToken : Token
-    {
-        public CommentTextToken(string value) : base(value)
-        {
-        }
-    }
-
     public class LineContinuationToken : Token
     {
         public LineContinuationToken(string value) : base(value)

@@ -65,8 +65,9 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "AS"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateNewLine(token, "\n"),
-                        token => ValidateComment(token),
-                        token => ValidateCommentText(token, "comment"),
+                        token => ValidateAggregate<CommentToken>(token, "#comment",
+                            token => ValidatePunctuation(token, "#"),
+                            token => ValidateLiteral(token, "comment")),
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "installer")
@@ -74,7 +75,7 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Single(result.Comments);
-                        Assert.Equal("comment", result.Comments.First().Value);
+                        Assert.Equal("comment", result.Comments.First().Text);
                         Assert.Equal("installer", result.Stage);
                     }
                 },

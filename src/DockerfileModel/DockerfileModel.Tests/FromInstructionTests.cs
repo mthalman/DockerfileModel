@@ -124,15 +124,18 @@ namespace DockerfileModel.Tests
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLineContinuation(token, "`"),
                             token => ValidateNewLine(token, "\n"),
-                            token => ValidateComment(token),
-                            token => ValidateCommentText(token, "comment"),
+                            token => ValidateAggregate<CommentToken>(token, "#comment",
+                                token => ValidatePunctuation(token, "#"),
+                                token => ValidateLiteral(token, "comment")),
                             token => ValidateNewLine(token, "\n"),
                             token => ValidateIdentifier(token, "build"))
                     },
                     Validate = result =>
                     {
                         Assert.Collection(result.Comments,
-                            token => ValidateCommentText(token, "comment"));
+                            token => ValidateAggregate<CommentToken>(token, "#comment",
+                                token => ValidatePunctuation(token, "#"),
+                                token => ValidateLiteral(token, "comment")));
                         Assert.Equal("alpine:latest", result.ImageName);
                         Assert.Equal("FROM", result.InstructionName);
                         Assert.Null(result.Platform);
