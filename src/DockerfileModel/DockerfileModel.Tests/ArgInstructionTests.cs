@@ -60,127 +60,127 @@ namespace DockerfileModel.Tests
         {
             var testInputs = new ArgInstructionParseTestScenario[]
             {
-                //new ArgInstructionParseTestScenario
-                //{
-                //    Text = "ARG MYARG",
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "ARG"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateIdentifier(token, "MYARG")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("ARG", result.InstructionName);
-                //        Assert.Equal("MYARG", result.ArgName);
-                //        Assert.Null(result.ArgValue);
-                //    }
-                //},
-                //new ArgInstructionParseTestScenario
-                //{
-                //    Text = "ARG MYARG\r\n",
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "ARG"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateIdentifier(token, "MYARG"),
-                //        token => ValidateNewLine(token, "\r\n")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("ARG", result.InstructionName);
-                //        Assert.Equal("MYARG", result.ArgName);
-                //        Assert.Null(result.ArgValue);
-                //    }
-                //},
-                //new ArgInstructionParseTestScenario
-                //{
-                //    Text = "ARG `\nMYARG",
-                //    EscapeChar = '`',
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "ARG"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLineContinuation(token, "`"),
-                //        token => ValidateNewLine(token, "\n"),
-                //        token => ValidateIdentifier(token, "MYARG")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("ARG", result.InstructionName);
-                //        Assert.Equal("MYARG", result.ArgName);
-                //        Assert.Null(result.ArgValue);
-                //    }
-                //},
-                //new ArgInstructionParseTestScenario
-                //{
-                //    Text = "ARG MYARG=",
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "ARG"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateIdentifier(token, "MYARG"),
-                //        token => ValidatePunctuation(token, "="),
-                //        token => ValidateLiteral(token, "")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("ARG", result.InstructionName);
-                //        Assert.Equal("MYARG", result.ArgName);
-                //        Assert.Equal("", result.ArgValue);
-                //    }
-                //},
-                //new ArgInstructionParseTestScenario
-                //{
-                //    Text = "ARG `\n# my comment\n  MYARG=",
-                //    EscapeChar = '`',
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "ARG"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLineContinuation(token, "`"),
-                //        token => ValidateNewLine(token, "\n"),
-                //        token => ValidateComment(token),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateCommentText(token, "my comment"),
-                //        token => ValidateNewLine(token, "\n"),
-                //        token => ValidateWhitespace(token, "  "),
-                //        token => ValidateIdentifier(token, "MYARG"),
-                //        token => ValidatePunctuation(token, "="),
-                //        token => ValidateLiteral(token, "")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Collection(result.Comments,
-                //            token => ValidateCommentText(token, "my comment"));
-                //        Assert.Equal("ARG", result.InstructionName);
-                //        Assert.Equal("MYARG", result.ArgName);
-                //        Assert.Equal("", result.ArgValue);
-                //    }
-                //},
-                //new ArgInstructionParseTestScenario
-                //{
-                //    Text = "ARG myarg=1",
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "ARG"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateIdentifier(token, "myarg"),
-                //        token => ValidatePunctuation(token, "="),
-                //        token => ValidateLiteral(token, "1")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("ARG", result.InstructionName);
-                //        Assert.Equal("myarg", result.ArgName);
-                //        Assert.Equal("1", result.ArgValue);
-                //    }
-                //},
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG MYARG",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MYARG")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MYARG", result.ArgName);
+                        Assert.Null(result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG MYARG\r\n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MYARG"),
+                        token => ValidateNewLine(token, "\r\n")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MYARG", result.ArgName);
+                        Assert.Null(result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG `\nMYARG",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, "`"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateIdentifier(token, "MYARG")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MYARG", result.ArgName);
+                        Assert.Null(result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG MYARG=",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MYARG"),
+                        token => ValidatePunctuation(token, "="),
+                        token => ValidateLiteral(token, "")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MYARG", result.ArgName);
+                        Assert.Equal("", result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG `\n# my comment\n  MYARG=",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, "`"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateComment(token),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateCommentText(token, "my comment"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateIdentifier(token, "MYARG"),
+                        token => ValidatePunctuation(token, "="),
+                        token => ValidateLiteral(token, "")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Collection(result.Comments,
+                            token => ValidateCommentText(token, "my comment"));
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MYARG", result.ArgName);
+                        Assert.Equal("", result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG myarg=1",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "myarg"),
+                        token => ValidatePunctuation(token, "="),
+                        token => ValidateLiteral(token, "1")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("myarg", result.ArgName);
+                        Assert.Equal("1", result.ArgValue);
+                    }
+                },
                 new ArgInstructionParseTestScenario
                 {
                     Text = "ARG `\nMYARG=\"test\"",

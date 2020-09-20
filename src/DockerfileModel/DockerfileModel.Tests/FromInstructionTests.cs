@@ -43,155 +43,155 @@ namespace DockerfileModel.Tests
         {
             var testInputs = new FromInstructionParseTestScenario[]
             {
-                //new FromInstructionParseTestScenario
-                //{
-                //    Text = "FROM scratch",
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "FROM"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLiteral(token, "scratch")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("scratch", result.ImageName);
-                //        Assert.Equal("FROM", result.InstructionName);
-                //        Assert.Null(result.Platform);
-                //        Assert.Null(result.StageName);
-                //    }
-                //},
-                //new FromInstructionParseTestScenario
-                //{
-                //    Text = "FROM `\nscratch",
-                //    EscapeChar = '`',
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "FROM"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLineContinuation(token, "`"),
-                //        token => ValidateNewLine(token, "\n"),
-                //        token => ValidateLiteral(token, "scratch")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("scratch", result.ImageName);
-                //        Assert.Equal("FROM", result.InstructionName);
-                //        Assert.Null(result.Platform);
-                //        Assert.Null(result.StageName);
-                //    }
-                //},
-                //new FromInstructionParseTestScenario
-                //{
-                //    Text = "FROM alpine:latest as build",
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "FROM"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLiteral(token, "alpine:latest"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateAggregate<StageName>(token, "as build",
-                //            token => ValidateKeyword(token, "as"),
-                //            token => ValidateWhitespace(token, " "),
-                //            token => ValidateIdentifier(token, "build"))
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("alpine:latest", result.ImageName);
-                //        Assert.Equal("FROM", result.InstructionName);
-                //        Assert.Null(result.Platform);
-                //        Assert.Equal("build", result.StageName);
-                //    }
-                //},
-                //new FromInstructionParseTestScenario
-                //{
-                //    Text = "FROM `\nalpine:latest `\nas `\n#comment\nbuild",
-                //    EscapeChar = '`',
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "FROM"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLineContinuation(token, "`"),
-                //        token => ValidateNewLine(token, "\n"),
-                //        token => ValidateLiteral(token, "alpine:latest"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLineContinuation(token, "`"),
-                //        token => ValidateNewLine(token, "\n"),
-                //        token => ValidateAggregate<StageName>(token, "as `\n#comment\nbuild",
-                //            token => ValidateKeyword(token, "as"),
-                //            token => ValidateWhitespace(token, " "),
-                //            token => ValidateLineContinuation(token, "`"),
-                //            token => ValidateNewLine(token, "\n"),
-                //            token => ValidateComment(token),
-                //            token => ValidateCommentText(token, "comment"),
-                //            token => ValidateNewLine(token, "\n"),
-                //            token => ValidateIdentifier(token, "build"))
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Collection(result.Comments,
-                //            token => ValidateCommentText(token, "comment"));
-                //        Assert.Equal("alpine:latest", result.ImageName);
-                //        Assert.Equal("FROM", result.InstructionName);
-                //        Assert.Null(result.Platform);
-                //        Assert.Equal("build", result.StageName);
-                //    }
-                //},
-                //new FromInstructionParseTestScenario
-                //{
-                //    Text = "FROM --platform=linux/amd64 alpine as build",
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "FROM"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
-                //            token => ValidatePunctuation(token, "--"),
-                //            token => ValidateKeyword(token, "platform"),
-                //            token => ValidatePunctuation(token, "="),
-                //            token => ValidateLiteral(token, "linux/amd64")),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLiteral(token, "alpine"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateAggregate<StageName>(token, "as build",
-                //            token => ValidateKeyword(token, "as"),
-                //            token => ValidateWhitespace(token, " "),
-                //            token => ValidateIdentifier(token, "build"))
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("alpine", result.ImageName);
-                //        Assert.Equal("FROM", result.InstructionName);
-                //        Assert.Equal("linux/amd64", result.Platform);
-                //        Assert.Equal("build", result.StageName);
-                //    }
-                //},
-                //new FromInstructionParseTestScenario
-                //{
-                //    Text = "FROM --platform=linux/amd64 alpine",
-                //    TokenValidators = new Action<Token>[]
-                //    {
-                //        token => ValidateKeyword(token, "FROM"),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
-                //            token => ValidatePunctuation(token, "--"),
-                //            token => ValidateKeyword(token, "platform"),
-                //            token => ValidatePunctuation(token, "="),
-                //            token => ValidateLiteral(token, "linux/amd64")),
-                //        token => ValidateWhitespace(token, " "),
-                //        token => ValidateLiteral(token, "alpine")
-                //    },
-                //    Validate = result =>
-                //    {
-                //        Assert.Empty(result.Comments);
-                //        Assert.Equal("alpine", result.ImageName);
-                //        Assert.Equal("FROM", result.InstructionName);
-                //        Assert.Equal("linux/amd64", result.Platform);
-                //        Assert.Null(result.StageName);
-                //    }
-                //},
+                new FromInstructionParseTestScenario
+                {
+                    Text = "FROM scratch",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "FROM"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "scratch")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("scratch", result.ImageName);
+                        Assert.Equal("FROM", result.InstructionName);
+                        Assert.Null(result.Platform);
+                        Assert.Null(result.StageName);
+                    }
+                },
+                new FromInstructionParseTestScenario
+                {
+                    Text = "FROM `\nscratch",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "FROM"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, "`"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateLiteral(token, "scratch")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("scratch", result.ImageName);
+                        Assert.Equal("FROM", result.InstructionName);
+                        Assert.Null(result.Platform);
+                        Assert.Null(result.StageName);
+                    }
+                },
+                new FromInstructionParseTestScenario
+                {
+                    Text = "FROM alpine:latest as build",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "FROM"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "alpine:latest"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<StageName>(token, "as build",
+                            token => ValidateKeyword(token, "as"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateIdentifier(token, "build"))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("alpine:latest", result.ImageName);
+                        Assert.Equal("FROM", result.InstructionName);
+                        Assert.Null(result.Platform);
+                        Assert.Equal("build", result.StageName);
+                    }
+                },
+                new FromInstructionParseTestScenario
+                {
+                    Text = "FROM `\nalpine:latest `\nas `\n#comment\nbuild",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "FROM"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, "`"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateLiteral(token, "alpine:latest"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, "`"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateAggregate<StageName>(token, "as `\n#comment\nbuild",
+                            token => ValidateKeyword(token, "as"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLineContinuation(token, "`"),
+                            token => ValidateNewLine(token, "\n"),
+                            token => ValidateComment(token),
+                            token => ValidateCommentText(token, "comment"),
+                            token => ValidateNewLine(token, "\n"),
+                            token => ValidateIdentifier(token, "build"))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Collection(result.Comments,
+                            token => ValidateCommentText(token, "comment"));
+                        Assert.Equal("alpine:latest", result.ImageName);
+                        Assert.Equal("FROM", result.InstructionName);
+                        Assert.Null(result.Platform);
+                        Assert.Equal("build", result.StageName);
+                    }
+                },
+                new FromInstructionParseTestScenario
+                {
+                    Text = "FROM --platform=linux/amd64 alpine as build",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "FROM"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
+                            token => ValidatePunctuation(token, "--"),
+                            token => ValidateKeyword(token, "platform"),
+                            token => ValidatePunctuation(token, "="),
+                            token => ValidateLiteral(token, "linux/amd64")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "alpine"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<StageName>(token, "as build",
+                            token => ValidateKeyword(token, "as"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateIdentifier(token, "build"))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("alpine", result.ImageName);
+                        Assert.Equal("FROM", result.InstructionName);
+                        Assert.Equal("linux/amd64", result.Platform);
+                        Assert.Equal("build", result.StageName);
+                    }
+                },
+                new FromInstructionParseTestScenario
+                {
+                    Text = "FROM --platform=linux/amd64 alpine",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "FROM"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
+                            token => ValidatePunctuation(token, "--"),
+                            token => ValidateKeyword(token, "platform"),
+                            token => ValidatePunctuation(token, "="),
+                            token => ValidateLiteral(token, "linux/amd64")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "alpine")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("alpine", result.ImageName);
+                        Assert.Equal("FROM", result.InstructionName);
+                        Assert.Equal("linux/amd64", result.Platform);
+                        Assert.Null(result.StageName);
+                    }
+                },
                 new FromInstructionParseTestScenario
                 {
                     Text = "FROM `\n  --platform=linux/amd64`\n  alpine",
