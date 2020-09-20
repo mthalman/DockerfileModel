@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using DockerfileModel.Tokens;
 using Sprache;
 
 namespace DockerfileModel

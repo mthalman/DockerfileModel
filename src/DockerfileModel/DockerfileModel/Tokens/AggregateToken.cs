@@ -5,7 +5,7 @@ using Sprache;
 
 using static DockerfileModel.ParseHelper;
 
-namespace DockerfileModel
+namespace DockerfileModel.Tokens
 {
     public abstract class AggregateToken : Token
     {

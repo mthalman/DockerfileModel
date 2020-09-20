@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using DockerfileModel.Tokens;
 using Sprache;
 using Validation;
 using static DockerfileModel.ParseHelper;

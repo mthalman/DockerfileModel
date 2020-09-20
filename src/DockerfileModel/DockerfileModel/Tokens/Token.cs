@@ -1,4 +1,4 @@
-﻿namespace DockerfileModel
+﻿namespace DockerfileModel.Tokens
 {
     public abstract class Token
     {

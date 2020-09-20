@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using DockerfileModel.Tokens;
 using Xunit;
 
 namespace DockerfileModel.Tests
