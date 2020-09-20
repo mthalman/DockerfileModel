@@ -4,7 +4,7 @@ using Sprache;
 
 using static DockerfileModel.ParseHelper;
 
-namespace DockerfileModel
+namespace DockerfileModel.Tokens
 {
     public class CommentToken : AggregateToken
     {

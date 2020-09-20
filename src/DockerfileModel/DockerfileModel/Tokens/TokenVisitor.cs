@@ -1,4 +1,4 @@
-﻿namespace DockerfileModel
+﻿namespace DockerfileModel.Tokens
 {
     internal abstract class TokenVisitor
     {

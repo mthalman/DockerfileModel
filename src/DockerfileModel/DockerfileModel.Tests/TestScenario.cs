@@ -1,4 +1,5 @@
 ﻿using System;
+using DockerfileModel.Tokens;
 using Sprache;
 
 namespace DockerfileModel.Tests
