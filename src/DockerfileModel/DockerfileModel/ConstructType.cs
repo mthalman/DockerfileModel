@@ -1,11 +1,6 @@
 ﻿namespace DockerfileModel
 {
-    public interface IDockerfileLine
-    {
-        LineType Type { get; }
-    }
-
-    public enum LineType
+    public enum ConstructType
     {
         Instruction,
         Comment,

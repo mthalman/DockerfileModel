@@ -41,7 +41,7 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            var testInputs = new StageNameParseTestScenario[]
+            StageNameParseTestScenario[] testInputs = new StageNameParseTestScenario[]
             {
                 new StageNameParseTestScenario
                 {
@@ -102,7 +102,7 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> CreateTestInput()
         {
-            var testInputs = new CreateTestScenario[]
+            CreateTestScenario[] testInputs = new CreateTestScenario[]
             {
                 new CreateTestScenario
                 {

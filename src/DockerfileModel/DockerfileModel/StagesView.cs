@@ -10,49 +10,49 @@ namespace DockerfileModel
         {
             Requires.NotNull(dockerfile, nameof(dockerfile));
 
-            List<DockerfileLine> lines = dockerfile.Lines.ToList();
+            List<DockerfileConstruct> items = dockerfile.Items.ToList();
 
             List<ArgInstruction> globalArgs = new List<ArgInstruction>();
             List<Stage> stages = new List<Stage>();
             FromInstruction? currentStage = null;
-            List<DockerfileLine> stageLines = new List<DockerfileLine>();
+            List<DockerfileConstruct> stageItems = new List<DockerfileConstruct>();
 
-            for (int i = 0; i < lines.Count; i++)
+            for (int i = 0; i < items.Count; i++)
             {
-                DockerfileLine line = lines[i];
+                DockerfileConstruct item = items[i];
                 if (currentStage is null)
                 {
-                    if (line is ParserDirective || line is Whitespace)
+                    if (item is ParserDirective || item is Whitespace)
                     {
                         continue;
                     }
-                    else if (line is ArgInstruction argInstruction)
+                    else if (item is ArgInstruction argInstruction)
                     {
                         globalArgs.Add(argInstruction);
                     }
-                    else if (line is FromInstruction fromInstruction)
+                    else if (item is FromInstruction fromInstruction)
                     {
                         currentStage = fromInstruction;
                     }
                 }
                 else
                 {
-                    if (line is FromInstruction nextFromInstruction)
+                    if (item is FromInstruction nextFromInstruction)
                     {
-                        stages.Add(new Stage(currentStage, stageLines));
+                        stages.Add(new Stage(currentStage, stageItems));
                         currentStage = nextFromInstruction;
-                        stageLines = new List<DockerfileLine>();
+                        stageItems = new List<DockerfileConstruct>();
                     }
                     else
                     {
-                        stageLines.Add(line);
+                        stageItems.Add(item);
                     }
                 }
             }
 
             if (currentStage != null)
             {
-                stages.Add(new Stage(currentStage, stageLines));
+                stages.Add(new Stage(currentStage, stageItems));
             }
 
             GlobalArgs = globalArgs;
@@ -63,16 +63,16 @@ namespace DockerfileModel
         public IEnumerable<Stage> Stages { get; }
     }
 
-    public class Stage
+    public class Stage : IConstructContainer
     {
-        public Stage(FromInstruction fromInstruction, IEnumerable<DockerfileLine> lines)
+        public Stage(FromInstruction fromInstruction, IEnumerable<DockerfileConstruct> items)
         {
             FromInstruction = fromInstruction;
-            Lines = lines;
+            Items = items;
         }
 
         public FromInstruction FromInstruction { get; }
         public string? Name => FromInstruction.StageName;
-        public IEnumerable<DockerfileLine> Lines { get; }
+        public IEnumerable<DockerfileConstruct> Items { get; }
     }
 }

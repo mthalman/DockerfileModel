@@ -33,7 +33,7 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> CreateTestInput()
         {
-            var testInputs = new ParseTestScenario<Whitespace>[]
+            ParseTestScenario<Whitespace>[] testInputs = new ParseTestScenario<Whitespace>[]
             {
                 new ParseTestScenario<Whitespace>
                 {
@@ -53,9 +53,7 @@ namespace DockerfileModel.Tests
                 new ParseTestScenario<Whitespace>
                 {
                     Text = "",
-                    TokenValidators = new Action<Token>[]
-                    {
-                    }
+                    TokenValidators = Array.Empty<Action<Token>>()
                 },
                 new ParseTestScenario<Whitespace>
                 {

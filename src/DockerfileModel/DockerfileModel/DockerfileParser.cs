@@ -59,7 +59,7 @@ namespace DockerfileModel
                 inputLines.Add(lineBuilder.ToString());
             }
 
-            List<DockerfileLine> dockerfileLines = new List<DockerfileLine>();
+            List<DockerfileConstruct> dockerfileConstructs = new List<DockerfileConstruct>();
             StringBuilder? instructionContent = null;
             for (int i = 0; i < inputLines.Count; i++)
             {
@@ -68,8 +68,8 @@ namespace DockerfileModel
                 {
                     if (ParserDirective.IsParserDirective(line))
                     {
-                        var parserDirective = ParserDirective.Parse(line);
-                        dockerfileLines.Add(parserDirective);
+                        ParserDirective? parserDirective = ParserDirective.Parse(line);
+                        dockerfileConstructs.Add(parserDirective);
 
                         if (parserDirective.DirectiveName.Value.Equals(
                             ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase))
@@ -86,13 +86,13 @@ namespace DockerfileModel
 
                 if (Whitespace.IsWhitespace(line))
                 {
-                    dockerfileLines.Add(Whitespace.Create(line));
+                    dockerfileConstructs.Add(Whitespace.Create(line));
                 }
                 else if (Comment.IsComment(line))
                 {
                     if (instructionContent is null)
                     {
-                        dockerfileLines.Add(Comment.Parse(line));
+                        dockerfileConstructs.Add(Comment.Parse(line));
                     }
                     else
                     {
@@ -107,7 +107,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        dockerfileLines.Add(CreateInstruction(line, escapeChar));
+                        dockerfileConstructs.Add(CreateInstruction(line, escapeChar));
                     }    
                 }
                 else
@@ -121,13 +121,13 @@ namespace DockerfileModel
 
                     if (!EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful)
                     {
-                        dockerfileLines.Add(CreateInstruction(instructionContent.ToString(), escapeChar));
+                        dockerfileConstructs.Add(CreateInstruction(instructionContent.ToString(), escapeChar));
                         instructionContent = null;
                     }
                 }
             }
 
-            return new Dockerfile(dockerfileLines);
+            return new Dockerfile(dockerfileConstructs);
         }
 
         private static InstructionBase CreateInstruction(string text, char escapeChar)
@@ -183,8 +183,5 @@ namespace DockerfileModel
 
             return parser!;
         }
-
-        private static string Concat(params string[] strings) =>
-            String.Join("", strings);
     }
 }

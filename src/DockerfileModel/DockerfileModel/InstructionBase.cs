@@ -5,7 +5,7 @@ using Sprache;
 
 namespace DockerfileModel
 {
-    public abstract class InstructionBase : DockerfileLine
+    public abstract class InstructionBase : DockerfileConstruct
     {
         protected InstructionBase(string text, Parser<IEnumerable<Token?>> parser)
             : base(text, parser)
@@ -22,7 +22,7 @@ namespace DockerfileModel
 
         public IList<string> Comments => GetComments();
 
-        public override LineType Type => LineType.Instruction;
+        public override ConstructType Type => ConstructType.Instruction;
 
         public void ResolveArgValues(IDictionary<string, string?> argValues, char escapeChar)
         {

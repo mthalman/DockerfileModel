@@ -5,7 +5,7 @@ using Sprache;
 
 namespace DockerfileModel
 {
-    public class Whitespace : DockerfileLine
+    public class Whitespace : DockerfileConstruct
     {
         private Whitespace(string text)
             : base(text, GetParser())
@@ -16,7 +16,7 @@ namespace DockerfileModel
 
         public NewLineToken? NewLine => Tokens.OfType<NewLineToken>().FirstOrDefault();
 
-        public override LineType Type => LineType.Whitespace;
+        public override ConstructType Type => ConstructType.Whitespace;
 
         public static Whitespace Create(string text) =>
             new Whitespace(text);

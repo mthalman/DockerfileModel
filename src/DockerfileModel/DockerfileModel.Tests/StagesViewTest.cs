@@ -27,9 +27,9 @@ namespace DockerfileModel.Tests
             Stage stage = stagesView.Stages.First();
             Assert.Null(stage.Name);
             Assert.Equal(lines[0], stage.FromInstruction.ToString());
-            Assert.Equal(2, stage.Lines.Count());
-            Assert.Equal(lines[1], stage.Lines.First().ToString());
-            Assert.Equal(lines[2], stage.Lines.Last().ToString());
+            Assert.Equal(2, stage.Items.Count());
+            Assert.Equal(lines[1], stage.Items.First().ToString());
+            Assert.Equal(lines[2], stage.Items.Last().ToString());
         }
 
         [Fact]
@@ -59,10 +59,10 @@ namespace DockerfileModel.Tests
             Stage stage = stagesView.Stages.First();
             Assert.Null(stage.Name);
             Assert.Equal(lines[4], stage.FromInstruction.ToString());
-            Assert.Equal(3, stage.Lines.Count());
-            Assert.Equal(lines[5], stage.Lines.First().ToString());
-            Assert.Equal(lines[6], stage.Lines.ElementAt(1).ToString());
-            Assert.Equal(lines[7], stage.Lines.Last().ToString());
+            Assert.Equal(3, stage.Items.Count());
+            Assert.Equal(lines[5], stage.Items.First().ToString());
+            Assert.Equal(lines[6], stage.Items.ElementAt(1).ToString());
+            Assert.Equal(lines[7], stage.Items.Last().ToString());
         }
 
         [Fact]
@@ -90,21 +90,21 @@ namespace DockerfileModel.Tests
             Stage stage1 = stagesView.Stages.First();
             Assert.Equal("stage1", stage1.Name);
             Assert.Equal(lines[0], stage1.FromInstruction.ToString());
-            Assert.Single(stage1.Lines);
-            Assert.Equal(lines[1], stage1.Lines.First().ToString());
+            Assert.Single(stage1.Items);
+            Assert.Equal(lines[1], stage1.Items.First().ToString());
 
             Stage stage2 = stagesView.Stages.ElementAt(1);
             Assert.Equal("stage2", stage2.Name);
             Assert.Equal(lines[2], stage2.FromInstruction.ToString());
-            Assert.Equal(2, stage2.Lines.Count());
-            Assert.Equal(lines[3], stage2.Lines.First().ToString());
-            Assert.Equal(lines[4], stage2.Lines.Last().ToString());
+            Assert.Equal(2, stage2.Items.Count());
+            Assert.Equal(lines[3], stage2.Items.First().ToString());
+            Assert.Equal(lines[4], stage2.Items.Last().ToString());
 
             Stage stage3 = stagesView.Stages.Last();
             Assert.Equal("stage3", stage3.Name);
             Assert.Equal(lines[5], stage3.FromInstruction.ToString());
-            Assert.Single(stage3.Lines);
-            Assert.Equal(lines[6], stage3.Lines.First().ToString());
+            Assert.Single(stage3.Items);
+            Assert.Equal(lines[6], stage3.Items.First().ToString());
         }
 
         [Fact]
@@ -133,20 +133,20 @@ namespace DockerfileModel.Tests
             Stage stage1 = stagesView.Stages.First();
             Assert.Equal("stage1", stage1.Name);
             Assert.Equal(lines[1], stage1.FromInstruction.ToString());
-            Assert.Single(stage1.Lines);
-            Assert.Equal(lines[2], stage1.Lines.First().ToString());
+            Assert.Single(stage1.Items);
+            Assert.Equal(lines[2], stage1.Items.First().ToString());
 
             Stage stage2 = stagesView.Stages.ElementAt(1);
             Assert.Equal("stage2", stage2.Name);
             Assert.Equal(lines[3], stage2.FromInstruction.ToString());
-            Assert.Equal(2, stage2.Lines.Count());
-            Assert.Equal(lines[4], stage2.Lines.First().ToString());
-            Assert.Equal(lines[5], stage2.Lines.Last().ToString());
+            Assert.Equal(2, stage2.Items.Count());
+            Assert.Equal(lines[4], stage2.Items.First().ToString());
+            Assert.Equal(lines[5], stage2.Items.Last().ToString());
 
             Stage stage3 = stagesView.Stages.Last();
             Assert.Equal("stage3", stage3.Name);
             Assert.Equal(lines[6], stage3.FromInstruction.ToString());
-            Assert.Empty(stage3.Lines);
+            Assert.Empty(stage3.Items);
         }
     }
 }

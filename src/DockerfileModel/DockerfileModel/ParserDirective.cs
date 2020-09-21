@@ -8,7 +8,7 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class ParserDirective : DockerfileLine
+    public class ParserDirective : DockerfileConstruct
     {
         public const string EscapeDirective = "escape";
 
@@ -19,7 +19,7 @@ namespace DockerfileModel
 
         public KeywordToken DirectiveName => Tokens.OfType<KeywordToken>().First();
         public LiteralToken DirectiveValue => Tokens.OfType<LiteralToken>().First();
-        public override LineType Type => LineType.ParserDirective;
+        public override ConstructType Type => ConstructType.ParserDirective;
 
         public static ParserDirective Create(string directive, string value) =>
             Parse($"#{directive}={value}");
