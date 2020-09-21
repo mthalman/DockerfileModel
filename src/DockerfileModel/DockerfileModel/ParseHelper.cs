@@ -68,7 +68,7 @@ namespace DockerfileModel
 
         public static WhitespaceToken? GetTrailingWhitespaceToken(string text)
         {
-            var whitespace = new string(
+            string? whitespace = new string(
                 text
                     .Reverse()
                     .TakeWhile(ch => Char.IsWhiteSpace(ch))
@@ -139,14 +139,14 @@ namespace DockerfileModel
 
         public static Parser<IdentifierToken> QuotableIdentifier(Parser<char> firstLetterParser, Parser<char> tailLetterParser, char escapeChar) =>
             WrappedInOptionalQuotes(
-                Parse.Identifier(ExceptQuoteChars(firstLetterParser, escapeChar), ExceptQuoteChars(tailLetterParser, escapeChar)),
+                Parse.Identifier(ExceptQuoteChars(firstLetterParser), ExceptQuoteChars(tailLetterParser)),
                 Parse.Identifier(firstLetterParser, tailLetterParser),
                 escapeChar,
                 val => new IdentifierToken(val));
 
         public static Parser<LiteralToken> Literal(char escapeChar) =>
             WrappedInOptionalQuotes(
-                ExceptQuoteChars(LiteralToken(escapeChar), escapeChar).Many().Text(),
+                ExceptQuoteChars(LiteralToken(escapeChar)).Many().Text(),
                 LiteralToken(escapeChar).AtLeastOnce().Text(),
                 escapeChar, val => new LiteralToken(val));
 
@@ -164,7 +164,7 @@ namespace DockerfileModel
                 from nonQuotedValue in nonQuotableParser
                 select CreateQuotableToken(createToken, nonQuotedValue));
 
-        private static Parser<char> ExceptQuoteChars(Parser<char> parser, char escapeChar) =>
+        private static Parser<char> ExceptQuoteChars(Parser<char> parser) =>
             parser.Except(Parse.Char('\'')).Except(Parse.Char('\"'));
 
         private static Parser<TToken> WrappedInQuotes<TToken>(Parser<string> parser, char escapeChar, Func<string, TToken> createToken, char quoteChar)
@@ -194,7 +194,7 @@ namespace DockerfileModel
 
         private static WhitespaceToken? GetLeadingWhitespaceToken(string text)
         {
-            var whitespace = new string(
+            string? whitespace = new string(
                 text
                     .TakeWhile(ch => Char.IsWhiteSpace(ch))
                     .ToArray());

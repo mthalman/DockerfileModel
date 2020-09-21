@@ -4,7 +4,7 @@ using Sprache;
 
 namespace DockerfileModel
 {
-    public class Comment : DockerfileLine
+    public class Comment : DockerfileConstruct
     {
         private Comment(string text)
             : base(text, ParseHelper.CommentText())
@@ -17,7 +17,7 @@ namespace DockerfileModel
             set => Tokens.OfType<CommentToken>().First().Text = value;
         }
 
-        public override LineType Type => LineType.Comment;
+        public override ConstructType Type => ConstructType.Comment;
 
         public static Comment Create(string comment) =>
             new Comment($"# {comment}");

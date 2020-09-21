@@ -4,14 +4,14 @@ using System.Text;
 
 namespace DockerfileModel
 {
-    public class Dockerfile
+    public class Dockerfile : IConstructContainer
     {
-        public Dockerfile(IEnumerable<DockerfileLine> dockerfileLines)
+        public Dockerfile(IEnumerable<DockerfileConstruct> items)
         {
-            this.Lines = dockerfileLines;
+            this.Items = items;
         }
 
-        public IEnumerable<DockerfileLine> Lines { get; }
+        public IEnumerable<DockerfileConstruct> Items { get; }
 
         public static Dockerfile Parse(string text) =>
             DockerfileParser.ParseContent(text);
@@ -30,7 +30,7 @@ namespace DockerfileModel
                 stage.FromInstruction.ResolveArgValues(globalArgs, escapeChar);
 
                 Dictionary<string, string?> stageArgs = new Dictionary<string, string?>();
-                foreach (InstructionBase instruction in stage.Lines.OfType<InstructionBase>())
+                foreach (InstructionBase instruction in stage.Items.OfType<InstructionBase>())
                 {
                     if (instruction is ArgInstruction argInstruction)
                     {
@@ -72,10 +72,10 @@ namespace DockerfileModel
         {
             StringBuilder builder = new StringBuilder();
 
-            var lines = Lines.ToArray();
-            for (int i = 0; i < lines.Length; i++)
+            var items = Items.ToArray();
+            for (int i = 0; i < items.Length; i++)
             {
-                builder.Append(lines[i].ToString());
+                builder.Append(items[i].ToString());
             }
 
             return builder.ToString();

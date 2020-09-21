@@ -41,7 +41,7 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            var testInputs = new InstructionParseTestScenario[]
+            InstructionParseTestScenario[] testInputs = new InstructionParseTestScenario[]
             {
                 new InstructionParseTestScenario
                 {
@@ -100,7 +100,7 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Equal("run", result.InstructionName);
-                        var argLines = result.ArgLines;
+                        IList<string> argLines = result.ArgLines;
                         Assert.Equal(2, argLines.Count);
                         Assert.Equal(@"echo ""hello world""", argLines[0]);
                         Assert.Equal(@"&& ls -a", argLines[1]);
@@ -134,7 +134,7 @@ namespace DockerfileModel.Tests
                     Validate = result =>
                     {
                         Assert.Equal("run", result.InstructionName);
-                        var argLines = result.ArgLines;
+                        IList<string> argLines = result.ArgLines;
                         Assert.Equal(2, argLines.Count);
                         Assert.Equal(@"echo ""hello world""", argLines[0]);
                         Assert.Equal(@"&& ls -a", argLines[1]);
@@ -209,7 +209,7 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> CreateTestInput()
         {
-            var testInputs = new CreateTestScenario[]
+            CreateTestScenario[] testInputs = new CreateTestScenario[]
             {
                 new CreateTestScenario
                 {

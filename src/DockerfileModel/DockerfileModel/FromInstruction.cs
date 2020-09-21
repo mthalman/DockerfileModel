@@ -10,13 +10,12 @@ namespace DockerfileModel
 {
     public class FromInstruction : InstructionBase
     {
-        private readonly char escapeChar;
         private readonly LiteralToken imageName;
 
         private FromInstruction(string text, char escapeChar)
             : base(text, GetParser(escapeChar))
         {
-            var platform = this.PlatformToken;
+            LiteralToken? platform = this.PlatformToken;
             int startIndex = 0;
             if (platform != null)
             {
@@ -27,7 +26,6 @@ namespace DockerfileModel
                 .Skip(startIndex)
                 .OfType<LiteralToken>()
                 .First();
-            this.escapeChar = escapeChar;
         }
 
         public string ImageName
