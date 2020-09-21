@@ -146,7 +146,7 @@ namespace DockerfileModel
 
         public static Parser<LiteralToken> Literal(char escapeChar) =>
             WrappedInOptionalQuotes(
-                ExceptQuoteChars(LiteralToken(escapeChar), escapeChar).AtLeastOnce().Text(),
+                ExceptQuoteChars(LiteralToken(escapeChar), escapeChar).Many().Text(),
                 LiteralToken(escapeChar).AtLeastOnce().Text(),
                 escapeChar, val => new LiteralToken(val));
 

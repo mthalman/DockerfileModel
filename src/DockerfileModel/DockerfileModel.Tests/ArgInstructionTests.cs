@@ -197,6 +197,13 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG"),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MY_ARG", result.ArgName);
+                        Assert.Null(result.ArgValue);
                     }
                 },
                 new ArgInstructionParseTestScenario
@@ -217,6 +224,25 @@ namespace DockerfileModel.Tests
                         Assert.Equal("ARG", result.InstructionName);
                         Assert.Equal("MY_ARG", result.ArgName);
                         Assert.Equal("value", result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG MY_ARG=\'\'",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MY_ARG"),
+                        token => ValidateSymbol(token, "="),
+                        token => ValidateLiteral(token, "", '\'')
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MY_ARG", result.ArgName);
+                        Assert.Empty(result.ArgValue);
                     }
                 },
                 new ArgInstructionParseTestScenario
