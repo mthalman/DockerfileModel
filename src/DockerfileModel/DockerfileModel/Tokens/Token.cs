@@ -2,7 +2,11 @@
 {
     public abstract class Token
     {
-        public Token(string value)
+    }
+
+    public abstract class PrimitiveToken : Token
+    {
+        public PrimitiveToken(string value)
         {
             this.Value = value;
         }
@@ -12,21 +16,21 @@
         public override string ToString() => this.Value;
     }
 
-    public class KeywordToken : Token
+    public class KeywordToken : PrimitiveToken
     {
         public KeywordToken(string value) : base(value)
         {
         }
     }
 
-    public class SymbolToken : Token
+    public class SymbolToken : PrimitiveToken
     {
         public SymbolToken(string value) : base(value)
         {
         }
     }
 
-    public abstract class QuotableToken : Token
+    public abstract class QuotableToken : PrimitiveToken
     {
         public QuotableToken(string value) : base(value)
         {
@@ -59,7 +63,7 @@
         }
     }
 
-    public class WhitespaceToken : Token
+    public class WhitespaceToken : PrimitiveToken
     {
         public WhitespaceToken(string value) : base(value)
         {
@@ -73,7 +77,7 @@
         }
     }
 
-    public class LineContinuationToken : Token
+    public class LineContinuationToken : SymbolToken
     {
         public LineContinuationToken(string value) : base(value)
         {
