@@ -9,7 +9,7 @@ namespace DockerfileModel.Tests
 
         [Theory]
         [InlineData("scratch", null, "scratch", null, null)]
-        [InlineData("docker.io/library/image:tag", "docker.io", "library/image", "tag", null)]
+        [InlineData("docker.io/library/image:tag-1.0", "docker.io", "library/image", "tag-1.0", null)]
         [InlineData("myregistry.azurecr.io/repo:tag1", "myregistry.azurecr.io", "repo", "tag1", null)]
         [InlineData("repo1:tag1", null, "repo1", "tag1", null)]
         [InlineData("repo1@" + TestSha, null, "repo1", null, TestSha)]
