@@ -202,7 +202,7 @@ namespace DockerfileModel
 
             private static Parser<IEnumerable<Token>> Tag() =>
                 from separator in Sprache.Parse.Char(':')
-                from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, Sprache.Parse.LetterOrDigit)
+                from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, NonWhitespace())
                 select ConcatTokens(
                     new SymbolToken(separator.ToString()),
                     new TagToken(tag));

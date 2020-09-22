@@ -48,7 +48,7 @@ namespace DockerfileModel
             select new KeywordToken(name);
 
         private static Parser<LiteralToken> DirectiveValueParser() =>
-            from val in Sprache.Parse.AnyChar.Except(Sprache.Parse.WhiteSpace).Many().Text()
+            from val in NonWhitespace().Many().Text()
             select new LiteralToken(val);
     }
 }

@@ -150,8 +150,11 @@ namespace DockerfileModel
                 LiteralToken(escapeChar).AtLeastOnce().Text(),
                 escapeChar, val => new LiteralToken(val));
 
+        public static Parser<char> NonWhitespace() =>
+            Parse.AnyChar.Except(Parse.WhiteSpace);
+
         private static Parser<char> LiteralToken(char escapeChar) =>
-            Parse.AnyChar.Except(Parse.WhiteSpace).Except(Parse.Char(escapeChar));
+            NonWhitespace().Except(Parse.Char(escapeChar));
 
         private static Parser<string> EscapedChar(char val, char escapeChar) =>
             Parse.String($"{escapeChar}{val}").Text();
