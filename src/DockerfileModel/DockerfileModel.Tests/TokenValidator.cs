@@ -10,45 +10,47 @@ namespace DockerfileModel.Tests
         public static void ValidateWhitespace(Token token, string whitespace)
         {
             Assert.IsType<WhitespaceToken>(token);
-            Assert.Equal(whitespace, token.Value);
+            Assert.Equal(whitespace, ((WhitespaceToken)token).Value);
         }
 
         public static void ValidateSymbol(Token token, string symbol)
         {
             Assert.IsType<SymbolToken>(token);
-            Assert.Equal(symbol, token.Value);
+            Assert.Equal(symbol, ((SymbolToken)token).Value);
         }
 
         public static void ValidateKeyword(Token token, string keyword)
         {
             Assert.IsType<KeywordToken>(token);
-            Assert.Equal(keyword, token.Value);
+            Assert.Equal(keyword, ((KeywordToken)token).Value);
         }
 
         public static void ValidateLiteral(Token token, string literal, char? quoteChar = null)
         {
             Assert.IsType<LiteralToken>(token);
-            Assert.Equal(literal, token.Value);
-            Assert.Equal(quoteChar, ((LiteralToken)token).QuoteChar);
+            LiteralToken literalToken = (LiteralToken)token;
+            Assert.Equal(literal, literalToken.Value);
+            Assert.Equal(quoteChar, literalToken.QuoteChar);
         }
 
         public static void ValidateIdentifier(Token token, string identifier, char? quoteChar = null)
         {
             Assert.IsType<IdentifierToken>(token);
-            Assert.Equal(identifier, token.Value);
-            Assert.Equal(quoteChar, ((IdentifierToken)token).QuoteChar);
+            IdentifierToken identifierToken = (IdentifierToken)token;
+            Assert.Equal(identifier, identifierToken.Value);
+            Assert.Equal(quoteChar, identifierToken.QuoteChar);
         }
 
         public static void ValidateLineContinuation(Token token, string text)
         {
             Assert.IsType<LineContinuationToken>(token);
-            Assert.Equal(text, token.Value);
+            Assert.Equal(text, ((LineContinuationToken)token).Value);
         }
 
         public static void ValidateNewLine(Token token, string text)
         {
             Assert.IsType<NewLineToken>(token);
-            Assert.Equal(text, token.Value);
+            Assert.Equal(text, ((NewLineToken)token).Value);
         }
 
         public static void ValidateAggregate<T>(Token token, string text, params Action<Token>[] tokenValidators)
