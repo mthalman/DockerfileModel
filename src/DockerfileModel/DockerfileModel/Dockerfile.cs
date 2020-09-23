@@ -13,11 +13,22 @@ namespace DockerfileModel
 
         public IEnumerable<DockerfileConstruct> Items { get; }
 
+        public char EscapeChar =>
+            Items
+                .OfType<ParserDirective>()
+                .FirstOrDefault(directive => directive.DirectiveName == ParserDirective.EscapeDirective)
+                ?.DirectiveValue[0] ?? Instruction.DefaultEscapeChar;
+
         public static Dockerfile Parse(string text) =>
             DockerfileParser.ParseContent(text);
 
-        public void ResolveArgValues(IDictionary<string, string?> argValues, char escapeChar)
+        public void ResolveArgValues(IDictionary<string, string?>? argValues = null)
         {
+            if (argValues is null)
+            {
+                argValues = new Dictionary<string, string?>();
+            }
+
             StagesView stagesView = new StagesView(this);
 
             Dictionary<string, string?> globalArgs = stagesView.GlobalArgs
@@ -25,9 +36,11 @@ namespace DockerfileModel
 
             OverrideArgs(globalArgs, argValues);
 
+            var escapeChar = EscapeChar;
+
             foreach (Stage stage in stagesView.Stages)
             {
-                stage.FromInstruction.ResolveArgValues(globalArgs, escapeChar);
+                stage.FromInstruction.ResolveArgValues(escapeChar, globalArgs);
 
                 Dictionary<string, string?> stageArgs = new Dictionary<string, string?>();
                 foreach (InstructionBase instruction in stage.Items.OfType<InstructionBase>())
@@ -51,7 +64,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        instruction.ResolveArgValues(stageArgs, escapeChar);
+                        instruction.ResolveArgValues(escapeChar, stageArgs);
                     }
                 }
             }

@@ -17,8 +17,18 @@ namespace DockerfileModel
         {
         }
 
-        public KeywordToken DirectiveName => Tokens.OfType<KeywordToken>().First();
-        public LiteralToken DirectiveValue => Tokens.OfType<LiteralToken>().First();
+        public string DirectiveName
+        {
+            get => Tokens.OfType<KeywordToken>().First().Value;
+            set => Tokens.OfType<KeywordToken>().First().Value = value;
+        }
+
+        public string DirectiveValue
+        {
+            get => Tokens.OfType<LiteralToken>().First().Value;
+            set => Tokens.OfType<LiteralToken>().First().Value = value;
+        }
+
         public override ConstructType Type => ConstructType.ParserDirective;
 
         public static ParserDirective Create(string directive, string value) =>

@@ -71,10 +71,10 @@ namespace DockerfileModel
                         ParserDirective? parserDirective = ParserDirective.Parse(line);
                         dockerfileConstructs.Add(parserDirective);
 
-                        if (parserDirective.DirectiveName.Value.Equals(
+                        if (parserDirective.DirectiveName.Equals(
                             ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase))
                         {
-                            escapeChar = parserDirective.DirectiveValue.Value[0];
+                            escapeChar = parserDirective.DirectiveValue[0];
                         }
                         continue;
                     }
