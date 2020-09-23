@@ -56,12 +56,12 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("directive", result.DirectiveName.Value);
-                        Assert.Equal("value", result.DirectiveValue.Value);
+                        Assert.Equal("directive", result.DirectiveName);
+                        Assert.Equal("value", result.DirectiveValue);
 
-                        result.DirectiveName.Value = "directive2";
-                        result.DirectiveValue.Value = "newvalue";
-                        Assert.Equal($"#{result.DirectiveName.Value}={result.DirectiveValue.Value}", result.ToString());
+                        result.DirectiveName = "directive2";
+                        result.DirectiveValue = "newvalue";
+                        Assert.Equal($"#{result.DirectiveName}={result.DirectiveValue}", result.ToString());
                     }
                 },
                 new ParseTestScenario
@@ -81,12 +81,12 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("directive", result.DirectiveName.Value);
-                        Assert.Equal("value", result.DirectiveValue.Value);
+                        Assert.Equal("directive", result.DirectiveName);
+                        Assert.Equal("value", result.DirectiveValue);
 
-                        result.DirectiveName.Value = "directive2";
-                        result.DirectiveValue.Value = "newvalue";
-                        Assert.Equal($" # {result.DirectiveName.Value}   = {result.DirectiveValue.Value}  ", result.ToString());
+                        result.DirectiveName = "directive2";
+                        result.DirectiveValue = "newvalue";
+                        Assert.Equal($" # {result.DirectiveName}   = {result.DirectiveValue}  ", result.ToString());
                     }
                 },
                 new ParseTestScenario
@@ -116,12 +116,12 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("directive", result.DirectiveName.Value);
-                        Assert.Equal("value", result.DirectiveValue.Value);
+                        Assert.Equal("directive", result.DirectiveName);
+                        Assert.Equal("value", result.DirectiveValue);
 
-                        result.DirectiveName.Value = "directive2";
-                        result.DirectiveValue.Value = "newvalue";
-                        Assert.Equal($"#{result.DirectiveName.Value}={result.DirectiveValue.Value}", result.ToString());
+                        result.DirectiveName = "directive2";
+                        result.DirectiveValue = "newvalue";
+                        Assert.Equal($"#{result.DirectiveName}={result.DirectiveValue}", result.ToString());
                     }
                 },
                 new CreateTestScenario
@@ -141,12 +141,12 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("directive", result.DirectiveName.Value);
-                        Assert.Equal("value", result.DirectiveValue.Value);
+                        Assert.Equal("directive", result.DirectiveName);
+                        Assert.Equal("value", result.DirectiveValue);
 
-                        result.DirectiveName.Value = "directive2";
-                        result.DirectiveValue.Value = "newvalue";
-                        Assert.Equal($"# {result.DirectiveName.Value}   = {result.DirectiveValue.Value}  ", result.ToString());
+                        result.DirectiveName = "directive2";
+                        result.DirectiveValue = "newvalue";
+                        Assert.Equal($"# {result.DirectiveName}   = {result.DirectiveValue}  ", result.ToString());
                     }
                 }
             };

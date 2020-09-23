@@ -15,7 +15,7 @@ namespace DockerfileModel
         public string InstructionName
         {
             get => this.InstructionNameToken.Value;
-            set { this.InstructionNameToken.Value = value; }
+            set => this.InstructionNameToken.Value = value;
         }
 
         private KeywordToken InstructionNameToken => Tokens.OfType<KeywordToken>().First();
@@ -24,8 +24,13 @@ namespace DockerfileModel
 
         public override ConstructType Type => ConstructType.Instruction;
 
-        public void ResolveArgValues(IDictionary<string, string?> argValues, char escapeChar)
+        public void ResolveArgValues(char escapeChar, IDictionary<string, string?>? argValues = null)
         {
+            if (argValues is null)
+            {
+                argValues = new Dictionary<string, string?>();
+            }
+
             new ArgResolverVisitor(argValues, escapeChar).Visit(this);
         }
 

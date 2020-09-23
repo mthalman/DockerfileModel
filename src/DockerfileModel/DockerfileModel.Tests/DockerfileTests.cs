@@ -12,6 +12,16 @@ namespace DockerfileModel.Tests
     public class DockerfileTests
     {
         [Theory]
+        [InlineData("# escape=`\nFROM scratch", '`')]
+        [InlineData("# escape=\\\nFROM scratch", '\\')]
+        [InlineData("FROM scratch", '\\')]
+        public void EscapeChar(string content, char expectedEscapeChar)
+        {
+            Dockerfile dockerfile = Dockerfile.Parse(content);
+            Assert.Equal(expectedEscapeChar, dockerfile.EscapeChar);
+        }
+
+        [Theory]
         [MemberData(nameof(ParseTestInput))]
         public void Parse(ParseTestScenario<Dockerfile> scenario)
         {
@@ -36,15 +46,15 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "FROM image\n",
-                "ARG test=a\n",
+                "# escape=`",
+                "FROM image",
+                "ARG test=a",
                 "RUN echo $test `$test"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-            Dictionary<string, string> argValues = new Dictionary<string, string>();
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues();
 
             Assert.Equal("RUN echo a `$test", dockerfile.Items.Last().ToString());
         }
@@ -54,20 +64,20 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "FROM image\n",
-                "ARG test=a\n",
-                "RUN echo $test `$test"
+                "FROM image",
+                "ARG test=a",
+                "RUN echo $test \\$test"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             Dictionary<string, string> argValues = new Dictionary<string, string>
             {
                 { "test", "b" }
             };
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues(argValues);
 
-            Assert.Equal("RUN echo b `$test", dockerfile.Items.Last().ToString());
+            Assert.Equal("RUN echo b \\$test", dockerfile.Items.Last().ToString());
         }
 
         [Fact]
@@ -75,18 +85,17 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "FROM image as stage1\n",
-                "ARG test=a\n",
-                "RUN echo $test\n",
-                "FROM image2 as stage2\n",
-                "ARG test=\n",
+                "FROM image as stage1",
+                "ARG test=a",
+                "RUN echo $test",
+                "FROM image2 as stage2",
+                "ARG test=",
                 "RUN echo $test-c",
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-            Dictionary<string, string> argValues = new Dictionary<string, string>();
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues();
 
             StagesView stagesView = new StagesView(dockerfile);
             Assert.Equal("RUN echo a\n", stagesView.Stages.First().Items.Last().ToString());
@@ -98,21 +107,21 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "FROM image as stage1\n",
-                "ARG test=a\n",
-                "RUN echo $test\n",
-                "FROM image2 as stage2\n",
-                "ARG test=\n",
+                "FROM image as stage1",
+                "ARG test=a",
+                "RUN echo $test",
+                "FROM image2 as stage2",
+                "ARG test=",
                 "RUN echo $test-c",
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             Dictionary<string, string> argValues = new Dictionary<string, string>
             {
                 { "test", "z" }
             };
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues(argValues);
 
             StagesView stagesView = new StagesView(dockerfile);
             Assert.Equal("RUN echo z\n", stagesView.Stages.First().Items.Last().ToString());
@@ -124,20 +133,19 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "ARG test1=a\n",
-                "ARG test2=b\n",
-                "ARG test3=c\n",
-                "FROM image:$test1\n",
-                "ARG test2\n",
-                "ARG test3=c1\n",
-                "ARG test4=d\n",
+                "ARG test1=a",
+                "ARG test2=b",
+                "ARG test3=c",
+                "FROM image:$test1",
+                "ARG test2",
+                "ARG test3=c1",
+                "ARG test4=d",
                 "RUN echo $test1-$test2-$test3-$test4"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-            Dictionary<string, string> argValues = new Dictionary<string, string>();
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues();
 
             Assert.Equal("FROM image:a\n", dockerfile.Items.OfType<FromInstruction>().First().ToString());
             Assert.Equal("RUN echo -b-c1-d", dockerfile.Items.Last().ToString());
@@ -148,17 +156,17 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "ARG test1=a\n",
-                "ARG test2=b\n",
-                "ARG test3=c\n",
-                "FROM image:$test1\n",
-                "ARG test2\n",
-                "ARG test3=c1\n",
-                "ARG test4=d\n",
+                "ARG test1=a",
+                "ARG test2=b",
+                "ARG test3=c",
+                "FROM image:$test1",
+                "ARG test2",
+                "ARG test3=c1",
+                "ARG test4=d",
                 "RUN echo $test1-$test2-$test3-$test4"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             Dictionary<string, string> argValues = new Dictionary<string, string>
             {
@@ -167,7 +175,7 @@ namespace DockerfileModel.Tests
                 { "test3", "c2" },
                 { "test4", "d1" }
             };
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("FROM image:a1\n", dockerfile.Items.OfType<FromInstruction>().First().ToString());
             Assert.Equal("RUN echo -b1-c2-d1", dockerfile.Items.Last().ToString());
@@ -178,25 +186,24 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "ARG test1=a\n",
-                "ARG test2\n",
-                "ARG test3=c\n",
-                "FROM image:$test1 as stage1\n",
-                "ARG test2\n",
-                "ARG test3=c1\n",
-                "ARG test4=d\n",
-                "RUN echo $test1-$test2-$test3-$test4\n",
-                "FROM image:$test2 as stage2\n",
-                "ARG test2\n",
-                "ARG test3\n",
-                "ARG test4=d\n",
+                "ARG test1=a",
+                "ARG test2",
+                "ARG test3=c",
+                "FROM image:$test1 as stage1",
+                "ARG test2",
+                "ARG test3=c1",
+                "ARG test4=d",
+                "RUN echo $test1-$test2-$test3-$test4",
+                "FROM image:$test2 as stage2",
+                "ARG test2",
+                "ARG test3",
+                "ARG test4=d",
                 "RUN echo $test1-$test2-$test3-$test4"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-            Dictionary<string, string> argValues = new Dictionary<string, string>();
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues();
 
             StagesView stagesView = new StagesView(dockerfile);
 
@@ -211,22 +218,22 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "ARG test1=a\n",
-                "ARG test2\n",
-                "ARG test3=c\n",
-                "FROM image:$test1 as stage1\n",
-                "ARG test2\n",
-                "ARG test3=c1\n",
-                "ARG test4=d\n",
-                "RUN echo $test1-$test2-$test3-$test4\n",
-                "FROM image:$test2 as stage2\n",
-                "ARG test2\n",
-                "ARG test3\n",
-                "ARG test4=d\n",
+                "ARG test1=a",
+                "ARG test2",
+                "ARG test3=c",
+                "FROM image:$test1 as stage1",
+                "ARG test2",
+                "ARG test3=c1",
+                "ARG test4=d",
+                "RUN echo $test1-$test2-$test3-$test4",
+                "FROM image:$test2 as stage2",
+                "ARG test2",
+                "ARG test3",
+                "ARG test4=d",
                 "RUN echo $test1-$test2-$test3-$test4"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             Dictionary<string, string> argValues = new Dictionary<string, string>
             {
@@ -234,7 +241,7 @@ namespace DockerfileModel.Tests
                 { "test2", "b1" },
                 { "test3", "c2" },
             };
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues(argValues);
 
             StagesView stagesView = new StagesView(dockerfile);
 
@@ -249,16 +256,16 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "FROM image\n",
-                "RUN echo $test\n",
-                "ARG test=a\n",
+                "FROM image",
+                "RUN echo $test",
+                "ARG test=a",
                 "RUN echo $test"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             Dictionary<string, string> argValues = new Dictionary<string, string>();
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("RUN echo \n", dockerfile.Items.ElementAt(1).ToString());
             Assert.Equal("RUN echo a", dockerfile.Items.Last().ToString());
@@ -269,18 +276,17 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "ARG test=a\n",
-                "FROM image\n",
-                "ARG test\n",
-                "RUN echo $test\n",
-                "ARG test=b\n",
+                "ARG test=a",
+                "FROM image",
+                "ARG test",
+                "RUN echo $test",
+                "ARG test=b",
                 "RUN echo $test"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-            Dictionary<string, string> argValues = new Dictionary<string, string>();
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues();
 
             Assert.Equal("RUN echo a\n", dockerfile.Items.ElementAt(3).ToString());
             Assert.Equal("RUN echo b", dockerfile.Items.ElementAt(5).ToString());
@@ -291,17 +297,17 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "FROM image\n",
+                "FROM image",
                 "RUN echo $test"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             Dictionary<string, string> argValues = new Dictionary<string, string>
             {
                 { "test", "foo" }
             };
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("RUN echo ", dockerfile.Items.Last().ToString());
         }
@@ -311,18 +317,18 @@ namespace DockerfileModel.Tests
         {
             List<string> lines = new List<string>
             {
-                "ARG test=foo\n",
-                "FROM image\n",
+                "ARG test=foo",
+                "FROM image",
                 "RUN echo $test"
             };
 
-            Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             Dictionary<string, string> argValues = new Dictionary<string, string>
             {
                 { "test", null }
             };
-            dockerfile.ResolveArgValues(argValues, '`');
+            dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("RUN echo ", dockerfile.Items.Last().ToString());
         }
