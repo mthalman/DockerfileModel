@@ -24,7 +24,7 @@ namespace DockerfileModel
 
         public override ConstructType Type => ConstructType.Instruction;
 
-        public void ResolveArgValues(char escapeChar, IDictionary<string, string?>? argValues = null)
+        internal void ResolveArgValues(char escapeChar, IDictionary<string, string?>? argValues = null)
         {
             if (argValues is null)
             {

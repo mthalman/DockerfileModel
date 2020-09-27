@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
@@ -22,7 +23,52 @@ namespace DockerfileModel
         public static Dockerfile Parse(string text) =>
             DockerfileParser.ParseContent(text);
 
-        public void ResolveArgValues(IDictionary<string, string?>? argValues = null)
+        public string ResolveArgValues<TInstruction>(
+            TInstruction instruction,
+            Func<TInstruction, string> getValue,
+            IDictionary<string, string?>? argValues = null)
+            where TInstruction : InstructionBase
+        {
+            string? resolvedValue = null;
+            ResolveArgValues(
+                argValues,
+                stagesView =>
+                {
+                    Stage stage = stagesView.Stages
+                        .FirstOrDefault(stage => stage.FromInstruction == instruction || stage.Items.Contains(instruction));
+
+                    if (stage is null)
+                    {
+                        throw new ArgumentException(
+                            $"Instruction '{instruction}' is not contained in this Dockerfile.", nameof(instruction));
+                    }
+
+                    return new Stage[] { stage };
+                },
+                currentInstruction =>
+                {
+                    return currentInstruction is ArgInstruction || currentInstruction == instruction;
+                },
+                (instruction, escapeChar, args) =>
+                {
+                    resolvedValue = ArgResolver.Resolve(getValue((TInstruction)instruction), args, escapeChar);
+                });
+
+            return resolvedValue!;
+        }
+
+        public void ResolveArgValues(IDictionary<string, string?>? argValues = null) =>
+            ResolveArgValues(
+                argValues,
+                stagesView => stagesView.Stages,
+                instruction => true,
+                (instruction, escapeChar, args) => instruction.ResolveArgValues(escapeChar, args));
+
+        private void ResolveArgValues(
+            IDictionary<string, string?>? argValues,
+            Func<StagesView, IEnumerable<Stage>> getStages,
+            Func<InstructionBase, bool> processInstruction,
+            Action<InstructionBase, char, Dictionary<string, string?>> onResolveArgs)
         {
             if (argValues is null)
             {
@@ -38,12 +84,22 @@ namespace DockerfileModel
 
             var escapeChar = EscapeChar;
 
-            foreach (Stage stage in stagesView.Stages)
+            var stages = getStages(stagesView);
+
+            foreach (Stage stage in stages)
             {
-                stage.FromInstruction.ResolveArgValues(escapeChar, globalArgs);
+                if (processInstruction(stage.FromInstruction))
+                {
+                    onResolveArgs(stage.FromInstruction, escapeChar, globalArgs);
+                }
 
                 Dictionary<string, string?> stageArgs = new Dictionary<string, string?>();
-                foreach (InstructionBase instruction in stage.Items.OfType<InstructionBase>())
+
+                IEnumerable<InstructionBase> instructions = stage.Items
+                    .OfType<InstructionBase>()
+                    .Where(instruction => processInstruction(instruction));
+
+                foreach (InstructionBase instruction in instructions)
                 {
                     if (instruction is ArgInstruction argInstruction)
                     {
@@ -64,7 +120,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        instruction.ResolveArgValues(escapeChar, stageArgs);
+                        onResolveArgs(instruction, escapeChar, stageArgs);
                     }
                 }
             }

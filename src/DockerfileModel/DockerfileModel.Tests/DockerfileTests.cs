@@ -54,6 +54,12 @@ namespace DockerfileModel.Tests
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues((Instruction)dockerfile.Items.Last(), runInst => runInst.ToString());
+            Assert.Equal("RUN echo a `$test", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
             dockerfile.ResolveArgValues();
 
             Assert.Equal("RUN echo a `$test", dockerfile.Items.Last().ToString());
@@ -75,6 +81,13 @@ namespace DockerfileModel.Tests
             {
                 { "test", "b" }
             };
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues((Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo b \\$test", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
             dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("RUN echo b \\$test", dockerfile.Items.Last().ToString());
@@ -94,10 +107,18 @@ namespace DockerfileModel.Tests
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+            StagesView stagesView = new StagesView(dockerfile);
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues((Instruction)stagesView.Stages.First().Items.Last(), runInst => runInst.ToString());
+            Assert.Equal("RUN echo a\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues((Instruction)stagesView.Stages.Last().Items.Last(), runInst => runInst.ToString());
+            Assert.Equal("RUN echo -c", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
             dockerfile.ResolveArgValues();
 
-            StagesView stagesView = new StagesView(dockerfile);
             Assert.Equal("RUN echo a\n", stagesView.Stages.First().Items.Last().ToString());
             Assert.Equal("RUN echo -c", stagesView.Stages.Last().Items.Last().ToString());
         }
@@ -116,14 +137,25 @@ namespace DockerfileModel.Tests
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+            StagesView stagesView = new StagesView(dockerfile);
 
             Dictionary<string, string> argValues = new Dictionary<string, string>
             {
                 { "test", "z" }
             };
-            dockerfile.ResolveArgValues(argValues);
 
-            StagesView stagesView = new StagesView(dockerfile);
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)stagesView.Stages.First().Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo z\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)stagesView.Stages.Last().Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo z-c", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
+            dockerfile.ResolveArgValues(argValues);
+            
             Assert.Equal("RUN echo z\n", stagesView.Stages.First().Items.Last().ToString());
             Assert.Equal("RUN echo z-c", stagesView.Stages.Last().Items.Last().ToString());
         }
@@ -144,6 +176,16 @@ namespace DockerfileModel.Tests
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                dockerfile.Items.OfType<FromInstruction>().First(), runInst => runInst.ToString());
+            Assert.Equal("FROM image:a\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString());
+            Assert.Equal("RUN echo -b-c1-d", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
             dockerfile.ResolveArgValues();
 
@@ -175,6 +217,17 @@ namespace DockerfileModel.Tests
                 { "test3", "c2" },
                 { "test4", "d1" }
             };
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                dockerfile.Items.OfType<FromInstruction>().First(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("FROM image:a1\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo -b1-c2-d1", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
             dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("FROM image:a1\n", dockerfile.Items.OfType<FromInstruction>().First().ToString());
@@ -202,10 +255,25 @@ namespace DockerfileModel.Tests
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+            StagesView stagesView = new StagesView(dockerfile);
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                stagesView.Stages.First().FromInstruction, runInst => runInst.ToString());
+            Assert.Equal("FROM image:a as stage1\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)stagesView.Stages.First().Items.Last(), runInst => runInst.ToString());
+            Assert.Equal("RUN echo --c1-d\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                stagesView.Stages.Last().FromInstruction, runInst => runInst.ToString());
+            Assert.Equal("FROM image: as stage2\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)stagesView.Stages.Last().Items.Last(), runInst => runInst.ToString());
+            Assert.Equal("RUN echo --c-d", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
             dockerfile.ResolveArgValues();
-
-            StagesView stagesView = new StagesView(dockerfile);
 
             Assert.Equal("FROM image:a as stage1\n", stagesView.Stages.First().FromInstruction.ToString());
             Assert.Equal("RUN echo --c1-d\n", stagesView.Stages.First().Items.Last().ToString());
@@ -234,6 +302,7 @@ namespace DockerfileModel.Tests
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+            StagesView stagesView = new StagesView(dockerfile);
 
             Dictionary<string, string> argValues = new Dictionary<string, string>
             {
@@ -241,9 +310,24 @@ namespace DockerfileModel.Tests
                 { "test2", "b1" },
                 { "test3", "c2" },
             };
-            dockerfile.ResolveArgValues(argValues);
 
-            StagesView stagesView = new StagesView(dockerfile);
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                stagesView.Stages.First().FromInstruction, runInst => runInst.ToString(), argValues);
+            Assert.Equal("FROM image:a1 as stage1\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)stagesView.Stages.First().Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo -b1-c2-d\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                stagesView.Stages.Last().FromInstruction, runInst => runInst.ToString(), argValues);
+            Assert.Equal("FROM image:b1 as stage2\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)stagesView.Stages.Last().Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo -b1-c2-d", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
+            dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("FROM image:a1 as stage1\n", stagesView.Stages.First().FromInstruction.ToString());
             Assert.Equal("RUN echo -b1-c2-d\n", stagesView.Stages.First().Items.Last().ToString());
@@ -265,6 +349,17 @@ namespace DockerfileModel.Tests
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             Dictionary<string, string> argValues = new Dictionary<string, string>();
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)dockerfile.Items.ElementAt(1), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo \n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo a", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
             dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("RUN echo \n", dockerfile.Items.ElementAt(1).ToString());
@@ -285,6 +380,16 @@ namespace DockerfileModel.Tests
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)dockerfile.Items.ElementAt(3), runInst => runInst.ToString());
+            Assert.Equal("RUN echo a\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)dockerfile.Items.ElementAt(5), runInst => runInst.ToString());
+            Assert.Equal("RUN echo b", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
             dockerfile.ResolveArgValues();
 
@@ -307,6 +412,14 @@ namespace DockerfileModel.Tests
             {
                 { "test", "foo" }
             };
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo ", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
             dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("RUN echo ", dockerfile.Items.Last().ToString());
@@ -328,6 +441,14 @@ namespace DockerfileModel.Tests
             {
                 { "test", null }
             };
+
+            string originalDockerfileString = dockerfile.ToString();
+
+            string resolvedVal = dockerfile.ResolveArgValues(
+                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
+            Assert.Equal("RUN echo ", resolvedVal);
+            Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
             dockerfile.ResolveArgValues(argValues);
 
             Assert.Equal("RUN echo ", dockerfile.Items.Last().ToString());
