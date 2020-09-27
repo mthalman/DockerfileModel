@@ -17,10 +17,10 @@ namespace DockerfileModel.Tests
         public void Parse(string input, string expectedRegistry, string expectedRepository, string expectedTag, string expectedDigest)
         {
             ImageName result = ImageName.Parse(input);
-            Assert.Equal(expectedRegistry, result.Registry?.Value);
-            Assert.Equal(expectedRepository, result.Repository.Value);
-            Assert.Equal(expectedTag, result.Tag?.Value);
-            Assert.Equal(expectedDigest, result.Digest?.Value);
+            Assert.Equal(expectedRegistry, result.Registry);
+            Assert.Equal(expectedRepository, result.Repository);
+            Assert.Equal(expectedTag, result.Tag);
+            Assert.Equal(expectedDigest, result.Digest);
             Assert.Equal(input, result.ToString());
         }
 
@@ -36,24 +36,24 @@ namespace DockerfileModel.Tests
             ImageName result = ImageName.Create(repository, registry, tag, digest);
             Assert.Equal(expectedOutput, result.ToString());
 
-            Assert.Equal(registry, result.Registry?.Value);
-            Assert.Equal(repository, result.Repository.Value);
-            Assert.Equal(tag, result.Tag?.Value);
-            Assert.Equal(digest, result.Digest?.Value);
+            Assert.Equal(registry, result.Registry);
+            Assert.Equal(repository, result.Repository);
+            Assert.Equal(tag, result.Tag);
+            Assert.Equal(digest, result.Digest);
         }
 
         [Fact]
         public void CannotSetTagWhenDigestIsSet()
         {
             ImageName imageName = ImageName.Create("repo", "registry.io", digest: "sha256:digest");
-            Assert.Throws<InvalidOperationException>(() => imageName.Tag = new TagToken("tag"));
+            Assert.Throws<InvalidOperationException>(() => imageName.Tag = "tag");
         }
 
         [Fact]
         public void CannotSetDigestWhenTagIsSet()
         {
             ImageName imageName = ImageName.Create("repo", "registry.io", "tag");
-            Assert.Throws<InvalidOperationException>(() => imageName.Digest = new DigestToken("digest"));
+            Assert.Throws<InvalidOperationException>(() => imageName.Digest = "digest");
         }
 
         [Fact]
@@ -61,39 +61,39 @@ namespace DockerfileModel.Tests
         {
             ImageName imageName = ImageName.Create("repo", "registry.io", "tag");
             
-            imageName.Registry.Value = "registry2.io";
-            Assert.Equal("registry2.io", imageName.Registry.Value);
+            imageName.Registry = "registry2.io";
+            Assert.Equal("registry2.io", imageName.Registry);
 
-            imageName.Repository.Value = "repo2";
-            Assert.Equal("repo2", imageName.Repository.Value);
+            imageName.Repository = "repo2";
+            Assert.Equal("repo2", imageName.Repository);
 
-            imageName.Tag.Value = "tag2";
-            Assert.Equal("tag2", imageName.Tag.Value);
+            imageName.Tag = "tag2";
+            Assert.Equal("tag2", imageName.Tag);
 
             Assert.Equal("registry2.io/repo2:tag2", imageName.ToString());
 
             imageName.Tag = null;
             Assert.Null(imageName.Tag);
 
-            imageName.Digest = new DigestToken("digest");
-            Assert.Equal("digest", imageName.Digest.Value);
+            imageName.Digest = "digest";
+            Assert.Equal("digest", imageName.Digest);
 
             Assert.Equal("registry2.io/repo2@digest", imageName.ToString());
 
             imageName.Registry = null;
             Assert.Equal("repo2@digest", imageName.ToString());
 
-            imageName.Registry = new RegistryToken("myregistry.io");
+            imageName.Registry = "myregistry.io";
             Assert.Equal("myregistry.io/repo2@digest", imageName.ToString());
 
             imageName.Digest = null;
             Assert.Equal("myregistry.io/repo2", imageName.ToString());
 
-            imageName.Digest = new DigestToken("mydigest");
+            imageName.Digest = "mydigest";
             Assert.Equal("myregistry.io/repo2@mydigest", imageName.ToString());
 
             imageName.Digest = null;
-            imageName.Tag = new TagToken("mytag");
+            imageName.Tag = "mytag";
             Assert.Equal("myregistry.io/repo2:mytag", imageName.ToString());
 
             imageName.Tag = null;
