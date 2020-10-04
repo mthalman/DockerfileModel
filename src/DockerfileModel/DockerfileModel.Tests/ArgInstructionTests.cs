@@ -228,6 +228,46 @@ namespace DockerfileModel.Tests
                 },
                 new ArgInstructionParseTestScenario
                 {
+                    Text = "ARG \"MY`\"_ARG\"='va`'lue'",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MY`\"_ARG", '\"'),
+                        token => ValidateSymbol(token, "="),
+                        token => ValidateLiteral(token, "va`'lue", '\''),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MY`\"_ARG", result.ArgName);
+                        Assert.Equal("va`'lue", result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG MY_ARG=va`'lue",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MY_ARG"),
+                        token => ValidateSymbol(token, "="),
+                        token => ValidateLiteral(token, "va`'lue"),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MY_ARG", result.ArgName);
+                        Assert.Equal("va`'lue", result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
                     Text = "ARG MY_ARG=\'\'",
                     TokenValidators = new Action<Token>[]
                     {

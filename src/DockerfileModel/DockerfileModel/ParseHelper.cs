@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using DockerfileModel.Tokens;
 using Sprache;
 
@@ -9,6 +8,13 @@ namespace DockerfileModel
 {
     internal static class ParseHelper
     {
+        private delegate TToken CreateWrappedTokenDelegate<TToken>(string value, (string OpeningString, string ClosingString)? chars)
+            where TToken : Token;
+
+        private delegate Parser<TToken> CreateTokenParserDelegate<TToken>(
+            Parser<string> allowedSubstringsParser, (string OpeningString, string ClosingString)? chars = null)
+            where TToken : Token;
+
         public static IEnumerable<T> FilterNulls<T>(IEnumerable<T?>? items) where T : class
         {
             if (items is null)
@@ -137,18 +143,50 @@ namespace DockerfileModel
             from val in Parse.String(value).Text()
             select new SymbolToken(val);
 
+        private static Parser<string> Identifier(Parser<char> firstLetterParser, Parser<string> tailParser) =>
+            from firstLetter in firstLetterParser
+            from tail in tailParser
+            select firstLetter + tail;
+
+        private static Parser<string> OrConcat(params Parser<string>[] parsers) =>
+            from vals in (parsers.Aggregate((current, next) => current.Or(next))).Many()
+            select String.Concat(vals);
+
         public static Parser<IdentifierToken> QuotableIdentifier(Parser<char> firstLetterParser, Parser<char> tailLetterParser, char escapeChar) =>
-            WrappedInOptionalQuotes(
-                Parse.Identifier(ExceptQuoteChars(firstLetterParser), ExceptQuoteChars(tailLetterParser)),
-                Parse.Identifier(firstLetterParser, tailLetterParser),
-                escapeChar,
-                val => new IdentifierToken(val));
+            WrappedInOptionalQuotes<IdentifierToken>(
+                (Parser<string> allowedSubstringsParser, (string OpeningString, string ClosingString)? chars) =>
+                    from identifier in Identifier(
+                        ExceptLiteralOrIdentifierWrappingChars(firstLetterParser),
+                        OrConcat(ExceptLiteralOrIdentifierWrappingChars(tailLetterParser).Many().Text(), allowedSubstringsParser))
+                    select new IdentifierToken(identifier)
+                    {
+                        QuoteChar = chars?.OpeningString[0]
+                    },
+                (Parser<string> allowedSubstringsParser, (string OpeningString, string ClosingString)? chars) =>
+                    from identifierSegments in
+                        Identifier(
+                            firstLetterParser,
+                            OrConcat(tailLetterParser.Many().Text(), allowedSubstringsParser))
+                    select new IdentifierToken(identifierSegments),
+                escapeChar);
 
         public static Parser<LiteralToken> Literal(char escapeChar) =>
-            WrappedInOptionalQuotes(
-                ExceptQuoteChars(LiteralToken(escapeChar)).Many().Text(),
-                LiteralToken(escapeChar).AtLeastOnce().Text(),
-                escapeChar, val => new LiteralToken(val));
+            WrappedInOptionalQuotes<LiteralToken>(
+                (Parser<string> allowedSubstringsParser, (string OpeningString, string ClosingString)? chars) =>
+                    from literal in OrConcat(
+                        ExceptLiteralOrIdentifierWrappingChars(LiteralToken(escapeChar)).Many().Text(),
+                        allowedSubstringsParser)
+                    select new LiteralToken(literal)
+                    {
+                        QuoteChar = chars?.OpeningString[0]
+                    },
+                (Parser<string> allowedSubstringsParser, (string OpeningString, string ClosingString)? chars) =>
+                    from literal in OrConcat(
+                        LiteralToken(escapeChar).AtLeastOnce().Text(),
+                        allowedSubstringsParser)
+                    where !String.IsNullOrEmpty(literal)
+                    select new LiteralToken(literal),
+                escapeChar);
 
         public static Parser<char> NonWhitespace() =>
             Parse.AnyChar.Except(Parse.WhiteSpace);
@@ -159,34 +197,50 @@ namespace DockerfileModel
         private static Parser<string> EscapedChar(char val, char escapeChar) =>
             Parse.String($"{escapeChar}{val}").Text();
 
-        private static Parser<TToken> WrappedInOptionalQuotes<TToken>(Parser<string> quotableParser, Parser<string> nonQuotableParser, char escapeChar, Func<string, TToken> createToken)
+        private static Parser<TToken> WrappedInOptionalQuotes<TToken>(CreateTokenParserDelegate<TToken> createWrappedParser,
+            CreateTokenParserDelegate<TToken> nonWrappedParser, char escapeChar)
             where TToken : QuotableToken =>
-            WrappedInQuotes(quotableParser, escapeChar, createToken, '\'')
-            .Or(WrappedInQuotes(quotableParser, escapeChar, createToken, '\"'))
-            .Or(
-                from nonQuotedValue in nonQuotableParser
-                select CreateQuotableToken(createToken, nonQuotedValue));
+            WrappedInOptionalCharacters(
+                createWrappedParser,
+                nonWrappedParser,
+                escapeChar,
+                new char[] { '\'', '\"' },
+                ("\'", "\'"),
+                ("\"", "\""));
 
-        private static Parser<char> ExceptQuoteChars(Parser<char> parser) =>
-            parser.Except(Parse.Char('\'')).Except(Parse.Char('\"'));
+        private static Parser<TToken> WrappedInOptionalCharacters<TToken>(CreateTokenParserDelegate<TToken> createWrappedParser,
+            CreateTokenParserDelegate<TToken> createNonWrappedParser, char escapeChar, IEnumerable<char> escapableChars,
+            params (string OpeningString, string ClosingString)[] wrappingChars)
+            where TToken : Token =>
+            wrappingChars
+                .Select(chars =>
+                    WrappedInCharacters(
+                        createWrappedParser,
+                        escapeChar,
+                        escapableChars,
+                        chars.OpeningString,
+                        chars.ClosingString))
+                .Aggregate((current, next) => current.Or(next))
+            .Or(createNonWrappedParser(GetEscapedCharsParser(escapableChars, escapeChar)));
 
-        private static Parser<TToken> WrappedInQuotes<TToken>(Parser<string> parser, char escapeChar, Func<string, TToken> createToken, char quoteChar)
-            where TToken : QuotableToken =>
-            from openingQuote in Parse.Char(quoteChar)
-            from val in EscapedChar('\'', escapeChar)
-                .Or(EscapedChar('\"', escapeChar))
-                .Or(parser)
-            from closingQuote in Parse.Char(quoteChar)
-            select CreateQuotableToken(createToken, val, quoteChar);
+        private static Parser<char> ExceptLiteralOrIdentifierWrappingChars(Parser<char> parser) =>
+            parser
+                .Except(Parse.Char('\''))
+                .Except(Parse.Char('\"'))
+                .Except(Parse.Char('$'));
 
-        private static TToken CreateQuotableToken<TToken>(Func<string, TToken> createToken, string value, char? quoteChar = null)
-            where TToken : QuotableToken
-        {
-            TToken token = createToken(value);
-            token.QuoteChar = quoteChar;
+        private static Parser<string> GetEscapedCharsParser(IEnumerable<char> escapableChars, char escapeChar) =>
+            escapableChars
+                .Select(escapableChar => EscapedChar(escapableChar, escapeChar))
+                .Aggregate((current, next) => current.Or(next));
 
-            return token;
-        }
+        private static Parser<TToken> WrappedInCharacters<TToken>(CreateTokenParserDelegate<TToken> createParser,
+            char escapeChar, IEnumerable<char> escapableChars, string openingString, string closingString)
+            where TToken : Token =>
+            from openingQuote in Parse.String(openingString).AsEnumerable()
+            from val in createParser(GetEscapedCharsParser(escapableChars, escapeChar), (openingString, closingString))
+            from closingQuote in Parse.String(closingString).AsEnumerable()
+            select val;
 
         private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
             WithTrailingComments(
