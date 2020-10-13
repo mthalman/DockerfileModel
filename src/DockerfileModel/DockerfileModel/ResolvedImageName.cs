@@ -10,14 +10,14 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class ImageName : AggregateToken
+    public class ResolvedImageName : AggregateToken
     {
         private RegistryToken? registryToken;
         private readonly RepositoryToken repositoryToken;
         private TagToken? tagToken;
         private DigestToken? digestToken;
 
-        private ImageName(string text)
+        private ResolvedImageName(string text)
             : base(text, ImageNameParser.GetParser())
         {
             registryToken = Tokens.OfType<RegistryToken>().FirstOrDefault();
@@ -26,7 +26,7 @@ namespace DockerfileModel
             digestToken = Tokens.OfType<DigestToken>().FirstOrDefault();
         }
 
-        public static ImageName Create(string repository, string? registry = null, string? tag = null, string? digest = null)
+        public static ResolvedImageName Create(string repository, string? registry = null, string? tag = null, string? digest = null)
         {
             Requires.NotNullOrWhiteSpace(repository, nameof(repository));
             Requires.ValidState(
@@ -56,8 +56,8 @@ namespace DockerfileModel
             return Parse(builder.ToString());
         }
 
-        public static ImageName Parse(string imageName) =>
-            new ImageName(imageName);
+        public static ResolvedImageName Parse(string imageName) =>
+            new ResolvedImageName(imageName);
 
         public static Parser<IEnumerable<Token>> GetParser() =>
             ImageNameParser.GetParser();

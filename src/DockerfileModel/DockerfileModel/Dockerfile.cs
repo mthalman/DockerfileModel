@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using DockerfileModel.Tokens;
 
 namespace DockerfileModel
 {
@@ -23,14 +24,14 @@ namespace DockerfileModel
         public static Dockerfile Parse(string text) =>
             DockerfileParser.ParseContent(text);
 
-        public string ResolveArgValues<TInstruction>(
+        public string ResolveVariables<TInstruction>(
             TInstruction instruction,
-            Func<TInstruction, string> getValue,
             IDictionary<string, string?>? argValues = null)
             where TInstruction : InstructionBase
         {
-            string? resolvedValue = null;
-            ResolveArgValues(
+            bool foundInstruction = false;
+
+            return ResolveVariables(
                 argValues,
                 stagesView =>
                 {
@@ -47,28 +48,33 @@ namespace DockerfileModel
                 },
                 currentInstruction =>
                 {
-                    return currentInstruction is ArgInstruction || currentInstruction == instruction;
-                },
-                (instruction, escapeChar, args) =>
-                {
-                    resolvedValue = ArgResolver.Resolve(getValue((TInstruction)instruction), args, escapeChar);
-                });
+                    if (foundInstruction)
+                    {
+                        return false;
+                    }
 
-            return resolvedValue!;
+                    if (currentInstruction == instruction)
+                    {
+                        foundInstruction = true;
+                    }
+
+                    return currentInstruction is ArgInstruction || foundInstruction;
+                },
+                updateInline: false);
         }
 
-        public void ResolveArgValues(IDictionary<string, string?>? argValues = null) =>
-            ResolveArgValues(
+        public void ResolveVariables(IDictionary<string, string?>? argValues = null) =>
+            ResolveVariables(
                 argValues,
                 stagesView => stagesView.Stages,
                 instruction => true,
-                (instruction, escapeChar, args) => instruction.ResolveArgValues(escapeChar, args));
+                updateInline: true);
 
-        private void ResolveArgValues(
+        private string ResolveVariables(
             IDictionary<string, string?>? argValues,
             Func<StagesView, IEnumerable<Stage>> getStages,
             Func<InstructionBase, bool> processInstruction,
-            Action<InstructionBase, char, Dictionary<string, string?>> onResolveArgs)
+            bool updateInline)
         {
             if (argValues is null)
             {
@@ -77,20 +83,18 @@ namespace DockerfileModel
 
             StagesView stagesView = new StagesView(this);
 
-            Dictionary<string, string?> globalArgs = stagesView.GlobalArgs
-                .ToDictionary(argInstruction => argInstruction.ArgName, argInstruction => argInstruction.ArgValue);
-
-            OverrideArgs(globalArgs, argValues);
-
-            var escapeChar = EscapeChar;
+            char escapeChar = EscapeChar;
+            Dictionary<string, string?> globalArgs = GetGlobalArgs(updateInline, stagesView, argValues);
 
             var stages = getStages(stagesView);
+
+            string? resolvedValue = null;
 
             foreach (Stage stage in stages)
             {
                 if (processInstruction(stage.FromInstruction))
                 {
-                    onResolveArgs(stage.FromInstruction, escapeChar, globalArgs);
+                    resolvedValue = stage.FromInstruction.ResolveVariables(globalArgs, updateInline);
                 }
 
                 Dictionary<string, string?> stageArgs = new Dictionary<string, string?>();
@@ -120,21 +124,37 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        onResolveArgs(instruction, escapeChar, stageArgs);
+                        resolvedValue = instruction.ResolveVariables(stageArgs, updateInline);
                     }
                 }
             }
+
+            return resolvedValue!;
         }
 
-        private void OverrideArgs(Dictionary<string, string?> declaredArgs, IDictionary<string, string?> overrideArgs)
+        private static Dictionary<string, string?> GetGlobalArgs(bool updateInline, StagesView stagesView, IDictionary<string, string?> argValues)
         {
-            foreach (var kvp in overrideArgs)
+            Dictionary<string, string?> globalArgs = new Dictionary<string, string?>();
+            foreach (ArgInstruction arg in stagesView.GlobalArgs)
             {
-                if (declaredArgs.ContainsKey(kvp.Key))
+                if (argValues.TryGetValue(arg.ArgName, out string? overridenValue))
                 {
-                    declaredArgs[kvp.Key] = kvp.Value;
+                    globalArgs.Add(arg.ArgName, overridenValue);
+                }
+                else
+                {
+                    string? resolvedValue = null;
+                    ArgValue? argValue = arg.Tokens.OfType<ArgValue>().FirstOrDefault();
+                    if (argValue != null)
+                    {
+                        resolvedValue = argValue.ResolveVariables(globalArgs, updateInline);
+                    }
+
+                    globalArgs.Add(arg.ArgName, resolvedValue);
                 }
             }
+
+            return globalArgs;
         }
 
         public override string ToString()

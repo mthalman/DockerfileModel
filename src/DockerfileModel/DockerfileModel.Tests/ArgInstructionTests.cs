@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using DockerfileModel.Tokens;
 using Sprache;
 using Xunit;
@@ -9,8 +10,62 @@ using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
 {
+    public static class Test
+    {
+        static readonly Parser<Content> Content =
+            from chars in Parse.CharExcept(new char[] { '$', '}' }).Many()
+            select new Content { Text = new string(chars.ToArray()) };
+
+        static readonly Parser<Node> Node =
+            from tag in Parse.String("${")
+            from nodes in Parse.Ref(() => Item).Many()
+            from end in Parse.Char('}').Token()
+            select new Node { Name = "", Children = nodes };
+
+        public static readonly Parser<Item> Item =
+            from item in Node.Select(n => (Item)n).XOr(Content)
+            select item;
+
+    }
+
+    public class Item { }
+
+    public class Content : Item
+    {
+        public string Text;
+
+        public override string ToString()
+        {
+            return Text;
+        }
+    }
+
+    public class Node : Item
+    {
+        public string Name;
+        public IEnumerable<Item> Children;
+
+        public override string ToString()
+        {
+            if (Children != null)
+                return Children.Aggregate("", (s, c) => s + c);
+            return string.Format("<{0}/>", Name);
+        }
+    }
+
     public class ArgInstructionTests
     {
+        private Parser<string> ArgRef() =>
+            from opening in Sprache.Parse.String("${").Named("opening")
+            from c in Content().Many()
+            //from closing in Sprache.Parse.Char('}').Named("closing")
+            select String.Concat(c);
+
+        private Parser<string> Content() =>
+            from chars in Sprache.Parse.AnyChar.Except(Sprache.Parse.Char('$')).Many().Text().Named("arg content")
+            from argRef in Sprache.Parse.Ref(() => ArgRef()).Many().Named("argref")
+            select chars + String.Concat(argRef);
+
         [Theory]
         [MemberData(nameof(ParseTestInput))]
         public void Parse(ArgInstructionParseTestScenario scenario)
@@ -107,8 +162,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MYARG"),
-                        token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "")
+                        token => ValidateSymbol(token, "=")
                     },
                     Validate = result =>
                     {
@@ -135,8 +189,7 @@ namespace DockerfileModel.Tests
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, "  "),
                         token => ValidateIdentifier(token, "MYARG"),
-                        token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "")
+                        token => ValidateSymbol(token, "=")
                     },
                     Validate = result =>
                     {
@@ -156,7 +209,8 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "myarg"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "1")
+                        token => ValidateQuotableAggregate<ArgValue>(token, "1", null,
+                            token => ValidateLiteral(token, "1"))
                     },
                     Validate = result =>
                     {
@@ -178,7 +232,8 @@ namespace DockerfileModel.Tests
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateIdentifier(token, "MYARG"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "test", '\"')
+                        token => ValidateQuotableAggregate<ArgValue>(token, "\"test\"", '\"',
+                            token => ValidateLiteral(token, "test"))
                     },
                     Validate = result =>
                     {
@@ -216,7 +271,8 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG", '\"'),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "value", '\''),
+                        token => ValidateQuotableAggregate<ArgValue>(token, "'value'", '\'',
+                            token => ValidateLiteral(token, "value")),
                     },
                     Validate = result =>
                     {
@@ -236,7 +292,8 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY`\"_ARG", '\"'),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "va`'lue", '\''),
+                        token => ValidateQuotableAggregate<ArgValue>(token, "'va`'lue'", '\'',
+                            token => ValidateLiteral(token, "va`'lue")),
                     },
                     Validate = result =>
                     {
@@ -256,7 +313,8 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "va`'lue"),
+                        token => ValidateQuotableAggregate<ArgValue>(token, "va`'lue", null,
+                            token => ValidateLiteral(token, "va`'lue")),
                     },
                     Validate = result =>
                     {
@@ -275,7 +333,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "", '\'')
+                        token => ValidateQuotableAggregate<ArgValue>(token, "''", '\'')
                     },
                     Validate = result =>
                     {
@@ -350,7 +408,8 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "TEST1"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "b")
+                        token => ValidateQuotableAggregate<ArgValue>(token, "b", null,
+                            token => ValidateLiteral(token, "b"))
                     }
                 },
                 new CreateTestScenario
@@ -362,8 +421,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "TEST1"),
-                        token => ValidateSymbol(token, "="),
-                        token => ValidateLiteral(token, "")
+                        token => ValidateSymbol(token, "=")
                     }
                 }
             };

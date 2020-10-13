@@ -26,7 +26,7 @@ namespace DockerfileModel
                 { "LABEL", DockerfileModel.Instruction.Parse },
                 { "MAINTAINER", DockerfileModel.Instruction.Parse },
                 { "ONBUILD", DockerfileModel.Instruction.Parse },
-                { "RUN", DockerfileModel.Instruction.Parse },
+                { "RUN", RunInstruction.Parse },
                 { "SHELL", DockerfileModel.Instruction.Parse },
                 { "STOPSIGNAL", DockerfileModel.Instruction.Parse },
                 { "USER", DockerfileModel.Instruction.Parse },

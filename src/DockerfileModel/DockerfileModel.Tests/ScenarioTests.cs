@@ -62,7 +62,7 @@ namespace DockerfileModel.Tests
             FromInstruction fromInstruction = dockerfile.Items.OfType<FromInstruction>().First();
 
             // Parse the image name into its component parts
-            ImageName imageName = ImageName.Parse(fromInstruction.ImageName);
+            ResolvedImageName imageName = ResolvedImageName.Parse(fromInstruction.ImageName);
 
             // Change the tag value and set the image name with the new value
             imageName.Tag = "3.12";
@@ -98,7 +98,7 @@ namespace DockerfileModel.Tests
             // This modifies the underlying values of the model, replacing any references to
             // arguments with their resolved values. Be aware of this if your intention is
             // write the model back to the Dockerfile on disk.
-            dockerfile.ResolveArgValues(new Dictionary<string, string>
+            dockerfile.ResolveVariables(new Dictionary<string, string>
             {
                 { "FIRST_NAME", "Tom" }
             });
@@ -132,10 +132,10 @@ namespace DockerfileModel.Tests
             FromInstruction fromInstruction = dockerfile.Items.OfType<FromInstruction>().First();
 
             // Resolve arg values on the ImageName and have the resolved value returned
-            string resolvedImageName = dockerfile.ResolveArgValues(fromInstruction, inst => inst.ImageName);
+            string resolvedImageName = dockerfile.ResolveVariables(fromInstruction);
 
             // Verify the image name has the args resolved
-            Assert.Equal("alpine:latest", resolvedImageName);
+            Assert.Equal("FROM alpine:latest", resolvedImageName);
             
             // Verify the underlying value has the arg references maintained
             string expectedOutput = TestHelper.ConcatLines(new List<string>
@@ -173,7 +173,7 @@ namespace DockerfileModel.Tests
             Assert.IsType<WhitespaceToken>(repoArgTokens[1]);
             Assert.IsType<IdentifierToken>(repoArgTokens[2]);
             Assert.IsType<SymbolToken>(repoArgTokens[3]);
-            Assert.IsType<LiteralToken>(repoArgTokens[4]);
+            Assert.IsType<ArgValue>(repoArgTokens[4]);
             Assert.IsType<NewLineToken>(repoArgTokens[5]);
 
             // Verify the individual tokens that are contained in the FROM instruction
@@ -181,7 +181,7 @@ namespace DockerfileModel.Tests
             Assert.Equal(7, fromInstructionTokens.Length);
             Assert.IsType<KeywordToken>(fromInstructionTokens[0]);
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[1]);
-            Assert.IsType<LiteralToken>(fromInstructionTokens[2]);
+            Assert.IsType<ImageName>(fromInstructionTokens[2]);
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[3]);
             Assert.IsType<LineContinuationToken>(fromInstructionTokens[4]);
             Assert.IsType<NewLineToken>(fromInstructionTokens[5]);

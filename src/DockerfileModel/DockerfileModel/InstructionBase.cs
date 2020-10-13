@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
@@ -23,33 +24,5 @@ namespace DockerfileModel
         public IList<string> Comments => GetComments();
 
         public override ConstructType Type => ConstructType.Instruction;
-
-        internal void ResolveArgValues(char escapeChar, IDictionary<string, string?>? argValues = null)
-        {
-            if (argValues is null)
-            {
-                argValues = new Dictionary<string, string?>();
-            }
-
-            new ArgResolverVisitor(argValues, escapeChar).Visit(this);
-        }
-
-        private class ArgResolverVisitor : TokenVisitor
-        {
-            private readonly IDictionary<string, string?> argValues;
-            private readonly char escapeChar;
-
-            public ArgResolverVisitor(IDictionary<string, string?> argValues, char escapeChar)
-            {
-                this.argValues = argValues;
-                this.escapeChar = escapeChar;
-            }
-
-            protected override void VisitLiteralToken(LiteralToken token)
-            {
-                base.VisitLiteralToken(token);
-                token.Value = ArgResolver.Resolve(token.Value, argValues, escapeChar);
-            }
-        }
     }
 }

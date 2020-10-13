@@ -64,5 +64,12 @@ namespace DockerfileModel.Tests
                 Assert.Collection(((T)token).Tokens, tokenValidators);
             }
         }
+
+        public static void ValidateQuotableAggregate<T>(Token token, string text, char? quoteChar, params Action<Token>[] tokenValidators)
+            where T : QuotableAggregateToken
+        {
+            Assert.Equal(quoteChar, ((T)token).QuoteChar);
+            ValidateAggregate<T>(token, text, tokenValidators);
+        }
     }
 }
