@@ -177,17 +177,23 @@ namespace DockerfileModel.Tests
 
             // Verify the individual tokens that are contained in the FROM instruction
             Token[] fromInstructionTokens = dockerfileConstructs[1].Tokens.ToArray();
-            Assert.Equal(7, fromInstructionTokens.Length);
+            Assert.Equal(6, fromInstructionTokens.Length);
             Assert.IsType<KeywordToken>(fromInstructionTokens[0]);
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[1]);
             Assert.IsType<ImageName>(fromInstructionTokens[2]);
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[3]);
+
+            // LineContinuation is an aggregate token that contains other tokens
             Assert.IsType<LineContinuationToken>(fromInstructionTokens[4]);
-            Assert.IsType<NewLineToken>(fromInstructionTokens[5]);
+            LineContinuationToken lineContinuation = (LineContinuationToken)fromInstructionTokens[4];
+            Token[] lineContinuationTokens = lineContinuation.Tokens.ToArray();
+            Assert.Equal(2, lineContinuationTokens.Length);
+            Assert.IsType<SymbolToken>(lineContinuationTokens[0]);
+            Assert.IsType<NewLineToken>(lineContinuationTokens[1]);
 
             // StageName is an aggregate token that contains other tokens
-            Assert.IsType<StageName>(fromInstructionTokens[6]);
-            StageName stageName = (StageName)fromInstructionTokens[6];
+            Assert.IsType<StageName>(fromInstructionTokens[5]);
+            StageName stageName = (StageName)fromInstructionTokens[5];
             Token[] stageNameTokens = stageName.Tokens.ToArray();
             Assert.Equal(4, stageNameTokens.Length);
             Assert.IsType<WhitespaceToken>(stageNameTokens[0]);

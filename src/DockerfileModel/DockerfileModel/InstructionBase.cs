@@ -37,7 +37,7 @@ namespace DockerfileModel
             from lineEnd in OptionalNewLine().AsEnumerable()
             select ConcatTokens(
                 GetInstructionArgLineContent(text),
-                lineContinuation.GetOrDefault(),
+                new Token[] { lineContinuation.GetOrDefault() },
                 lineEnd);
 
         private static IEnumerable<Token?> GetInstructionArgLineContent(string text)

@@ -41,12 +41,6 @@ namespace DockerfileModel.Tests
             Assert.Equal(quoteChar, identifierToken.QuoteChar);
         }
 
-        public static void ValidateLineContinuation(Token token, string text)
-        {
-            Assert.IsType<LineContinuationToken>(token);
-            Assert.Equal(text, ((LineContinuationToken)token).Value);
-        }
-
         public static void ValidateNewLine(Token token, string text)
         {
             Assert.IsType<NewLineToken>(token);
