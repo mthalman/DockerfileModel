@@ -142,8 +142,9 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLineContinuation(token, "`"),
-                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                            token => ValidateSymbol(token, "`"),
+                            token => ValidateNewLine(token, "\n")),
                         token => ValidateIdentifier(token, "MYARG")
                     },
                     Validate = result =>
@@ -180,8 +181,9 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLineContinuation(token, "`"),
-                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                            token => ValidateSymbol(token, "`"),
+                            token => ValidateNewLine(token, "\n")),
                         token => ValidateAggregate<CommentToken>(token, "# my comment",
                             token => ValidateSymbol(token, "#"),
                             token => ValidateWhitespace(token, " "),
@@ -228,8 +230,9 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLineContinuation(token, "`"),
-                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                            token => ValidateSymbol(token, "`"),
+                            token => ValidateNewLine(token, "\n")),
                         token => ValidateIdentifier(token, "MYARG"),
                         token => ValidateSymbol(token, "="),
                         token => ValidateQuotableAggregate<ArgValue>(token, "\"test\"", '\"',

@@ -36,6 +36,6 @@ namespace DockerfileModel
             from instruction in TokenWithTrailingWhitespace(DockerfileParser.InstructionIdentifier())
             from lineContinuation in LineContinuation(escapeChar).Optional()
             from instructionArgs in InstructionArgs(escapeChar)
-            select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs);
+            select ConcatTokens(leading, instruction, new Token[] { lineContinuation.GetOrDefault() }, instructionArgs);
     }
 }

@@ -1,4 +1,6 @@
-﻿namespace DockerfileModel.Tokens
+﻿using System.Collections.Generic;
+
+namespace DockerfileModel.Tokens
 {
     public abstract class Token
     {
@@ -77,9 +79,9 @@
         }
     }
 
-    public class LineContinuationToken : SymbolToken
+    public class LineContinuationToken : AggregateToken
     {
-        public LineContinuationToken(string value) : base(value)
+        public LineContinuationToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
     }

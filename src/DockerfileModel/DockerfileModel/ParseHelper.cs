@@ -154,7 +154,7 @@ namespace DockerfileModel
                     leadingWhitespace,
                     token,
                     trailingWhitespace.GetOrDefault(),
-                    lineContinuation.GetOrDefault(),
+                    new Token[] { lineContinuation.GetOrDefault() },
                     lineEnd));
 
         /// <summary>
@@ -162,14 +162,14 @@ namespace DockerfileModel
         /// </summary>
         /// <param name="escapeChar">Escape character.</param>
         /// <returns>Line continuation tokens.</returns>
-        public static Parser<IEnumerable<Token>> LineContinuation(char escapeChar) =>
-           from lineCont in Parse.Char(escapeChar)
+        public static Parser<LineContinuationToken> LineContinuation(char escapeChar) =>
+           from escape in Symbol(escapeChar.ToString())
            from whitespace in Parse.WhiteSpace.Except(Parse.LineEnd).Many()
            from lineEnding in Parse.LineEnd
-           select ConcatTokens(
-               new LineContinuationToken(lineCont.ToString()),
+           select new LineContinuationToken(ConcatTokens(
+               escape,
                whitespace.Any() ? new WhitespaceToken(new string(whitespace.ToArray())) : null,
-               new NewLineToken(lineEnding));
+               new NewLineToken(lineEnding)));
 
         /// <summary>
         /// Parses an instruction name.
@@ -651,7 +651,7 @@ namespace DockerfileModel
                 from leading in Whitespace()
                 from instruction in TokenWithTrailingWhitespace(InstructionIdentifier(instructionName))
                 from lineContinuation in LineContinuation(escapeChar).Optional()
-                select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault()));
+                select ConcatTokens(leading, instruction, new Token[] { lineContinuation.GetOrDefault() }));
 
         /// <summary>
         /// Parses a set of tokens and any trailing comments.
