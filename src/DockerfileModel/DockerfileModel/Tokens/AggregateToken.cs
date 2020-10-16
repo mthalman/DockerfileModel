@@ -36,16 +36,21 @@ namespace DockerfileModel.Tokens
         public override string ToString() =>
             String.Concat(Tokens.Select(token => token.ToString()));
 
-        public virtual string? ResolveVariables(IDictionary<string, string?>? argValues = null, bool updateInline = false)
+        public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
-            if (argValues is null)
+            if (variables is null)
             {
-                argValues = new Dictionary<string, string?>();
+                variables = new Dictionary<string, string?>();
             }
 
-            if (updateInline)
+            if (options is null)
             {
-                new ArgResolverVisitor(argValues).Visit(this);
+                options = new ResolutionOptions();
+            }
+
+            if (options.UpdateInline)
+            {
+                new ArgResolverVisitor(escapeChar, variables, options).Visit(this);
                 return ToString();
             }
 
@@ -55,11 +60,11 @@ namespace DockerfileModel.Tokens
                 string? value;
                 if (token is AggregateToken aggregate)
                 {
-                    value = aggregate.ResolveVariables(argValues);
+                    value = aggregate.ResolveVariables(escapeChar, variables, options);
                 }
                 else
                 {
-                    value = token.ToString();
+                    value = options.FormatValue(escapeChar, token.ToString());
                 }
 
                 builder.Append(value);
@@ -74,6 +79,12 @@ namespace DockerfileModel.Tokens
                 GetCommentTokens(),
                 token => token.Text,
                 (token, value) => token.Text = value);
+        }
+
+        internal void ReplaceWithToken(Token token)
+        {
+            TokenList.RemoveAll(token => true);
+            TokenList.Add(token);
         }
 
         private IEnumerable<CommentToken> GetCommentTokens()
@@ -96,11 +107,15 @@ namespace DockerfileModel.Tokens
 
         private class ArgResolverVisitor : TokenVisitor
         {
-            private readonly IDictionary<string, string?> argValues;
+            private readonly char escapeChar;
+            private readonly IDictionary<string, string?> variables;
+            private readonly ResolutionOptions options;
 
-            public ArgResolverVisitor(IDictionary<string, string?> argValues)
+            public ArgResolverVisitor(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
             {
-                this.argValues = argValues;
+                this.escapeChar = escapeChar;
+                this.variables = variables;
+                this.options = options;
             }
 
             protected override void VisitAggregateToken(AggregateToken token)
@@ -114,7 +129,7 @@ namespace DockerfileModel.Tokens
                         {
                             if (token is VariableRefToken variableRef)
                             {
-                                return variableRef.ResolveVariables(argValues) ?? string.Empty;
+                                return variableRef.ResolveVariables(escapeChar, variables, options) ?? string.Empty;
                             }
                             else
                             {
@@ -123,21 +138,7 @@ namespace DockerfileModel.Tokens
                         })
                         .ToArray();
 
-                    Token replacementToken;
-
-                    if (quotableAggregate.PrimitiveType == typeof(LiteralToken))
-                    {
-                        replacementToken = new LiteralToken(string.Concat(resolvedChildValues));
-                    }
-                    else if (quotableAggregate.PrimitiveType == typeof(IdentifierToken))
-                    {
-                        replacementToken = new IdentifierToken(string.Concat(resolvedChildValues));
-                    }
-                    else
-                    {
-                        throw new NotSupportedException($"Unexpected primitive type in '{nameof(QuotableAggregateToken)}': {token}");
-                    }
-
+                    Token replacementToken = CreatePrimitiveToken(quotableAggregate.PrimitiveType, string.Concat(resolvedChildValues));
                     quotableAggregate.ReplaceWithToken(replacementToken);
                 }
             }
@@ -167,22 +168,16 @@ namespace DockerfileModel.Tokens
             return base.ToString();
         }
 
-        public override string? ResolveVariables(IDictionary<string, string?>? argValues = null, bool updateInline = false)
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
             if (QuoteChar.HasValue)
             {
-                return $"{QuoteChar}{base.ResolveVariables(argValues, updateInline)}{QuoteChar}";
+                return $"{QuoteChar}{base.ResolveVariables(escapeChar, variables, options)}{QuoteChar}";
             }
             else
             {
-                return base.ResolveVariables(argValues, updateInline);
+                return base.ResolveVariables(escapeChar, variables, options);
             }
-        }
-
-        public void ReplaceWithToken(Token token)
-        {
-            TokenList.RemoveAll(token => true);
-            TokenList.Add(token);
         }
     }
 }

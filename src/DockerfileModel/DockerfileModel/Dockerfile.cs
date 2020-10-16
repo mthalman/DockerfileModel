@@ -26,7 +26,8 @@ namespace DockerfileModel
 
         public string ResolveVariables<TInstruction>(
             TInstruction instruction,
-            IDictionary<string, string?>? argValues = null)
+            IDictionary<string, string?>? argValues = null,
+            ResolutionOptions? options = null)
             where TInstruction : InstructionBase
         {
             bool foundInstruction = false;
@@ -60,31 +61,36 @@ namespace DockerfileModel
 
                     return currentInstruction is ArgInstruction || foundInstruction;
                 },
-                updateInline: false);
+                options);
         }
 
-        public void ResolveVariables(IDictionary<string, string?>? argValues = null) =>
+        public string ResolveVariables(IDictionary<string, string?>? variableOverrides = null, ResolutionOptions? options = null) =>
             ResolveVariables(
-                argValues,
+                variableOverrides,
                 stagesView => stagesView.Stages,
                 instruction => true,
-                updateInline: true);
+                options);
 
         private string ResolveVariables(
-            IDictionary<string, string?>? argValues,
+            IDictionary<string, string?>? variableOverrides,
             Func<StagesView, IEnumerable<Stage>> getStages,
             Func<InstructionBase, bool> processInstruction,
-            bool updateInline)
+            ResolutionOptions? options)
         {
-            if (argValues is null)
+            if (variableOverrides is null)
             {
-                argValues = new Dictionary<string, string?>();
+                variableOverrides = new Dictionary<string, string?>();
+            }
+
+            if (options is null)
+            {
+                options = new ResolutionOptions();
             }
 
             StagesView stagesView = new StagesView(this);
 
             char escapeChar = EscapeChar;
-            Dictionary<string, string?> globalArgs = GetGlobalArgs(updateInline, stagesView, argValues);
+            Dictionary<string, string?> globalArgs = GetGlobalArgs(stagesView, escapeChar, variableOverrides, options);
 
             var stages = getStages(stagesView);
 
@@ -94,7 +100,7 @@ namespace DockerfileModel
             {
                 if (processInstruction(stage.FromInstruction))
                 {
-                    resolvedValue = stage.FromInstruction.ResolveVariables(globalArgs, updateInline);
+                    resolvedValue = stage.FromInstruction.ResolveVariables(escapeChar, globalArgs, options);
                 }
 
                 Dictionary<string, string?> stageArgs = new Dictionary<string, string?>();
@@ -113,31 +119,35 @@ namespace DockerfileModel
                             stageArgs.Add(argInstruction.ArgName, globalArg);
                         }
                         // If an arg override exists for this arg
-                        else if (argValues.TryGetValue(argInstruction.ArgName, out string? overrideArgValue))
+                        else if (variableOverrides.TryGetValue(argInstruction.ArgName, out string? overrideArgValue))
                         {
                             stageArgs.Add(argInstruction.ArgName, overrideArgValue);
                         }
                         else
                         {
-                            stageArgs[argInstruction.ArgName] = argInstruction.ArgValue;
+                            ArgValue? argValue = argInstruction.Tokens.OfType<ArgValue>().FirstOrDefault();
+                            string? resolvedArgValue = argValue?.ResolveVariables(escapeChar, stageArgs, options);
+                            stageArgs[argInstruction.ArgName] = resolvedArgValue;
+                            resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
                         }
                     }
                     else
                     {
-                        resolvedValue = instruction.ResolveVariables(stageArgs, updateInline);
+                        resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
                     }
                 }
             }
 
-            return resolvedValue!;
+            return resolvedValue ?? String.Empty;
         }
 
-        private static Dictionary<string, string?> GetGlobalArgs(bool updateInline, StagesView stagesView, IDictionary<string, string?> argValues)
+        private static Dictionary<string, string?> GetGlobalArgs(StagesView stagesView, char escapeChar, IDictionary<string, string?> variables,
+            ResolutionOptions options)
         {
             Dictionary<string, string?> globalArgs = new Dictionary<string, string?>();
             foreach (ArgInstruction arg in stagesView.GlobalArgs)
             {
-                if (argValues.TryGetValue(arg.ArgName, out string? overridenValue))
+                if (variables.TryGetValue(arg.ArgName, out string? overridenValue))
                 {
                     globalArgs.Add(arg.ArgName, overridenValue);
                 }
@@ -147,7 +157,7 @@ namespace DockerfileModel
                     ArgValue? argValue = arg.Tokens.OfType<ArgValue>().FirstOrDefault();
                     if (argValue != null)
                     {
-                        resolvedValue = argValue.ResolveVariables(globalArgs, updateInline);
+                        resolvedValue = argValue.ResolveVariables(escapeChar, globalArgs, options);
                     }
 
                     globalArgs.Add(arg.ArgName, resolvedValue);

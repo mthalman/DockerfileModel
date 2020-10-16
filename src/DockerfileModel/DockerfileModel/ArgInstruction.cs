@@ -87,13 +87,13 @@ namespace DockerfileModel
                     argAssignment.GetOrDefault()), escapeChar).End();
 
         private static Parser<IdentifierToken> GetArgNameParser(char escapeChar) =>
-            QuotableIdentifier(ArgRefFirstLetterParser, ArgRefTailParser, escapeChar);
+            IdentifierToken(ArgRefFirstLetterParser, ArgRefTailParser, escapeChar);
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
-            from assignmentChar in Sprache.Parse.Char('=')
-            from value in LiteralContainer(escapeChar, false, tokens => new ArgValue(tokens)).Optional()
+            from assignment in Symbol("=")
+            from value in LiteralAggregate(escapeChar, false, tokens => new ArgValue(tokens)).Optional()
             select ConcatTokens(
-                new SymbolToken(assignmentChar.ToString()),
+                assignment,
                 value.GetOrDefault());
     }
 

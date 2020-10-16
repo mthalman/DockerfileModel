@@ -137,7 +137,7 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
             ArgTokens(
-                LiteralContainer(escapeChar, false, tokens => new ImageName(tokens)).AsEnumerable(), escapeChar);
+                LiteralAggregate(escapeChar, false, tokens => new ImageName(tokens)).AsEnumerable(), escapeChar);
     }
 
     public class ImageName : QuotableAggregateToken

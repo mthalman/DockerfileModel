@@ -52,8 +52,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<RunArgs>(token, "echo `test", null,
-                            token => ValidateLiteral(token, "echo `test"))
+                        token => ValidateLiteral(token, "echo `test")
                     },
                     Validate = result =>
                     {

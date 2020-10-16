@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
 using static DockerfileModel.ParseHelper;
@@ -20,23 +19,12 @@ namespace DockerfileModel
             Instruction("RUN", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-            from tokenSets in ArgTokens(
-                LiteralContainer(escapeChar, true, tokens => new RunArgs(tokens)).AsEnumerable(),
-                escapeChar)
-                .Many()
-            select new Token[] {
-                new RunArgs(
-                    tokenSets
-                        .SelectMany(tokenSet =>
-                            tokenSet
-                                .SelectMany(token => token is RunArgs runArgs ? runArgs.Tokens : new Token[] { token })))
-            };
-    }
+            ArgTokens(InstructionArgs(escapeChar), escapeChar);
 
-    public class RunArgs : QuotableAggregateToken
-    {
-        public RunArgs(IEnumerable<Token> tokens) : base(tokens, typeof(LiteralToken))
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
+            // Do not resolve variables for the command of a RUN instruction. It is shell/runtime-specific.
+            return ToString();
         }
     }
 }

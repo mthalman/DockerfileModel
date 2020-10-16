@@ -196,30 +196,30 @@ namespace DockerfileModel
 
             private static Parser<IEnumerable<Token>> RegistryRepository() =>
                 (from registry in Registry()
-                 from separator in Sprache.Parse.Char('/')
+                 from separator in Symbol("/")
                  from repository in Repository()
                  select ConcatTokens(
                      registry,
-                     new SymbolToken(separator.ToString()),
+                     separator,
                      repository)).Or(
                 from repository in Repository()
                 select new Token[] { repository });
 
             private static Parser<IEnumerable<Token>> Tag() =>
-                from separator in Sprache.Parse.Char(':')
+                from separator in Symbol(":")
                 from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, NonWhitespace())
                 select ConcatTokens(
-                    new SymbolToken(separator.ToString()),
+                    separator,
                     new TagToken(tag));
 
             private static Parser<IEnumerable<Token>> Digest() =>
-                from digestSeparator in Sprache.Parse.Char('@')
+                from digestSeparator in Symbol("@")
                 from prefix in Sprache.Parse.String("sha")
                 from digits in Sprache.Parse.Digit.Many().Text()
                 from shaSeparator in Sprache.Parse.Char(':')
                 from digest in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, Sprache.Parse.LetterOrDigit)
                 select ConcatTokens(
-                    new SymbolToken(digestSeparator.ToString()),
+                    digestSeparator,
                     new DigestToken($"sha{digits}:{digest}"));
 
             private static Parser<IEnumerable<Token>> TagDigest() =>

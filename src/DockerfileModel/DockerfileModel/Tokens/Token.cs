@@ -30,9 +30,9 @@
         }
     }
 
-    public abstract class QuotableToken : PrimitiveToken
+    public abstract class QuotablePrimitiveToken : PrimitiveToken
     {
-        public QuotableToken(string value) : base(value)
+        public QuotablePrimitiveToken(string value) : base(value)
         {
         }
 
@@ -49,14 +49,14 @@
         }
     }
 
-    public class IdentifierToken : QuotableToken
+    public class IdentifierToken : QuotablePrimitiveToken
     {
         public IdentifierToken(string value) : base(value)
         {
         }
     }
 
-    public class LiteralToken : QuotableToken
+    public class LiteralToken : QuotablePrimitiveToken
     {
         public LiteralToken(string value) : base(value)
         {

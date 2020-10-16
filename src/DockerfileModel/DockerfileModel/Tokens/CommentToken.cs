@@ -33,8 +33,6 @@ namespace DockerfileModel.Tokens
             select ConcatTokens(commentChar, text);
 
         internal static Parser<IEnumerable<Token>> CommentCharParser() =>
-            TokenWithTrailingWhitespace(
-                from symbol in Sprache.Parse.Char('#')
-                select new SymbolToken(symbol.ToString()));
+            TokenWithTrailingWhitespace(Symbol("#"));
     }
 }

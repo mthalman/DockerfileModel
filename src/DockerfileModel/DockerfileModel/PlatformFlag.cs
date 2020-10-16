@@ -45,14 +45,14 @@ namespace DockerfileModel
             new PlatformFlag(text, escapeChar);
 
         public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
-            from flagSeparator in Sprache.Parse.String("--").Text()
+            from flagSeparator in Symbol("--")
             from platformKeyword in Sprache.Parse.IgnoreCase("platform").Text()
-            from platformSeparator in Sprache.Parse.String("=").Text()
-            from platform in LiteralContainer(escapeChar, isWhitespaceAllowed: false, tokens => new PlatformName(tokens))
+            from platformSeparator in Symbol("=")
+            from platform in LiteralAggregate(escapeChar, isWhitespaceAllowed: false, tokens => new PlatformName(tokens))
             select ConcatTokens(
-                new SymbolToken(flagSeparator),
+                flagSeparator,
                 new KeywordToken(platformKeyword),
-                new SymbolToken(platformSeparator),
+                platformSeparator,
                 platform);
 
         private void Initialize()

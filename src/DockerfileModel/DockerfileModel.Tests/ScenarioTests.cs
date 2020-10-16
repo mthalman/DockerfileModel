@@ -85,31 +85,29 @@ namespace DockerfileModel.Tests
         {
             string dockerfileContent = TestHelper.ConcatLines(new List<string>
             {
-                "FROM alpine",
-                "ARG FIRST_NAME=Thomas",
-                "ARG LAST_NAME=Edison",
-                "RUN echo \"Hello, $FIRST_NAME $LAST_NAME\""
+                "ARG REPO=alpine",
+                "ARG TAG=latest",
+                "FROM $REPO:$TAG"
             });
 
             // Parse the Dockerfile
             Dockerfile dockerfile = Dockerfile.Parse(dockerfileContent);
 
-            // Resolve reference arg values, overriding FIRST_NAME.
+            // Resolve reference arg values, overriding TAG.
             // This modifies the underlying values of the model, replacing any references to
             // arguments with their resolved values. Be aware of this if your intention is
             // write the model back to the Dockerfile on disk.
             dockerfile.ResolveVariables(new Dictionary<string, string>
             {
-                { "FIRST_NAME", "Tom" }
-            });
+                { "TAG", "3.12" }
+            }, options: new ResolutionOptions { UpdateInline = true });
 
             // Verify the arg values have been resolved
             string expectedOutput = TestHelper.ConcatLines(new List<string>
             {
-                "FROM alpine",
-                "ARG FIRST_NAME=Thomas",
-                "ARG LAST_NAME=Edison",
-                "RUN echo \"Hello, Tom Edison\""
+                "ARG REPO=alpine",
+                "ARG TAG=latest",
+                "FROM alpine:3.12"
             });
             Assert.Equal(expectedOutput, dockerfile.ToString());
         }
@@ -131,7 +129,8 @@ namespace DockerfileModel.Tests
             Dockerfile dockerfile = Dockerfile.Parse(dockerfileContent);
             FromInstruction fromInstruction = dockerfile.Items.OfType<FromInstruction>().First();
 
-            // Resolve arg values on the ImageName and have the resolved value returned
+            // Resolve arg values on the specifically on the FROM instruction and have the resolved value returned
+            // without modifying the underlying model.
             string resolvedImageName = dockerfile.ResolveVariables(fromInstruction);
 
             // Verify the image name has the args resolved
