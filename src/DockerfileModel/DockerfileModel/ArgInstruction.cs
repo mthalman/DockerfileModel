@@ -23,10 +23,19 @@ namespace DockerfileModel
 
         public string? ArgValue
         {
-            get => this.Tokens.OfType<LiteralToken>().FirstOrDefault()?.Value;
+            get
+            {
+                string? argValue = this.Tokens.OfType<ArgValue>().FirstOrDefault()?.ToString(includeQuotes: false);
+                if (argValue is null)
+                {
+                    return Tokens.OfType<SymbolToken>().Where(token => token.Value == "=").Any() ? string.Empty : null;
+                }
+
+                return argValue;
+            }
             set
             {
-                LiteralToken argValue = this.Tokens.OfType<LiteralToken>().FirstOrDefault();
+                ArgValue? argValue = this.Tokens.OfType<ArgValue>().FirstOrDefault();
                 if (argValue != null)
                 {
                     if (value is null)
@@ -35,7 +44,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        argValue.Value = value;
+                        argValue.ReplaceWithToken(new LiteralToken(value));
                     }
                 }
                 else if (value != null)
@@ -43,7 +52,10 @@ namespace DockerfileModel
                     this.TokenList.AddRange(new Token[]
                     {
                         new SymbolToken("="),
-                        new LiteralToken(value)
+                        new ArgValue(new Token[]
+                        {
+                            new LiteralToken(value)
+                        })
                     });
                 }
             }
@@ -75,13 +87,20 @@ namespace DockerfileModel
                     argAssignment.GetOrDefault()), escapeChar).End();
 
         private static Parser<IdentifierToken> GetArgNameParser(char escapeChar) =>
-            QuotableIdentifier(Sprache.Parse.Letter, Sprache.Parse.LetterOrDigit.Or(Sprache.Parse.Char('_')), escapeChar);
+            IdentifierToken(ArgRefFirstLetterParser, ArgRefTailParser, escapeChar);
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
-            from assignmentChar in Sprache.Parse.Char('=')
-            from value in Literal(escapeChar).Optional()
+            from assignment in Symbol("=")
+            from value in LiteralAggregate(escapeChar, false, tokens => new ArgValue(tokens)).Optional()
             select ConcatTokens(
-                new SymbolToken(assignmentChar.ToString()),
-                value.GetOrElse(new LiteralToken("")));
+                assignment,
+                value.GetOrDefault());
+    }
+
+    public class ArgValue : QuotableAggregateToken
+    {
+        public ArgValue(IEnumerable<Token> tokens) : base(tokens, typeof(LiteralToken))
+        {
+        }
     }
 }

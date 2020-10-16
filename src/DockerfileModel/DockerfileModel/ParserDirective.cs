@@ -38,7 +38,7 @@ namespace DockerfileModel
             new ParserDirective(text);
 
         public static Parser<IEnumerable<Token>> GetParser() =>
-            from leading in WhitespaceChars().AsEnumerable()
+            from leading in Whitespace()
             from commentChar in CommentToken.CommentCharParser()
             from directive in TokenWithTrailingWhitespace(DirectiveNameParser())
             from op in TokenWithTrailingWhitespace(Symbol("="))

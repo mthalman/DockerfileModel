@@ -10,14 +10,14 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class ImageName : AggregateToken
+    public class ResolvedImageName : AggregateToken
     {
         private RegistryToken? registryToken;
         private readonly RepositoryToken repositoryToken;
         private TagToken? tagToken;
         private DigestToken? digestToken;
 
-        private ImageName(string text)
+        private ResolvedImageName(string text)
             : base(text, ImageNameParser.GetParser())
         {
             registryToken = Tokens.OfType<RegistryToken>().FirstOrDefault();
@@ -26,7 +26,7 @@ namespace DockerfileModel
             digestToken = Tokens.OfType<DigestToken>().FirstOrDefault();
         }
 
-        public static ImageName Create(string repository, string? registry = null, string? tag = null, string? digest = null)
+        public static ResolvedImageName Create(string repository, string? registry = null, string? tag = null, string? digest = null)
         {
             Requires.NotNullOrWhiteSpace(repository, nameof(repository));
             Requires.ValidState(
@@ -56,8 +56,8 @@ namespace DockerfileModel
             return Parse(builder.ToString());
         }
 
-        public static ImageName Parse(string imageName) =>
-            new ImageName(imageName);
+        public static ResolvedImageName Parse(string imageName) =>
+            new ResolvedImageName(imageName);
 
         public static Parser<IEnumerable<Token>> GetParser() =>
             ImageNameParser.GetParser();
@@ -196,30 +196,30 @@ namespace DockerfileModel
 
             private static Parser<IEnumerable<Token>> RegistryRepository() =>
                 (from registry in Registry()
-                 from separator in Sprache.Parse.Char('/')
+                 from separator in Symbol("/")
                  from repository in Repository()
                  select ConcatTokens(
                      registry,
-                     new SymbolToken(separator.ToString()),
+                     separator,
                      repository)).Or(
                 from repository in Repository()
                 select new Token[] { repository });
 
             private static Parser<IEnumerable<Token>> Tag() =>
-                from separator in Sprache.Parse.Char(':')
+                from separator in Symbol(":")
                 from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, NonWhitespace())
                 select ConcatTokens(
-                    new SymbolToken(separator.ToString()),
+                    separator,
                     new TagToken(tag));
 
             private static Parser<IEnumerable<Token>> Digest() =>
-                from digestSeparator in Sprache.Parse.Char('@')
+                from digestSeparator in Symbol("@")
                 from prefix in Sprache.Parse.String("sha")
                 from digits in Sprache.Parse.Digit.Many().Text()
                 from shaSeparator in Sprache.Parse.Char(':')
                 from digest in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, Sprache.Parse.LetterOrDigit)
                 select ConcatTokens(
-                    new SymbolToken(digestSeparator.ToString()),
+                    digestSeparator,
                     new DigestToken($"sha{digits}:{digest}"));
 
             private static Parser<IEnumerable<Token>> TagDigest() =>

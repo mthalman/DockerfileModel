@@ -14,24 +14,24 @@ namespace DockerfileModel
         private static readonly Dictionary<string, Func<string, char, InstructionBase>> instructionParsers =
             new Dictionary<string, Func<string, char, InstructionBase>>
             {
-                { "ADD", DockerfileModel.Instruction.Parse },
+                { "ADD", Instruction.Parse },
                 { "ARG", ArgInstruction.Parse },
-                { "CMD", DockerfileModel.Instruction.Parse },
-                { "COPY", DockerfileModel.Instruction.Parse },
-                { "ENTRYPOINT", DockerfileModel.Instruction.Parse },
-                { "EXPOSE", DockerfileModel.Instruction.Parse },
-                { "ENV", DockerfileModel.Instruction.Parse },
+                { "CMD", Instruction.Parse },
+                { "COPY", Instruction.Parse },
+                { "ENTRYPOINT", Instruction.Parse },
+                { "EXPOSE", Instruction.Parse },
+                { "ENV", Instruction.Parse },
                 { "FROM", FromInstruction.Parse },
-                { "HEALTHCHECK", DockerfileModel.Instruction.Parse },
-                { "LABEL", DockerfileModel.Instruction.Parse },
-                { "MAINTAINER", DockerfileModel.Instruction.Parse },
-                { "ONBUILD", DockerfileModel.Instruction.Parse },
-                { "RUN", DockerfileModel.Instruction.Parse },
-                { "SHELL", DockerfileModel.Instruction.Parse },
-                { "STOPSIGNAL", DockerfileModel.Instruction.Parse },
-                { "USER", DockerfileModel.Instruction.Parse },
-                { "VOLUME", DockerfileModel.Instruction.Parse },
-                { "WORKDIR", DockerfileModel.Instruction.Parse },
+                { "HEALTHCHECK", Instruction.Parse },
+                { "LABEL", Instruction.Parse },
+                { "MAINTAINER", Instruction.Parse },
+                { "ONBUILD", Instruction.Parse },
+                { "RUN", RunInstruction.Parse },
+                { "SHELL", Instruction.Parse },
+                { "STOPSIGNAL", Instruction.Parse },
+                { "USER", Instruction.Parse },
+                { "VOLUME", Instruction.Parse },
+                { "WORKDIR", Instruction.Parse },
             };
 
         public static Dockerfile ParseContent(string text)
@@ -99,7 +99,7 @@ namespace DockerfileModel
                         instructionContent.Append(line);
                     }
                 }
-                else if (instructionContent is null && DockerfileModel.Instruction.IsInstruction(line, escapeChar))
+                else if (instructionContent is null && Instruction.IsInstruction(line, escapeChar))
                 {
                     if (EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful)
                     {
@@ -137,36 +137,16 @@ namespace DockerfileModel
         }
 
         private static Parser<string> InstructionName() =>
-            from leading in WhitespaceChars().AsEnumerable()
+            from leading in Whitespace()
             from instruction in InstructionIdentifier()
             select instruction.Value;
-
-        public static Parser<IEnumerable<Token>> Instruction(char escapeChar) =>
-            from leading in WhitespaceChars().AsEnumerable()
-            from instruction in TokenWithTrailingWhitespace(InstructionIdentifier())
-            from lineContinuation in LineContinuation(escapeChar).Optional()
-            from instructionArgs in InstructionArgs(escapeChar)
-            select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs);
-
-        private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
-            from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Except(Parse.LineEnd).Many().Text()
-            from lineContinuation in LineContinuation(escapeChar).Optional()
-            from lineEnd in OptionalNewLine().AsEnumerable()
-            select ConcatTokens(
-                GetInstructionArgLineContent(text),
-                lineContinuation.GetOrDefault(),
-                lineEnd);
 
         private static Parser<IEnumerable<Token>> EndsInLineContinuation(char escapeChar) =>
             from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Many().Text()
             from lineCont in LineContinuation(escapeChar)
             select lineCont;
 
-        private static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
-            from lineSets in (CommentText().Or(InstructionArgLine(escapeChar))).Many()
-            select lineSets.SelectMany(lineSet => lineSet);
-
-        private static Parser<KeywordToken> InstructionIdentifier()
+        public static Parser<KeywordToken> InstructionIdentifier()
         {
             Parser<KeywordToken>? parser = null;
             foreach (string instructionName in instructionParsers.Keys)

@@ -1,7 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
+
+using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
@@ -24,32 +27,50 @@ namespace DockerfileModel
 
         public override ConstructType Type => ConstructType.Instruction;
 
-        internal void ResolveArgValues(char escapeChar, IDictionary<string, string?>? argValues = null)
+        protected static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
+            from lineSets in (CommentText().Or(InstructionArgLine(escapeChar))).Many()
+            select lineSets.SelectMany(lineSet => lineSet);
+
+        private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
+            from text in Sprache.Parse.AnyChar.Except(LineContinuation(escapeChar)).Except(Sprache.Parse.LineEnd).Many().Text()
+            from lineContinuation in LineContinuation(escapeChar).Optional()
+            from lineEnd in OptionalNewLine().AsEnumerable()
+            select ConcatTokens(
+                GetInstructionArgLineContent(text),
+                lineContinuation.GetOrDefault(),
+                lineEnd);
+
+        private static IEnumerable<Token?> GetInstructionArgLineContent(string text)
         {
-            if (argValues is null)
+            if (text.Length == 0)
             {
-                argValues = new Dictionary<string, string?>();
+                yield break;
             }
 
-            new ArgResolverVisitor(argValues, escapeChar).Visit(this);
+            if (text.Trim().Length == 0)
+            {
+                yield return new WhitespaceToken(text);
+                yield break;
+            }
+
+            yield return GetLeadingWhitespaceToken(text);
+            yield return new LiteralToken(text.Trim());
+            yield return GetTrailingWhitespaceToken(text);
         }
 
-        private class ArgResolverVisitor : TokenVisitor
+        private static WhitespaceToken? GetLeadingWhitespaceToken(string text)
         {
-            private readonly IDictionary<string, string?> argValues;
-            private readonly char escapeChar;
+            string? whitespace = new string(
+                text
+                    .TakeWhile(ch => Char.IsWhiteSpace(ch))
+                    .ToArray());
 
-            public ArgResolverVisitor(IDictionary<string, string?> argValues, char escapeChar)
+            if (whitespace == String.Empty)
             {
-                this.argValues = argValues;
-                this.escapeChar = escapeChar;
+                return null;
             }
 
-            protected override void VisitLiteralToken(LiteralToken token)
-            {
-                base.VisitLiteralToken(token);
-                token.Value = ArgResolver.Resolve(token.Value, argValues, escapeChar);
-            }
+            return new WhitespaceToken(whitespace);
         }
     }
 }

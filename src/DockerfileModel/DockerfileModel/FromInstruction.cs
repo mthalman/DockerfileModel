@@ -10,12 +10,12 @@ namespace DockerfileModel
 {
     public class FromInstruction : InstructionBase
     {
-        private readonly LiteralToken imageName;
+        private readonly ImageName imageName;
 
         private FromInstruction(string text, char escapeChar)
             : base(text, GetParser(escapeChar))
         {
-            LiteralToken? platform = this.PlatformToken;
+            PlatformName? platform = this.PlatformToken;
             int startIndex = 0;
             if (platform != null)
             {
@@ -24,19 +24,19 @@ namespace DockerfileModel
 
             this.imageName = this.TokenList
                 .Skip(startIndex)
-                .OfType<LiteralToken>()
+                .OfType<ImageName>()
                 .First();
         }
 
         public string ImageName
         {
-            get => this.imageName.Value;
-            set { this.imageName.Value = value; }
+            get => this.imageName.ToString(includeQuotes: false);
+            set => this.imageName.ReplaceWithToken(new LiteralToken(value));
         }
 
         public string? Platform
         {
-            get => this.PlatformToken?.Value;
+            get => this.PlatformToken?.ToString();
             set
             {
                 PlatformFlag? platformFlag = this.PlatformFlag;
@@ -48,7 +48,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        platformFlag.Platform.Value = value;
+                        platformFlag.Platform.ReplaceWithToken(new LiteralToken(value));
                     }
                 }
                 else if (value != null)
@@ -62,7 +62,7 @@ namespace DockerfileModel
             }
         }
 
-        private LiteralToken? PlatformToken => this.PlatformFlag?.Platform;
+        private PlatformName? PlatformToken => this.PlatformFlag?.Platform;
         private PlatformFlag? PlatformFlag => this.Tokens.OfType<PlatformFlag>().FirstOrDefault();
 
         public string? StageName
@@ -136,6 +136,14 @@ namespace DockerfileModel
             select new StageName(tokens);
 
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
-            ArgTokens(Literal(escapeChar).AsEnumerable(), escapeChar);
+            ArgTokens(
+                LiteralAggregate(escapeChar, false, tokens => new ImageName(tokens)).AsEnumerable(), escapeChar);
+    }
+
+    public class ImageName : QuotableAggregateToken
+    {
+        public ImageName(IEnumerable<Token> tokens) : base(tokens, typeof(LiteralToken))
+        {
+        }
     }
 }

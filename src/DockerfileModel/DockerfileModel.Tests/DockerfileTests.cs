@@ -49,20 +49,20 @@ namespace DockerfileModel.Tests
                 "# escape=`",
                 "FROM image",
                 "ARG test=a",
-                "RUN echo $test `$test"
+                "ARG x=$test-`$test"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues((Instruction)dockerfile.Items.Last(), runInst => runInst.ToString());
-            Assert.Equal("RUN echo a `$test", resolvedVal);
+            string resolvedVal = dockerfile.ResolveVariables((InstructionBase)dockerfile.Items.Last());
+            Assert.Equal("ARG x=a-`$test", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues();
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true });
 
-            Assert.Equal("RUN echo a `$test", dockerfile.Items.Last().ToString());
+            Assert.Equal("ARG x=a-`$test", dockerfile.Items.Last().ToString());
         }
 
         [Fact]
@@ -72,7 +72,7 @@ namespace DockerfileModel.Tests
             {
                 "FROM image",
                 "ARG test=a",
-                "RUN echo $test \\$test"
+                "ARG x=$test-\\$test"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -84,13 +84,13 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues((Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo b \\$test", resolvedVal);
+            string resolvedVal = dockerfile.ResolveVariables((InstructionBase)dockerfile.Items.Last(), argValues);
+            Assert.Equal("ARG x=b-\\$test", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues(argValues);
+            dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
 
-            Assert.Equal("RUN echo b \\$test", dockerfile.Items.Last().ToString());
+            Assert.Equal("ARG x=b-\\$test", dockerfile.Items.Last().ToString());
         }
 
         [Fact]
@@ -100,10 +100,10 @@ namespace DockerfileModel.Tests
             {
                 "FROM image as stage1",
                 "ARG test=a",
-                "RUN echo $test",
+                "ARG x=$test",
                 "FROM image2 as stage2",
                 "ARG test=",
-                "RUN echo $test-c",
+                "ARG y=$test-c",
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -111,16 +111,16 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues((Instruction)stagesView.Stages.First().Items.Last(), runInst => runInst.ToString());
-            Assert.Equal("RUN echo a\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues((Instruction)stagesView.Stages.Last().Items.Last(), runInst => runInst.ToString());
-            Assert.Equal("RUN echo -c", resolvedVal);
+            string resolvedVal = dockerfile.ResolveVariables((InstructionBase)stagesView.Stages.First().Items.Last());
+            Assert.Equal("ARG x=a\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables((InstructionBase)stagesView.Stages.Last().Items.Last());
+            Assert.Equal("ARG y=-c", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues();
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true });
 
-            Assert.Equal("RUN echo a\n", stagesView.Stages.First().Items.Last().ToString());
-            Assert.Equal("RUN echo -c", stagesView.Stages.Last().Items.Last().ToString());
+            Assert.Equal("ARG x=a\n", stagesView.Stages.First().Items.Last().ToString());
+            Assert.Equal("ARG y=-c", stagesView.Stages.Last().Items.Last().ToString());
         }
 
         [Fact]
@@ -130,10 +130,10 @@ namespace DockerfileModel.Tests
             {
                 "FROM image as stage1",
                 "ARG test=a",
-                "RUN echo $test",
+                "ARG x=$test",
                 "FROM image2 as stage2",
                 "ARG test=",
-                "RUN echo $test-c",
+                "ARG y=$test-c",
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -146,18 +146,18 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)stagesView.Stages.First().Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo z\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)stagesView.Stages.Last().Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo z-c", resolvedVal);
+            string resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)stagesView.Stages.First().Items.Last(), argValues);
+            Assert.Equal("ARG x=z\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)stagesView.Stages.Last().Items.Last(), argValues);
+            Assert.Equal("ARG y=z-c", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues(argValues);
+            dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
             
-            Assert.Equal("RUN echo z\n", stagesView.Stages.First().Items.Last().ToString());
-            Assert.Equal("RUN echo z-c", stagesView.Stages.Last().Items.Last().ToString());
+            Assert.Equal("ARG x=z\n", stagesView.Stages.First().Items.Last().ToString());
+            Assert.Equal("ARG y=z-c", stagesView.Stages.Last().Items.Last().ToString());
         }
 
         [Fact]
@@ -172,25 +172,25 @@ namespace DockerfileModel.Tests
                 "ARG test2",
                 "ARG test3=c1",
                 "ARG test4=d",
-                "RUN echo $test1-$test2-$test3-$test4"
+                "ARG x=$test1-$test2-$test3-$test4"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                dockerfile.Items.OfType<FromInstruction>().First(), runInst => runInst.ToString());
+            string resolvedVal = dockerfile.ResolveVariables(
+                dockerfile.Items.OfType<FromInstruction>().First());
             Assert.Equal("FROM image:a\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString());
-            Assert.Equal("RUN echo -b-c1-d", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)dockerfile.Items.Last());
+            Assert.Equal("ARG x=-b-c1-d", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues();
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true });
 
             Assert.Equal("FROM image:a\n", dockerfile.Items.OfType<FromInstruction>().First().ToString());
-            Assert.Equal("RUN echo -b-c1-d", dockerfile.Items.Last().ToString());
+            Assert.Equal("ARG x=-b-c1-d", dockerfile.Items.Last().ToString());
         }
 
         [Fact]
@@ -205,7 +205,7 @@ namespace DockerfileModel.Tests
                 "ARG test2",
                 "ARG test3=c1",
                 "ARG test4=d",
-                "RUN echo $test1-$test2-$test3-$test4"
+                "ARG x=$test1-$test2-$test3-$test4"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -220,18 +220,18 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                dockerfile.Items.OfType<FromInstruction>().First(), runInst => runInst.ToString(), argValues);
+            string resolvedVal = dockerfile.ResolveVariables(
+                dockerfile.Items.OfType<FromInstruction>().First(), argValues);
             Assert.Equal("FROM image:a1\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo -b1-c2-d1", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)dockerfile.Items.Last(), argValues);
+            Assert.Equal("ARG x=-b1-c2-d1", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues(argValues);
+            dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
 
             Assert.Equal("FROM image:a1\n", dockerfile.Items.OfType<FromInstruction>().First().ToString());
-            Assert.Equal("RUN echo -b1-c2-d1", dockerfile.Items.Last().ToString());
+            Assert.Equal("ARG x=-b1-c2-d1", dockerfile.Items.Last().ToString());
         }
 
         [Fact]
@@ -246,12 +246,12 @@ namespace DockerfileModel.Tests
                 "ARG test2",
                 "ARG test3=c1",
                 "ARG test4=d",
-                "RUN echo $test1-$test2-$test3-$test4",
+                "ARG x=$test1-$test2-$test3-$test4",
                 "FROM image:$test2 as stage2",
                 "ARG test2",
                 "ARG test3",
                 "ARG test4=d",
-                "RUN echo $test1-$test2-$test3-$test4"
+                "ARG y=$test1-$test2-$test3-$test4"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -259,26 +259,26 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                stagesView.Stages.First().FromInstruction, runInst => runInst.ToString());
+            string resolvedVal = dockerfile.ResolveVariables(
+                stagesView.Stages.First().FromInstruction);
             Assert.Equal("FROM image:a as stage1\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)stagesView.Stages.First().Items.Last(), runInst => runInst.ToString());
-            Assert.Equal("RUN echo --c1-d\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                stagesView.Stages.Last().FromInstruction, runInst => runInst.ToString());
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)stagesView.Stages.First().Items.Last());
+            Assert.Equal("ARG x=--c1-d\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                stagesView.Stages.Last().FromInstruction);
             Assert.Equal("FROM image: as stage2\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)stagesView.Stages.Last().Items.Last(), runInst => runInst.ToString());
-            Assert.Equal("RUN echo --c-d", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)stagesView.Stages.Last().Items.Last());
+            Assert.Equal("ARG y=--c-d", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues();
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true });
 
             Assert.Equal("FROM image:a as stage1\n", stagesView.Stages.First().FromInstruction.ToString());
-            Assert.Equal("RUN echo --c1-d\n", stagesView.Stages.First().Items.Last().ToString());
+            Assert.Equal("ARG x=--c1-d\n", stagesView.Stages.First().Items.Last().ToString());
             Assert.Equal("FROM image: as stage2\n", stagesView.Stages.Last().FromInstruction.ToString());
-            Assert.Equal("RUN echo --c-d", stagesView.Stages.Last().Items.Last().ToString());
+            Assert.Equal("ARG y=--c-d", stagesView.Stages.Last().Items.Last().ToString());
         }
 
         [Fact]
@@ -293,12 +293,12 @@ namespace DockerfileModel.Tests
                 "ARG test2",
                 "ARG test3=c1",
                 "ARG test4=d",
-                "RUN echo $test1-$test2-$test3-$test4",
+                "ARG x=$test1-$test2-$test3-$test4",
                 "FROM image:$test2 as stage2",
                 "ARG test2",
                 "ARG test3",
                 "ARG test4=d",
-                "RUN echo $test1-$test2-$test3-$test4"
+                "ARG y=$test1-$test2-$test3-$test4"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -313,26 +313,26 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                stagesView.Stages.First().FromInstruction, runInst => runInst.ToString(), argValues);
+            string resolvedVal = dockerfile.ResolveVariables(
+                stagesView.Stages.First().FromInstruction, argValues);
             Assert.Equal("FROM image:a1 as stage1\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)stagesView.Stages.First().Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo -b1-c2-d\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                stagesView.Stages.Last().FromInstruction, runInst => runInst.ToString(), argValues);
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)stagesView.Stages.First().Items.Last(), argValues);
+            Assert.Equal("ARG x=-b1-c2-d\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                stagesView.Stages.Last().FromInstruction, argValues);
             Assert.Equal("FROM image:b1 as stage2\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)stagesView.Stages.Last().Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo -b1-c2-d", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)stagesView.Stages.Last().Items.Last(), argValues);
+            Assert.Equal("ARG y=-b1-c2-d", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues(argValues);
+            dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
 
             Assert.Equal("FROM image:a1 as stage1\n", stagesView.Stages.First().FromInstruction.ToString());
-            Assert.Equal("RUN echo -b1-c2-d\n", stagesView.Stages.First().Items.Last().ToString());
+            Assert.Equal("ARG x=-b1-c2-d\n", stagesView.Stages.First().Items.Last().ToString());
             Assert.Equal("FROM image:b1 as stage2\n", stagesView.Stages.Last().FromInstruction.ToString());
-            Assert.Equal("RUN echo -b1-c2-d", stagesView.Stages.Last().Items.Last().ToString());
+            Assert.Equal("ARG y=-b1-c2-d", stagesView.Stages.Last().Items.Last().ToString());
         }
 
         [Fact]
@@ -341,9 +341,9 @@ namespace DockerfileModel.Tests
             List<string> lines = new List<string>
             {
                 "FROM image",
-                "RUN echo $test",
+                "ARG x=$test",
                 "ARG test=a",
-                "RUN echo $test"
+                "ARG y=$test"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -352,18 +352,18 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)dockerfile.Items.ElementAt(1), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo \n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo a", resolvedVal);
+            string resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)dockerfile.Items.ElementAt(1), argValues);
+            Assert.Equal("ARG x=\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)dockerfile.Items.Last(), argValues);
+            Assert.Equal("ARG y=a", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues(argValues);
+            dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
 
-            Assert.Equal("RUN echo \n", dockerfile.Items.ElementAt(1).ToString());
-            Assert.Equal("RUN echo a", dockerfile.Items.Last().ToString());
+            Assert.Equal("ARG x=\n", dockerfile.Items.ElementAt(1).ToString());
+            Assert.Equal("ARG y=a", dockerfile.Items.Last().ToString());
         }
 
         [Fact]
@@ -374,27 +374,72 @@ namespace DockerfileModel.Tests
                 "ARG test=a",
                 "FROM image",
                 "ARG test",
-                "RUN echo $test",
+                "ARG x=$test",
                 "ARG test=b",
-                "RUN echo $test"
+                "ARG y=$test"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)dockerfile.Items.ElementAt(3), runInst => runInst.ToString());
-            Assert.Equal("RUN echo a\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)dockerfile.Items.ElementAt(5), runInst => runInst.ToString());
-            Assert.Equal("RUN echo b", resolvedVal);
+            string resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)dockerfile.Items.ElementAt(3));
+            Assert.Equal("ARG x=a\n", resolvedVal);
+            resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)dockerfile.Items.ElementAt(5));
+            Assert.Equal("ARG y=b", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues();
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true });
 
-            Assert.Equal("RUN echo a\n", dockerfile.Items.ElementAt(3).ToString());
-            Assert.Equal("RUN echo b", dockerfile.Items.ElementAt(5).ToString());
+            Assert.Equal("ARG x=a\n", dockerfile.Items.ElementAt(3).ToString());
+            Assert.Equal("ARG y=b", dockerfile.Items.ElementAt(5).ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_DependentArgs()
+        {
+            List<string> lines = new List<string>
+            {
+                "ARG test1=a",
+                "ARG test2=$test1",
+                "ARG test3=${test2}",
+                "FROM image:$test3"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true });
+
+            Assert.Equal("ARG test2=a\n", dockerfile.Items.ElementAt(1).ToString());
+            Assert.Equal("ARG test3=a\n", dockerfile.Items.ElementAt(2).ToString());
+            Assert.Equal("FROM image:a", dockerfile.Items.ElementAt(3).ToString());
+        }
+
+        [Fact]
+        public void ResolveArgValues_DependentArgs_Overriden()
+        {
+            List<string> lines = new List<string>
+            {
+                "ARG test1",
+                "ARG test2=$test1",
+                "ARG test3=${test1+bar}",
+                "FROM image:$test2",
+                "FROM image:$test3"
+            };
+
+            Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+            Dictionary<string, string> argValues = new Dictionary<string, string>
+            {
+                { "test1", "foo" }
+            };
+            dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
+
+            Assert.Equal("ARG test2=foo\n", dockerfile.Items.ElementAt(1).ToString());
+            Assert.Equal("ARG test3=bar\n", dockerfile.Items.ElementAt(2).ToString());
+            Assert.Equal("FROM image:foo\n", dockerfile.Items.ElementAt(3).ToString());
+            Assert.Equal("FROM image:bar", dockerfile.Items.ElementAt(4).ToString());
         }
 
         [Fact]
@@ -403,7 +448,7 @@ namespace DockerfileModel.Tests
             List<string> lines = new List<string>
             {
                 "FROM image",
-                "RUN echo $test"
+                "ARG x=$test"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -415,14 +460,14 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo ", resolvedVal);
+            string resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)dockerfile.Items.Last(), argValues);
+            Assert.Equal("ARG x=", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues(argValues);
+            dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
 
-            Assert.Equal("RUN echo ", dockerfile.Items.Last().ToString());
+            Assert.Equal("ARG x=", dockerfile.Items.Last().ToString());
         }
 
         [Fact]
@@ -432,7 +477,7 @@ namespace DockerfileModel.Tests
             {
                 "ARG test=foo",
                 "FROM image",
-                "RUN echo $test"
+                "ARG x=$test"
             };
 
             Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
@@ -444,14 +489,14 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveArgValues(
-                (Instruction)dockerfile.Items.Last(), runInst => runInst.ToString(), argValues);
-            Assert.Equal("RUN echo ", resolvedVal);
+            string resolvedVal = dockerfile.ResolveVariables(
+                (InstructionBase)dockerfile.Items.Last(), argValues);
+            Assert.Equal("ARG x=", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
-            dockerfile.ResolveArgValues(argValues);
+            dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
 
-            Assert.Equal("RUN echo ", dockerfile.Items.Last().ToString());
+            Assert.Equal("ARG x=", dockerfile.Items.Last().ToString());
         }
 
         public static IEnumerable<object[]> ParseTestInput()
@@ -486,7 +531,8 @@ namespace DockerfileModel.Tests
                             token => ValidateLineContinuation(token, $"`"),
                             token => ValidateNewLine(token, "\r\n"),
                             token => ValidateWhitespace(token, "  "),
-                            token => ValidateLiteral(token, "scratch"))
+                            token => ValidateQuotableAggregate<ImageName>(token, "scratch", null,
+                                token => ValidateLiteral(token, "scratch")))
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -506,7 +552,7 @@ namespace DockerfileModel.Tests
                         line => ValidateAggregate<Whitespace>(line, "\r\n"),
                         line => ValidateAggregate<FromInstruction>(line, "FROM scratch\n"),
                         line => ValidateAggregate<Comment>(line, "# test\n"),
-                        line => ValidateAggregate<Instruction>(line, "RUN foo=\"bar\"\n"),
+                        line => ValidateAggregate<RunInstruction>(line, "RUN foo=\"bar\"\n"),
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -523,7 +569,8 @@ namespace DockerfileModel.Tests
                                 token => ValidateSymbol(token, "#"),
                                 token => ValidateLiteral(token, "comment")),
                             token => ValidateNewLine(token, "\n"),
-                            token => ValidateLiteral(token, "scratch")
+                            token => ValidateQuotableAggregate<ImageName>(token, "scratch", null,
+                                token => ValidateLiteral(token, "scratch"))
                         ),
                     }
                 },
@@ -532,7 +579,7 @@ namespace DockerfileModel.Tests
                     Text = $"RUN apt-get update \\\r\n  && apt-get install curl\r\n\r\n#testing",
                     TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateAggregate<Instruction>(line, "RUN apt-get update \\\r\n  && apt-get install curl\r\n",
+                        line => ValidateAggregate<RunInstruction>(line, "RUN apt-get update \\\r\n  && apt-get install curl\r\n",
                             new Action<Token>[]
                             {
                                 token => ValidateKeyword(token, "RUN"),
@@ -554,7 +601,7 @@ namespace DockerfileModel.Tests
                     Text = $"RUN apk add \\\n  userspace-rcu",
                     TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateAggregate<Instruction>(line, "RUN apk add \\\n  userspace-rcu",
+                        line => ValidateAggregate<RunInstruction>(line, "RUN apk add \\\n  userspace-rcu",
                             new Action<Token>[]
                             {
                                 token => ValidateKeyword(token, "RUN"),
