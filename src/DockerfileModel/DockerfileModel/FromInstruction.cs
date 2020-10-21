@@ -30,7 +30,7 @@ namespace DockerfileModel
 
         public string ImageName
         {
-            get => this.imageName.ToString(includeQuotes: false);
+            get => this.imageName.Value;
             set => this.imageName.ReplaceWithToken(new LiteralToken(value));
         }
 
@@ -140,9 +140,9 @@ namespace DockerfileModel
                 LiteralAggregate(escapeChar, false, tokens => new ImageName(tokens)).AsEnumerable(), escapeChar);
     }
 
-    public class ImageName : QuotableAggregateToken
+    public class ImageName : LiteralToken
     {
-        public ImageName(IEnumerable<Token> tokens) : base(tokens, typeof(LiteralToken))
+        public ImageName(IEnumerable<Token> tokens) : base(tokens)
         {
         }
     }

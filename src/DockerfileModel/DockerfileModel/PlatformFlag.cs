@@ -61,9 +61,9 @@ namespace DockerfileModel
         }
     }
 
-    public class PlatformName : QuotableAggregateToken
+    public class PlatformName : LiteralToken
     {
-        public PlatformName(IEnumerable<Token> tokens) : base(tokens, typeof(LiteralToken))
+        public PlatformName(IEnumerable<Token> tokens) : base(tokens)
         {
         }
     }

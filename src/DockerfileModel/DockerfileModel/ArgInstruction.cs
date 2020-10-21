@@ -25,7 +25,7 @@ namespace DockerfileModel
         {
             get
             {
-                string? argValue = this.Tokens.OfType<ArgValue>().FirstOrDefault()?.ToString(includeQuotes: false);
+                string? argValue = this.Tokens.OfType<ArgValue>().FirstOrDefault()?.Value;
                 if (argValue is null)
                 {
                     return Tokens.OfType<SymbolToken>().Where(token => token.Value == "=").Any() ? string.Empty : null;
@@ -97,9 +97,9 @@ namespace DockerfileModel
                 value.GetOrDefault());
     }
 
-    public class ArgValue : QuotableAggregateToken
+    public class ArgValue : LiteralToken
     {
-        public ArgValue(IEnumerable<Token> tokens) : base(tokens, typeof(LiteralToken))
+        public ArgValue(IEnumerable<Token> tokens) : base(tokens)
         {
         }
     }

@@ -10,6 +10,7 @@ namespace DockerfileModel
     {
         private const char SingleQuote = '\'';
         private const char DoubleQuote = '\"';
+        private static readonly char[] Quotes = new char[] { SingleQuote, DoubleQuote };
 
         /// <summary>
         /// Parsers for all of the variable substitution modifiers.
@@ -175,10 +176,40 @@ namespace DockerfileModel
         /// Parses an instruction name.
         /// </summary>
         /// <param name="instructionName">Name of the instruction.</param>
+        /// <param name="escapeChar">Escape character.</param>
         /// <returns>Token for the instruction name.</returns>
-        public static Parser<KeywordToken> InstructionIdentifier(string instructionName) =>
-            from text in Parse.IgnoreCase(instructionName).Text()
-            select new KeywordToken(text);
+        public static Parser<KeywordToken> InstructionIdentifier(string instructionName, char escapeChar)
+        {
+            Parser<IEnumerable<Token>>? parser = null;
+            for (int i = 0; i < instructionName.Length; i++)
+            {
+                int currentIndex = i;
+                if (parser is null)
+                {
+                    parser = ToStringTokens(Parse.IgnoreCase(instructionName[currentIndex]));
+                }
+                else
+                {
+                    parser = from previousTokens in parser
+                             from nextTokens in CharWithOptionalLineContinuation(escapeChar, Parse.IgnoreCase(instructionName[currentIndex]))
+                             select ConcatTokens(previousTokens, nextTokens);
+                }
+            }
+
+            return from tokens in parser
+                select new KeywordToken(TokenHelper.CollapseStringTokens(tokens));
+        }
+
+        /// <summary>
+        /// Parses a single character preceded by an optional line continuation.
+        /// </summary>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="charParser">Character parser.</param>
+        /// <returns>Parsed tokens.</returns>
+        private static Parser<IEnumerable<Token>> CharWithOptionalLineContinuation(char escapeChar, Parser<char> charParser) =>
+            from lineContinuation in LineContinuation(escapeChar).Optional()
+            from ch in charParser
+            select ConcatTokens(lineContinuation.GetOrDefault(), new StringToken(ch.ToString()));
 
         /// <summary>
         /// Parses an instruction.
@@ -202,24 +233,22 @@ namespace DockerfileModel
             select new SymbolToken(val);
 
         /// <summary>
-        /// Parsers an identifier.
-        /// </summary>
-        /// <param name="firstCharacterParser">Parser for the first character.</param>
-        /// <param name="tailParser">Parser for the rest of the characters.</param>
-        /// <returns>Identifier parser.</returns>
-        private static Parser<string> Identifier(Parser<char> firstCharacterParser, Parser<string> tailParser) =>
-            from firstLetter in firstCharacterParser
-            from tail in tailParser
-            select firstLetter + tail;
-
-        /// <summary>
         /// Concatenates a set of string parsers with an 'or' operator.
         /// </summary>
         /// <param name="parsers">Set of string parsers to concatenate.</param>
         /// <returns>String parser that matches on any of the given parsers.</returns>
-        private static Parser<string> OrConcat(params Parser<string>[] parsers) =>
-            from vals in (parsers.Aggregate((current, next) => current.Or(next))).Many()
+        public static Parser<string> OrConcat(params Parser<string>[] parsers) =>
+            from vals in parsers.Aggregate((current, next) => current.Or(next)).Many()
             select String.Concat(vals);
+
+        /// <summary>
+        /// Concatenates a set of token parsers with an 'or' operator.
+        /// </summary>
+        /// <param name="parsers">Set of string parsers to concatenate.</param>
+        /// <returns>String parser that matches on any of the given parsers.</returns>
+        private static Parser<IEnumerable<Token>> OrConcat(params Parser<IEnumerable<Token>>[] parsers) =>
+            from vals in (parsers.Aggregate((current, next) => current.Or(next))).Many()
+            select vals.SelectMany(val => val);
 
         /// <summary>
         /// Excludes parsing of the specified characters from a parser.
@@ -252,43 +281,42 @@ namespace DockerfileModel
         public static Parser<IdentifierToken> IdentifierToken(Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar) =>
             WrappedInOptionalQuotes<IdentifierToken>(
                 (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
-                    from identifier in Identifier(
-                        ExceptQuotes(firstCharacterParser),
-                        OrConcat(ExceptQuotes(tailCharacterParser).Many().Text(), EscapedChar(escapeChar)))
+                    from identifier in WrappedInQuotesIdentifier(escapeChar, firstCharacterParser, tailCharacterParser)
                     select new IdentifierToken(identifier)
                     {
                         QuoteChar = tokenWrapper.OpeningString[0]
                     },
                 (char escapeChar, IEnumerable<char> excludedChars) =>
-                    from identifierSegments in
-                        Identifier(
-                            firstCharacterParser,
-                            OrConcat(tailCharacterParser.Many().Text(), EscapedChar(escapeChar)))
-                    select new IdentifierToken(identifierSegments),
+                    from identifier in IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser)
+                    select new Token[] { new IdentifierToken(identifier) },
                 escapeChar,
-                Enumerable.Empty<char>());
+                Enumerable.Empty<char>())
+                .Single()
+                .Cast<Token, IdentifierToken>();
 
         /// <summary>
-        /// Creates a primitive token.
+        /// Parses a literal token.
         /// </summary>
-        /// <param name="primitiveType">Type of the primitive token to create.</param>
-        /// <param name="value">Value of the primitive.</param>
-        /// <returns>Primitive token.</returns>
-        public static PrimitiveToken CreatePrimitiveToken(Type primitiveType, string value)
-        {
-            if (primitiveType == typeof(LiteralToken))
-            {
-                return new LiteralToken(value);
-            }
-            else if (primitiveType == typeof(IdentifierToken))
-            {
-                return new IdentifierToken(value);
-            }
-            else
-            {
-                throw new NotSupportedException($"Unexpected primitive type: '{primitiveType}'");
-            }
-        }
+        /// <param name="escapeChar">Escape character.</param>
+        public static Parser<LiteralToken> LiteralToken(char escapeChar) =>
+            WrappedInOptionalQuotes<LiteralToken>(
+                (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
+                    from literal in LiteralString(escapeChar, excludedChars.Concat(Quotes), isWhitespaceAllowed: true, treatWhitespaceAsLiteral: true)
+                        .Many()
+                        .Flatten()
+                    select new LiteralToken(TokenHelper.CollapseStringTokens(literal))
+                    {
+                        QuoteChar = tokenWrapper.OpeningString[0]
+                    },
+                (char escapeChar, IEnumerable<char> excludedChars) =>
+                    from literal in LiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true, treatWhitespaceAsLiteral: true)
+                        .Many()
+                        .Flatten()
+                    select new Token[] { new LiteralToken(TokenHelper.CollapseStringTokens(literal)) },
+                escapeChar,
+                Enumerable.Empty<char>())
+                .Single()
+                .Cast<Token, LiteralToken>();
 
         /// <summary>
         /// Parses an identifier string wrapped in quotes.
@@ -297,22 +325,35 @@ namespace DockerfileModel
         /// <param name="firstCharacterParser">Parser of the first character of the identifier.</param>
         /// <param name="tailCharacterParser">Parser of the rest of the characters of the identifier.</param>
         /// <returns>Parser for an identifier string wrapped in quotes.</returns>
-        private static Parser<string> WrappedInQuotesIdentifier(char escapeChar, Parser<char> firstCharacterParser, Parser<char> tailCharacterParser) =>
-            Identifier(
+        private static Parser<IEnumerable<Token>> WrappedInQuotesIdentifier(char escapeChar, Parser<char> firstCharacterParser, Parser<char> tailCharacterParser) =>
+            IdentifierString(
+                escapeChar,
                 ExceptQuotes(firstCharacterParser),
-                OrConcat(ExceptQuotes(tailCharacterParser).Many().Text(), EscapedChar(escapeChar)));
+                ExceptQuotes(tailCharacterParser));
 
         /// <summary>
-        /// Parses an identifier string that is not wrapped in quotes.
+        /// Parses an identifier string.
         /// </summary>
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="firstCharacterParser">Parser of the first character of the identifier.</param>
         /// <param name="tailCharacterParser">Parser of the rest of the characters of the identifier.</param>
-        /// <returns>Parser for an identifier string that is not wrapped in quotes.</returns>
-        private static Parser<string> IdentifierString(char escapeChar, Parser<char> firstCharacterParser, Parser<char> tailCharacterParser) =>
-            Identifier(
-                firstCharacterParser,
-                OrConcat(tailCharacterParser.Many().Text(), EscapedChar(escapeChar)));
+        /// <returns>Parser for an identifier string.</returns>
+        private static Parser<IEnumerable<Token>> IdentifierString(char escapeChar, Parser<char> firstCharacterParser, Parser<char> tailCharacterParser) =>
+            from first in ToStringTokens(firstCharacterParser)
+            from rest in OrConcat(
+                CharWithOptionalLineContinuation(escapeChar, tailCharacterParser),
+                EscapedChar(escapeChar))
+                .Many()
+                .Flatten()
+            select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
+
+        /// <summary>
+        /// Transforms a character parser into a parser for a set of tokens containing a single string token.
+        /// </summary>
+        /// <param name="parser">Character parser.</param>
+        private static Parser<IEnumerable<Token>> ToStringTokens(Parser<char> parser) =>
+            from ch in parser
+            select new Token[] { new StringToken(ch.ToString()) };
 
         /// <summary>
         /// Parses a literal string wrapped in quotes.
@@ -321,11 +362,19 @@ namespace DockerfileModel
         /// <param name="excludedChars">Characters to exclude from the parsing.</param>
         /// <param name="isWhitespaceAllowed">A value indicating whether whitespace is allowed in the string.</param>
         /// <returns>Parser for a literal string wrapped in quotes.</returns>
-        private static Parser<string> WrappedInQuotesLiteralString(char escapeChar, IEnumerable<char> excludedChars, bool isWhitespaceAllowed) =>
-            OrConcat(
-                ExceptQuotes(LiteralChar(escapeChar, excludedChars, isWhitespaceAllowed)).Many().Text(),
-                EscapedChar(escapeChar));
-
+        private static Parser<IEnumerable<Token>> WrappedInQuotesLiteralString(char escapeChar, IEnumerable<char> excludedChars, bool isWhitespaceAllowed)
+        {
+            Parser<char> parser = ExceptQuotes(LiteralChar(escapeChar, excludedChars, isWhitespaceAllowed));
+            return
+                from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
+                from rest in OrConcat(
+                    CharWithOptionalLineContinuation(escapeChar, parser)
+                        .Many()
+                        .Flatten(),
+                    EscapedChar(escapeChar))
+                select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
+        }
+            
         /// <summary>
         /// Parses a literal string that is not wrapped in quotes.
         /// </summary>
@@ -333,10 +382,26 @@ namespace DockerfileModel
         /// <param name="excludedChars">Characters to exclude from the parsing.</param>
         /// <param name="isWhitespaceAllowed">A value indicating whether whitespace is allowed in the string.</param>
         /// <returns>Parser for a literal string that is not wrapped in quotes.</returns>
-        private static Parser<string> LiteralString(char escapeChar, IEnumerable<char> excludedChars, bool isWhitespaceAllowed) =>
-            OrConcat(
-                isWhitespaceAllowed ? LiteralStringWithSpaces(escapeChar, excludedChars) : LiteralStringWithoutSpaces(escapeChar, excludedChars),
+        private static Parser<IEnumerable<Token>> LiteralString(char escapeChar, IEnumerable<char> excludedChars, bool isWhitespaceAllowed,
+            bool treatWhitespaceAsLiteral)
+        {
+            return OrConcat(
+                treatWhitespaceAsLiteral ?
+                    LiteralStringWithWhitespaceTreatedAsLiteral(escapeChar, excludedChars) :
+                    isWhitespaceAllowed ? LiteralStringWithSpaces(escapeChar, excludedChars) : LiteralStringWithoutSpaces(escapeChar, excludedChars),
                 EscapedChar(escapeChar));
+        }
+
+        /// <summary>
+        /// Parses a literal string that treats whitespace as part of the literal.
+        /// </summary>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="excludedChars">Characters to exclude from the parsing.</param>
+        private static Parser<IEnumerable<Token>> LiteralStringWithWhitespaceTreatedAsLiteral(char escapeChar, IEnumerable<char> excludedChars) =>
+            from tokens in CharWithOptionalLineContinuation(escapeChar, Parse.AnyChar.ExceptChars(excludedChars.Append(escapeChar)))
+                .Many()
+                .Flatten()
+            select TokenHelper.CollapseStringTokens(tokens);
 
         /// <summary>
         /// Parses a literal string that does not contain any spaces.
@@ -344,25 +409,48 @@ namespace DockerfileModel
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="excludedChars">Characters to exclude from the parsing.</param>
         /// <returns>Parser for a literal string that does not contain any spaces.</returns>
-        private static Parser<string> LiteralStringWithoutSpaces(char escapeChar, IEnumerable<char> excludedChars) =>
-            LiteralChar(escapeChar, excludedChars).AtLeastOnce().Text();
-
+        private static Parser<IEnumerable<Token>> LiteralStringWithoutSpaces(char escapeChar, IEnumerable<char> excludedChars)
+        {
+            Parser<char> parser = LiteralChar(escapeChar, excludedChars);
+            return
+                from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
+                from rest in CharWithOptionalLineContinuation(escapeChar, parser)
+                    .Many()
+                    .Flatten()
+                select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
+        }
+            
         /// <summary>
         /// Parses a literal string that contains spaces.
         /// </summary>
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="excludedChars">Characters to exclude from the parsing.</param>
         /// <returns>Parser for a literal string that contains spaces.</returns>
-        private static Parser<string> LiteralStringWithSpaces(char escapeChar, IEnumerable<char> excludedChars) =>
-            from first in LiteralChar(escapeChar, excludedChars)
-            from rest in
-                (from charsPrecedingWhitespace in LiteralChar(escapeChar, excludedChars).Many().Text()
-                 from whitespace in Parse.WhiteSpace.Many().Text()
-                 from charsAfterWhitespace in LiteralChar(escapeChar, excludedChars).Many().Text().Or(EscapedChar(escapeChar)).Many()
-                 let stringAfterWhitespace = String.Concat(charsAfterWhitespace)
-                 where stringAfterWhitespace.Length > 0
-                 select charsPrecedingWhitespace + whitespace + stringAfterWhitespace).Many()
-            select first + String.Concat(rest);
+        private static Parser<IEnumerable<Token>> LiteralStringWithSpaces(char escapeChar, IEnumerable<char> excludedChars)
+        {
+            Parser<char> parser = LiteralChar(escapeChar, excludedChars);
+            return
+                from first in ToStringTokens(parser)
+                from rest in (
+                    from charsPrecedingWhitespace in CharWithOptionalLineContinuation(escapeChar, parser)
+                        .Many()
+                        .Flatten()
+                    from whitespace in Parse.WhiteSpace.Many().Text()
+                    from charsAfterWhitespace in CharWithOptionalLineContinuation(escapeChar, parser)
+                       .Many()
+                       .Flatten()
+                       .Or(EscapedChar(escapeChar))
+                       .Many()
+                       .Flatten()
+                    where charsAfterWhitespace.Any()
+                    select ConcatTokens(
+                        charsPrecedingWhitespace,
+                        new Token?[] { whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null },
+                        charsAfterWhitespace))
+                    .Many()
+                    .Flatten()
+                select TokenHelper.CollapseStringTokens(first.Concat(rest));
+        }
 
         /// <summary>
         /// Parses a variable identifier reference.
@@ -374,35 +462,33 @@ namespace DockerfileModel
         /// <summary>
         /// Parses a variable reference using the simple variable syntax.
         /// </summary>
-        /// <typeparam name="TPrimitiveToken">Type of the token for the variable.</typeparam>
         /// <returns>Parsed variable reference token.</returns>
-        private static Parser<VariableRefToken> SimpleVariableReference<TPrimitiveToken>()
-            where TPrimitiveToken : PrimitiveToken =>
+        private static Parser<VariableRefToken> SimpleVariableReference() =>
             from variableChar in Parse.Char('$')
             from variableIdentifier in VariableIdentifier()
-            select new VariableRefToken(new Token[] { CreatePrimitiveToken(typeof(TPrimitiveToken), variableIdentifier) });
+            select new VariableRefToken(new Token[] { new StringToken(variableIdentifier) });
 
         /// <summary>
         /// Parses a variable reference using the braced variable syntax.
         /// </summary>
-        /// <typeparam name="TPrimitiveToken">Type of the token for the variable.</typeparam>
         /// <param name="escapeChar">Escape character.</param>
-        /// <param name="createNonQuotedPrimitiveTokenDelegate">Delegate to create a non-quoted primitive token.</param>
+        /// <param name="createNonQuotedTokenDelegate">Delegate to create a non-quoted token.</param>
         /// <returns>Parsed variable reference token.</returns>
-        private static Parser<VariableRefToken> BracedVariableReference<TPrimitiveToken>(
-            char escapeChar, CreateTokenParserDelegate<TPrimitiveToken> createNonQuotedPrimitiveTokenDelegate)
-            where TPrimitiveToken : PrimitiveToken =>
+        private static Parser<VariableRefToken> BracedVariableReference(
+            char escapeChar, CreateTokenParserDelegate createNonQuotedTokenDelegate) =>
             from start in Parse.String("${")
             from varNameToken in
                 from varName in VariableIdentifier()
-                select CreatePrimitiveToken(typeof(TPrimitiveToken), varName)
+                select new StringToken(varName)
             from modifierTokens in (
                 from modifier in OrConcat(variableSubstitutionModifiers).Once()
-                from modifierValueTokens in PrimitiveOrVariableRef(escapeChar, createNonQuotedPrimitiveTokenDelegate, new char[] { '}' }).AtLeastOnce()
+                from modifierValueTokens in ValueOrVariableRef(escapeChar, createNonQuotedTokenDelegate, new char[] { '}' })
+                    .AtLeastOnce()
+                    .Flatten()
                 select ConcatTokens(new SymbolToken(String.Concat(modifier)), new VariableModifierValue(modifierValueTokens))
                 ).Optional()
             from end in Parse.Char('}')
-            select new VariableRefToken(ConcatTokens(new Token[] { varNameToken }, modifierTokens.GetOrElse(Enumerable.Empty<Token>())))
+            select new VariableRefToken(ConcatTokens(new Token[] { (Token)varNameToken }, modifierTokens.GetOrElse(Enumerable.Empty<Token>())))
             {
                 WrappedInBraces = true
             };
@@ -412,13 +498,12 @@ namespace DockerfileModel
         /// </summary>
         /// <typeparam name="TPrimitiveToken">Type of the token for the variable.</typeparam>
         /// <param name="escapeChar">Escape character.</param>
-        /// <param name="createNonQuotedPrimitiveTokenDelegate">Delegate to create a non-quoted primitive token.</param>
+        /// <param name="createNonQuotedTokenDelegate">Delegate to create a non-quoted token.</param>
         /// <returns>Parsed variable reference token.</returns>
-        private static Parser<VariableRefToken> VariableReference<TPrimitiveToken>(
-            char escapeChar, CreateTokenParserDelegate<TPrimitiveToken> createNonQuotedPrimitiveTokenDelegate)
-            where TPrimitiveToken : PrimitiveToken =>
-            SimpleVariableReference<TPrimitiveToken>()
-                .Or(BracedVariableReference(escapeChar, createNonQuotedPrimitiveTokenDelegate));
+        private static Parser<VariableRefToken> VariableReference(
+            char escapeChar, CreateTokenParserDelegate createNonQuotedTokenDelegate) =>
+            SimpleVariableReference()
+                .Or(BracedVariableReference(escapeChar, createNonQuotedTokenDelegate));
 
         /// <summary>
         /// Parses an aggregate containing literals. This handles any variable references.
@@ -430,16 +515,14 @@ namespace DockerfileModel
         /// <returns>A parsed aggregate token.</returns>
         public static Parser<TToken> LiteralAggregate<TToken>(
             char escapeChar, bool isWhitespaceAllowed, Func<IEnumerable<Token>, TToken> createToken)
-            where TToken : QuotableAggregateToken =>
-            PrimitiveAggregate(escapeChar, createToken,
-                CreatePrimitiveTokenDelegate(true,
+            where TToken : LiteralToken =>
+            ValueAggregate(escapeChar, createToken,
+                CreateValueTokenDelegate(true,
                     (char escapeChar, IEnumerable<char> excludedChars) =>
-                        WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed),
-                    val => new LiteralToken(val)),
-                CreatePrimitiveTokenDelegate(false,
+                        WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed)),
+                CreateValueTokenDelegate(false,
                     (char escapeChar, IEnumerable<char> excludedChars) =>
-                        LiteralString(escapeChar, excludedChars, isWhitespaceAllowed),
-                    val => new LiteralToken(val)));
+                        LiteralString(escapeChar, excludedChars, isWhitespaceAllowed, treatWhitespaceAsLiteral: false)));
 
         /// <summary>
         /// Parses an aggregate containing identifiers. This handles any variable references.
@@ -453,46 +536,48 @@ namespace DockerfileModel
         public static Parser<TToken> IdentifierAggregate<TToken>(
             Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar,
             Func<IEnumerable<Token>, TToken> createToken)
-            where TToken : QuotableAggregateToken =>
-            PrimitiveAggregate(escapeChar, createToken,
-                CreatePrimitiveTokenDelegate(true,
+            where TToken : IdentifierToken =>
+            ValueAggregate(escapeChar, createToken,
+                CreateValueTokenDelegate(true,
                     (char escapeChar, IEnumerable<char> excludedChars) =>
-                        WrappedInQuotesIdentifier(escapeChar, firstCharacterParser, tailCharacterParser),
-                    val => new IdentifierToken(val)),
-                CreatePrimitiveTokenDelegate(false,
+                        WrappedInQuotesIdentifier(escapeChar, firstCharacterParser, tailCharacterParser)),
+                CreateValueTokenDelegate(false,
                     (char escapeChar, IEnumerable<char> excludedChars) =>
-                        IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser),
-                    val => new IdentifierToken(val)));
+                        IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser)));
 
         /// <summary>
-        /// Parses an aggregate containing primitives. This handles any variable references.
+        /// Parses a value aggregate. This handles any variable references.
         /// </summary>
         /// <typeparam name="TAggregateToken">Type of the aggregate token.</typeparam>
-        /// <typeparam name="TPrimitiveToken">Type of the primitive token.</typeparam>
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="createAggregateToken">A delegate to create the aggregate token.</param>
-        /// <param name="createQuotedPrimitiveTokenDelegate">A delegate to create a quoted primitive token.</param>
-        /// <param name="createNonQuotedPrimitiveTokenDelegate">A delegate to create a non-quoted primitive token.</param>
+        /// <param name="createQuotedValueTokenDelegate">A delegate to create a quoted value token.</param>
+        /// <param name="createNonQuotedValueTokenDelegate">A delegate to create a non-quoted value token.</param>
         /// <returns></returns>
-        private static Parser<TAggregateToken> PrimitiveAggregate<TAggregateToken, TPrimitiveToken>(
+        private static Parser<TAggregateToken> ValueAggregate<TAggregateToken>(
             char escapeChar, Func<IEnumerable<Token>, TAggregateToken> createAggregateToken,
-            CreateTokenParserDelegate<TPrimitiveToken> createQuotedPrimitiveTokenDelegate,
-            CreateTokenParserDelegate<TPrimitiveToken> createNonQuotedPrimitiveTokenDelegate)
-            where TAggregateToken : QuotableAggregateToken
-            where TPrimitiveToken : PrimitiveToken
+            CreateTokenParserDelegate createQuotedValueTokenDelegate,
+            CreateTokenParserDelegate createNonQuotedValueTokenDelegate)
+            where TAggregateToken : AggregateToken, IQuotableToken
         {
             IEnumerable<char> excludedChars = Enumerable.Empty<char>();
 
             return WrappedInOptionalQuotes(
                 (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
-                    from tokens in PrimitiveOrVariableRef(escapeChar, createQuotedPrimitiveTokenDelegate, excludedChars).Many()
+                    from tokens in ValueOrVariableRef(escapeChar, createQuotedValueTokenDelegate, excludedChars)
+                        .Many()
+                        .Flatten()
                     select CreateAggregateToken(createAggregateToken, tokens, tokenWrapper),
                 (char escapeChar, IEnumerable<char> excludedChars) =>
-                    from tokens in PrimitiveOrVariableRef(escapeChar, createNonQuotedPrimitiveTokenDelegate, excludedChars).Many()
+                    from tokens in ValueOrVariableRef(escapeChar, createNonQuotedValueTokenDelegate, excludedChars)
+                        .Many()
+                        .Flatten()
                     where tokens.Any()
-                    select createAggregateToken(tokens),
+                    select new Token[] { createAggregateToken(TokenHelper.CollapseStringTokens(tokens)) },
                 escapeChar,
-                excludedChars);
+                excludedChars)
+                .Single()
+                .Cast<Token, TAggregateToken>();
         }
         
         /// <summary>
@@ -506,42 +591,36 @@ namespace DockerfileModel
             Func<IEnumerable<Token>, TAggregateToken> createToken,
             IEnumerable<Token> childTokens,
             TokenWrapper tokenWrapper)
-            where TAggregateToken : QuotableAggregateToken
+            where TAggregateToken : AggregateToken, IQuotableToken
         {
-            TAggregateToken container = createToken(childTokens);
+            TAggregateToken container = createToken(TokenHelper.CollapseStringTokens(childTokens));
             container.QuoteChar = tokenWrapper.OpeningString[0];
             return container;
         }
 
         /// <summary>
-        /// Returns a delegate that creates a primitive token parser.
+        /// Returns a delegate that creates a value token parser.
         /// </summary>
-        /// <typeparam name="TToken">Type of the primitive token.</typeparam>
         /// <param name="isValueRequired">A value indicating whether a token value is required.</param>
-        /// <param name="createPrimitiveParser">A delegate to create a parser for the primitive value.</param>
-        /// <param name="createPrimitiveToken">A delegate to create the primitive token.</param>
-        private static CreateTokenParserDelegate<TToken> CreatePrimitiveTokenDelegate<TToken>(
-            bool isValueRequired, CreatePrimitiveParserDelegate createPrimitiveParser,
-            Func<string, TToken> createPrimitiveToken)
-            where TToken : PrimitiveToken =>
+        /// <param name="createValueParser">A delegate to create a parser for the value.</param>
+        private static CreateTokenParserDelegate CreateValueTokenDelegate(
+            bool isValueRequired, CreateValueParserDelegate createValueParser) =>
             (char escapeChar, IEnumerable<char> excludedChars) =>
-                from primitive in createPrimitiveParser(escapeChar, excludedChars)
-                where isValueRequired || primitive.Length > 0
-                select createPrimitiveToken(primitive);
+                from val in createValueParser(escapeChar, excludedChars)
+                where isValueRequired || val.Any()
+                select val;
 
         /// <summary>
-        /// Parses a token for either a primitive value or a variable reference.
+        /// Parses a token for either a value or a variable reference.
         /// </summary>
-        /// <typeparam name="TToken">Type of the primitive token.</typeparam>
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="createParser">A delegate to create the token parser.</param>
         /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
         /// <returns>A token parser.</returns>
-        private static Parser<Token> PrimitiveOrVariableRef<TToken>(char escapeChar, CreateTokenParserDelegate<TToken> createParser,
-            IEnumerable<char> excludedChars)
-            where TToken : PrimitiveToken =>
+        private static Parser<IEnumerable<Token>> ValueOrVariableRef(char escapeChar, CreateTokenParserDelegate createParser,
+            IEnumerable<char> excludedChars) =>
             VariableReference(escapeChar, createParser)
-                .Select(varRef => (Token)varRef)
+                .Select(varRef => new Token[] { varRef })
                 .Or(createParser(escapeChar, excludedChars));
 
         /// <summary>
@@ -566,12 +645,12 @@ namespace DockerfileModel
         /// Parses an escaped character.
         /// </summary>
         /// <param name="escapeChar">Escape character.</param>
-        private static Parser<string> EscapedChar(char escapeChar) =>
+        private static Parser<IEnumerable<Token>> EscapedChar(char escapeChar) =>
             from esc in Parse.Char(escapeChar)
             from v in Parse.AnyChar.AsEnumerable()
                 .Except(Parse.LineEnd)
                 .Text()
-            select esc + v;
+            select new Token[] { new StringToken(esc + v) };
 
         /// <summary>
         /// Parses a token that is optionally wrapped in quotes.
@@ -581,8 +660,8 @@ namespace DockerfileModel
         /// <param name="nonWrappedParser">A delegate to create a token parser for a value that isn't wrapped.</param>
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
-        private static Parser<TToken> WrappedInOptionalQuotes<TToken>(CreateWrappedTokenParserDelegate<TToken> createWrappedParser,
-            CreateTokenParserDelegate<TToken> nonWrappedParser, char escapeChar, IEnumerable<char> excludedChars)
+        private static Parser<IEnumerable<Token>> WrappedInOptionalQuotes<TToken>(CreateWrappedTokenParserDelegate<TToken> createWrappedParser,
+            CreateTokenParserDelegate nonWrappedParser, char escapeChar, IEnumerable<char> excludedChars)
             where TToken : Token =>
             WrappedInOptionalCharacters(
                 createWrappedParser,
@@ -602,8 +681,8 @@ namespace DockerfileModel
         /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
         /// <param name="tokenWrappers">Set of token wrappers describing the characters that can optionally wrap the value.</param>
         /// <returns></returns>
-        private static Parser<TToken> WrappedInOptionalCharacters<TToken>(CreateWrappedTokenParserDelegate<TToken> createWrappedParser,
-            CreateTokenParserDelegate<TToken> createNonWrappedParser, char escapeChar, IEnumerable<char> excludedChars,
+        private static Parser<IEnumerable<Token>> WrappedInOptionalCharacters<TToken>(CreateWrappedTokenParserDelegate<TToken> createWrappedParser,
+            CreateTokenParserDelegate createNonWrappedParser, char escapeChar, IEnumerable<char> excludedChars,
             params TokenWrapper[] tokenWrappers)
             where TToken : Token =>
             tokenWrappers
@@ -614,6 +693,7 @@ namespace DockerfileModel
                         tokenWrapper,
                         excludedChars))
                 .Aggregate((current, next) => current.Or(next))
+                .Select(token => new Token[] { token })
             .XOr(createNonWrappedParser(escapeChar, excludedChars));
 
         /// <summary>
@@ -621,9 +701,7 @@ namespace DockerfileModel
         /// </summary>
         /// <param name="parser">A character parser to exclude quotes from.</param>
         private static Parser<char> ExceptQuotes(Parser<char> parser) =>
-            parser
-                .Except(Parse.Char(SingleQuote))
-                .Except(Parse.Char(DoubleQuote));
+            parser.ExceptChars(Quotes);
 
         /// <summary>
         /// Parses a token that is wrapped by a set of characters.
@@ -649,7 +727,7 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
             WithTrailingComments(
                 from leading in Whitespace()
-                from instruction in TokenWithTrailingWhitespace(InstructionIdentifier(instructionName))
+                from instruction in TokenWithTrailingWhitespace(InstructionIdentifier(instructionName, escapeChar))
                 from lineContinuation in LineContinuation(escapeChar).Optional()
                 select ConcatTokens(leading, instruction, new Token[] { lineContinuation.GetOrDefault() }));
 
@@ -679,21 +757,18 @@ namespace DockerfileModel
         /// <summary>
         /// Delegate for creating a parser of a token.
         /// </summary>
-        /// <typeparam name="TToken">Type of the token.</typeparam>
         /// <param name="escapeChar">The escape character.</param>
         /// <param name="excludedChars">Characters to be excluded from parsing.</param>
         /// <returns>The token parser.</returns>
-        private delegate Parser<TToken> CreateTokenParserDelegate<TToken>(
-            char escapeChar, IEnumerable<char> excludedChars)
-            where TToken : Token;
+        private delegate Parser<IEnumerable<Token>> CreateTokenParserDelegate(
+            char escapeChar, IEnumerable<char> excludedChars);
 
         /// <summary>
         /// Delegate for creating a parser of a primitive string.
         /// </summary>
         ///  <param name="escapeChar">The escape character.</param>
         /// <param name="excludedChars">Characters to be excluded from parsing.</param>
-        /// <returns>The string parser.</returns>
-        private delegate Parser<string> CreatePrimitiveParserDelegate(char escapeChar, IEnumerable<char> excludedChars);
+        private delegate Parser<IEnumerable<Token>> CreateValueParserDelegate(char escapeChar, IEnumerable<char> excludedChars);
 
         /// <summary>
         /// Describes the opening and closing strings that wrap a token.

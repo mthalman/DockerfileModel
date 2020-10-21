@@ -108,7 +108,7 @@ namespace DockerfileModel.Tokens
             
             if (options.UpdateInline)
             {
-                this.ReplaceWithToken(CreatePrimitiveToken(value));
+                this.ReplaceWithToken(new StringToken(value));
             }
 
             return value;
@@ -129,7 +129,7 @@ namespace DockerfileModel.Tokens
             Requires.That(ValidModifiers.Contains(modifier), nameof(modifier), $"'{modifier}' is not a valid modifier.");
 
             SymbolToken modifierToken = new SymbolToken(modifier);
-            PrimitiveToken modifierValueToken = CreatePrimitiveToken(modifierValue);
+            StringToken modifierValueToken = new StringToken(modifierValue);
             if (this.TokenList.Count > 1)
             {
                 this.TokenList[1] = modifierToken;
@@ -141,9 +141,6 @@ namespace DockerfileModel.Tokens
                 this.TokenList.Add(modifierValueToken);
             }
         }
-
-        private PrimitiveToken CreatePrimitiveToken(string value) =>
-            ParseHelper.CreatePrimitiveToken(this.TokenList[0].GetType(), value);
     }
 
     public class VariableModifierValue : AggregateToken
