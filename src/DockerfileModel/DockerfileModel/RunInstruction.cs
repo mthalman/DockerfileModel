@@ -19,7 +19,7 @@ namespace DockerfileModel
             Instruction("RUN", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-            ArgTokens(InstructionArgs(escapeChar), escapeChar);
+            ArgTokens(LiteralToken(escapeChar).AsEnumerable(), escapeChar);
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {

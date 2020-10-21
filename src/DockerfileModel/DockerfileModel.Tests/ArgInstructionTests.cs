@@ -212,7 +212,7 @@ namespace DockerfileModel.Tests
                         token => ValidateIdentifier(token, "myarg"),
                         token => ValidateSymbol(token, "="),
                         token => ValidateQuotableAggregate<ArgValue>(token, "1", null,
-                            token => ValidateLiteral(token, "1"))
+                            token => ValidateString(token, "1"))
                     },
                     Validate = result =>
                     {
@@ -236,7 +236,7 @@ namespace DockerfileModel.Tests
                         token => ValidateIdentifier(token, "MYARG"),
                         token => ValidateSymbol(token, "="),
                         token => ValidateQuotableAggregate<ArgValue>(token, "\"test\"", '\"',
-                            token => ValidateLiteral(token, "test"))
+                            token => ValidateString(token, "test"))
                     },
                     Validate = result =>
                     {
@@ -275,7 +275,7 @@ namespace DockerfileModel.Tests
                         token => ValidateIdentifier(token, "MY_ARG", '\"'),
                         token => ValidateSymbol(token, "="),
                         token => ValidateQuotableAggregate<ArgValue>(token, "'value'", '\'',
-                            token => ValidateLiteral(token, "value")),
+                            token => ValidateString(token, "value")),
                     },
                     Validate = result =>
                     {
@@ -296,7 +296,7 @@ namespace DockerfileModel.Tests
                         token => ValidateIdentifier(token, "MY`\"_ARG", '\"'),
                         token => ValidateSymbol(token, "="),
                         token => ValidateQuotableAggregate<ArgValue>(token, "'va`'lue'", '\'',
-                            token => ValidateLiteral(token, "va`'lue")),
+                            token => ValidateString(token, "va`'lue")),
                     },
                     Validate = result =>
                     {
@@ -317,7 +317,7 @@ namespace DockerfileModel.Tests
                         token => ValidateIdentifier(token, "MY_ARG"),
                         token => ValidateSymbol(token, "="),
                         token => ValidateQuotableAggregate<ArgValue>(token, "va`'lue", null,
-                            token => ValidateLiteral(token, "va`'lue")),
+                            token => ValidateString(token, "va`'lue")),
                     },
                     Validate = result =>
                     {
@@ -412,7 +412,7 @@ namespace DockerfileModel.Tests
                         token => ValidateIdentifier(token, "TEST1"),
                         token => ValidateSymbol(token, "="),
                         token => ValidateQuotableAggregate<ArgValue>(token, "b", null,
-                            token => ValidateLiteral(token, "b"))
+                            token => ValidateString(token, "b"))
                     }
                 },
                 new CreateTestScenario

@@ -37,9 +37,12 @@ namespace DockerfileModel
         public static Dockerfile ParseContent(string text)
         {
             bool parserDirectivesComplete = false;
-            char escapeChar = DockerfileModel.Instruction.DefaultEscapeChar;
+            char escapeChar = Instruction.DefaultEscapeChar;
 
-            List<string> inputLines = new List<string>();
+            List<DockerfileConstruct> dockerfileConstructs = new List<DockerfileConstruct>();
+
+            List<string> constructLines = new List<string>();
+            StringBuilder constructBuilder = new StringBuilder();
             StringBuilder lineBuilder = new StringBuilder();
             for (int i = 0; i < text.Length; i++)
             {
@@ -49,81 +52,68 @@ namespace DockerfileModel
 
                 if (ch == '\n')
                 {
-                    inputLines.Add(lineBuilder.ToString());
+                    string line = lineBuilder.ToString();
+                    if (!parserDirectivesComplete)
+                    {
+                        if (ParserDirective.IsParserDirective(line))
+                        {
+                            ParserDirective? parserDirective = ParserDirective.Parse(line);
+                            dockerfileConstructs.Add(parserDirective);
+                            constructLines.Add(line);
+
+                            if (parserDirective.DirectiveName.Equals(
+                                ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase))
+                            {
+                                escapeChar = parserDirective.DirectiveValue[0];
+                            }
+                            lineBuilder = new StringBuilder();
+                            continue;
+                        }
+                        else
+                        {
+                            parserDirectivesComplete = true;
+                        }
+                    }
+
+                    bool inLineContinuation = constructBuilder.Length > 0;
+
+                    constructBuilder.Append(line);
+                    if (!EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful &&
+                        !(Comment.IsComment(line) && inLineContinuation))
+                    {
+                        constructLines.Add(constructBuilder.ToString());
+                        constructBuilder = new StringBuilder();
+                    }
+
                     lineBuilder = new StringBuilder();
                 }
             }
 
-            if (lineBuilder.Length > 0)
+            string lastConstruct = constructBuilder.ToString() + lineBuilder.ToString();
+
+            if (lastConstruct.Length > 0)
             {
-                inputLines.Add(lineBuilder.ToString());
+                constructLines.Add(lastConstruct);
             }
 
-            List<DockerfileConstruct> dockerfileConstructs = new List<DockerfileConstruct>();
-            StringBuilder? instructionContent = null;
-            for (int i = 0; i < inputLines.Count; i++)
+            for (int i = dockerfileConstructs.Count; i < constructLines.Count; i++)
             {
-                string line = inputLines[i];
-                if (!parserDirectivesComplete)
-                {
-                    if (ParserDirective.IsParserDirective(line))
-                    {
-                        ParserDirective? parserDirective = ParserDirective.Parse(line);
-                        dockerfileConstructs.Add(parserDirective);
-
-                        if (parserDirective.DirectiveName.Equals(
-                            ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase))
-                        {
-                            escapeChar = parserDirective.DirectiveValue[0];
-                        }
-                        continue;
-                    }
-                    else
-                    {
-                        parserDirectivesComplete = true;
-                    }
-                }
-
+                string line = constructLines[i];
                 if (Whitespace.IsWhitespace(line))
                 {
                     dockerfileConstructs.Add(Whitespace.Create(line));
                 }
                 else if (Comment.IsComment(line))
                 {
-                    if (instructionContent is null)
-                    {
-                        dockerfileConstructs.Add(Comment.Parse(line));
-                    }
-                    else
-                    {
-                        instructionContent.Append(line);
-                    }
+                    dockerfileConstructs.Add(Comment.Parse(line));
                 }
-                else if (instructionContent is null && Instruction.IsInstruction(line, escapeChar))
+                else if (Instruction.IsInstruction(line, escapeChar))
                 {
-                    if (EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful)
-                    {
-                        instructionContent = new StringBuilder(line);
-                    }
-                    else
-                    {
-                        dockerfileConstructs.Add(CreateInstruction(line, escapeChar));
-                    }    
+                    dockerfileConstructs.Add(CreateInstruction(line, escapeChar));
                 }
                 else
                 {
-                    if (instructionContent is null)
-                    {
-                        throw new ParseException($"Unexpected line content: {line}", new Position(1, i, 1));
-                    }
-
-                    instructionContent.Append(line);
-
-                    if (!EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful)
-                    {
-                        dockerfileConstructs.Add(CreateInstruction(instructionContent.ToString(), escapeChar));
-                        instructionContent = null;
-                    }
+                    throw new ParseException($"Unexpected line content: {line}", new Position(1, i, 1));
                 }
             }
 
@@ -132,13 +122,13 @@ namespace DockerfileModel
 
         private static InstructionBase CreateInstruction(string text, char escapeChar)
         {
-            string instructionName = InstructionName().Parse(text);
+            string instructionName = InstructionName(escapeChar).Parse(text);
             return instructionParsers[instructionName](text, escapeChar);
         }
 
-        private static Parser<string> InstructionName() =>
+        private static Parser<string> InstructionName(char escapeChar) =>
             from leading in Whitespace()
-            from instruction in InstructionIdentifier()
+            from instruction in InstructionIdentifier(escapeChar)
             select instruction.Value;
 
         private static Parser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
@@ -146,22 +136,9 @@ namespace DockerfileModel
             from lineCont in LineContinuation(escapeChar)
             select lineCont;
 
-        public static Parser<KeywordToken> InstructionIdentifier()
-        {
-            Parser<KeywordToken>? parser = null;
-            foreach (string instructionName in instructionParsers.Keys)
-            {
-                if (parser is null)
-                {
-                    parser = ParseHelper.InstructionIdentifier(instructionName);
-                }
-                else
-                {
-                    parser = parser.Or(ParseHelper.InstructionIdentifier(instructionName));
-                }
-            }
-
-            return parser!;
-        }
+        public static Parser<KeywordToken> InstructionIdentifier(char escapeChar) =>
+            instructionParsers.Keys
+                .Select(instructionName => ParseHelper.InstructionIdentifier(instructionName, escapeChar))
+                .Aggregate((current, next) => current.Or(next));
     }
 }

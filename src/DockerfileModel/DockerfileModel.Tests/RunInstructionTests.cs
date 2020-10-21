@@ -20,7 +20,7 @@ namespace DockerfileModel.Tests
                 RunInstruction result = RunInstruction.Parse(scenario.Text, scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
-                scenario.Validate(result);
+                scenario.Validate?.Invoke(result);
             }
             else
             {
@@ -46,17 +46,34 @@ namespace DockerfileModel.Tests
             {
                 new RunInstructionParseTestScenario
                 {
-                    Text = "RUN echo `test",
+                    Text = "RUN ec`\nho `test",
                     EscapeChar = '`',
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "echo `test")
-                    },
-                    Validate = result =>
+                        token => ValidateAggregate<LiteralToken>(token, "ec`\nho `test",
+                            token => ValidateString(token, "ec"),
+                            token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                                token => ValidateSymbol(token, "`"),
+                                token => ValidateNewLine(token, "\n")),
+                            token => ValidateString(token, "ho `test"))
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN \"ec`\nh`\"o `test\"",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
                     {
-                       
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "\"ec`\nh`\"o `test\"", '\"',
+                            token => ValidateString(token, "ec"),
+                            token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                                token => ValidateSymbol(token, "`"),
+                                token => ValidateNewLine(token, "\n")),
+                            token => ValidateString(token, "h`\"o `test"))
                     }
                 }
             };

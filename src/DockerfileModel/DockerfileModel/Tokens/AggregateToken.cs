@@ -33,8 +33,13 @@ namespace DockerfileModel.Tokens
 
         public IEnumerable<Token> Tokens => this.TokenList;
 
-        public override string ToString() =>
-            String.Concat(Tokens.Select(token => token.ToString()));
+        public override string ToString() => GetTokensString(excludeLineContinuations: false);
+
+        internal string GetTokensString(bool excludeLineContinuations) =>
+            String.Concat(
+                Tokens
+                    .Where(token => !excludeLineContinuations || token is not LineContinuationToken)
+                    .Select(token => token.ToString()));
 
         public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
@@ -48,29 +53,14 @@ namespace DockerfileModel.Tokens
                 options = new ResolutionOptions();
             }
 
-            if (options.UpdateInline)
+            if (this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
             {
-                new ArgResolverVisitor(escapeChar, variables, options).Visit(this);
-                return ToString();
+                return $"{quotableToken.QuoteChar}{ResolveVariablesCore(escapeChar, variables, options)}{quotableToken.QuoteChar}";
             }
-
-            StringBuilder builder = new StringBuilder();
-            foreach (Token token in Tokens)
+            else
             {
-                string? value;
-                if (token is AggregateToken aggregate)
-                {
-                    value = aggregate.ResolveVariables(escapeChar, variables, options);
-                }
-                else
-                {
-                    value = options.FormatValue(escapeChar, token.ToString());
-                }
-
-                builder.Append(value);
+                return ResolveVariablesCore(escapeChar, variables, options);
             }
-
-            return builder.ToString();
         }
 
         protected IList<string> GetComments()
@@ -85,6 +75,33 @@ namespace DockerfileModel.Tokens
         {
             TokenList.RemoveAll(token => true);
             TokenList.Add(token);
+        }
+
+        private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
+        {
+            StringBuilder builder = new StringBuilder();
+
+            for (int i = 0; i < TokenList.Count; i++)
+            {
+                Token token = TokenList[i];
+                string? value;
+                if (token is AggregateToken aggregate)
+                {
+                    value = aggregate.ResolveVariables(escapeChar, variables, options);
+                    if (options.UpdateInline)
+                    {
+                        TokenList[i] = new StringToken(value ?? String.Empty);
+                    }
+                }
+                else
+                {
+                    value = options.FormatValue(escapeChar, token.ToString());
+                }
+
+                builder.Append(value);
+            }
+
+            return builder.ToString();
         }
 
         private IEnumerable<CommentToken> GetCommentTokens()
@@ -102,81 +119,6 @@ namespace DockerfileModel.Tokens
                         yield return subToken;
                     }
                 }
-            }
-        }
-
-        private class ArgResolverVisitor : TokenVisitor
-        {
-            private readonly char escapeChar;
-            private readonly IDictionary<string, string?> variables;
-            private readonly ResolutionOptions options;
-
-            public ArgResolverVisitor(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
-            {
-                this.escapeChar = escapeChar;
-                this.variables = variables;
-                this.options = options;
-            }
-
-            protected override void VisitAggregateToken(AggregateToken token)
-            {
-                base.VisitAggregateToken(token);
-
-                if (token is QuotableAggregateToken quotableAggregate)
-                {
-                    string[] resolvedChildValues = quotableAggregate.Tokens
-                        .Select(token =>
-                        {
-                            if (token is VariableRefToken variableRef)
-                            {
-                                return variableRef.ResolveVariables(escapeChar, variables, options) ?? string.Empty;
-                            }
-                            else
-                            {
-                                return token.ToString();
-                            }
-                        })
-                        .ToArray();
-
-                    Token replacementToken = CreatePrimitiveToken(quotableAggregate.PrimitiveType, string.Concat(resolvedChildValues));
-                    quotableAggregate.ReplaceWithToken(replacementToken);
-                }
-            }
-        }
-    }
-
-    public abstract class QuotableAggregateToken : AggregateToken
-    {
-        protected QuotableAggregateToken(IEnumerable<Token> tokens, Type primitiveType) : base(tokens)
-        {
-            PrimitiveType = primitiveType;
-        }
-
-        public char? QuoteChar { get; set; }
-
-        public Type PrimitiveType { get; }
-
-        public override string ToString() => ToString(includeQuotes: true);
-
-        public string ToString(bool includeQuotes)
-        {
-            if (includeQuotes && QuoteChar.HasValue)
-            {
-                return $"{QuoteChar}{base.ToString()}{QuoteChar}";
-            }
-
-            return base.ToString();
-        }
-
-        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
-        {
-            if (QuoteChar.HasValue)
-            {
-                return $"{QuoteChar}{base.ResolveVariables(escapeChar, variables, options)}{QuoteChar}";
-            }
-            else
-            {
-                return base.ResolveVariables(escapeChar, variables, options);
             }
         }
     }
