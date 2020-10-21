@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using DockerfileModel.Tokens;
 
 namespace DockerfileModel
 {
@@ -124,8 +125,7 @@ namespace DockerfileModel
                         }
                         else
                         {
-                            ArgValue? argValue = argInstruction.Tokens.OfType<ArgValue>().FirstOrDefault();
-                            string? resolvedArgValue = argValue?.ResolveVariables(escapeChar, stageArgs, options);
+                            string? resolvedArgValue = argInstruction.ArgValueToken?.ResolveVariables(escapeChar, stageArgs, options);
                             stageArgs[argInstruction.ArgName] = resolvedArgValue;
                             resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
                         }
@@ -152,13 +152,7 @@ namespace DockerfileModel
                 }
                 else
                 {
-                    string? resolvedValue = null;
-                    ArgValue? argValue = arg.Tokens.OfType<ArgValue>().FirstOrDefault();
-                    if (argValue != null)
-                    {
-                        resolvedValue = argValue.ResolveVariables(escapeChar, globalArgs, options);
-                    }
-
+                    string? resolvedValue = arg.ArgValueToken?.ResolveVariables(escapeChar, globalArgs, options);
                     globalArgs.Add(arg.ArgName, resolvedValue);
                 }
             }

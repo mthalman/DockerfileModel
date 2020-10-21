@@ -16,7 +16,7 @@ namespace DockerfileModel.Tests
         [InlineData("docker.io/library/image@" + TestSha, "docker.io", "library/image", null, TestSha)]
         public void Parse(string input, string expectedRegistry, string expectedRepository, string expectedTag, string expectedDigest)
         {
-            ResolvedImageName result = ResolvedImageName.Parse(input);
+            ImageName result = ImageName.Parse(input);
             Assert.Equal(expectedRegistry, result.Registry);
             Assert.Equal(expectedRepository, result.Repository);
             Assert.Equal(expectedTag, result.Tag);
@@ -33,7 +33,7 @@ namespace DockerfileModel.Tests
         [InlineData("docker.io", "library/image", null, TestSha, "docker.io/library/image@" + TestSha)]
         public void Create(string registry, string repository, string tag, string digest, string expectedOutput)
         {
-            ResolvedImageName result = ResolvedImageName.Create(repository, registry, tag, digest);
+            ImageName result = ImageName.Create(repository, registry, tag, digest);
             Assert.Equal(expectedOutput, result.ToString());
 
             Assert.Equal(registry, result.Registry);
@@ -45,21 +45,21 @@ namespace DockerfileModel.Tests
         [Fact]
         public void CannotSetTagWhenDigestIsSet()
         {
-            ResolvedImageName imageName = ResolvedImageName.Create("repo", "registry.io", digest: "sha256:digest");
+            ImageName imageName = ImageName.Create("repo", "registry.io", digest: "sha256:digest");
             Assert.Throws<InvalidOperationException>(() => imageName.Tag = "tag");
         }
 
         [Fact]
         public void CannotSetDigestWhenTagIsSet()
         {
-            ResolvedImageName imageName = ResolvedImageName.Create("repo", "registry.io", "tag");
+            ImageName imageName = ImageName.Create("repo", "registry.io", "tag");
             Assert.Throws<InvalidOperationException>(() => imageName.Digest = "digest");
         }
 
         [Fact]
         public void ChangeValues()
         {
-            ResolvedImageName imageName = ResolvedImageName.Create("repo", "registry.io", "tag");
+            ImageName imageName = ImageName.Create("repo", "registry.io", "tag");
             
             imageName.Registry = "registry2.io";
             Assert.Equal("registry2.io", imageName.Registry);

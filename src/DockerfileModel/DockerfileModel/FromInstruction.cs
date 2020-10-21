@@ -10,12 +10,12 @@ namespace DockerfileModel
 {
     public class FromInstruction : InstructionBase
     {
-        private readonly ImageName imageName;
+        private readonly LiteralToken imageName;
 
         private FromInstruction(string text, char escapeChar)
             : base(text, GetParser(escapeChar))
         {
-            PlatformName? platform = this.PlatformToken;
+            PlatformFlag? platform = this.PlatformFlag;
             int startIndex = 0;
             if (platform != null)
             {
@@ -24,19 +24,19 @@ namespace DockerfileModel
 
             this.imageName = this.TokenList
                 .Skip(startIndex)
-                .OfType<ImageName>()
+                .OfType<LiteralToken>()
                 .First();
         }
 
         public string ImageName
         {
             get => this.imageName.Value;
-            set => this.imageName.ReplaceWithToken(new LiteralToken(value));
+            set => this.imageName.ReplaceWithToken(new StringToken(value));
         }
 
         public string? Platform
         {
-            get => this.PlatformToken?.ToString();
+            get => this.PlatformFlag?.Platform;
             set
             {
                 PlatformFlag? platformFlag = this.PlatformFlag;
@@ -48,7 +48,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        platformFlag.Platform.ReplaceWithToken(new LiteralToken(value));
+                        platformFlag.Platform = value;
                     }
                 }
                 else if (value != null)
@@ -62,7 +62,6 @@ namespace DockerfileModel
             }
         }
 
-        private PlatformName? PlatformToken => this.PlatformFlag?.Platform;
         private PlatformFlag? PlatformFlag => this.Tokens.OfType<PlatformFlag>().FirstOrDefault();
 
         public string? StageName
@@ -137,13 +136,6 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
             ArgTokens(
-                LiteralAggregate(escapeChar, false, tokens => new ImageName(tokens)).AsEnumerable(), escapeChar);
-    }
-
-    public class ImageName : LiteralToken
-    {
-        public ImageName(IEnumerable<Token> tokens) : base(tokens)
-        {
-        }
+                LiteralAggregate(escapeChar, false, tokens => new LiteralToken(tokens)).AsEnumerable(), escapeChar);
     }
 }

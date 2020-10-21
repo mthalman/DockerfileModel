@@ -9,7 +9,7 @@ namespace DockerfileModel
 {
     public class PlatformFlag : AggregateToken
     {
-        private PlatformName platform;
+        private LiteralToken platform;
 
 #pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
         private PlatformFlag(string text, char escapeChar)
@@ -27,7 +27,13 @@ namespace DockerfileModel
             Initialize();
         }
 
-        public PlatformName Platform
+        public string Platform
+        {
+            get => PlatformToken.Value;
+            set => PlatformToken.Value = value;
+        }
+
+        public LiteralToken PlatformToken
         {
             get => this.platform;
             set
@@ -48,7 +54,7 @@ namespace DockerfileModel
             from flagSeparator in Symbol("--")
             from platformKeyword in Sprache.Parse.IgnoreCase("platform").Text()
             from platformSeparator in Symbol("=")
-            from platform in LiteralAggregate(escapeChar, isWhitespaceAllowed: false, tokens => new PlatformName(tokens))
+            from platform in LiteralAggregate(escapeChar, isWhitespaceAllowed: false, tokens => new LiteralToken(tokens))
             select ConcatTokens(
                 flagSeparator,
                 new KeywordToken(platformKeyword),
@@ -57,14 +63,7 @@ namespace DockerfileModel
 
         private void Initialize()
         {
-            this.platform = this.TokenList.OfType<PlatformName>().First();
-        }
-    }
-
-    public class PlatformName : LiteralToken
-    {
-        public PlatformName(IEnumerable<Token> tokens) : base(tokens)
-        {
+            this.platform = this.TokenList.OfType<LiteralToken>().First();
         }
     }
 }
