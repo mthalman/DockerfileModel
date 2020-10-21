@@ -25,7 +25,7 @@ namespace DockerfileModel
         {
             get
             {
-                string? argValue = this.Tokens.OfType<ArgValue>().FirstOrDefault()?.Value;
+                string? argValue = this.Tokens.OfType<LiteralToken>().FirstOrDefault()?.Value;
                 if (argValue is null)
                 {
                     return Tokens.OfType<SymbolToken>().Where(token => token.Value == "=").Any() ? string.Empty : null;
@@ -35,7 +35,28 @@ namespace DockerfileModel
             }
             set
             {
-                ArgValue? argValue = this.Tokens.OfType<ArgValue>().FirstOrDefault();
+                LiteralToken? argValue = this.Tokens.OfType<LiteralToken>().FirstOrDefault();
+                if (argValue != null && value is not null)
+                {
+                    argValue.Value = value;
+                }
+                else if (value is null)
+                {
+                    ArgValueToken = null;
+                }
+                else
+                {
+                    ArgValueToken = new LiteralToken(value);
+                }
+            }
+        }
+
+        internal LiteralToken? ArgValueToken
+        {
+            get => this.Tokens.OfType<LiteralToken>().FirstOrDefault();
+            set
+            {
+                LiteralToken? argValue = ArgValueToken;
                 if (argValue != null)
                 {
                     if (value is null)
@@ -44,7 +65,7 @@ namespace DockerfileModel
                     }
                     else
                     {
-                        argValue.ReplaceWithToken(new LiteralToken(value));
+                        this.TokenList[this.TokenList.IndexOf(argValue)] = value;
                     }
                 }
                 else if (value != null)
@@ -52,10 +73,7 @@ namespace DockerfileModel
                     this.TokenList.AddRange(new Token[]
                     {
                         new SymbolToken("="),
-                        new ArgValue(new Token[]
-                        {
-                            new LiteralToken(value)
-                        })
+                        value
                     });
                 }
             }
@@ -91,16 +109,9 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
             from assignment in Symbol("=")
-            from value in LiteralAggregate(escapeChar, false, tokens => new ArgValue(tokens)).Optional()
+            from value in LiteralAggregate(escapeChar, false, tokens => new LiteralToken(tokens)).Optional()
             select ConcatTokens(
                 assignment,
                 value.GetOrDefault());
-    }
-
-    public class ArgValue : LiteralToken
-    {
-        public ArgValue(IEnumerable<Token> tokens) : base(tokens)
-        {
-        }
     }
 }

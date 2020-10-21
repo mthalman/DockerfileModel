@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using DockerfileModel.Tokens;
 using Sprache;
 using Xunit;
@@ -211,8 +210,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "myarg"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateQuotableAggregate<ArgValue>(token, "1", null,
-                            token => ValidateString(token, "1"))
+                        token => ValidateLiteral(token, "1")
                     },
                     Validate = result =>
                     {
@@ -235,8 +233,7 @@ namespace DockerfileModel.Tests
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateIdentifier(token, "MYARG"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateQuotableAggregate<ArgValue>(token, "\"test\"", '\"',
-                            token => ValidateString(token, "test"))
+                        token => ValidateLiteral(token, "test", '\"')
                     },
                     Validate = result =>
                     {
@@ -274,8 +271,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG", '\"'),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateQuotableAggregate<ArgValue>(token, "'value'", '\'',
-                            token => ValidateString(token, "value")),
+                        token => ValidateLiteral(token, "value", '\''),
                     },
                     Validate = result =>
                     {
@@ -295,8 +291,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY`\"_ARG", '\"'),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateQuotableAggregate<ArgValue>(token, "'va`'lue'", '\'',
-                            token => ValidateString(token, "va`'lue")),
+                        token => ValidateLiteral(token, "va`'lue", '\''),
                     },
                     Validate = result =>
                     {
@@ -316,8 +311,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateQuotableAggregate<ArgValue>(token, "va`'lue", null,
-                            token => ValidateString(token, "va`'lue")),
+                        token => ValidateLiteral(token, "va`'lue"),
                     },
                     Validate = result =>
                     {
@@ -336,7 +330,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateQuotableAggregate<ArgValue>(token, "''", '\'')
+                        token => ValidateLiteral(token, "", '\'')
                     },
                     Validate = result =>
                     {
@@ -411,8 +405,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "TEST1"),
                         token => ValidateSymbol(token, "="),
-                        token => ValidateQuotableAggregate<ArgValue>(token, "b", null,
-                            token => ValidateString(token, "b"))
+                        token => ValidateLiteral(token, "b")
                     }
                 },
                 new CreateTestScenario

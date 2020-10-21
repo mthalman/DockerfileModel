@@ -51,8 +51,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "scratch", null,
-                            token => ValidateString(token, "scratch"))
+                        token => ValidateLiteral(token, "scratch")
                     },
                     Validate = result =>
                     {
@@ -74,8 +73,7 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, "`"),
                             token => ValidateNewLine(token, "\n")),
-                        token => ValidateQuotableAggregate<ImageName>(token, "scratch", null,
-                            token => ValidateString(token, "scratch"))
+                        token => ValidateLiteral(token, "scratch")
                     },
                     Validate = result =>
                     {
@@ -93,8 +91,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine:latest", null,
-                            token => ValidateString(token, "alpine:latest")),
+                        token => ValidateLiteral(token, "alpine:latest"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<StageName>(token, "as build",
                             token => ValidateKeyword(token, "as"),
@@ -121,8 +118,7 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, "`"),
                             token => ValidateNewLine(token, "\n")),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine:latest", null,
-                            token => ValidateString(token, "alpine:latest")),
+                        token => ValidateLiteral(token, "alpine:latest"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, "`"),
@@ -166,11 +162,9 @@ namespace DockerfileModel.Tests
                             token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
                             token => ValidateSymbol(token, "="),
-                            token => ValidateQuotableAggregate<PlatformName>(token, "linux/amd64", null,
-                                token => ValidateString(token, "linux/amd64"))),
+                            token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine", null,
-                            token => ValidateString(token, "alpine")),
+                        token => ValidateLiteral(token, "alpine"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<StageName>(token, "as build",
                             token => ValidateKeyword(token, "as"),
@@ -197,11 +191,9 @@ namespace DockerfileModel.Tests
                             token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
                             token => ValidateSymbol(token, "="),
-                            token => ValidateQuotableAggregate<PlatformName>(token, "linux/amd64", null,
-                                token => ValidateString(token, "linux/amd64"))),
+                            token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine", null,
-                            token => ValidateString(token, "alpine"))
+                        token => ValidateLiteral(token, "alpine")
                     },
                     Validate = result =>
                     {
@@ -228,14 +220,12 @@ namespace DockerfileModel.Tests
                             token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
                             token => ValidateSymbol(token, "="),
-                            token => ValidateQuotableAggregate<PlatformName>(token, "linux/amd64", null,
-                                token => ValidateString(token, "linux/amd64"))),
+                            token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, "`"),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateWhitespace(token, "  "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine", null,
-                            token => ValidateString(token, "alpine"))
+                        token => ValidateLiteral(token, "alpine")
                     },
                     Validate = result =>
                     {
@@ -254,7 +244,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "al\\\npine", null,
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "al\\\npine", null,
                             token => ValidateString(token, "al"),
                             token => ValidateAggregate<LineContinuationToken>(token, "\\\n",
                                 token => ValidateSymbol(token, "\\"),
@@ -270,7 +260,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "\"al\\\npine\"", '\"',
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "\"al\\\npine\"", '\"',
                             token => ValidateString(token, "al"),
                             token => ValidateAggregate<LineContinuationToken>(token, "\\\n",
                                 token => ValidateSymbol(token, "\\"),
@@ -319,8 +309,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine:latest", null,
-                            token => ValidateString(token, "alpine:latest"))
+                        token => ValidateLiteral(token, "alpine:latest")
                     },
                     Validate = result =>
                     {
@@ -361,12 +350,10 @@ namespace DockerfileModel.Tests
                             token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
                             token => ValidateSymbol(token, "="),
-                            token => ValidateQuotableAggregate<PlatformName>(token, "windows/amd64", null,
-                                token => ValidateString(token, "windows/amd64"))
+                            token => ValidateLiteral(token, "windows/amd64")
                         ),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine:latest", null,
-                            token => ValidateString(token, "alpine:latest"))
+                        token => ValidateLiteral(token, "alpine:latest")
                     }
                 },
                 new CreateTestScenario
@@ -377,8 +364,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine:latest", null,
-                            token => ValidateString(token, "alpine:latest")),
+                        token => ValidateLiteral(token, "alpine:latest"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<StageName>(token, "AS test",
                             token => ValidateKeyword(token, "AS"),
@@ -400,12 +386,10 @@ namespace DockerfileModel.Tests
                             token => ValidateSymbol(token, "--"),
                             token => ValidateKeyword(token, "platform"),
                             token => ValidateSymbol(token, "="),
-                            token => ValidateQuotableAggregate<PlatformName>(token, "windows/amd64", null,
-                                token => ValidateString(token, "windows/amd64"))
+                            token => ValidateLiteral(token, "windows/amd64")
                         ),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<ImageName>(token, "alpine:latest", null,
-                            token => ValidateString(token, "alpine:latest")),
+                        token => ValidateLiteral(token, "alpine:latest"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<StageName>(token, "AS test",
                             token => ValidateKeyword(token, "AS"),

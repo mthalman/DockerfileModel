@@ -30,10 +30,14 @@ namespace DockerfileModel.Tests
             ValidateAggregate<KeywordToken>(token, keyword,
                 token => ValidateString(token, keyword));
 
-        public static void ValidateLiteral(Token token, string literal, char? quoteChar = null) =>
-            ValidateQuotableAggregate<LiteralToken>(token, literal, quoteChar,
-                token => ValidateString(token, literal));
-
+        public static void ValidateLiteral(Token token, string literal, char? quoteChar = null)
+        {
+            Action<Token>[] validators = !String.IsNullOrEmpty(literal) ?
+                new Action<Token>[] { token => ValidateString(token, literal) } :
+                Array.Empty<Action<Token>>();
+            ValidateQuotableAggregate<LiteralToken>(token, $"{quoteChar}{literal}{quoteChar}", quoteChar, validators);
+        }
+            
         public static void ValidateIdentifier(Token token, string identifier, char? quoteChar = null) =>
             ValidateQuotableAggregate<IdentifierToken>(token, $"{quoteChar}{identifier}{quoteChar}", quoteChar,
                 token => ValidateString(token, identifier));

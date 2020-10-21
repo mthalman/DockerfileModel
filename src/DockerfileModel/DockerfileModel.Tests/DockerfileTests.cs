@@ -523,8 +523,7 @@ namespace DockerfileModel.Tests
                             token => ValidateAggregate<LineContinuationToken>(token, "\\\n",
                                 token => ValidateSymbol(token, "\\"),
                                 token => ValidateNewLine(token, "\n")),
-                            token => ValidateAggregate<ImageName>(token, "scratch",
-                                token => ValidateString(token, "scratch")))
+                            token => ValidateLiteral(token, "scratch"))
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -535,8 +534,7 @@ namespace DockerfileModel.Tests
                         line => ValidateAggregate<FromInstruction>(line, "FROM scratch",
                             token => ValidateKeyword(token, "FROM"),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateAggregate<ImageName>(token, "scratch",
-                                token => ValidateString(token, "scratch")))
+                            token => ValidateLiteral(token, "scratch"))
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -550,8 +548,7 @@ namespace DockerfileModel.Tests
                             token => ValidateAggregate<LineContinuationToken>(token, "\\\r\n",
                                 token => ValidateSymbol(token, "\\"),
                                 token => ValidateNewLine(token, "\r\n")),
-                            token => ValidateAggregate<ImageName>(token, "scratch",
-                                token => ValidateString(token, "scratch")))
+                            token => ValidateLiteral(token, "scratch"))
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -567,8 +564,7 @@ namespace DockerfileModel.Tests
                                 token => ValidateSymbol(token, "`"),
                                 token => ValidateNewLine(token, "\r\n")),
                             token => ValidateWhitespace(token, "  "),
-                            token => ValidateQuotableAggregate<ImageName>(token, "scratch", null,
-                                token => ValidateString(token, "scratch")))
+                            token => ValidateLiteral(token, "scratch"))
                     }
                 },
                 new ParseTestScenario<Dockerfile>
@@ -606,8 +602,7 @@ namespace DockerfileModel.Tests
                                 token => ValidateSymbol(token, "#"),
                                 token => ValidateLiteral(token, "comment")),
                             token => ValidateNewLine(token, "\n"),
-                            token => ValidateQuotableAggregate<ImageName>(token, "scratch", null,
-                                token => ValidateString(token, "scratch"))
+                            token => ValidateLiteral(token, "scratch")
                         ),
                     }
                 },

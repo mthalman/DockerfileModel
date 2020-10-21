@@ -62,7 +62,7 @@ namespace DockerfileModel.Tests
             FromInstruction fromInstruction = dockerfile.Items.OfType<FromInstruction>().First();
 
             // Parse the image name into its component parts
-            ResolvedImageName imageName = ResolvedImageName.Parse(fromInstruction.ImageName);
+            ImageName imageName = ImageName.Parse(fromInstruction.ImageName);
 
             // Change the tag value and set the image name with the new value
             imageName.Tag = "3.12";
@@ -172,7 +172,7 @@ namespace DockerfileModel.Tests
             Assert.IsType<WhitespaceToken>(repoArgTokens[1]);
             Assert.IsType<IdentifierToken>(repoArgTokens[2]);
             Assert.IsType<SymbolToken>(repoArgTokens[3]);
-            Assert.IsType<ArgValue>(repoArgTokens[4]);
+            Assert.IsType<LiteralToken>(repoArgTokens[4]);
             Assert.IsType<NewLineToken>(repoArgTokens[5]);
 
             // Verify the individual tokens that are contained in the FROM instruction
@@ -180,7 +180,7 @@ namespace DockerfileModel.Tests
             Assert.Equal(6, fromInstructionTokens.Length);
             Assert.IsType<KeywordToken>(fromInstructionTokens[0]);
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[1]);
-            Assert.IsType<ImageName>(fromInstructionTokens[2]);
+            Assert.IsType<LiteralToken>(fromInstructionTokens[2]);
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[3]);
 
             // LineContinuation is an aggregate token that contains other tokens
