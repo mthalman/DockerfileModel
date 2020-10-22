@@ -40,6 +40,28 @@ namespace DockerfileModel.Tests
             scenario.Validate(result);
         }
 
+        [Fact]
+        public void Text()
+        {
+            Comment comment = Comment.Create("test");
+            Assert.Equal("test", comment.Text);
+            Assert.Equal("test", comment.TextToken.Text);
+
+            comment.Text = "test2";
+            Assert.Equal("test2", comment.Text);
+            Assert.Equal("test2", comment.TextToken.Text);
+
+            comment.Text = "";
+            Assert.Equal("", comment.Text);
+            Assert.Equal("", comment.TextToken.Text);
+
+            comment.Text = null;
+            Assert.Null(comment.Text);
+            Assert.Null(comment.TextToken.Text);
+
+            Assert.Throws<ArgumentNullException>(() => comment.TextToken = null);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             ParseTestScenario<Comment>[] testInputs = new ParseTestScenario<Comment>[]

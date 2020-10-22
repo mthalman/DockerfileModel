@@ -33,7 +33,7 @@ namespace DockerfileModel
             set
             {
                 Requires.NotNull(value, nameof(value));
-                SetValueToken(ArgNameToken, value);
+                SetToken(ArgNameToken, value);
             }
         }
 
@@ -75,7 +75,7 @@ namespace DockerfileModel
             get => this.Tokens.OfType<LiteralToken>().FirstOrDefault();
             set
             {
-                this.SetValueToken(ArgValueToken, value,
+                this.SetToken(ArgValueToken, value,
                     addToken: token =>
                     {
                         if (HasAssignmentOperator)

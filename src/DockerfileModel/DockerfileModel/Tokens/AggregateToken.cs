@@ -71,9 +71,8 @@ namespace DockerfileModel.Tokens
                 (token, value) => token.Text = value);
         }
 
-        protected void SetValueToken<TToken>(TToken? currentValue, TToken? newValue,
-            Action<TToken>? addToken = null, Action<TToken>? removeToken = null)
-            where TToken : Token, IValueToken
+        protected void SetToken(Token? currentValue, Token? newValue,
+            Action<Token>? addToken = null, Action<Token>? removeToken = null)
         {
             if (addToken is null)
             {
