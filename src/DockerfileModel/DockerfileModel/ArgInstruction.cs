@@ -59,13 +59,9 @@ namespace DockerfileModel
                 {
                     argValue.Value = value;
                 }
-                else if (value is null)
-                {
-                    ArgValueToken = null;
-                }
                 else
                 {
-                    ArgValueToken = new LiteralToken(value);
+                    ArgValueToken = value is null ? null : new LiteralToken(value);
                 }
             }
         }
