@@ -3,13 +3,15 @@ using System.Linq;
 using System.Text;
 using DockerfileModel.Tokens;
 using Sprache;
-
+using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
     public class ArgInstruction : InstructionBase
     {
+        private const string AssignmentOperator = "=";
+
         private ArgInstruction(string text, char escapeChar)
             : base(text, GetParser(escapeChar))
         {
@@ -17,25 +19,42 @@ namespace DockerfileModel
 
         public string ArgName
         {
-            get => this.Tokens.OfType<IdentifierToken>().First().Value;
-            set { this.Tokens.OfType<IdentifierToken>().First().Value = value; }
+            get => this.ArgNameToken.Value;
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                ArgNameToken.Value = value;
+            }
         }
+
+        public IdentifierToken ArgNameToken
+        {
+            get => this.Tokens.OfType<IdentifierToken>().First();
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                SetValueToken(ArgNameToken, value);
+            }
+        }
+
+        public bool HasAssignmentOperator =>
+            Tokens.OfType<SymbolToken>().Where(token => token.Value == AssignmentOperator).Any();
 
         public string? ArgValue
         {
             get
             {
-                string? argValue = this.Tokens.OfType<LiteralToken>().FirstOrDefault()?.Value;
+                string? argValue = ArgValueToken?.Value;
                 if (argValue is null)
                 {
-                    return Tokens.OfType<SymbolToken>().Where(token => token.Value == "=").Any() ? string.Empty : null;
+                    return HasAssignmentOperator ? string.Empty : null;
                 }
 
                 return argValue;
             }
             set
             {
-                LiteralToken? argValue = this.Tokens.OfType<LiteralToken>().FirstOrDefault();
+                LiteralToken? argValue = ArgValueToken;
                 if (argValue != null && value is not null)
                 {
                     argValue.Value = value;
@@ -51,31 +70,28 @@ namespace DockerfileModel
             }
         }
 
-        internal LiteralToken? ArgValueToken
+        public LiteralToken? ArgValueToken
         {
             get => this.Tokens.OfType<LiteralToken>().FirstOrDefault();
             set
             {
-                LiteralToken? argValue = ArgValueToken;
-                if (argValue != null)
-                {
-                    if (value is null)
+                this.SetValueToken(ArgValueToken, value,
+                    addToken: token =>
                     {
-                        this.TokenList.RemoveRange(this.TokenList.IndexOf(argValue) - 1, 2);
-                    }
-                    else
-                    {
-                        this.TokenList[this.TokenList.IndexOf(argValue)] = value;
-                    }
-                }
-                else if (value != null)
-                {
-                    this.TokenList.AddRange(new Token[]
-                    {
-                        new SymbolToken("="),
-                        value
-                    });
-                }
+                        if (HasAssignmentOperator)
+                        {
+                            this.TokenList.Add(token);
+                        }
+                        else
+                        {
+                            this.TokenList.AddRange(new Token[]
+                            {
+                                new SymbolToken(AssignmentOperator),
+                                token
+                            });
+                        }
+                    },
+                    removeToken: token => this.TokenList.RemoveRange(this.TokenList.IndexOf(token) - 1, 2));
             }
         }
 
@@ -87,7 +103,7 @@ namespace DockerfileModel
             StringBuilder builder = new StringBuilder($"ARG {argName}");
             if (argValue != null)
             {
-                builder.Append($"={argValue}");
+                builder.Append($"{AssignmentOperator}{argValue}");
             }
 
             return Parse(builder.ToString(), Instruction.DefaultEscapeChar);
@@ -108,7 +124,7 @@ namespace DockerfileModel
             IdentifierToken(ArgRefFirstLetterParser, ArgRefTailParser, escapeChar);
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
-            from assignment in Symbol("=")
+            from assignment in Symbol(AssignmentOperator)
             from value in LiteralAggregate(escapeChar, false, tokens => new LiteralToken(tokens)).Optional()
             select ConcatTokens(
                 assignment,

@@ -9,62 +9,8 @@ using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
 {
-    public static class Test
-    {
-        static readonly Parser<Content> Content =
-            from chars in Parse.CharExcept(new char[] { '$', '}' }).Many()
-            select new Content { Text = new string(chars.ToArray()) };
-
-        static readonly Parser<Node> Node =
-            from tag in Parse.String("${")
-            from nodes in Parse.Ref(() => Item).Many()
-            from end in Parse.Char('}').Token()
-            select new Node { Name = "", Children = nodes };
-
-        public static readonly Parser<Item> Item =
-            from item in Node.Select(n => (Item)n).XOr(Content)
-            select item;
-
-    }
-
-    public class Item { }
-
-    public class Content : Item
-    {
-        public string Text;
-
-        public override string ToString()
-        {
-            return Text;
-        }
-    }
-
-    public class Node : Item
-    {
-        public string Name;
-        public IEnumerable<Item> Children;
-
-        public override string ToString()
-        {
-            if (Children != null)
-                return Children.Aggregate("", (s, c) => s + c);
-            return string.Format("<{0}/>", Name);
-        }
-    }
-
     public class ArgInstructionTests
     {
-        private Parser<string> ArgRef() =>
-            from opening in Sprache.Parse.String("${").Named("opening")
-            from c in Content().Many()
-            //from closing in Sprache.Parse.Char('}').Named("closing")
-            select String.Concat(c);
-
-        private Parser<string> Content() =>
-            from chars in Sprache.Parse.AnyChar.Except(Sprache.Parse.Char('$')).Many().Text().Named("arg content")
-            from argRef in Sprache.Parse.Ref(() => ArgRef()).Many().Named("argref")
-            select chars + String.Concat(argRef);
-
         [Theory]
         [MemberData(nameof(ParseTestInput))]
         public void Parse(ArgInstructionParseTestScenario scenario)
@@ -92,6 +38,65 @@ namespace DockerfileModel.Tests
             ArgInstruction result = ArgInstruction.Create(scenario.ArgName, scenario.ArgValue);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
+        }
+
+        [Fact]
+        public void ArgName()
+        {
+            ArgInstruction arg = ArgInstruction.Create("test");
+            Assert.Equal("test", arg.ArgName);
+            Assert.Equal("test", arg.ArgNameToken.Value);
+
+            arg.ArgName = "test2";
+            Assert.Equal("test2", arg.ArgName);
+            Assert.Equal("test2", arg.ArgNameToken.Value);
+
+            arg.ArgNameToken.Value = "test3";
+            Assert.Equal("test3", arg.ArgName);
+            Assert.Equal("test3", arg.ArgNameToken.Value);
+
+            Assert.Throws<ArgumentNullException>(() => arg.ArgName = null);
+            Assert.Throws<ArgumentException>(() => arg.ArgName = "");
+            Assert.Throws<ArgumentNullException>(() => arg.ArgNameToken= null);
+        }
+
+        [Fact]
+        public void ArgValue()
+        {
+            ArgInstruction arg = ArgInstruction.Create("test");
+            Assert.Null(arg.ArgValue);
+            Assert.Null(arg.ArgValueToken);
+            Assert.False(arg.HasAssignmentOperator);
+
+            arg.ArgValue = "foo";
+            Assert.Equal("foo", arg.ArgValue);
+            Assert.Equal("foo", arg.ArgValueToken.Value);
+            Assert.True(arg.HasAssignmentOperator);
+
+            arg.ArgValue = "";
+            Assert.Equal("", arg.ArgValue);
+            Assert.Equal("", arg.ArgValueToken.Value);
+            Assert.True(arg.HasAssignmentOperator);
+
+            arg.ArgValue = null;
+            Assert.Null(arg.ArgValue);
+            Assert.Null(arg.ArgValueToken);
+            Assert.False(arg.HasAssignmentOperator);
+
+            arg.ArgValueToken = new LiteralToken("foo2");
+            Assert.Equal("foo2", arg.ArgValue);
+            Assert.Equal("foo2", arg.ArgValueToken.Value);
+            Assert.True(arg.HasAssignmentOperator);
+
+            arg.ArgValueToken = new LiteralToken("foo3");
+            Assert.Equal("foo3", arg.ArgValue);
+            Assert.Equal("foo3", arg.ArgValueToken.Value);
+            Assert.True(arg.HasAssignmentOperator);
+
+            arg.ArgValueToken = null;
+            Assert.Null(arg.ArgValue);
+            Assert.Null(arg.ArgValueToken);
+            Assert.False(arg.HasAssignmentOperator);
         }
 
         public static IEnumerable<object[]> ParseTestInput()
