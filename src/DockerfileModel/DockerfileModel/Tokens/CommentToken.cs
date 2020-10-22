@@ -20,8 +20,8 @@ namespace DockerfileModel.Tokens
 
         public string Text
         {
-            get => this.Tokens.OfType<LiteralToken>().First().Value;
-            set => this.Tokens.OfType<LiteralToken>().First().Value = value;
+            get => this.Tokens.OfType<StringToken>().First().Value;
+            set => this.Tokens.OfType<StringToken>().First().Value = value;
         }
 
         public static CommentToken Parse(string text) =>
@@ -29,7 +29,7 @@ namespace DockerfileModel.Tokens
 
         public static Parser<IEnumerable<Token>> GetParser() =>
             from commentChar in CommentCharParser()
-            from text in TokenWithTrailingWhitespace(val => new LiteralToken(val))
+            from text in TokenWithTrailingWhitespace(val => new StringToken(val))
             select ConcatTokens(commentChar, text);
 
         internal static Parser<IEnumerable<Token>> CommentCharParser() =>

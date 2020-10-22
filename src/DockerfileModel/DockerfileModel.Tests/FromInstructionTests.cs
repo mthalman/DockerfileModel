@@ -131,7 +131,7 @@ namespace DockerfileModel.Tests
                                 token => ValidateNewLine(token, "\n")),
                             token => ValidateAggregate<CommentToken>(token, "#comment",
                                 token => ValidateSymbol(token, "#"),
-                                token => ValidateLiteral(token, "comment")),
+                                token => ValidateString(token, "comment")),
                             token => ValidateNewLine(token, "\n"),
                             token => ValidateIdentifier(token, "build"))
                     },
