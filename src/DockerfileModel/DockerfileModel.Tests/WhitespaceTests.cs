@@ -31,6 +31,62 @@ namespace DockerfileModel.Tests
             }
         }
 
+        [Fact]
+        public void Value()
+        {
+            Whitespace whitespace = Whitespace.Create(" ");
+            Assert.Equal(" ", whitespace.Value);
+            Assert.Equal(" ", whitespace.ValueToken.Value);
+
+            whitespace.Value = "\t";
+            Assert.Equal("\t", whitespace.Value);
+            Assert.Equal("\t", whitespace.ValueToken.Value);
+
+            whitespace.Value = null;
+            Assert.Null(whitespace.Value);
+            Assert.Null(whitespace.ValueToken);
+
+            whitespace.ValueToken = new WhitespaceToken("\t\t");
+            Assert.Equal("\t\t", whitespace.Value);
+            Assert.Equal("\t\t", whitespace.ValueToken.Value);
+
+            whitespace.ValueToken.Value = "  ";
+            Assert.Equal("  ", whitespace.Value);
+            Assert.Equal("  ", whitespace.ValueToken.Value);
+
+            whitespace.ValueToken = null;
+            Assert.Null(whitespace.Value);
+            Assert.Null(whitespace.ValueToken);
+        }
+
+        [Fact]
+        public void NewLine()
+        {
+            Whitespace whitespace = Whitespace.Create(" ");
+            Assert.Null(whitespace.NewLine);
+            Assert.Null(whitespace.NewLineToken);
+
+            whitespace.NewLine = "\n";
+            Assert.Equal("\n", whitespace.NewLine);
+            Assert.Equal("\n", whitespace.NewLineToken.Value);
+
+            whitespace.NewLine = null;
+            Assert.Null(whitespace.NewLine);
+            Assert.Null(whitespace.NewLineToken);
+
+            whitespace.NewLineToken = new NewLineToken("\r\n");
+            Assert.Equal("\r\n", whitespace.NewLine);
+            Assert.Equal("\r\n", whitespace.NewLineToken.Value);
+
+            whitespace.NewLineToken.Value = "\n";
+            Assert.Equal("\n", whitespace.NewLine);
+            Assert.Equal("\n", whitespace.NewLineToken.Value);
+
+            whitespace.NewLineToken = null;
+            Assert.Null(whitespace.NewLine);
+            Assert.Null(whitespace.NewLineToken);
+        }
+
         public static IEnumerable<object[]> CreateTestInput()
         {
             ParseTestScenario<Whitespace>[] testInputs = new ParseTestScenario<Whitespace>[]
@@ -44,9 +100,9 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("  \t  ", result.Text.Value);
+                        Assert.Equal("  \t  ", result.Value);
 
-                        result.Text.Value = " ";
+                        result.Value = " ";
                         Assert.Equal(" ", result.ToString());
                     }
                 },
@@ -64,9 +120,9 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("\t ", result.Text.Value);
+                        Assert.Equal("\t ", result.Value);
 
-                        result.Text.Value = "";
+                        result.Value = "";
                         Assert.Equal("", result.ToString());
                     }
                 },
@@ -80,10 +136,10 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("\t ", result.Text.Value);
-                        Assert.Equal("\n", result.NewLine.Value);
+                        Assert.Equal("\t ", result.Value);
+                        Assert.Equal("\n", result.NewLine);
 
-                        result.Text.Value = "";
+                        result.Value = "";
                         Assert.Equal("\n", result.ToString());
                     }
                 },
@@ -96,7 +152,7 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("\r\n", result.Text.Value);
+                        Assert.Equal("\r\n", result.Value);
                     }
                 },
                 new ParseTestScenario<Whitespace>
