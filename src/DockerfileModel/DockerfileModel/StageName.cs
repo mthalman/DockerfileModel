@@ -29,12 +29,22 @@ namespace DockerfileModel
 
         public string Stage
         {
-            get => this.stage.Value;
+            get => StageToken.Value;
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                this.stage.Value = value;
+            }
+        }
+
+        public IdentifierToken StageToken
+        {
+            get => this.stage;
             set
             {
                 Requires.NotNull(value, nameof(value));
-                this.stage.Value = value;
-                this.TokenList[2] = this.stage;
+                SetToken(StageToken, value);
+                this.stage = value;
             }
         }
 
