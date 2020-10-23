@@ -13,7 +13,7 @@ namespace DockerfileModel
     public class ImageName : AggregateToken
     {
         private RegistryToken? registryToken;
-        private readonly RepositoryToken repositoryToken;
+        private RepositoryToken repositoryToken;
         private TagToken? tagToken;
         private DigestToken? digestToken;
 
@@ -67,41 +67,57 @@ namespace DockerfileModel
             get => this.registryToken?.Value;
             set
             {
-                if (this.registryToken is null && value is null)
+                RegistryToken? registryToken = RegistryToken;
+                if (registryToken != null && value is not null)
                 {
-                    return;
-                }
-
-                if (this.registryToken is null)
-                {
-                    this.registryToken = new RegistryToken(value!);
-                    this.TokenList.InsertRange(0, new Token[]
-                    {
-                        this.registryToken!,
-                        new SymbolToken("/")
-                    });
+                    registryToken.Value = value;
                 }
                 else
                 {
-                    if (value is null)
+                    RegistryToken = String.IsNullOrEmpty(value) ? null : new RegistryToken(value!);
+                }
+            }
+        }
+
+        public RegistryToken? RegistryToken
+        {
+            get => this.registryToken;
+            set
+            {
+                SetToken(RegistryToken, value,
+                    addToken: token =>
+                    {
+                        this.registryToken = token;
+                        this.TokenList.InsertRange(0, new Token[]
+                        {
+                            token,
+                            new SymbolToken("/")
+                        });
+                    },
+                    removeToken: _ =>
                     {
                         this.registryToken = null;
                         // Remove the registry and registry separator tokens
                         this.TokenList.RemoveRange(0, 2);
-                    }
-                    else
-                    {
-                        this.registryToken.Value = value;
-                        this.TokenList[0] = this.registryToken;
-                    }
-                }
+                    });
             }
         }
 
         public string Repository
         {
-            get => repositoryToken.Value;
-            set => repositoryToken.Value = value;
+            get => RepositoryToken.Value;
+            set => RepositoryToken.Value = value;
+        }
+
+        public RepositoryToken RepositoryToken
+        {
+            get => repositoryToken;
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                SetToken(RepositoryToken, value);
+                repositoryToken = value;
+            }
         }
 
         public string? Tag
@@ -113,34 +129,43 @@ namespace DockerfileModel
                     value is null || Digest is null,
                     $"{nameof(Tag)} cannot be set when {nameof(Digest)} is already set.");
 
-                if (this.tagToken is null && value is null)
+                TagToken? tagToken = TagToken;
+                if (tagToken != null && value is not null)
                 {
-                    return;
-                }
-
-                if (this.tagToken is null)
-                {
-                    this.tagToken = new TagToken(value!);
-                    this.TokenList.AddRange(new Token[]
-                    {
-                        new SymbolToken(":"),
-                        this.tagToken!
-                    });
+                    tagToken.Value = value;
                 }
                 else
                 {
-                    if (value is null)
+                    TagToken = String.IsNullOrEmpty(value) ? null : new TagToken(value!);
+                }
+            }
+        }
+
+        public TagToken? TagToken
+        {
+            get => tagToken;
+            set
+            {
+                Requires.ValidState(
+                    value is null || DigestToken is null,
+                    $"{nameof(TagToken)} cannot be set when {nameof(DigestToken)} is already set.");
+
+                SetToken(TagToken, value,
+                    addToken: token =>
+                    {
+                        this.tagToken = token;
+                        this.TokenList.AddRange(new Token[]
+                        {
+                            new SymbolToken(":"),
+                            token
+                        });
+                    },
+                    removeToken: _ =>
                     {
                         this.tagToken = null;
                         // Remove the tag separator and tag tokens
                         this.TokenList.RemoveRange(this.TokenList.Count - 2, 2);
-                    }
-                    else
-                    {
-                        this.tagToken.Value = value;
-                        this.TokenList[this.TokenList.Count - 1] = this.tagToken;
-                    }
-                }
+                    });
             }
         }
 
@@ -153,34 +178,43 @@ namespace DockerfileModel
                     value is null || Tag is null,
                     $"{nameof(Digest)} cannot be set when {nameof(Tag)} is already set.");
 
-                if (this.digestToken is null && value is null)
+                DigestToken? digestToken = DigestToken;
+                if (digestToken != null && value is not null)
                 {
-                    return;
-                }
-
-                if (this.digestToken is null)
-                {
-                    this.digestToken = new DigestToken(value!);
-                    this.TokenList.AddRange(new Token[]
-                    {
-                        new SymbolToken("@"),
-                        this.digestToken!
-                    });
+                    digestToken.Value = value;
                 }
                 else
                 {
-                    if (value is null)
+                    DigestToken = String.IsNullOrEmpty(value) ? null : new DigestToken(value!);
+                }
+            }
+        }
+
+        public DigestToken? DigestToken
+        {
+            get => digestToken;
+            set
+            {
+                Requires.ValidState(
+                    value is null || Tag is null,
+                    $"{nameof(DigestToken)} cannot be set when {nameof(TagToken)} is already set.");
+
+                SetToken(DigestToken, value,
+                    addToken: token =>
+                    {
+                        this.digestToken = token;
+                        this.TokenList.AddRange(new Token[]
+                        {
+                            new SymbolToken("@"),
+                            token
+                        });
+                    },
+                    removeToken: _ =>
                     {
                         this.digestToken = null;
                         // Remove the digest separator and digest tokens
                         this.TokenList.RemoveRange(this.TokenList.Count - 2, 2);
-                    }
-                    else
-                    {
-                        this.digestToken.Value = value;
-                        this.TokenList[this.TokenList.Count - 1] = this.digestToken;
-                    }
-                }
+                    });
             }
         }
 

@@ -99,5 +99,118 @@ namespace DockerfileModel.Tests
             imageName.Tag = null;
             Assert.Equal("myregistry.io/repo2", imageName.ToString());
         }
+
+        [Fact]
+        public void Registry()
+        {
+            ImageName imageName = ImageName.Create("repo");
+            Assert.Null(imageName.Registry);
+            Assert.Null(imageName.RegistryToken);
+
+            imageName.Registry = "test";
+            Assert.Equal("test", imageName.Registry);
+            Assert.Equal("test", imageName.RegistryToken.Value);
+
+            imageName.Registry = null;
+            Assert.Null(imageName.Registry);
+            Assert.Null(imageName.RegistryToken);
+
+            imageName.RegistryToken = new RegistryToken("test2");
+            Assert.Equal("test2", imageName.Registry);
+            Assert.Equal("test2", imageName.RegistryToken.Value);
+
+            imageName.RegistryToken.Value = "test3";
+            Assert.Equal("test3", imageName.Registry);
+            Assert.Equal("test3", imageName.RegistryToken.Value);
+
+            imageName.RegistryToken = null;
+            Assert.Null(imageName.Registry);
+            Assert.Null(imageName.RegistryToken);
+        }
+
+        [Fact]
+        public void Repository()
+        {
+            ImageName imageName = ImageName.Create("test");
+            Assert.Equal("test", imageName.Repository);
+            Assert.Equal("test", imageName.RepositoryToken.Value);
+
+            imageName.Repository = "test2";
+            Assert.Equal("test2", imageName.Repository);
+            Assert.Equal("test2", imageName.RepositoryToken.Value);
+
+            imageName.RepositoryToken = new RepositoryToken("test3");
+            Assert.Equal("test3", imageName.Repository);
+            Assert.Equal("test3", imageName.RepositoryToken.Value);
+
+            imageName.RepositoryToken.Value = "test4";
+            Assert.Equal("test4", imageName.Repository);
+            Assert.Equal("test4", imageName.RepositoryToken.Value);
+
+            Assert.Throws<ArgumentNullException>(() => imageName.Repository = null);
+            Assert.Throws<ArgumentNullException>(() => imageName.RepositoryToken = null);
+        }
+
+        [Fact]
+        public void Tag()
+        {
+            ImageName imageName = ImageName.Create("repo");
+            Assert.Null(imageName.Tag);
+            Assert.Null(imageName.TagToken);
+
+            imageName.Tag = "test";
+            Assert.Equal("test", imageName.Tag);
+            Assert.Equal("test", imageName.TagToken.Value);
+
+            imageName.Tag = null;
+            Assert.Null(imageName.Tag);
+            Assert.Null(imageName.TagToken);
+
+            imageName.TagToken = new TagToken("test2");
+            Assert.Equal("test2", imageName.Tag);
+            Assert.Equal("test2", imageName.TagToken.Value);
+
+            imageName.TagToken.Value = "test3";
+            Assert.Equal("test3", imageName.Tag);
+            Assert.Equal("test3", imageName.TagToken.Value);
+
+            Assert.Throws<InvalidOperationException>(() => imageName.Digest = "foo");
+            Assert.Throws<InvalidOperationException>(() => imageName.DigestToken = new DigestToken("foo"));
+
+            imageName.TagToken = null;
+            Assert.Null(imageName.Tag);
+            Assert.Null(imageName.TagToken);
+        }
+
+        [Fact]
+        public void Digest()
+        {
+            ImageName imageName = ImageName.Create("repo");
+            Assert.Null(imageName.Digest);
+            Assert.Null(imageName.DigestToken);
+
+            imageName.Digest = "test";
+            Assert.Equal("test", imageName.Digest);
+            Assert.Equal("test", imageName.DigestToken.Value);
+
+            imageName.Digest = null;
+            Assert.Null(imageName.Digest);
+            Assert.Null(imageName.DigestToken);
+
+            imageName.DigestToken = new DigestToken("test2");
+            Assert.Equal("test2", imageName.Digest);
+            Assert.Equal("test2", imageName.DigestToken.Value);
+
+            imageName.DigestToken.Value = "test3";
+            Assert.Equal("test3", imageName.Digest);
+            Assert.Equal("test3", imageName.DigestToken.Value);
+
+            Assert.Throws<InvalidOperationException>(() => imageName.Tag = "foo");
+            Assert.Throws<InvalidOperationException>(() => imageName.TagToken = new TagToken("foo"));
+
+            imageName.DigestToken = null;
+            Assert.Null(imageName.Digest);
+            Assert.Null(imageName.DigestToken);
+        }
     }
 }
