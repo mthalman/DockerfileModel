@@ -7,7 +7,7 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class StageName : AggregateToken
+    public class StageName : AggregateToken, ICommentable
     {
         private IdentifierToken stage;
 
@@ -29,16 +29,28 @@ namespace DockerfileModel
 
         public string Stage
         {
-            get => this.stage.Value;
+            get => StageToken.Value;
             set
             {
-                Requires.NotNull(value, nameof(value));
+                Requires.NotNullOrEmpty(value, nameof(value));
                 this.stage.Value = value;
-                this.TokenList[2] = this.stage;
             }
         }
 
-        public IEnumerable<string> Comments => GetComments();
+        public IdentifierToken StageToken
+        {
+            get => this.stage;
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                SetToken(StageToken, value);
+                this.stage = value;
+            }
+        }
+
+        public IList<string> Comments => GetComments();
+
+        public IEnumerable<CommentToken> CommentTokens => GetCommentTokens();
 
         public static StageName Create(string stageName) =>
             Parse($"AS {stageName}", Instruction.DefaultEscapeChar);

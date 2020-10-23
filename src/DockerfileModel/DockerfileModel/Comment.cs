@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
+using Validation;
 
 namespace DockerfileModel
 {
@@ -13,8 +14,18 @@ namespace DockerfileModel
 
         public string Text
         {
-            get => Tokens.OfType<CommentToken>().First().Text;
-            set => Tokens.OfType<CommentToken>().First().Text = value;
+            get => TextToken.Text;
+            set => TextToken.Text = value;
+        }
+
+        public CommentToken TextToken
+        {
+            get => Tokens.OfType<CommentToken>().First();
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                SetToken(TextToken, value);
+            }
         }
 
         public override ConstructType Type => ConstructType.Comment;

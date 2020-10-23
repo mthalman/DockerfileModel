@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
-
+using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public abstract class InstructionBase : DockerfileConstruct
+    public abstract class InstructionBase : DockerfileConstruct, ICommentable
     {
         protected InstructionBase(string text, Parser<IEnumerable<Token?>> parser)
             : base(text, parser)
@@ -21,9 +21,19 @@ namespace DockerfileModel
             set => this.InstructionNameToken.Value = value;
         }
 
-        private KeywordToken InstructionNameToken => Tokens.OfType<KeywordToken>().First();
+        public KeywordToken InstructionNameToken
+        {
+            get => Tokens.OfType<KeywordToken>().First();
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                SetToken(InstructionNameToken, value);
+            }
+        }
 
         public IList<string> Comments => GetComments();
+
+        public IEnumerable<CommentToken> CommentTokens => GetCommentTokens();
 
         public override ConstructType Type => ConstructType.Instruction;
 

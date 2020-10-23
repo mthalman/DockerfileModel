@@ -39,6 +39,29 @@ namespace DockerfileModel.Tests
             scenario.Validate?.Invoke(result);
         }
 
+        [Fact]
+        public void Stage()
+        {
+            StageName stageName = StageName.Create("test");
+            Assert.Equal("test", stageName.Stage);
+            Assert.Equal("test", stageName.StageToken.Value);
+
+            stageName.Stage = "test2";
+            Assert.Equal("test2", stageName.Stage);
+            Assert.Equal("test2", stageName.StageToken.Value);
+
+            stageName.StageToken.Value = "test3";
+            Assert.Equal("test3", stageName.Stage);
+            Assert.Equal("test3", stageName.StageToken.Value);
+
+            stageName.StageToken = new IdentifierToken("test4");
+            Assert.Equal("test4", stageName.Stage);
+            Assert.Equal("test4", stageName.StageToken.Value);
+
+            Assert.Throws<ArgumentNullException>(() => stageName.Stage = null);
+            Assert.Throws<ArgumentNullException>(() => stageName.StageToken = null);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             StageNameParseTestScenario[] testInputs = new StageNameParseTestScenario[]
@@ -68,7 +91,7 @@ namespace DockerfileModel.Tests
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateAggregate<CommentToken>(token, "#comment",
                             token => ValidateSymbol(token, "#"),
-                            token => ValidateLiteral(token, "comment")),
+                            token => ValidateString(token, "comment")),
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "installer")

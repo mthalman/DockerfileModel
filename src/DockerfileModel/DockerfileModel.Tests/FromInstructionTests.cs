@@ -40,6 +40,94 @@ namespace DockerfileModel.Tests
             scenario.Validate?.Invoke(result);
         }
 
+        [Fact]
+        public void ImageName()
+        {
+            FromInstruction instruction = FromInstruction.Create("test");
+            Assert.Equal("test", instruction.ImageName);
+            Assert.Equal("test", instruction.ImageNameToken.Value);
+
+            instruction.ImageName = "test2";
+            Assert.Equal("test2", instruction.ImageName);
+            Assert.Equal("test2", instruction.ImageNameToken.Value);
+
+            instruction.ImageNameToken.Value = "test3";
+            Assert.Equal("test3", instruction.ImageName);
+            Assert.Equal("test3", instruction.ImageNameToken.Value);
+
+            instruction.ImageNameToken = new LiteralToken("test4");
+            Assert.Equal("test4", instruction.ImageName);
+            Assert.Equal("test4", instruction.ImageNameToken.Value);
+
+            Assert.Throws<ArgumentNullException>(() => instruction.ImageName = null);
+            Assert.Throws<ArgumentException>(() => instruction.ImageName = "");
+            Assert.Throws<ArgumentNullException>(() => instruction.ImageNameToken = null);
+        }
+
+        [Fact]
+        public void Platform()
+        {
+            FromInstruction instruction = FromInstruction.Create("test");
+            Assert.Null(instruction.Platform);
+            Assert.Null(instruction.PlatformFlag);
+
+            instruction.Platform = "foo";
+            Assert.Equal("foo", instruction.Platform);
+            Assert.Equal("foo", instruction.PlatformFlag.Platform);
+
+            instruction.PlatformFlag.Platform = "foo2";
+            Assert.Equal("foo2", instruction.Platform);
+            Assert.Equal("foo2", instruction.PlatformFlag.Platform);
+
+            instruction.Platform = null;
+            Assert.Null(instruction.Platform);
+            Assert.Null(instruction.PlatformFlag);
+
+            instruction.Platform = "";
+            Assert.Null(instruction.Platform);
+            Assert.Null(instruction.PlatformFlag);
+
+            instruction.PlatformFlag = PlatformFlag.Create("foo3");
+            Assert.Equal("foo3", instruction.Platform);
+            Assert.Equal("foo3", instruction.PlatformFlag.Platform);
+
+            instruction.PlatformFlag = null;
+            Assert.Null(instruction.Platform);
+            Assert.Null(instruction.PlatformFlag);
+        }
+
+        [Fact]
+        public void StageName()
+        {
+            FromInstruction instruction = FromInstruction.Create("test");
+            Assert.Null(instruction.StageName);
+            Assert.Null(instruction.StageNameToken);
+
+            instruction.StageName = "foo";
+            Assert.Equal("foo", instruction.StageName);
+            Assert.Equal("foo", instruction.StageNameToken.Stage);
+
+            instruction.StageNameToken.Stage = "foo2";
+            Assert.Equal("foo2", instruction.StageName);
+            Assert.Equal("foo2", instruction.StageNameToken.Stage);
+
+            instruction.StageName = null;
+            Assert.Null(instruction.StageName);
+            Assert.Null(instruction.StageNameToken);
+
+            instruction.StageName = "";
+            Assert.Null(instruction.StageName);
+            Assert.Null(instruction.StageNameToken);
+
+            instruction.StageNameToken = DockerfileModel.StageName.Create("foo3");
+            Assert.Equal("foo3", instruction.StageName);
+            Assert.Equal("foo3", instruction.StageNameToken.Stage);
+
+            instruction.StageNameToken = null;
+            Assert.Null(instruction.StageName);
+            Assert.Null(instruction.StageNameToken);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             FromInstructionParseTestScenario[] testInputs = new FromInstructionParseTestScenario[]
@@ -131,7 +219,7 @@ namespace DockerfileModel.Tests
                                 token => ValidateNewLine(token, "\n")),
                             token => ValidateAggregate<CommentToken>(token, "#comment",
                                 token => ValidateSymbol(token, "#"),
-                                token => ValidateLiteral(token, "comment")),
+                                token => ValidateString(token, "comment")),
                             token => ValidateNewLine(token, "\n"),
                             token => ValidateIdentifier(token, "build"))
                     },

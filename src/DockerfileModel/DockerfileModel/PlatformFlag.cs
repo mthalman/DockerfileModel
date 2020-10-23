@@ -30,7 +30,11 @@ namespace DockerfileModel
         public string Platform
         {
             get => PlatformToken.Value;
-            set => PlatformToken.Value = value;
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                PlatformToken.Value = value;
+            }
         }
 
         public LiteralToken PlatformToken
@@ -39,8 +43,8 @@ namespace DockerfileModel
             set
             {
                 Requires.NotNull(value, nameof(value));
-                this.platform = value;
-                this.TokenList[3] = this.platform;
+                SetToken(PlatformToken, value);
+                platform = value;
             }
         }
 

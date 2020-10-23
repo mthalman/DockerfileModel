@@ -1,16 +1,17 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using DockerfileModel.Tokens;
 using Sprache;
-
+using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
     public class FromInstruction : InstructionBase
     {
-        private readonly LiteralToken imageName;
+        private LiteralToken imageName;
 
         private FromInstruction(string text, char escapeChar)
             : base(text, GetParser(escapeChar))
@@ -31,7 +32,22 @@ namespace DockerfileModel
         public string ImageName
         {
             get => this.imageName.Value;
-            set => this.imageName.ReplaceWithToken(new StringToken(value));
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                this.imageName.Value = value;
+            }
+        }
+
+        public LiteralToken ImageNameToken
+        {
+            get => this.imageName;
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                SetToken(ImageNameToken, value);
+                this.imageName = value;
+            }
         }
 
         public string? Platform
@@ -39,56 +55,70 @@ namespace DockerfileModel
             get => this.PlatformFlag?.Platform;
             set
             {
-                PlatformFlag? platformFlag = this.PlatformFlag;
-                if (platformFlag != null)
+                PlatformFlag? platformFlag = PlatformFlag;
+                if (platformFlag != null && value is not null)
                 {
-                    if (value is null)
-                    {
-                        this.TokenList.RemoveRange(this.TokenList.IndexOf(platformFlag), 2);
-                    }
-                    else
-                    {
-                        platformFlag.Platform = value;
-                    }
+                    platformFlag.Platform = value;
                 }
-                else if (value != null)
+                else
                 {
-                    this.TokenList.InsertRange(2, new Token[]
-                    {
-                        PlatformFlag.Create(value),
-                        Whitespace.Create(" ")
-                    });
+                    PlatformFlag = String.IsNullOrEmpty(value) ? null : PlatformFlag.Create(value!);
                 }
             }
         }
 
-        private PlatformFlag? PlatformFlag => this.Tokens.OfType<PlatformFlag>().FirstOrDefault();
+        public PlatformFlag? PlatformFlag
+        {
+            get => this.Tokens.OfType<PlatformFlag>().FirstOrDefault();
+            set
+            {
+                SetToken(PlatformFlag, value,
+                    addToken: token =>
+                    {
+                        this.TokenList.InsertRange(2, new Token[]
+                        {
+                            token,
+                            Whitespace.Create(" ")
+                        });
+                    },
+                    removeToken: token =>
+                        this.TokenList.RemoveRange(this.TokenList.IndexOf(token), 2));
+            }
+        }
 
         public string? StageName
         {
             get => this.Tokens.OfType<StageName>().FirstOrDefault()?.Stage;
             set
             {
-                StageName stageName = this.Tokens.OfType<StageName>().FirstOrDefault();
-                if (stageName != null)
+                StageName? stageName = StageNameToken;
+                if (stageName != null && value is not null)
                 {
-                    if (value is null)
-                    {
-                        this.TokenList.RemoveRange(this.TokenList.IndexOf(stageName) - 1, 2);
-                    }
-                    else
-                    {
-                        stageName.Stage = value;
-                    }
+                    stageName.Stage = value;
                 }
-                else if (value != null)
+                else
                 {
-                    this.TokenList.AddRange(new Token[]
-                    {
-                        Whitespace.Create(" "),
-                        DockerfileModel.StageName.Create(value),
-                    });
+                    StageNameToken = String.IsNullOrEmpty(value) ? null : DockerfileModel.StageName.Create(value!);
                 }
+            }
+        }
+
+        public StageName? StageNameToken
+        {
+            get => this.Tokens.OfType<StageName>().FirstOrDefault();
+            set
+            {
+                SetToken(StageNameToken, value,
+                    addToken: token =>
+                    {
+                        this.TokenList.AddRange(new Token[]
+                        {
+                            Whitespace.Create(" "),
+                            token,
+                        });
+                    },
+                    removeToken: token =>
+                        this.TokenList.RemoveRange(this.TokenList.IndexOf(token) - 1, 2));
             }
         }
 

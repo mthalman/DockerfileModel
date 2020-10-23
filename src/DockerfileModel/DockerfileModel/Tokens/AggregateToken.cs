@@ -71,6 +71,37 @@ namespace DockerfileModel.Tokens
                 (token, value) => token.Text = value);
         }
 
+        protected void SetToken<TToken>(TToken? currentValue, TToken? newValue,
+            Action<TToken>? addToken = null, Action<TToken>? removeToken = null)
+            where TToken : Token
+        {
+            if (addToken is null)
+            {
+                addToken = token => this.TokenList.Add(token);
+            }
+
+            if (removeToken is null)
+            {
+                removeToken = token => this.TokenList.Remove(token);
+            }
+
+            if (currentValue != null)
+            {
+                if (newValue is null)
+                {
+                    removeToken(currentValue);
+                }
+                else
+                {
+                    this.TokenList[this.TokenList.IndexOf(currentValue)] = newValue;
+                }
+            }
+            else if (newValue != null)
+            {
+                addToken(newValue);
+            }
+        }
+
         internal void ReplaceWithToken(Token token)
         {
             TokenList.RemoveAll(token => true);
@@ -104,7 +135,7 @@ namespace DockerfileModel.Tokens
             return builder.ToString();
         }
 
-        private IEnumerable<CommentToken> GetCommentTokens()
+        protected IEnumerable<CommentToken> GetCommentTokens()
         {
             foreach (Token token in Tokens)
             {
