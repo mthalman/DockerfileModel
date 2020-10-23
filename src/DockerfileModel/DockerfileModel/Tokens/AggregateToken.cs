@@ -135,7 +135,7 @@ namespace DockerfileModel.Tokens
             return builder.ToString();
         }
 
-        private IEnumerable<CommentToken> GetCommentTokens()
+        protected IEnumerable<CommentToken> GetCommentTokens()
         {
             foreach (Token token in Tokens)
             {
