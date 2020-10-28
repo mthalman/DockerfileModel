@@ -14,7 +14,7 @@ namespace DockerfileModel
 #pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
         private StageName(string text, char escapeChar)
 #pragma warning restore CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
-            : base(text, GetParser(escapeChar))
+            : base(text, GetInnerParser(escapeChar))
         {
             Initialize();
         }
@@ -58,13 +58,16 @@ namespace DockerfileModel
         public static StageName Parse(string text, char escapeChar) =>
             new StageName(text, escapeChar);
 
-        public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
-            ArgTokens(
-                from asKeyword in ArgTokens(AsKeyword().AsEnumerable(), escapeChar)
-                from stageName in ArgTokens(StageNameIdentifier().AsEnumerable(), escapeChar)
-                select ConcatTokens(
-                    asKeyword,
-                    stageName), escapeChar);
+        public static Parser<StageName> GetParser(char escapeChar) =>
+            from tokens in GetInnerParser(escapeChar)
+            select new StageName(tokens);
+
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+            from asKeyword in ArgTokens(AsKeyword().AsEnumerable(), escapeChar)
+            from stageName in ArgTokens(StageNameIdentifier().AsEnumerable(), escapeChar)
+            select ConcatTokens(
+                asKeyword,
+                stageName);
 
         private static Parser<KeywordToken> AsKeyword() =>
             from asKeyword in Sprache.Parse.IgnoreCase("as").Text()

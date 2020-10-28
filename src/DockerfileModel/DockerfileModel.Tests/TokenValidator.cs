@@ -19,11 +19,11 @@ namespace DockerfileModel.Tests
             Assert.Equal(symbol, ((SymbolToken)token).Value);
         }
 
-        public static void ValidateString(Token token, string literal)
+        public static void ValidateString(Token token, string value)
         {
             Assert.IsType<StringToken>(token);
-            StringToken literalToken = (StringToken)token;
-            Assert.Equal(literal, literalToken.Value);
+            StringToken stringToken = (StringToken)token;
+            Assert.Equal(value, stringToken.Value);
         }
 
         public static void ValidateKeyword(Token token, string keyword) =>

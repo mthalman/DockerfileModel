@@ -2,7 +2,7 @@
 
 namespace DockerfileModel.Tokens
 {
-    public class IdentifierToken : AggregateToken, IValueToken, IQuotableToken
+    public class IdentifierToken : AggregateToken, IQuotableValueToken
     {
         public IdentifierToken(string value)
              : base(new Token[] { new StringToken(value) })
@@ -15,12 +15,10 @@ namespace DockerfileModel.Tokens
 
         public virtual string Value
         {
-            get => this.ToString(excludeQuotes: true);
+            get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
             set => ReplaceWithToken(new StringToken(value));
         }
 
         public char? QuoteChar { get; set; }
-
-        public override string ToString() => this.ToString(excludeQuotes: false);
     }
 }

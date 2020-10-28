@@ -14,7 +14,7 @@ namespace DockerfileModel
 #pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
         private PlatformFlag(string text, char escapeChar)
 #pragma warning restore CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
-            : base(text, GetParser(escapeChar))
+            : base(text, GetInnerParser(escapeChar))
         {
             Initialize();
         }
@@ -54,11 +54,15 @@ namespace DockerfileModel
         public static PlatformFlag Parse(string text, char escapeChar) =>
             new PlatformFlag(text, escapeChar);
 
-        public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
+        public static Parser<PlatformFlag> GetParser(char escapeChar) =>
+            from tokens in GetInnerParser(escapeChar)
+            select new PlatformFlag(tokens);
+
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             from flagSeparator in Symbol("--")
             from platformKeyword in Sprache.Parse.IgnoreCase("platform").Text()
             from platformSeparator in Symbol("=")
-            from platform in LiteralAggregate(escapeChar, isWhitespaceAllowed: false, tokens => new LiteralToken(tokens))
+            from platform in LiteralAggregate(escapeChar, tokens => new LiteralToken(tokens))
             select ConcatTokens(
                 flagSeparator,
                 new KeywordToken(platformKeyword),

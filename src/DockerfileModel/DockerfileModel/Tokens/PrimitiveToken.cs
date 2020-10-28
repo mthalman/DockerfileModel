@@ -9,6 +9,6 @@
 
         public virtual string Value { get; set; }
 
-        public override string ToString() => this.Value;
+        protected override string GetUnderlyingValue(TokenStringOptions options) => Value;
     }
 }

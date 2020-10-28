@@ -217,10 +217,10 @@ namespace DockerfileModel.Tests
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                                 token => ValidateSymbol(token, "`"),
                                 token => ValidateNewLine(token, "\n")),
-                            token => ValidateAggregate<CommentToken>(token, "#comment",
+                            token => ValidateAggregate<CommentToken>(token, "#comment\n",
                                 token => ValidateSymbol(token, "#"),
-                                token => ValidateString(token, "comment")),
-                            token => ValidateNewLine(token, "\n"),
+                                token => ValidateString(token, "comment"),
+                                token => ValidateNewLine(token, "\n")),
                             token => ValidateIdentifier(token, "build"))
                     },
                     Validate = result =>

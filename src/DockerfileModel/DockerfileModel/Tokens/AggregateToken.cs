@@ -33,13 +33,14 @@ namespace DockerfileModel.Tokens
 
         public IEnumerable<Token> Tokens => this.TokenList;
 
-        public override string ToString() => GetTokensString(excludeLineContinuations: false);
-
-        internal string GetTokensString(bool excludeLineContinuations) =>
-            String.Concat(
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            return String.Concat(
                 Tokens
-                    .Where(token => !excludeLineContinuations || token is not LineContinuationToken)
-                    .Select(token => token.ToString()));
+                    .Where(token => !options.ExcludeLineContinuations || token is not LineContinuationToken)
+                    .Where(token => !options.ExcludeComments || token is not CommentToken)
+                    .Select(token => token.ToString(options)));
+        }
 
         public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {

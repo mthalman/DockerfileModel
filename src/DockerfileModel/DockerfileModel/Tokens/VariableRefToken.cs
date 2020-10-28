@@ -30,18 +30,18 @@ namespace DockerfileModel.Tokens
         }
 
         public string? Modifier => this.Tokens.OfType<SymbolToken>().FirstOrDefault()?.Value;
-        public string? ModifierValue => ModifierValueToken?.ToString();
+        public string? ModifierValue => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());
 
         private VariableModifierValue? ModifierValueToken => this.Tokens.OfType<VariableModifierValue>().FirstOrDefault();
 
-        public override string ToString()
+        protected override string GetUnderlyingValue(TokenStringOptions options)
         {
             if (WrappedInBraces)
             {
-                return $"${{{base.ToString()}}}";
+                return $"${{{base.GetUnderlyingValue(options)}}}";
             }
 
-            return $"${base.ToString()}";
+            return $"${base.GetUnderlyingValue(options)}";
         }
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)

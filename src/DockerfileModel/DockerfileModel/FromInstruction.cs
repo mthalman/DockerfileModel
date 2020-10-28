@@ -149,23 +149,20 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             (from platform in GetPlatformParser(escapeChar).Optional()
             from imageName in GetImageNameParser(escapeChar)
-            from stageName in GetStageNameParser(escapeChar).AsEnumerable().Optional()
+            from stageName in GetStageNameParser(escapeChar).Optional()
             select ConcatTokens(
                 platform.GetOrDefault(),
                 imageName,
                 stageName.GetOrDefault())).End();
 
         private static Parser<IEnumerable<Token>> GetPlatformParser(char escapeChar) =>
-            ArgTokens((
-                from tokens in PlatformFlag.GetParser(escapeChar)
-                select new PlatformFlag(tokens)).AsEnumerable(), escapeChar);
+            ArgTokens(PlatformFlag.GetParser(escapeChar).AsEnumerable(), escapeChar);
 
-        private static Parser<StageName> GetStageNameParser(char escapeChar) =>
-            from tokens in DockerfileModel.StageName.GetParser(escapeChar)
-            select new StageName(tokens);
+        private static Parser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
+            ArgTokens(DockerfileModel.StageName.GetParser(escapeChar).AsEnumerable(), escapeChar);
 
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
             ArgTokens(
-                LiteralAggregate(escapeChar, false, tokens => new LiteralToken(tokens)).AsEnumerable(), escapeChar);
+                LiteralAggregate(escapeChar, tokens => new LiteralToken(tokens)).AsEnumerable(), escapeChar);
     }
 }
