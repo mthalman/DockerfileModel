@@ -88,10 +88,10 @@ namespace DockerfileModel.Tests
                     Text = "#mycomment\n",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateAggregate<CommentToken>(token, "#mycomment",
+                        token => ValidateAggregate<CommentToken>(token, "#mycomment\n",
                             token => ValidateSymbol(token, "#"),
-                            token => ValidateString(token, "mycomment")),
-                        token => ValidateNewLine(token, "\n")
+                            token => ValidateString(token, "mycomment"),
+                            token => ValidateNewLine(token, "\n"))
                     },
                     Validate = result =>
                     {

@@ -2,7 +2,7 @@
 
 namespace DockerfileModel.Tokens
 {
-    public class LiteralToken : AggregateToken, IValueToken, IQuotableToken
+    public class LiteralToken : AggregateToken, IQuotableValueToken
     {
         public LiteralToken(string value)
              : base(new Token[] { new StringToken(value) })
@@ -15,12 +15,10 @@ namespace DockerfileModel.Tokens
 
         public string Value
         {
-            get => this.ToString(excludeQuotes: true);
+            get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
             set => ReplaceWithToken(new StringToken(value));
         }
 
         public char? QuoteChar { get; set; }
-
-        public override string ToString() => this.ToString(excludeQuotes: false);
     }
 }

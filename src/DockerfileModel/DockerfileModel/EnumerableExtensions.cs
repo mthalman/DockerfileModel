@@ -6,6 +6,9 @@ namespace DockerfileModel
 {
     public static class EnumerableExtensions
     {
+        public static IEnumerable<T> Flatten<T>(this IEnumerable<IEnumerable<T>> itemSets) =>
+            itemSets.SelectMany(items => items);
+
         public static IEnumerable<T> Append<T>(this IEnumerable<T> enumerable, T item)
         {
             foreach (var existingItem in enumerable)

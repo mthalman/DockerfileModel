@@ -31,19 +31,164 @@ namespace DockerfileModel.Tests
             }
         }
 
-        //[Theory]
-        //[MemberData(nameof(CreateTestInput))]
-        //public void Create(CreateTestScenario scenario)
-        //{
-        //    RunInstruction result = RunInstruction.Create();
-        //    Assert.Collection(result.Tokens, scenario.TokenValidators);
-        //    scenario.Validate?.Invoke(result);
-        //}
+        [Theory]
+        [MemberData(nameof(CreateTestInput))]
+        public void Create(CreateTestScenario scenario)
+        {
+            RunInstruction result;
+            if (scenario.Command != null)
+            {
+                result = RunInstruction.Create(scenario.Command);
+            }
+            else
+            {
+                result = RunInstruction.Create(scenario.Commands);
+            }
+
+            Assert.Collection(result.Tokens, scenario.TokenValidators);
+            scenario.Validate?.Invoke(result);
+        }
 
         public static IEnumerable<object[]> ParseTestInput()
         {
             RunInstructionParseTestScenario[] testInputs = new RunInstructionParseTestScenario[]
             {
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN echo hello",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                            token => ValidateLiteral(token, "echo hello"))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("RUN", result.InstructionName);
+                        Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
+                        Assert.Equal("echo hello", result.Command.ToString());
+                        Assert.IsType<ShellFormRunCommand>(result.Command);
+                        ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
+                        Assert.Equal("echo hello", cmd.Value);
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN echo `\n#test comment\nhello",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo `\n#test comment\nhello",
+                            token => ValidateQuotableAggregate<LiteralToken>(token, "echo `\n#test comment\nhello", null,
+                                token => ValidateString(token, "echo "),
+                                token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                                    token => ValidateSymbol(token, "`"),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateAggregate<CommentToken>(token, "#test comment\n",
+                                    token => ValidateSymbol(token, "#"),
+                                    token => ValidateString(token, "test comment"),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateString(token, "hello")))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Single(result.Comments);
+                        Assert.Equal("test comment", result.Comments.First());
+                        Assert.Equal("RUN", result.InstructionName);
+                        Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
+                        Assert.Equal("echo `\n#test comment\nhello", result.Command.ToString());
+                        Assert.IsType<ShellFormRunCommand>(result.Command);
+                        ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
+                        Assert.Equal("echo hello", cmd.Value);
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN [\"/bin/bash\", \"-c\", \"echo hello\"]",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ExecFormRunCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                            token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
+                            token => ValidateSymbol(token, ","),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                            token => ValidateSymbol(token, ","),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("RUN", result.InstructionName);
+                        Assert.Equal(RunCommandType.ExecForm, result.Command.CommandType);
+                        Assert.Equal("[\"/bin/bash\", \"-c\", \"echo hello\"]", result.Command.ToString());
+                        Assert.IsType<ExecFormRunCommand>(result.Command);
+                        ExecFormRunCommand cmd = (ExecFormRunCommand)result.Command;
+                        Assert.Equal(
+                            new string[]
+                            {
+                                "/bin/bash",
+                                "-c",
+                                "echo hello"
+                            },
+                            cmd.CommandArgs.ToArray());
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN `\n[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                            token => ValidateSymbol(token, "`"),
+                            token => ValidateNewLine(token, "\n")),
+                        token => ValidateAggregate<ExecFormRunCommand>(token, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateQuotableAggregate<LiteralToken>(token, "\"/bi`\nn/bash\"", ParseHelper.DoubleQuote,
+                                token => ValidateString(token, "/bi"),
+                                token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                                    token => ValidateSymbol(token, "`"),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateString(token, "n/bash")),
+                            token => ValidateSymbol(token, ","),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                                token => ValidateSymbol(token, "`"),
+                                token => ValidateNewLine(token, "\n")),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateSymbol(token, ","),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "echo he`\"llo", ParseHelper.DoubleQuote))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("RUN", result.InstructionName);
+                        Assert.Equal(RunCommandType.ExecForm, result.Command.CommandType);
+                        Assert.Equal("[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]", result.Command.ToString());
+                        Assert.IsType<ExecFormRunCommand>(result.Command);
+                        ExecFormRunCommand cmd = (ExecFormRunCommand)result.Command;
+                        Assert.Equal(
+                            new string[]
+                            {
+                                "/bin/bash",
+                                "-c",
+                                "echo he`\"llo"
+                            },
+                            cmd.CommandArgs.ToArray());
+                    }
+                },
                 new RunInstructionParseTestScenario
                 {
                     Text = "RUN ec`\nho `test",
@@ -52,12 +197,13 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<LiteralToken>(token, "ec`\nho `test",
-                            token => ValidateString(token, "ec"),
-                            token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                token => ValidateSymbol(token, "`"),
-                                token => ValidateNewLine(token, "\n")),
-                            token => ValidateString(token, "ho `test"))
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "ec`\nho `test",
+                            token => ValidateAggregate<LiteralToken>(token, "ec`\nho `test",
+                                token => ValidateString(token, "ec"),
+                                token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                                    token => ValidateSymbol(token, "`"),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateString(token, "ho `test")))
                     }
                 },
                 new RunInstructionParseTestScenario
@@ -68,12 +214,13 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<LiteralToken>(token, "\"ec`\nh`\"o `test\"", '\"',
-                            token => ValidateString(token, "ec"),
-                            token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                token => ValidateSymbol(token, "`"),
-                                token => ValidateNewLine(token, "\n")),
-                            token => ValidateString(token, "h`\"o `test"))
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "\"ec`\nh`\"o `test\"",
+                            token => ValidateQuotableAggregate<LiteralToken>(token, "\"ec`\nh`\"o `test\"", null,
+                                token => ValidateString(token, "\"ec"),
+                                token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                                    token => ValidateSymbol(token, "`"),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateString(token, "h`\"o `test\"")))
                     }
                 }
             };
@@ -87,6 +234,36 @@ namespace DockerfileModel.Tests
             {
                 new CreateTestScenario
                 {
+                    Command = "echo hello",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                            token => ValidateLiteral(token, "echo hello"))
+                    }
+                },
+                new CreateTestScenario
+                {
+                    Commands = new string[]
+                    {
+                        "/bin/bash",
+                        "-c",
+                        "echo hello"
+                    },
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ExecFormRunCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                            token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
+                            token => ValidateSymbol(token, ","),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                            token => ValidateSymbol(token, ","),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote))
+                    }
                 }
             };
 
@@ -100,6 +277,8 @@ namespace DockerfileModel.Tests
 
         public class CreateTestScenario : TestScenario<RunInstruction>
         {
+            public string Command { get; set; }
+            public IEnumerable<string> Commands { get; set; }
         }
     }
 }

@@ -12,7 +12,7 @@ namespace DockerfileModel
 
         public static Parser<IEnumerable<T>> Flatten<T>(this Parser<IEnumerable<IEnumerable<T>>> parser) =>
             from itemSets in parser
-            select itemSets.SelectMany(items => items);
+            select itemSets.Flatten();
 
         public static Parser<T> Single<T>(this Parser<IEnumerable<T>> parser) =>
             from items in parser

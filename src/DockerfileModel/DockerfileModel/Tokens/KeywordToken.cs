@@ -15,7 +15,7 @@ namespace DockerfileModel.Tokens
 
         public string Value
         {
-            get => this.ToString(excludeLineContinuations: true);
+            get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
             set => ReplaceWithToken(new StringToken(value));
         }
     }

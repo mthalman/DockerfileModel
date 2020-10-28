@@ -97,10 +97,12 @@ namespace DockerfileModel.Tests
             // This modifies the underlying values of the model, replacing any references to
             // arguments with their resolved values. Be aware of this if your intention is
             // write the model back to the Dockerfile on disk.
-            dockerfile.ResolveVariables(new Dictionary<string, string>
-            {
-                { "TAG", "3.12" }
-            }, options: new ResolutionOptions { UpdateInline = true });
+            dockerfile.ResolveVariables(
+                new Dictionary<string, string>
+                {
+                    { "TAG", "3.12" }
+                },
+                options: new ResolutionOptions { UpdateInline = true });
 
             // Verify the arg values have been resolved
             string expectedOutput = TestHelper.ConcatLines(new List<string>
@@ -148,7 +150,7 @@ namespace DockerfileModel.Tests
 
         /// <summary>
         /// Each construct within a Dockerfile is made up of tokens of various types. Some tokens
-        /// are aggregate tokens that contain other more primitive tokens.
+        /// are aggregate tokens that contain other, more primitive, tokens.
         /// </summary>
         [Fact]
         public void Tokens()
@@ -177,7 +179,7 @@ namespace DockerfileModel.Tests
 
             // Verify the individual tokens that are contained in the FROM instruction
             Token[] fromInstructionTokens = dockerfileConstructs[1].Tokens.ToArray();
-            Assert.Equal(6, fromInstructionTokens.Length);
+            Assert.Equal(7, fromInstructionTokens.Length);
             Assert.IsType<KeywordToken>(fromInstructionTokens[0]);
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[1]);
             Assert.IsType<LiteralToken>(fromInstructionTokens[2]);
@@ -191,30 +193,31 @@ namespace DockerfileModel.Tests
             Assert.IsType<SymbolToken>(lineContinuationTokens[0]);
             Assert.IsType<NewLineToken>(lineContinuationTokens[1]);
 
+            Assert.IsType<WhitespaceToken>(fromInstructionTokens[5]);
+
             // StageName is an aggregate token that contains other tokens
-            Assert.IsType<StageName>(fromInstructionTokens[5]);
-            StageName stageName = (StageName)fromInstructionTokens[5];
+            Assert.IsType<StageName>(fromInstructionTokens[6]);
+            StageName stageName = (StageName)fromInstructionTokens[6];
             Token[] stageNameTokens = stageName.Tokens.ToArray();
-            Assert.Equal(4, stageNameTokens.Length);
-            Assert.IsType<WhitespaceToken>(stageNameTokens[0]);
-            Assert.IsType<KeywordToken>(stageNameTokens[1]);
-            Assert.IsType<WhitespaceToken>(stageNameTokens[2]);
-            Assert.IsType<IdentifierToken>(stageNameTokens[3]);
+            Assert.Equal(3, stageNameTokens.Length);
+            Assert.IsType<KeywordToken>(stageNameTokens[0]);
+            Assert.IsType<WhitespaceToken>(stageNameTokens[1]);
+            Assert.IsType<IdentifierToken>(stageNameTokens[2]);
         }
 
         /// <summary>
-        /// Comments can either be top-level or nested within an multi-line instruction.
+        /// Comments can either be top-level or nested within a multi-line instruction.
         /// </summary>
         [Fact]
-        public void InstructionsWithComments()
+        public void Comments()
         {
             string dockerfileContent = TestHelper.ConcatLines(new List<string>
             {
-                "#top-level comment",
+                "# top-level comment",
                 "FROM alpine \\",
-                "  #nested comment",
+                "  # nested comment",
                 "  AS build",
-                "#top-level comment",
+                "# top-level comment",
             });
 
             // Parse the Dockerfile
@@ -225,6 +228,10 @@ namespace DockerfileModel.Tests
 
             Assert.IsType<Comment>(dockerfileConstructs[0]);
             
+            // The FROM instruction contains a comment within its context. Any comments that
+            // are interspersed amongst the lines of an instruction that spans multiple lines
+            // will be contained as comments within the instruction, rather than as top-level
+            // comments of the Dockerfile.
             Assert.IsType<FromInstruction>(dockerfileConstructs[1]);
             FromInstruction fromInstruction = (FromInstruction)dockerfileConstructs[1];
             Assert.Single(fromInstruction.Comments);
