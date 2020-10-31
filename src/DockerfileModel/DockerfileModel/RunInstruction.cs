@@ -25,11 +25,14 @@ namespace DockerfileModel
             }
         }
 
+        public IEnumerable<MountFlag> MountFlags => Tokens.OfType<MountFlag>();
+
         public static RunInstruction Parse(string text, char escapeChar) =>
             new RunInstruction(text, escapeChar);
 
         public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
-            Instruction("RUN", escapeChar, ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar));
+            Instruction("RUN", escapeChar,
+                GetArgsParser(escapeChar));
 
         public static RunInstruction Create(string command) =>
             Parse($"RUN {command}", Instruction.DefaultEscapeChar);
@@ -42,6 +45,13 @@ namespace DockerfileModel
             // Do not resolve variables for the command of a RUN instruction. It is shell/runtime-specific.
             return ToString();
         }
+
+        private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+            from mounts in ArgTokens(MountFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Many()
+            from whitespace in Whitespace()
+            from command in ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar)
+            select ConcatTokens(
+                mounts.Flatten(), whitespace, command);
 
         private static Parser<RunCommand> GetCommandParser(char escapeChar) =>
             ExecFormRunCommand.GetParser(escapeChar)

@@ -70,6 +70,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
                         Assert.Equal("echo hello", result.Command.ToString());
                         Assert.IsType<ShellFormRunCommand>(result.Command);
+                        Assert.Empty(result.MountFlags);
                         ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
                         Assert.Equal("echo hello", cmd.Value);
                     }
@@ -86,10 +87,10 @@ namespace DockerfileModel.Tests
                             token => ValidateQuotableAggregate<LiteralToken>(token, "echo `\n#test comment\nhello", null,
                                 token => ValidateString(token, "echo "),
                                 token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                    token => ValidateSymbol(token, "`"),
+                                    token => ValidateSymbol(token, '`'),
                                     token => ValidateNewLine(token, "\n")),
                                 token => ValidateAggregate<CommentToken>(token, "#test comment\n",
-                                    token => ValidateSymbol(token, "#"),
+                                    token => ValidateSymbol(token, '#'),
                                     token => ValidateString(token, "test comment"),
                                     token => ValidateNewLine(token, "\n")),
                                 token => ValidateString(token, "hello")))
@@ -115,10 +116,10 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ExecFormRunCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
                             token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
-                            token => ValidateSymbol(token, ","),
+                            token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
-                            token => ValidateSymbol(token, ","),
+                            token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote))
                     },
@@ -149,25 +150,25 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                            token => ValidateSymbol(token, "`"),
+                            token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateAggregate<ExecFormRunCommand>(token, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
                             token => ValidateWhitespace(token, " "),
                             token => ValidateQuotableAggregate<LiteralToken>(token, "\"/bi`\nn/bash\"", ParseHelper.DoubleQuote,
                                 token => ValidateString(token, "/bi"),
                                 token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                    token => ValidateSymbol(token, "`"),
+                                    token => ValidateSymbol(token, '`'),
                                     token => ValidateNewLine(token, "\n")),
                                 token => ValidateString(token, "n/bash")),
-                            token => ValidateSymbol(token, ","),
+                            token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                token => ValidateSymbol(token, "`"),
+                                token => ValidateSymbol(token, '`'),
                                 token => ValidateNewLine(token, "\n")),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateSymbol(token, ","),
+                            token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "echo he`\"llo", ParseHelper.DoubleQuote))
                     },
@@ -201,7 +202,7 @@ namespace DockerfileModel.Tests
                             token => ValidateAggregate<LiteralToken>(token, "ec`\nho `test",
                                 token => ValidateString(token, "ec"),
                                 token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                    token => ValidateSymbol(token, "`"),
+                                    token => ValidateSymbol(token, '`'),
                                     token => ValidateNewLine(token, "\n")),
                                 token => ValidateString(token, "ho `test")))
                     }
@@ -218,11 +219,88 @@ namespace DockerfileModel.Tests
                             token => ValidateQuotableAggregate<LiteralToken>(token, "\"ec`\nh`\"o `test\"", null,
                                 token => ValidateString(token, "\"ec"),
                                 token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                    token => ValidateSymbol(token, "`"),
+                                    token => ValidateSymbol(token, '`'),
                                     token => ValidateNewLine(token, "\n")),
                                 token => ValidateString(token, "h`\"o `test\"")))
                     }
-                }
+                },
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN --mount=type=secret,id=id echo hello",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateAggregate<KeyValueToken<Mount>>(token, "mount=type=secret,id=id",
+                                token => ValidateKeyword(token, "mount"),
+                                token => ValidateSymbol(token, '='),
+                                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                                    token => ValidateKeyValue(token, "type", "secret"),
+                                    token => ValidateSymbol(token, ','),
+                                    token => ValidateKeyValue(token, "id", "id")))),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                            token => ValidateLiteral(token, "echo hello"))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("RUN", result.InstructionName);
+                        Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
+                        Assert.Equal("echo hello", result.Command.ToString());
+                        Assert.IsType<ShellFormRunCommand>(result.Command);
+                        ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
+                        Assert.Equal("echo hello", cmd.Value);
+
+                        Assert.Single(result.MountFlags);
+                        Assert.IsType<SecretMount>(result.MountFlags.First().Mount);
+                        Assert.Equal("--mount=type=secret,id=id", result.MountFlags.First().ToString());
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN `\n --mount=type=secret,id=id `\n echo hello",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, '`', "\n"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateAggregate<KeyValueToken<Mount>>(token, "mount=type=secret,id=id",
+                                token => ValidateKeyword(token, "mount"),
+                                token => ValidateSymbol(token, '='),
+                                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                                    token => ValidateKeyValue(token, "type", "secret"),
+                                    token => ValidateSymbol(token, ','),
+                                    token => ValidateKeyValue(token, "id", "id")))),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, '`', "\n"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                            token => ValidateLiteral(token, "echo hello"))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("RUN", result.InstructionName);
+                        Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
+                        Assert.Equal("echo hello", result.Command.ToString());
+                        Assert.IsType<ShellFormRunCommand>(result.Command);
+                        ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
+                        Assert.Equal("echo hello", cmd.Value);
+
+                        Assert.Single(result.MountFlags);
+                        Assert.IsType<SecretMount>(result.MountFlags.First().Mount);
+                        Assert.Equal("--mount=type=secret,id=id", result.MountFlags.First().ToString());
+                    }
+                },
             };
 
             return testInputs.Select(input => new object[] { input });
@@ -257,10 +335,10 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ExecFormRunCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
                             token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
-                            token => ValidateSymbol(token, ","),
+                            token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
-                            token => ValidateSymbol(token, ","),
+                            token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote))
                     }

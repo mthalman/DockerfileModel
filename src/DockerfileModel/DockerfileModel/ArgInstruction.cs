@@ -10,7 +10,7 @@ namespace DockerfileModel
 {
     public class ArgInstruction : InstructionBase
     {
-        private const string AssignmentOperator = "=";
+        private const char AssignmentOperator = '=';
 
         private ArgInstruction(string text, char escapeChar)
             : base(text, GetParser(escapeChar))
@@ -38,7 +38,7 @@ namespace DockerfileModel
         }
 
         public bool HasAssignmentOperator =>
-            Tokens.OfType<SymbolToken>().Where(token => token.Value == AssignmentOperator).Any();
+            Tokens.OfType<SymbolToken>().Where(token => token.Value == AssignmentOperator.ToString()).Any();
 
         public string? ArgValue
         {

@@ -58,7 +58,7 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> ExecFormArgDelimiter(char escapeChar) =>
             from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
-            from comma in Symbol(",").AsEnumerable()
+            from comma in Symbol(',').AsEnumerable()
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
                 leading,
@@ -67,9 +67,9 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> ExecFormArg(char escapeChar) =>
             from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
-            from openingQuote in Symbol(DoubleQuote.ToString())
+            from openingQuote in Symbol(DoubleQuote)
             from argValue in ArgTokens(LiteralToken(escapeChar, new char[] { DoubleQuote }).AsEnumerable(), escapeChar).Many()
-            from closingQuote in Symbol(DoubleQuote.ToString())
+            from closingQuote in Symbol(DoubleQuote)
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
                 leading,

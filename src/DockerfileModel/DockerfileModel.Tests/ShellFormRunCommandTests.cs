@@ -86,10 +86,10 @@ namespace DockerfileModel.Tests
                         token => ValidateQuotableAggregate<LiteralToken>(token, "echo `\n#test comment\nhello", null,
                             token => ValidateString(token, "echo "),
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                token => ValidateSymbol(token, "`"),
+                                token => ValidateSymbol(token, '`'),
                                 token => ValidateNewLine(token, "\n")),
                             token => ValidateAggregate<CommentToken>(token, "#test comment\n",
-                                token => ValidateSymbol(token, "#"),
+                                token => ValidateSymbol(token, '#'),
                                 token => ValidateString(token, "test comment"),
                                 token => ValidateNewLine(token, "\n")),
                             token => ValidateString(token, "hello"))
@@ -110,7 +110,7 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<LiteralToken>(token, "ec`\nho `test",
                             token => ValidateString(token, "ec"),
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                token => ValidateSymbol(token, "`"),
+                                token => ValidateSymbol(token, '`'),
                                 token => ValidateNewLine(token, "\n")),
                             token => ValidateString(token, "ho `test"))
                     }
@@ -124,7 +124,7 @@ namespace DockerfileModel.Tests
                         token => ValidateQuotableAggregate<LiteralToken>(token, "\"ec`\nh`\"o `test\"", null,
                             token => ValidateString(token, "\"ec"),
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                token => ValidateSymbol(token, "`"),
+                                token => ValidateSymbol(token, '`'),
                                 token => ValidateNewLine(token, "\n")),
                             token => ValidateString(token, "h`\"o `test\""))
                     }

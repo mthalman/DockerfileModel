@@ -40,7 +40,7 @@ namespace DockerfileModel
             from leading in Whitespace()
             from commentChar in CommentToken.CommentCharParser()
             from directive in TokenWithTrailingWhitespace(DirectiveNameParser())
-            from op in TokenWithTrailingWhitespace(Symbol("="))
+            from op in TokenWithTrailingWhitespace(Symbol('='))
             from value in TokenWithTrailingWhitespace(DirectiveValueParser())
             select ConcatTokens(
                 leading,
