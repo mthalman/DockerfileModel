@@ -49,9 +49,9 @@ namespace DockerfileModel.Tests
                     Text = "#directive=value",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateSymbol(token, "#"),
+                        token => ValidateSymbol(token, '#'),
                         token => ValidateKeyword(token, "directive"),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "value")
                     },
                     Validate = result =>
@@ -70,11 +70,11 @@ namespace DockerfileModel.Tests
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateSymbol(token, "#"),
+                        token => ValidateSymbol(token, '#'),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "directive"),
                         token => ValidateWhitespace(token, "   "),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "value"),
                         token => ValidateWhitespace(token, "  "),
@@ -109,9 +109,9 @@ namespace DockerfileModel.Tests
                     Value = "value",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateSymbol(token, "#"),
+                        token => ValidateSymbol(token, '#'),
                         token => ValidateKeyword(token, "directive"),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "value")
                     },
                     Validate = result =>
@@ -130,11 +130,11 @@ namespace DockerfileModel.Tests
                     Value = " value  ",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateSymbol(token, "#"),
+                        token => ValidateSymbol(token, '#'),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "directive"),
                         token => ValidateWhitespace(token, "   "),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "value"),
                         token => ValidateWhitespace(token, "  "),

@@ -90,7 +90,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateNewLine(token, "\n"),
                         token => ValidateAggregate<CommentToken>(token, "#comment\n",
-                            token => ValidateSymbol(token, "#"),
+                            token => ValidateSymbol(token, '#'),
                             token => ValidateString(token, "comment"),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateWhitespace(token, " "),

@@ -91,7 +91,7 @@ namespace DockerfileModel
                         this.TokenList.InsertRange(0, new Token[]
                         {
                             token,
-                            new SymbolToken("/")
+                            new SymbolToken('/')
                         });
                     },
                     removeToken: _ =>
@@ -156,7 +156,7 @@ namespace DockerfileModel
                         this.tagToken = token;
                         this.TokenList.AddRange(new Token[]
                         {
-                            new SymbolToken(":"),
+                            new SymbolToken(':'),
                             token
                         });
                     },
@@ -205,7 +205,7 @@ namespace DockerfileModel
                         this.digestToken = token;
                         this.TokenList.AddRange(new Token[]
                         {
-                            new SymbolToken("@"),
+                            new SymbolToken('@'),
                             token
                         });
                     },
@@ -230,7 +230,7 @@ namespace DockerfileModel
 
             private static Parser<IEnumerable<Token>> RegistryRepository() =>
                 (from registry in Registry()
-                 from separator in Symbol("/")
+                 from separator in Symbol('/')
                  from repository in Repository()
                  select ConcatTokens(
                      registry,
@@ -240,14 +240,14 @@ namespace DockerfileModel
                 select new Token[] { repository });
 
             private static Parser<IEnumerable<Token>> Tag() =>
-                from separator in Symbol(":")
+                from separator in Symbol(':')
                 from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, NonWhitespace())
                 select ConcatTokens(
                     separator,
                     new TagToken(tag));
 
             private static Parser<IEnumerable<Token>> Digest() =>
-                from digestSeparator in Symbol("@")
+                from digestSeparator in Symbol('@')
                 from prefix in Sprache.Parse.String("sha")
                 from digits in Sprache.Parse.Digit.Many().Text()
                 from shaSeparator in Sprache.Parse.Char(':')

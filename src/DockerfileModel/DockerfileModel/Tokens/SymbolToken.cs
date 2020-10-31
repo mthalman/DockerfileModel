@@ -2,7 +2,7 @@
 {
     public class SymbolToken : PrimitiveToken
     {
-        public SymbolToken(string value) : base(value)
+        public SymbolToken(char value) : base(value.ToString())
         {
         }
     }

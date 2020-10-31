@@ -11,11 +11,6 @@ namespace DockerfileModel
         {
         }
 
-        protected DockerfileConstruct(string text, Parser<Token> parser)
-            : base(text, parser)
-        {
-        }
-
         public abstract ConstructType Type { get; }
     }
 }

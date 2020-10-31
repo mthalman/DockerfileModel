@@ -7,16 +7,21 @@ namespace DockerfileModel.Tests
 {
     public static class TokenValidator
     {
+        public static void ValidateLineContinuation(Token token, char escapeChar, string newLine) =>
+            ValidateAggregate<LineContinuationToken>(token, $"{escapeChar}{newLine}",
+                token => ValidateSymbol(token, escapeChar),
+                token => ValidateNewLine(token, newLine));
+
         public static void ValidateWhitespace(Token token, string whitespace)
         {
             Assert.IsType<WhitespaceToken>(token);
             Assert.Equal(whitespace, ((WhitespaceToken)token).Value);
         }
 
-        public static void ValidateSymbol(Token token, string symbol)
+        public static void ValidateSymbol(Token token, char symbol)
         {
             Assert.IsType<SymbolToken>(token);
-            Assert.Equal(symbol, ((SymbolToken)token).Value);
+            Assert.Equal(symbol.ToString(), ((SymbolToken)token).Value);
         }
 
         public static void ValidateString(Token token, string value)
@@ -29,6 +34,12 @@ namespace DockerfileModel.Tests
         public static void ValidateKeyword(Token token, string keyword) =>
             ValidateAggregate<KeywordToken>(token, keyword,
                 token => ValidateString(token, keyword));
+
+        public static void ValidateKeyValue(Token token, string key, string value) =>
+            ValidateAggregate<KeyValueToken<LiteralToken>>(token, $"{key}={value}",
+                token => ValidateKeyword(token, key),
+                token => ValidateSymbol(token, '='),
+                token => ValidateLiteral(token, value));
 
         public static void ValidateLiteral(Token token, string literal, char? quoteChar = null)
         {

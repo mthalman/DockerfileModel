@@ -147,7 +147,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                            token => ValidateSymbol(token, "`"),
+                            token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateIdentifier(token, "MYARG")
                     },
@@ -167,7 +167,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MYARG"),
-                        token => ValidateSymbol(token, "=")
+                        token => ValidateSymbol(token, '=')
                     },
                     Validate = result =>
                     {
@@ -186,16 +186,16 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                            token => ValidateSymbol(token, "`"),
+                            token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateAggregate<CommentToken>(token, "# my comment\n",
-                            token => ValidateSymbol(token, "#"),
+                            token => ValidateSymbol(token, '#'),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateString(token, "my comment"),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateWhitespace(token, "  "),
                         token => ValidateIdentifier(token, "MYARG"),
-                        token => ValidateSymbol(token, "=")
+                        token => ValidateSymbol(token, '=')
                     },
                     Validate = result =>
                     {
@@ -214,7 +214,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "myarg"),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "1")
                     },
                     Validate = result =>
@@ -234,10 +234,10 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                            token => ValidateSymbol(token, "`"),
+                            token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateIdentifier(token, "MYARG"),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "test", '\"')
                     },
                     Validate = result =>
@@ -275,7 +275,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG", '\"'),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "value", '\''),
                     },
                     Validate = result =>
@@ -295,7 +295,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY`\"_ARG", '\"'),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "va`'lue", '\''),
                     },
                     Validate = result =>
@@ -315,7 +315,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG"),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "va`'lue"),
                     },
                     Validate = result =>
@@ -334,7 +334,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "MY_ARG"),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "", '\'')
                     },
                     Validate = result =>
@@ -409,7 +409,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "TEST1"),
-                        token => ValidateSymbol(token, "="),
+                        token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "b")
                     }
                 },
@@ -422,7 +422,7 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateIdentifier(token, "TEST1"),
-                        token => ValidateSymbol(token, "=")
+                        token => ValidateSymbol(token, '=')
                     }
                 }
             };

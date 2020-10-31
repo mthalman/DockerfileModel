@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Sprache;
-using Validation;
 
 namespace DockerfileModel.Tokens
 {
@@ -29,7 +28,15 @@ namespace DockerfileModel.Tokens
             set => ((PrimitiveToken)this.Tokens.First()).Value = value;
         }
 
-        public string? Modifier => this.Tokens.OfType<SymbolToken>().FirstOrDefault()?.Value;
+        public string? Modifier
+        {
+            get
+            {
+                string modifier = String.Concat(this.Tokens.OfType<SymbolToken>().Select(token => token.Value));
+                return modifier.Length > 0 ? modifier : null;
+            }
+        }
+
         public string? ModifierValue => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());
 
         private VariableModifierValue? ModifierValueToken => this.Tokens.OfType<VariableModifierValue>().FirstOrDefault();
@@ -119,26 +126,6 @@ namespace DockerfileModel.Tokens
             if (this.TokenList.Count > 1)
             {
                 this.TokenList.RemoveRange(1, 2);
-            }
-        }
-
-        public void SetVariableModifier(string modifier, string modifierValue)
-        {
-            Requires.NotNull(modifier, nameof(modifier));
-            Requires.NotNull(modifierValue, nameof(modifierValue));
-            Requires.That(ValidModifiers.Contains(modifier), nameof(modifier), $"'{modifier}' is not a valid modifier.");
-
-            SymbolToken modifierToken = new SymbolToken(modifier);
-            StringToken modifierValueToken = new StringToken(modifierValue);
-            if (this.TokenList.Count > 1)
-            {
-                this.TokenList[1] = modifierToken;
-                this.TokenList[2] = modifierValueToken;
-            }
-            else
-            {
-                this.TokenList.Add(modifierToken);
-                this.TokenList.Add(modifierValueToken);
             }
         }
     }
