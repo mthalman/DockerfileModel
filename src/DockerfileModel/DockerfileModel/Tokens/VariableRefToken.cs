@@ -1,53 +1,127 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Sprache;
+using Validation;
+using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel.Tokens
 {
     public class VariableRefToken : AggregateToken
     {
-        public static readonly string[] ValidModifiers = new string[] { ":-", ":+", ":?", "-", "+", "?" };
+        private static readonly string[] ValidModifiers = new string[] { ":-", ":+", ":?", "-", "+", "?" };
 
-        public VariableRefToken(IEnumerable<Token> tokens) : base(tokens)
+        /// <summary>
+        /// Parsers for all of the variable substitution modifiers.
+        /// </summary>
+        private static readonly Parser<string>[] variableSubstitutionModifiers =
+            ValidModifiers
+                .Select(modifier => Sprache.Parse.String(modifier).Text())
+                .ToArray();
+
+        private VariableRefToken(string text, char escapeChar, CreateTokenParserDelegate createModifierValueToken)
+            : base(text, GetInnerParser(escapeChar, createModifierValueToken))
         {
         }
 
-        public VariableRefToken(string text, Parser<IEnumerable<Token?>> parser) : base(text, parser)
+        private VariableRefToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
-        public VariableRefToken(string text, Parser<Token> parser) : base(text, parser)
-        {
-        }
-
-        public bool WrappedInBraces { get; internal set; }
         public string VariableName
         {
-            get => ((PrimitiveToken)this.Tokens.First()).Value;
-            set => ((PrimitiveToken)this.Tokens.First()).Value = value;
+            get => VariableNameToken.Value;
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                VariableNameToken.Value = value;
+            }
+        }
+
+        public StringToken VariableNameToken
+        {
+            get => Tokens.OfType<StringToken>().First();
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                SetToken(VariableNameToken, value);
+            }
         }
 
         public string? Modifier
         {
             get
             {
-                string modifier = String.Concat(this.Tokens.OfType<SymbolToken>().Select(token => token.Value));
+                string modifier = String.Concat(ModifierTokens.Select(token => token.Value));
                 return modifier.Length > 0 ? modifier : null;
+            }
+            set
+            {
+                foreach (SymbolToken modifierToken in ModifierTokens.ToArray())
+                {
+                    TokenList.Remove(modifierToken);
+                }
+
+                if (!String.IsNullOrEmpty(value))
+                {
+                    TokenList.InsertRange(
+                        TokenList.IndexOf(VariableNameToken) + 1,
+                        value.Select(ch => new SymbolToken(ch)));
+                }
+                else
+                {
+                    ModifierValueToken = null;
+                }
             }
         }
 
-        public string? ModifierValue => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());
+        public IEnumerable<SymbolToken> ModifierTokens =>
+            this.Tokens
+                .OfType<SymbolToken>()
+                .Where(token => token.Value != "{" && token.Value != "}");
 
-        private VariableModifierValue? ModifierValueToken => this.Tokens.OfType<VariableModifierValue>().FirstOrDefault();
+        public string? ModifierValue
+        {
+            get => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());
+            set
+            {
+                LiteralToken? modifierValueToken = ModifierValueToken;
+                if (modifierValueToken is not null && value is not null)
+                {
+                    modifierValueToken.Value = value;
+                }
+                else
+                {
+                    ModifierValueToken = String.IsNullOrEmpty(value) ? null : new LiteralToken(value!);
+                }
+            }
+        }
+
+        public LiteralToken? ModifierValueToken
+        {
+            get => this.Tokens.OfType<LiteralToken>().FirstOrDefault();
+            set
+            {
+                SetToken(ModifierValueToken, value,
+                    addToken: token =>
+                    {
+                        TokenList.Insert(
+                            ModifierTokens.Any() ?
+                                TokenList.IndexOf(ModifierTokens.Last()) + 1 :
+                                TokenList.IndexOf(VariableNameToken) + 1,
+                            token);
+                    },
+                    removeToken: token =>
+                    {
+                        TokenList.Remove(token);
+                        Modifier = null;
+                    });
+            }
+        }
 
         protected override string GetUnderlyingValue(TokenStringOptions options)
         {
-            if (WrappedInBraces)
-            {
-                return $"${{{base.GetUnderlyingValue(options)}}}";
-            }
-
             return $"${base.GetUnderlyingValue(options)}";
         }
 
@@ -121,19 +195,80 @@ namespace DockerfileModel.Tokens
             return value;
         }
 
-        public void ClearVariableModifier()
+        public static VariableRefToken Create(string variableName, bool includeBraces = false)
         {
-            if (this.TokenList.Count > 1)
+            StringBuilder builder = new StringBuilder("$");
+            if (includeBraces)
             {
-                this.TokenList.RemoveRange(1, 2);
+                builder.Append("{");
             }
-        }
-    }
+            builder.Append(variableName);
+            if (includeBraces)
+            {
+                builder.Append("}");
+            }
 
-    public class VariableModifierValue : AggregateToken
-    {
-        public VariableModifierValue(IEnumerable<Token> tokens) : base(tokens)
-        {
+            return Parse(builder.ToString(), Instruction.DefaultEscapeChar);
         }
+
+        public static VariableRefToken Create(string variableName, string modifier, string modifierValue) =>
+            Parse($"${{{variableName}{modifier}{modifierValue}}}", Instruction.DefaultEscapeChar);
+
+        public static VariableRefToken Parse(string text, char escapeChar) =>
+            new VariableRefToken(text, escapeChar, (char escapeChar, IEnumerable<char> excludedChars) =>
+                LiteralString(escapeChar, excludedChars));
+
+        /// <summary>
+        /// Parses a variable reference.
+        /// </summary>
+        /// <typeparam name="TPrimitiveToken">Type of the token for the variable.</typeparam>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="createModifierValueTokenParser">Delegate to create tokens nested within a modifier value.</param>
+        /// <returns>Parsed variable reference token.</returns>
+        public static Parser<VariableRefToken> GetParser(
+            char escapeChar, CreateTokenParserDelegate createModifierValueTokenParser) =>
+            from tokens in GetInnerParser(escapeChar, createModifierValueTokenParser)
+            select new VariableRefToken(tokens);
+
+        private static Parser<IEnumerable<Token>> GetInnerParser(
+            char escapeChar,
+            CreateTokenParserDelegate createModifierValueTokenParser) =>
+            SimpleVariableReference()
+                .Or(BracedVariableReference(escapeChar, createModifierValueTokenParser));
+
+        /// <summary>
+        /// Parses a variable reference using the simple variable syntax.
+        /// </summary>
+        /// <returns>Parsed variable reference token.</returns>
+        private static Parser<IEnumerable<Token>> SimpleVariableReference() =>
+            from variableChar in Sprache.Parse.Char('$')
+            from variableIdentifier in VariableIdentifier()
+            select new Token[] { new StringToken(variableIdentifier) };
+
+        /// <summary>
+        /// Parses a variable reference using the braced variable syntax.
+        /// </summary>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="createModifierValueToken">Delegate to create a non-quoted token.</param>
+        /// <returns>Parsed variable reference token.</returns>
+        private static Parser<IEnumerable<Token>> BracedVariableReference(
+            char escapeChar, CreateTokenParserDelegate createModifierValueToken) =>
+            from variableChar in Sprache.Parse.Char('$')
+            from opening in Symbol('{').AsEnumerable()
+            from varNameToken in
+                from varName in VariableIdentifier()
+                select new StringToken(varName)
+            from modifierTokens in (
+                from modifier in OrConcat(variableSubstitutionModifiers).Once()
+                from modifierValueTokens in ValueOrVariableRef(escapeChar, createModifierValueToken, new char[] { '}' })
+                    .AtLeastOnce()
+                    .Flatten()
+                    .Where(tokens => tokens.Any())
+                select ConcatTokens(
+                    String.Concat(modifier).Select(ch => new SymbolToken(ch)),
+                    new Token[] { new LiteralToken(modifierValueTokens) })
+                ).Optional()
+            from closing in Symbol('}').AsEnumerable()
+            select ConcatTokens(opening, new Token[] { varNameToken }, modifierTokens.GetOrDefault(), closing);
     }
 }

@@ -21,13 +21,15 @@ namespace DockerfileModel
 
         public Mount Mount
         {
-            get => Tokens.OfType<KeyValueToken<Mount>>().First().ValueToken;
+            get => MountKeyValueToken.ValueToken;
             set
             {
                 Requires.NotNull(value, nameof(value));
-                SetToken(Mount, value);
+                MountKeyValueToken.ValueToken = value;
             }
         }
+
+        private KeyValueToken<Mount> MountKeyValueToken => Tokens.OfType<KeyValueToken<Mount>>().First();
 
         public static MountFlag Create(Mount mount) =>
             Parse($"--mount={mount}", Instruction.DefaultEscapeChar);
