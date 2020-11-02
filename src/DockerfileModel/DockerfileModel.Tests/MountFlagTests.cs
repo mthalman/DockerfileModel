@@ -40,6 +40,22 @@ namespace DockerfileModel.Tests
             scenario.Validate?.Invoke(result);
         }
 
+        [Fact]
+        public void Mount()
+        {
+            SecretMount mount = SecretMount.Create("foo");
+            MountFlag flag = MountFlag.Create(mount);
+
+            Assert.Equal("--mount=type=secret,id=foo", flag.ToString());
+            Assert.Equal(mount.ToString(), flag.Mount.ToString());
+
+            mount = SecretMount.Create("test");
+            flag.Mount = mount;
+
+            Assert.Equal("--mount=type=secret,id=test", flag.ToString());
+            Assert.Equal(mount.ToString(), flag.Mount.ToString());
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             MountFlagParseTestScenario[] testInputs = new MountFlagParseTestScenario[]

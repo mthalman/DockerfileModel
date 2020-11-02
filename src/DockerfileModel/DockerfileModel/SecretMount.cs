@@ -96,7 +96,7 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar)
         {
             Parser<LiteralToken> valueParser = LiteralAggregate(
-                escapeChar, tokens => new LiteralToken(tokens), new char[] { ',' });
+                escapeChar, new char[] { ',' });
 
             return from type in KeyValueToken<LiteralToken>.GetParser("type", escapeChar, valueParser).AsEnumerable()
                    from comma in CharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char(','), ch => new SymbolToken(ch))

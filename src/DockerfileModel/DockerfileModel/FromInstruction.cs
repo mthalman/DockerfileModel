@@ -163,6 +163,6 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
             ArgTokens(
-                LiteralAggregate(escapeChar, tokens => new LiteralToken(tokens)).AsEnumerable(), escapeChar);
+                LiteralAggregate(escapeChar).AsEnumerable(), escapeChar);
     }
 }

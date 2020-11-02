@@ -68,7 +68,7 @@ namespace DockerfileModel.Tokens
         {
             if (valueTokenParser is null)
             {
-                valueTokenParser = LiteralAggregate(escapeChar, tokens => new LiteralToken(tokens));
+                valueTokenParser = LiteralAggregate(escapeChar);
             }
 
             return from keyword in Keyword(key, escapeChar).AsEnumerable()

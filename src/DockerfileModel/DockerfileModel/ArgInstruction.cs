@@ -121,7 +121,7 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
             from assignment in Symbol(AssignmentOperator)
-            from value in LiteralAggregate(escapeChar, tokens => new LiteralToken(tokens)).Optional()
+            from value in LiteralAggregate(escapeChar).Optional()
             select ConcatTokens(
                 assignment,
                 value.GetOrDefault());
