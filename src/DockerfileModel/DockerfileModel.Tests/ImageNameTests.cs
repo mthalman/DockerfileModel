@@ -14,6 +14,7 @@ namespace DockerfileModel.Tests
         [InlineData("repo1:tag1", null, "repo1", "tag1", null)]
         [InlineData("repo1@" + TestSha, null, "repo1", null, TestSha)]
         [InlineData("docker.io/library/image@" + TestSha, "docker.io", "library/image", null, TestSha)]
+        [InlineData("my-registry.com/r_e-po1:tag.1", "my-registry.com", "r_e-po1", "tag.1", null)]
         public void Parse(string input, string expectedRegistry, string expectedRepository, string expectedTag, string expectedDigest)
         {
             ImageName result = ImageName.Parse(input);
