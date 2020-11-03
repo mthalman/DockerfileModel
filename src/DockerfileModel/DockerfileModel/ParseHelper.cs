@@ -87,11 +87,14 @@ namespace DockerfileModel
         /// <summary>
         /// Parses identifiers, delimited by a character.
         /// </summary>
+        /// <param name="firstCharParser">Parser for the first character of the identifier.</param>
+        /// <param name="tailCharParser">Parser for the rest of the characters of the identifier.</param>
         /// <param name="delimiter">Character which delimits segments of the string.</param>
         /// <param name="minimumDelimiters">Minimum number of delimiter characters that must exist in the string.</param>
         /// <returns>Delimited identifiers.</returns>
-        public static Parser<string> DelimitedIdentifier(char delimiter, int minimumDelimiters = 0) =>
-            from segments in Parse.Identifier(Parse.LetterOrDigit, Parse.LetterOrDigit).Many().DelimitedBy(Parse.Char(delimiter))
+        public static Parser<string> DelimitedIdentifier(
+            Parser<char> firstCharParser, Parser<char> tailCharParser, char delimiter, int minimumDelimiters = 0) =>
+            from segments in Parse.Identifier(firstCharParser, tailCharParser).Many().DelimitedBy(Parse.Char(delimiter))
             where (segments.Count() > minimumDelimiters)
             select String.Join(delimiter.ToString(), segments.SelectMany(segment => segment).ToArray());
 

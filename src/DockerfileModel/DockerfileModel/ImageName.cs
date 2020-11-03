@@ -220,12 +220,22 @@ namespace DockerfileModel
 
         private static class ImageNameParser
         {
+            public static Parser<IEnumerable<Token>> GetParser() =>
+                from registryRepository in RegistryRepository()
+                from tagDigest in TagDigest().Optional()
+                select ConcatTokens(
+                    registryRepository, tagDigest.IsDefined ? tagDigest.GetOrDefault() : Enumerable.Empty<Token?>());
+
             private static Parser<Token> Registry() =>
-                from identifier in DelimitedIdentifier('.', minimumDelimiters: 1)
+                from identifier in DelimitedIdentifier(
+                    Sprache.Parse.LetterOrDigit,
+                    NameComponentChar().Except(Sprache.Parse.Char('.')),
+                    '.',
+                    minimumDelimiters: 1)
                 select new RegistryToken(identifier);
 
             private static Parser<Token> Repository() =>
-                from identifier in DelimitedIdentifier('/')
+                from identifier in DelimitedIdentifier(Sprache.Parse.LetterOrDigit, NameComponentChar(), '/')
                 select new RepositoryToken(identifier);
 
             private static Parser<IEnumerable<Token>> RegistryRepository() =>
@@ -241,7 +251,7 @@ namespace DockerfileModel
 
             private static Parser<IEnumerable<Token>> Tag() =>
                 from separator in Symbol(':')
-                from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, NonWhitespace())
+                from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, NameComponentChar())
                 select ConcatTokens(
                     separator,
                     new TagToken(tag));
@@ -262,11 +272,11 @@ namespace DockerfileModel
                     from digest in Digest()
                     select digest);
 
-            public static Parser<IEnumerable<Token>> GetParser() =>
-                from registryRepository in RegistryRepository()
-                from tagDigest in TagDigest().Optional()
-                select ConcatTokens(
-                    registryRepository, tagDigest.IsDefined ? tagDigest.GetOrDefault() : Enumerable.Empty<Token?>());
+            private static Parser<char> NameComponentChar() =>
+                Sprache.Parse.LetterOrDigit
+                    .Or(Sprache.Parse.Char('.'))
+                    .Or(Sprache.Parse.Char('_'))
+                    .Or(Sprache.Parse.Char('-'));
         }
     }
 
