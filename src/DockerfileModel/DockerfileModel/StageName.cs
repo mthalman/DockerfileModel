@@ -52,8 +52,8 @@ namespace DockerfileModel
 
         public IEnumerable<CommentToken> CommentTokens => GetCommentTokens();
 
-        public static StageName Create(string stageName) =>
-            Parse($"AS {stageName}", Instruction.DefaultEscapeChar);
+        public static StageName Create(string stageName, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse($"AS {stageName}", escapeChar);
 
         public static StageName Parse(string text, char escapeChar) =>
             new StageName(text, escapeChar);

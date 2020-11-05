@@ -55,7 +55,7 @@ namespace DockerfileModel.Tokens
         }
 
         public static KeyValueToken<LiteralToken> Create(string key, string value) =>
-            Parse($"{key}={value}", Instruction.DefaultEscapeChar, key);
+            Parse($"{key}={value}", Dockerfile.DefaultEscapeChar, key);
 
         public static KeyValueToken<LiteralToken> Parse(string text, char escapeChar, string key) =>
             new KeyValueToken<LiteralToken>(text, escapeChar, key);

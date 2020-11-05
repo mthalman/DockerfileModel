@@ -31,8 +31,8 @@ namespace DockerfileModel
 
         private KeyValueToken<Mount> MountKeyValueToken => Tokens.OfType<KeyValueToken<Mount>>().First();
 
-        public static MountFlag Create(Mount mount) =>
-            Parse($"--mount={mount}", Instruction.DefaultEscapeChar);
+        public static MountFlag Create(Mount mount, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse($"--mount={mount}", escapeChar);
 
         public static MountFlag Parse(string text, char escapeChar) =>
             new MountFlag(text, escapeChar);

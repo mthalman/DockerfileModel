@@ -37,7 +37,7 @@ namespace DockerfileModel
         public static Dockerfile ParseContent(string text)
         {
             bool parserDirectivesComplete = false;
-            char escapeChar = Instruction.DefaultEscapeChar;
+            char escapeChar = Dockerfile.DefaultEscapeChar;
 
             List<DockerfileConstruct> dockerfileConstructs = new List<DockerfileConstruct>();
 

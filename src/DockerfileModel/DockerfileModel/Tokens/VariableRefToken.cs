@@ -208,11 +208,11 @@ namespace DockerfileModel.Tokens
                 builder.Append("}");
             }
 
-            return Parse(builder.ToString(), Instruction.DefaultEscapeChar);
+            return Parse(builder.ToString(), Dockerfile.DefaultEscapeChar);
         }
 
         public static VariableRefToken Create(string variableName, string modifier, string modifierValue) =>
-            Parse($"${{{variableName}{modifier}{modifierValue}}}", Instruction.DefaultEscapeChar);
+            Parse($"${{{variableName}{modifier}{modifierValue}}}", Dockerfile.DefaultEscapeChar);
 
         public static VariableRefToken Parse(string text, char escapeChar) =>
             new VariableRefToken(text, escapeChar, (char escapeChar, IEnumerable<char> excludedChars) =>

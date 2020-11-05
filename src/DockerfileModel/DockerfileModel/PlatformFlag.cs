@@ -39,8 +39,8 @@ namespace DockerfileModel
             }
         }
 
-        public static PlatformFlag Create(string platform) =>
-            Parse($"--platform={platform}", Instruction.DefaultEscapeChar);
+        public static PlatformFlag Create(string platform, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse($"--platform={platform}", escapeChar);
 
         public static PlatformFlag Parse(string text, char escapeChar) =>
             new PlatformFlag(text, escapeChar);

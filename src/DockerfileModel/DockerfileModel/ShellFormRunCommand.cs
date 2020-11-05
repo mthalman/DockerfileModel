@@ -19,8 +19,8 @@ namespace DockerfileModel
         {
         }
 
-        public static ShellFormRunCommand Create(string command) =>
-            Parse(command, Instruction.DefaultEscapeChar);
+        public static ShellFormRunCommand Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse(command, escapeChar);
 
         public static ShellFormRunCommand Parse(string text, char escapeChar) =>
             new ShellFormRunCommand(text, escapeChar);

@@ -125,7 +125,8 @@ namespace DockerfileModel
         public static FromInstruction Parse(string text, char escapeChar) =>
             new FromInstruction(text, escapeChar);
 
-        public static FromInstruction Create(string imageName, string? stageName = null, string? platform = null)
+        public static FromInstruction Create(string imageName, string? stageName = null, string? platform = null,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             StringBuilder builder = new StringBuilder("FROM ");
             if (platform != null)
@@ -140,7 +141,7 @@ namespace DockerfileModel
                 builder.Append($" AS {stageName}");
             }
 
-            return Parse(builder.ToString(), Instruction.DefaultEscapeChar);
+            return Parse(builder.ToString(), escapeChar);
         }
 
         public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>

@@ -18,8 +18,8 @@ namespace DockerfileModel
         {
         }
 
-        public static ExecFormRunCommand Create(IEnumerable<string> commands) =>
-            Parse(FormatCommands(commands), Instruction.DefaultEscapeChar);
+        public static ExecFormRunCommand Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse(FormatCommands(commands), escapeChar);
 
         public static ExecFormRunCommand Parse(string text, char escapeChar) =>
             new ExecFormRunCommand(text, escapeChar);
