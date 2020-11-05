@@ -78,6 +78,7 @@ namespace DockerfileModel
         public static SecretMount Create(string id, string? destinationPath = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
         {
+            Requires.NotNullOrEmpty(id, nameof(id));
             string? destinationSegment = null;
             if (!String.IsNullOrEmpty(destinationPath))
             {

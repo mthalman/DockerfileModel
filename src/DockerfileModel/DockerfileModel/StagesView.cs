@@ -65,7 +65,7 @@ namespace DockerfileModel
 
     public class Stage : IConstructContainer
     {
-        public Stage(FromInstruction fromInstruction, IEnumerable<DockerfileConstruct> items)
+        internal Stage(FromInstruction fromInstruction, IEnumerable<DockerfileConstruct> items)
         {
             FromInstruction = fromInstruction;
             Items = items;

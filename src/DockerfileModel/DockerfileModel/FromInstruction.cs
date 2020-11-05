@@ -128,6 +128,8 @@ namespace DockerfileModel
         public static FromInstruction Create(string imageName, string? stageName = null, string? platform = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
         {
+            Requires.NotNullOrEmpty(imageName, nameof(imageName));
+
             StringBuilder builder = new StringBuilder("FROM ");
             if (platform != null)
             {
