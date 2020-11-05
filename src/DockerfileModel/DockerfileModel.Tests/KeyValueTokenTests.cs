@@ -18,7 +18,7 @@ namespace DockerfileModel.Tests
             if (scenario.ParseExceptionPosition is null)
             {
                 KeyValueToken<LiteralToken> result = KeyValueToken<LiteralToken>.Parse(
-                    scenario.Text, scenario.EscapeChar, scenario.Key);
+                    scenario.Text, scenario.Key, scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);

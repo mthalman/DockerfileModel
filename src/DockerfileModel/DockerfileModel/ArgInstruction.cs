@@ -91,7 +91,7 @@ namespace DockerfileModel
             }
         }
 
-        public static ArgInstruction Parse(string text, char escapeChar) =>
+        public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new ArgInstruction(text, escapeChar);
 
         public static ArgInstruction Create(string argName, string? argValue = null,
@@ -108,7 +108,7 @@ namespace DockerfileModel
             return Parse(builder.ToString(), escapeChar);
         }
 
-        public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
+        public static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Instruction("ARG", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>

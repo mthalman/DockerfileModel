@@ -37,10 +37,10 @@ namespace DockerfileModel
             return Parse($"--mount={mount}", escapeChar);
         }
 
-        public static MountFlag Parse(string text, char escapeChar) =>
+        public static MountFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new MountFlag(text, escapeChar);
 
-        public static Parser<MountFlag> GetParser(char escapeChar) =>
+        public static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new MountFlag(tokens);
 

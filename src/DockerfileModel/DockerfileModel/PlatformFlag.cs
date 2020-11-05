@@ -45,10 +45,10 @@ namespace DockerfileModel
             return Parse($"--platform={platform}", escapeChar); ;
         }
 
-        public static PlatformFlag Parse(string text, char escapeChar) =>
+        public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new PlatformFlag(text, escapeChar);
 
-        public static Parser<PlatformFlag> GetParser(char escapeChar) =>
+        public static Parser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new PlatformFlag(tokens);
 

@@ -27,10 +27,10 @@ namespace DockerfileModel
 
         public IEnumerable<MountFlag> MountFlags => Tokens.OfType<MountFlag>();
 
-        public static RunInstruction Parse(string text, char escapeChar) =>
+        public static RunInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new RunInstruction(text, escapeChar);
 
-        public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
+        public static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Instruction("RUN", escapeChar,
                 GetArgsParser(escapeChar));
 

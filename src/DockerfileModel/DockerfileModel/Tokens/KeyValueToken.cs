@@ -9,7 +9,7 @@ namespace DockerfileModel.Tokens
     public class KeyValueToken<TValue> : AggregateToken
         where TValue : Token
     {
-        private KeyValueToken(string text, char escapeChar, string key)
+        private KeyValueToken(string text, string key, char escapeChar)
             : base(text, GetInnerParser(key, escapeChar))
         {
         }
@@ -46,13 +46,13 @@ namespace DockerfileModel.Tokens
             }
         }
 
-        public static KeyValueToken<LiteralToken> Create(string key, string value) =>
-            Parse($"{key}={value}", Dockerfile.DefaultEscapeChar, key);
+        public static KeyValueToken<LiteralToken> Create(string key, string value, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse($"{key}={value}", key, escapeChar);
 
-        public static KeyValueToken<LiteralToken> Parse(string text, char escapeChar, string key) =>
-            new KeyValueToken<LiteralToken>(text, escapeChar, key);
+        public static KeyValueToken<LiteralToken> Parse(string text, string key, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new KeyValueToken<LiteralToken>(text, key, escapeChar);
 
-        public static Parser<KeyValueToken<TValue>> GetParser(string key, char escapeChar, Parser<TValue>? valueTokenParser = null) =>
+        public static Parser<KeyValueToken<TValue>> GetParser(string key, char escapeChar = Dockerfile.DefaultEscapeChar, Parser<TValue>? valueTokenParser = null) =>
             from tokens in GetInnerParser(key, escapeChar, valueTokenParser)
             select new KeyValueToken<TValue>(tokens);
 
