@@ -12,7 +12,7 @@ namespace DockerfileModel
         {
         }
 
-        public string Text
+        public string? Text
         {
             get => TextToken.Text;
             set => TextToken.Text = value;

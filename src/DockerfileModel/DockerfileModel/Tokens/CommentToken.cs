@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Sprache;
-
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel.Tokens
@@ -18,11 +18,31 @@ namespace DockerfileModel.Tokens
         {
         }
 
-        public string Text
+        public string? Text
         {
-            get => this.Tokens.OfType<StringToken>().First().Value;
-            set => this.Tokens.OfType<StringToken>().First().Value = value;
+            get => TextToken?.Value;
+            set
+            {
+                StringToken? textToken = TextToken;
+                if (textToken != null && value is not null)
+                {
+                    textToken.Value = value;
+                }
+                else
+                {
+                    TextToken = value is null ? null : new StringToken(value!);
+                }
+            }
         }
+
+        public StringToken? TextToken
+        {
+            get => Tokens.OfType<StringToken>().FirstOrDefault();
+            set => SetToken(TextToken, value);
+        }
+
+        public static CommentToken Create(string comment) =>
+            Parse($"#{comment}");
 
         public static CommentToken Parse(string text) =>
             new CommentToken(text);
