@@ -64,9 +64,9 @@ namespace DockerfileModel.Tokens
             }
         }
 
-        protected IList<string> GetComments()
+        protected IList<string?> GetComments()
         {
-            return new StringWrapperList<CommentToken>(
+            return new ProjectedItemList<CommentToken, string?>(
                 GetCommentTokens(),
                 token => token.Text,
                 (token, value) => token.Text = value);
