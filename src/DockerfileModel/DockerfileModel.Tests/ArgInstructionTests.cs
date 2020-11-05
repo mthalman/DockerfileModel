@@ -78,6 +78,8 @@ namespace DockerfileModel.Tests
             Assert.Equal("", arg.ArgValueToken.Value);
             Assert.True(arg.HasAssignmentOperator);
 
+            arg.ArgValue = "foo";
+
             arg.ArgValue = null;
             Assert.Null(arg.ArgValue);
             Assert.Null(arg.ArgValueToken);

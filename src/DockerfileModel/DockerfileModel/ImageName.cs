@@ -292,16 +292,6 @@ namespace DockerfileModel
         public RepositoryToken(string value) : base(value)
         {
         }
-
-        public override string Value
-        {
-            get => base.Value;
-            set
-            {
-                Requires.NotNullOrWhiteSpace(value, nameof(value));
-                base.Value = value;
-            }
-        }
     }
 
     public class TagToken : IdentifierToken

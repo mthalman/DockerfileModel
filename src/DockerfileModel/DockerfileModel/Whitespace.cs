@@ -19,13 +19,13 @@ namespace DockerfileModel
             set
             {
                 WhitespaceToken? valueToken = ValueToken;
-                if (valueToken != null && value is not null)
+                if (valueToken != null && !String.IsNullOrEmpty(value))
                 {
-                    valueToken.Value = value;
+                    valueToken.Value = value!;
                 }
                 else
                 {
-                    ValueToken = value is null ? null : new WhitespaceToken(value!);
+                    ValueToken = String.IsNullOrEmpty(value) ? null : new WhitespaceToken(value!);
                 }
             }
         }

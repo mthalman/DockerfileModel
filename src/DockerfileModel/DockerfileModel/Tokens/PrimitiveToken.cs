@@ -1,13 +1,26 @@
-﻿namespace DockerfileModel.Tokens
+﻿using Validation;
+
+namespace DockerfileModel.Tokens
 {
     public abstract class PrimitiveToken : Token, IValueToken
     {
+        private string value;
+
         public PrimitiveToken(string value)
         {
-            this.Value = value;
+            Requires.NotNull(value, nameof(value));
+            this.value = value;
         }
 
-        public virtual string Value { get; set; }
+        public string Value
+        {
+            get => value;
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                this.value = value;
+            }
+        }
 
         protected override string GetUnderlyingValue(TokenStringOptions options) => Value;
     }

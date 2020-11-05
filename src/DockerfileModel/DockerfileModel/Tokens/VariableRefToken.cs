@@ -189,7 +189,14 @@ namespace DockerfileModel.Tokens
             
             if (options.UpdateInline)
             {
-                this.ReplaceWithToken(new StringToken(value));
+                if (String.IsNullOrEmpty(value))
+                {
+                    this.TokenList.Clear();
+                }
+                else
+                {
+                    this.ReplaceWithToken(new StringToken(value));
+                }
             }
 
             return value;
