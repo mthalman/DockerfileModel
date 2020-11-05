@@ -1,45 +1,79 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
-using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class Instruction : InstructionBase
+    public abstract class Instruction : DockerfileConstruct, ICommentable
     {
-        private Instruction(string text, char escapeChar)
-            : base(text, InstructionParser(escapeChar))
+        protected Instruction(string text, Parser<IEnumerable<Token?>> parser)
+            : base(text, parser)
         {
         }
 
-        public IList<string> ArgLines =>
-            new ProjectedItemList<LiteralToken, string>(
-                Tokens.OfType<LiteralToken>(),
-                token => token.Value,
-                (token, value) => token.Value = value);
-
-        public static bool IsInstruction(string text, char escapeChar)
+        public string InstructionName
         {
-            Requires.NotNull(text, nameof(text));
-            return InstructionParser(escapeChar).TryParse(text).WasSuccessful;
+            get => this.InstructionNameToken.Value;
         }
 
-        public static Instruction Create(string instruction, string args, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public KeywordToken InstructionNameToken
         {
-            Requires.NotNullOrEmpty(instruction, nameof(instruction));
-            return Parse($"{instruction} {args}", escapeChar);
+            get => Tokens.OfType<KeywordToken>().First();
         }
 
-        public static Instruction Parse(string text, char escapeChar) =>
-            new Instruction(text, escapeChar);
+        public IList<string?> Comments => GetComments();
 
-        private static Parser<IEnumerable<Token>> InstructionParser(char escapeChar) =>
-            from leading in Whitespace()
-            from instruction in TokenWithTrailingWhitespace(DockerfileParser.InstructionIdentifier(escapeChar))
+        public IEnumerable<CommentToken> CommentTokens => GetCommentTokens();
+
+        public override ConstructType Type => ConstructType.Instruction;
+
+        protected static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
+            from lineSets in (CommentText().Or(InstructionArgLine(escapeChar))).Many()
+            select lineSets.SelectMany(lineSet => lineSet);
+
+        private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
+            from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Except(Parse.LineEnd).Many().Text()
             from lineContinuation in LineContinuation(escapeChar).Optional()
-            from instructionArgs in InstructionArgs(escapeChar)
-            select ConcatTokens(leading, instruction, new Token[] { lineContinuation.GetOrDefault() }, instructionArgs);
+            from lineEnd in OptionalNewLine().AsEnumerable()
+            select ConcatTokens(
+                GetInstructionArgLineContent(text),
+                new Token[] { lineContinuation.GetOrDefault() },
+                lineEnd);
+
+        private static IEnumerable<Token?> GetInstructionArgLineContent(string text)
+        {
+            if (text.Length == 0)
+            {
+                yield break;
+            }
+
+            if (text.Trim().Length == 0)
+            {
+                yield return new WhitespaceToken(text);
+                yield break;
+            }
+
+            yield return GetLeadingWhitespaceToken(text);
+            yield return new LiteralToken(text.Trim());
+            yield return GetTrailingWhitespaceToken(text);
+        }
+
+        private static WhitespaceToken? GetLeadingWhitespaceToken(string text)
+        {
+            string? whitespace = new string(
+                text
+                    .TakeWhile(ch => Char.IsWhiteSpace(ch))
+                    .ToArray());
+
+            if (whitespace == String.Empty)
+            {
+                return null;
+            }
+
+            return new WhitespaceToken(whitespace);
+        }
     }
 }

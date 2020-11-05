@@ -8,7 +8,7 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class RunInstruction : InstructionBase
+    public class RunInstruction : Instruction
     {
         private RunInstruction(string text, char escapeChar)
             : base(text, GetParser(escapeChar))

@@ -34,7 +34,7 @@ namespace DockerfileModel
             TInstruction instruction,
             IDictionary<string, string?>? argValues = null,
             ResolutionOptions? options = null)
-            where TInstruction : InstructionBase
+            where TInstruction : Instruction
         {
             Requires.NotNull(instruction, nameof(instruction));
 
@@ -95,7 +95,7 @@ namespace DockerfileModel
         private string ResolveVariables(
             IDictionary<string, string?>? variableOverrides,
             Func<StagesView, IEnumerable<Stage>> getStages,
-            Func<InstructionBase, bool> processInstruction,
+            Func<Instruction, bool> processInstruction,
             ResolutionOptions? options)
         {
             if (variableOverrides is null)
@@ -126,11 +126,11 @@ namespace DockerfileModel
 
                 Dictionary<string, string?> stageArgs = new Dictionary<string, string?>();
 
-                IEnumerable<InstructionBase> instructions = stage.Items
-                    .OfType<InstructionBase>()
+                IEnumerable<Instruction> instructions = stage.Items
+                    .OfType<Instruction>()
                     .Where(instruction => processInstruction(instruction));
 
-                foreach (InstructionBase instruction in instructions)
+                foreach (Instruction instruction in instructions)
                 {
                     if (instruction is ArgInstruction argInstruction)
                     {

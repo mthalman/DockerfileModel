@@ -9,7 +9,7 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class FromInstruction : InstructionBase
+    public class FromInstruction : Instruction
     {
         private LiteralToken imageName;
 
