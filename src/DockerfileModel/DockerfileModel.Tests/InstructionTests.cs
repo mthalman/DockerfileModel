@@ -56,10 +56,6 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Equal("run", result.InstructionName);
                         Assert.Equal(@"echo ""hello world""", result.ArgLines.Single());
-
-                        result.InstructionName = "ARG";
-                        result.ArgLines[0] = "MY_ARG";
-                        Assert.Equal($"{result.InstructionName} MY_ARG", result.ToString());
                     }
                 },
                 new InstructionParseTestScenario
@@ -76,10 +72,6 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Equal("run", result.InstructionName);
                         Assert.Equal(@"echo ""hello world""", result.ArgLines.Single());
-
-                        result.InstructionName = "ARG";
-                        result.ArgLines[0] = "MY_ARG";
-                        Assert.Equal($"{result.InstructionName} MY_ARG\n", result.ToString());
                     }
                 },
                 new InstructionParseTestScenario
@@ -105,13 +97,6 @@ namespace DockerfileModel.Tests
                         Assert.Equal(2, argLines.Count);
                         Assert.Equal(@"echo ""hello world""", argLines[0]);
                         Assert.Equal(@"&& ls -a", argLines[1]);
-
-                        result.InstructionName = "ARG";
-                        argLines[0] = @"echo ""hello WORLD""";
-                        argLines[1] = "&& ls";
-                        Assert.Equal(
-                            $"{result.InstructionName} {argLines[0]}  \\\r\n  {argLines[1]}",
-                            result.ToString());
                     }
                 },
                 new InstructionParseTestScenario
@@ -141,13 +126,6 @@ namespace DockerfileModel.Tests
                         Assert.Equal(2, argLines.Count);
                         Assert.Equal(@"echo ""hello world""", argLines[0]);
                         Assert.Equal(@"&& ls -a", argLines[1]);
-
-                        result.InstructionName = "ARG";
-                        argLines[0] = @"echo ""hello WORLD""";
-                        argLines[1] = "&& ls";
-                        Assert.Equal(
-                            $"{result.InstructionName} {argLines[0]}  \\\r\n \\\n  {argLines[1]}",
-                            result.ToString());
                     }
                 },
                 new InstructionParseTestScenario

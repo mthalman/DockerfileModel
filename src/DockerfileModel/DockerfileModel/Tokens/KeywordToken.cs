@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace DockerfileModel.Tokens
 {
@@ -13,10 +14,12 @@ namespace DockerfileModel.Tokens
         {
         }
 
-        public string Value
+        public string Value => this.ToString(TokenStringOptions.CreateOptionsForValueString());
+
+        string IValueToken.Value
         {
-            get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
-            set => ReplaceWithToken(new StringToken(value));
+            get => Value;
+            set => throw new NotSupportedException("The value of a keyword is read-only.");
         }
     }
 }

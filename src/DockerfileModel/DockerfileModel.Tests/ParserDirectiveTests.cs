@@ -58,10 +58,9 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Equal("directive", result.DirectiveName);
                         Assert.Equal("value", result.DirectiveValue);
-
-                        result.DirectiveName = "directive2";
+                        
                         result.DirectiveValue = "newvalue";
-                        Assert.Equal($"#{result.DirectiveName}={result.DirectiveValue}", result.ToString());
+                        Assert.Equal($"#{result.DirectiveName}=newvalue", result.ToString());
                     }
                 },
                 new ParseTestScenario
@@ -84,9 +83,8 @@ namespace DockerfileModel.Tests
                         Assert.Equal("directive", result.DirectiveName);
                         Assert.Equal("value", result.DirectiveValue);
 
-                        result.DirectiveName = "directive2";
                         result.DirectiveValue = "newvalue";
-                        Assert.Equal($" # {result.DirectiveName}   = {result.DirectiveValue}  ", result.ToString());
+                        Assert.Equal($" # {result.DirectiveName}   = newvalue  ", result.ToString());
                     }
                 },
                 new ParseTestScenario
@@ -119,9 +117,8 @@ namespace DockerfileModel.Tests
                         Assert.Equal("directive", result.DirectiveName);
                         Assert.Equal("value", result.DirectiveValue);
 
-                        result.DirectiveName = "directive2";
                         result.DirectiveValue = "newvalue";
-                        Assert.Equal($"#{result.DirectiveName}={result.DirectiveValue}", result.ToString());
+                        Assert.Equal($"#{result.DirectiveName}=newvalue", result.ToString());
                     }
                 },
                 new CreateTestScenario
@@ -144,9 +141,8 @@ namespace DockerfileModel.Tests
                         Assert.Equal("directive", result.DirectiveName);
                         Assert.Equal("value", result.DirectiveValue);
 
-                        result.DirectiveName = "directive2";
                         result.DirectiveValue = "newvalue";
-                        Assert.Equal($"# {result.DirectiveName}   = {result.DirectiveValue}  ", result.ToString());
+                        Assert.Equal($"# {result.DirectiveName}   = newvalue  ", result.ToString());
                     }
                 }
             };

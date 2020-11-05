@@ -18,17 +18,11 @@ namespace DockerfileModel
         public string InstructionName
         {
             get => this.InstructionNameToken.Value;
-            set => this.InstructionNameToken.Value = value;
         }
 
         public KeywordToken InstructionNameToken
         {
             get => Tokens.OfType<KeywordToken>().First();
-            set
-            {
-                Requires.NotNull(value, nameof(value));
-                SetToken(InstructionNameToken, value);
-            }
         }
 
         public IList<string?> Comments => GetComments();

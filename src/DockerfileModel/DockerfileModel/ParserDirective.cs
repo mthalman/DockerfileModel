@@ -19,7 +19,6 @@ namespace DockerfileModel
         public string DirectiveName
         {
             get => Tokens.OfType<KeywordToken>().First().Value;
-            set => Tokens.OfType<KeywordToken>().First().Value = value;
         }
 
         public string DirectiveValue
