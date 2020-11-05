@@ -2,7 +2,7 @@
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
-
+using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
@@ -18,19 +18,39 @@ namespace DockerfileModel
 
         public string DirectiveName
         {
-            get => Tokens.OfType<KeywordToken>().First().Value;
+            get => DirectiveNameToken.Value;
         }
+
+        public KeywordToken DirectiveNameToken => Tokens.OfType<KeywordToken>().First();
 
         public string DirectiveValue
         {
-            get => Tokens.OfType<LiteralToken>().First().Value;
-            set => Tokens.OfType<LiteralToken>().First().Value = value;
+            get => DirectiveValueToken.Value;
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                DirectiveValueToken.Value = value;
+            }
+        }
+
+        public LiteralToken DirectiveValueToken
+        {
+            get => Tokens.OfType<LiteralToken>().First();
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                SetToken(DirectiveValueToken, value);
+            }
         }
 
         public override ConstructType Type => ConstructType.ParserDirective;
 
-        public static ParserDirective Create(string directive, string value) =>
-            Parse($"#{directive}={value}");
+        public static ParserDirective Create(string directive, string value)
+        {
+            Requires.NotNullOrEmpty(directive, nameof(directive));
+            Requires.NotNullOrEmpty(value, nameof(value));
+            return Parse($"#{directive}={value}"); ;
+        }
 
         public static ParserDirective Parse(string text) =>
             new ParserDirective(text);

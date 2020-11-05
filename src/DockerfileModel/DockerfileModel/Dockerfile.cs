@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Validation;
 
 namespace DockerfileModel
 {
@@ -11,6 +12,7 @@ namespace DockerfileModel
 
         public Dockerfile(IEnumerable<DockerfileConstruct> items)
         {
+            Requires.NotNullEmptyOrNullElements(items, nameof(items));
             this.Items = items;
         }
 
@@ -22,8 +24,11 @@ namespace DockerfileModel
                 .FirstOrDefault(directive => directive.DirectiveName == ParserDirective.EscapeDirective)
                 ?.DirectiveValue[0] ?? DefaultEscapeChar; 
 
-        public static Dockerfile Parse(string text) =>
-            DockerfileParser.ParseContent(text);
+        public static Dockerfile Parse(string text)
+        {
+            Requires.NotNull(text, nameof(text));
+            return DockerfileParser.ParseContent(text);
+        }
 
         public string ResolveVariables<TInstruction>(
             TInstruction instruction,
@@ -31,6 +36,8 @@ namespace DockerfileModel
             ResolutionOptions? options = null)
             where TInstruction : InstructionBase
         {
+            Requires.NotNull(instruction, nameof(instruction));
+
             bool foundInstruction = false;
 
             return ResolveVariables(
@@ -71,6 +78,19 @@ namespace DockerfileModel
                 stagesView => stagesView.Stages,
                 instruction => true,
                 options);
+
+        public override string ToString()
+        {
+            StringBuilder builder = new StringBuilder();
+
+            var items = Items.ToArray();
+            for (int i = 0; i < items.Length; i++)
+            {
+                builder.Append(items[i].ToString());
+            }
+
+            return builder.ToString();
+        }
 
         private string ResolveVariables(
             IDictionary<string, string?>? variableOverrides,
@@ -159,19 +179,6 @@ namespace DockerfileModel
             }
 
             return globalArgs;
-        }
-
-        public override string ToString()
-        {
-            StringBuilder builder = new StringBuilder();
-
-            var items = Items.ToArray();
-            for (int i = 0; i < items.Length; i++)
-            {
-                builder.Append(items[i].ToString());
-            }
-
-            return builder.ToString();
         }
     }
 }

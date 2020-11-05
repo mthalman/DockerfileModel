@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace DockerfileModel
 {
-    public static class EnumerableExtensions
+    internal static class EnumerableExtensions
     {
         public static IEnumerable<T> Flatten<T>(this IEnumerable<IEnumerable<T>> itemSets) =>
             itemSets.SelectMany(items => items);

@@ -97,6 +97,8 @@ namespace DockerfileModel
         public static ArgInstruction Create(string argName, string? argValue = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
         {
+            Requires.NotNullOrEmpty(argName, nameof(argName));
+
             StringBuilder builder = new StringBuilder($"ARG {argName}");
             if (argValue != null)
             {

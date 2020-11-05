@@ -106,7 +106,11 @@ namespace DockerfileModel
         public string Repository
         {
             get => RepositoryToken.Value;
-            set => RepositoryToken.Value = value;
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                RepositoryToken.Value = value;
+            }
         }
 
         public RepositoryToken RepositoryToken

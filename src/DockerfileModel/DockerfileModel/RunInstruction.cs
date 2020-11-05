@@ -34,11 +34,17 @@ namespace DockerfileModel
             Instruction("RUN", escapeChar,
                 GetArgsParser(escapeChar));
 
-        public static RunInstruction Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse($"RUN {command}", escapeChar);
+        public static RunInstruction Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
+        {
+            Requires.NotNullOrEmpty(command, nameof(command));
+            return Parse($"RUN {command}", escapeChar);
+        }
 
-        public static RunInstruction Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse($"RUN {ExecFormRunCommand.FormatCommands(commands)}", escapeChar);
+        public static RunInstruction Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+        {
+            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
+            return Parse($"RUN {ExecFormRunCommand.FormatCommands(commands)}", escapeChar);
+        }
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {

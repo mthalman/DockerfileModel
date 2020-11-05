@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Sprache;
-
+using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel.Tokens
@@ -12,12 +12,18 @@ namespace DockerfileModel.Tokens
     {
         protected AggregateToken(string text, Parser<IEnumerable<Token?>> parser)
         {
+            Requires.NotNull(text, nameof(text));
+            Requires.NotNull(parser, nameof(parser));
+
             this.TokenList = FilterNulls(parser.Parse(text))
                 .ToList();
         }
 
         protected AggregateToken(string text, Parser<Token> parser)
         {
+            Requires.NotNull(text, nameof(text));
+            Requires.NotNull(parser, nameof(parser));
+
             this.TokenList = new List<Token>
             {
                 parser.Parse(text)
@@ -26,6 +32,8 @@ namespace DockerfileModel.Tokens
 
         protected AggregateToken(IEnumerable<Token> tokens)
         {
+            Requires.NotNull(tokens, nameof(tokens));
+
             this.TokenList = tokens.ToList();
         }
 
@@ -35,6 +43,8 @@ namespace DockerfileModel.Tokens
 
         protected override string GetUnderlyingValue(TokenStringOptions options)
         {
+            Requires.NotNull(options, nameof(options));
+
             return String.Concat(
                 Tokens
                     .Where(token => !options.ExcludeLineContinuations || token is not LineContinuationToken)
@@ -86,7 +96,7 @@ namespace DockerfileModel.Tokens
                 removeToken = token => this.TokenList.Remove(token);
             }
 
-            if (currentValue != null)
+            if (currentValue is not null)
             {
                 if (newValue is null)
                 {
@@ -97,7 +107,7 @@ namespace DockerfileModel.Tokens
                     this.TokenList[this.TokenList.IndexOf(currentValue)] = newValue;
                 }
             }
-            else if (newValue != null)
+            else if (newValue is not null)
             {
                 addToken(newValue);
             }

@@ -1,4 +1,6 @@
-﻿namespace DockerfileModel.Tokens
+﻿using Validation;
+
+namespace DockerfileModel.Tokens
 {
     public abstract class Token
     {
@@ -9,6 +11,8 @@
 
         public string ToString(TokenStringOptions options)
         {
+            Requires.NotNull(options, nameof(options));
+
             string value = GetUnderlyingValue(options);
 
             if (!options.ExcludeQuotes && this is IQuotableToken quotableToken)

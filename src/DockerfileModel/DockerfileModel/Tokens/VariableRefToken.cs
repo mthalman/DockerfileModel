@@ -58,6 +58,7 @@ namespace DockerfileModel.Tokens
             }
             set
             {
+                ValidateModifier(value);
                 foreach (SymbolToken modifierToken in ModifierTokens.ToArray())
                 {
                     TokenList.Remove(modifierToken);
@@ -204,6 +205,8 @@ namespace DockerfileModel.Tokens
 
         public static VariableRefToken Create(string variableName, bool includeBraces = false)
         {
+            Requires.NotNullOrEmpty(variableName, nameof(variableName));
+
             StringBuilder builder = new StringBuilder("$");
             if (includeBraces)
             {
@@ -218,8 +221,16 @@ namespace DockerfileModel.Tokens
             return Parse(builder.ToString(), Dockerfile.DefaultEscapeChar);
         }
 
-        public static VariableRefToken Create(string variableName, string modifier, string modifierValue) =>
-            Parse($"${{{variableName}{modifier}{modifierValue}}}", Dockerfile.DefaultEscapeChar);
+        public static VariableRefToken Create(string variableName, string modifier, string modifierValue)
+        {
+            Requires.NotNullOrEmpty(variableName, nameof(variableName));
+            Requires.NotNullOrEmpty(modifier, nameof(modifier));
+            Requires.NotNullOrEmpty(modifierValue, nameof(modifierValue));
+            ValidateModifier(modifier);
+
+            return Parse($"${{{variableName}{modifier}{modifierValue}}}", Dockerfile.DefaultEscapeChar);
+        }
+            
 
         public static VariableRefToken Parse(string text, char escapeChar) =>
             new VariableRefToken(text, escapeChar, (char escapeChar, IEnumerable<char> excludedChars) =>
@@ -237,11 +248,25 @@ namespace DockerfileModel.Tokens
             from tokens in GetInnerParser(escapeChar, createModifierValueTokenParser)
             select new VariableRefToken(tokens);
 
+        private static void ValidateModifier(string? modifier)
+        {
+            if (!String.IsNullOrEmpty(modifier))
+            {
+                Requires.ValidState(ValidModifiers.Contains(modifier),
+                   $"'{modifier}' is not a valid modifier. Supported modifiers: {String.Join(", ", ValidModifiers)}");
+            }
+        }
+
         private static Parser<IEnumerable<Token>> GetInnerParser(
             char escapeChar,
-            CreateTokenParserDelegate createModifierValueTokenParser) =>
-            SimpleVariableReference()
+            CreateTokenParserDelegate createModifierValueTokenParser)
+        {
+            Requires.NotNull(createModifierValueTokenParser, nameof(createModifierValueTokenParser));
+
+            return SimpleVariableReference()
                 .Or(BracedVariableReference(escapeChar, createModifierValueTokenParser));
+        }
+            
 
         /// <summary>
         /// Parses a variable reference using the simple variable syntax.

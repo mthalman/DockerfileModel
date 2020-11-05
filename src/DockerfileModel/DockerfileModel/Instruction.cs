@@ -2,7 +2,7 @@
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
-
+using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
@@ -20,11 +20,17 @@ namespace DockerfileModel
                 token => token.Value,
                 (token, value) => token.Value = value);
 
-        public static bool IsInstruction(string text, char escapeChar) =>
-            InstructionParser(escapeChar).TryParse(text).WasSuccessful;
+        public static bool IsInstruction(string text, char escapeChar)
+        {
+            Requires.NotNull(text, nameof(text));
+            return InstructionParser(escapeChar).TryParse(text).WasSuccessful;
+        }
 
-        public static Instruction Create(string instruction, string args, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse($"{instruction} {args}", escapeChar);
+        public static Instruction Create(string instruction, string args, char escapeChar = Dockerfile.DefaultEscapeChar)
+        {
+            Requires.NotNullOrEmpty(instruction, nameof(instruction));
+            return Parse($"{instruction} {args}", escapeChar);
+        }
 
         public static Instruction Parse(string text, char escapeChar) =>
             new Instruction(text, escapeChar);

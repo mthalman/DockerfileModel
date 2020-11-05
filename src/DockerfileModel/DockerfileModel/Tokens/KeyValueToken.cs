@@ -34,10 +34,7 @@ namespace DockerfileModel.Tokens
             }
         }
 
-        public string Value
-        {
-            get => ValueToken.ToString(TokenStringOptions.CreateOptionsForValueString());
-        }
+        public string Value => ValueToken.ToString(TokenStringOptions.CreateOptionsForValueString());
 
         public TValue ValueToken
         {
@@ -61,6 +58,8 @@ namespace DockerfileModel.Tokens
 
         private static Parser<IEnumerable<Token>> GetInnerParser(string key, char escapeChar, Parser<Token>? valueTokenParser = null)
         {
+            Requires.NotNullOrEmpty(key, nameof(key));
+
             if (valueTokenParser is null)
             {
                 valueTokenParser = LiteralAggregate(escapeChar);
@@ -72,6 +71,5 @@ namespace DockerfileModel.Tokens
                    from value in valueTokenParser.AsEnumerable()
                    select ConcatTokens(keyword, equalOperator, lineCont.GetOrDefault(), value);
         }
-            
     }
 }

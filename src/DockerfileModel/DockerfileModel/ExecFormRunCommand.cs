@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
+using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
@@ -18,30 +19,24 @@ namespace DockerfileModel
         {
         }
 
-        public static ExecFormRunCommand Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(FormatCommands(commands), escapeChar);
+        public static ExecFormRunCommand Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+        {
+            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
+            return Parse(FormatCommands(commands), escapeChar);
+        }
 
         public static ExecFormRunCommand Parse(string text, char escapeChar) =>
             new ExecFormRunCommand(text, escapeChar);
 
-        public static string FormatCommands(IEnumerable<string> commands) =>
-            $"[{String.Join(", ", commands.Select(command => $"\"{command}\"").ToArray())}]";
+        public static string FormatCommands(IEnumerable<string> commands)
+        {
+            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
+            return $"[{String.Join(", ", commands.Select(command => $"\"{command}\"").ToArray())}]";
+        }
 
         public static Parser<ExecFormRunCommand> GetParser(char escapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new ExecFormRunCommand(tokens);
-
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            from openingBracket in Sprache.Parse.Char('[')
-            from execFormArgs in
-                from arg in ExecFormArg(escapeChar).Once().Flatten()
-                from tail in (
-                    from delimiter in ExecFormArgDelimiter(escapeChar)
-                    from nextArg in ExecFormArg(escapeChar)
-                    select ConcatTokens(delimiter, nextArg)).Many()
-                select ConcatTokens(arg, tail.Flatten())
-            from closingBracket in Sprache.Parse.Char(']')
-            select execFormArgs;
 
         public IList<string> CommandArgs =>
             new ProjectedItemList<LiteralToken, string>(
@@ -55,6 +50,18 @@ namespace DockerfileModel
 
         protected override string GetUnderlyingValue(TokenStringOptions options) =>
             $"[{base.GetUnderlyingValue(options)}]";
+
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+            from openingBracket in Sprache.Parse.Char('[')
+            from execFormArgs in
+                from arg in ExecFormArg(escapeChar).Once().Flatten()
+                from tail in (
+                    from delimiter in ExecFormArgDelimiter(escapeChar)
+                    from nextArg in ExecFormArg(escapeChar)
+                    select ConcatTokens(delimiter, nextArg)).Many()
+                select ConcatTokens(arg, tail.Flatten())
+            from closingBracket in Sprache.Parse.Char(']')
+            select execFormArgs;
 
         private static Parser<IEnumerable<Token>> ExecFormArgDelimiter(char escapeChar) =>
             from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
