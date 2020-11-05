@@ -25,7 +25,7 @@ namespace DockerfileModel
             return Parse(FormatCommands(commands), escapeChar);
         }
 
-        public static ExecFormRunCommand Parse(string text, char escapeChar) =>
+        public static ExecFormRunCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new ExecFormRunCommand(text, escapeChar);
 
         public static string FormatCommands(IEnumerable<string> commands)
@@ -34,7 +34,7 @@ namespace DockerfileModel
             return $"[{String.Join(", ", commands.Select(command => $"\"{command}\"").ToArray())}]";
         }
 
-        public static Parser<ExecFormRunCommand> GetParser(char escapeChar) =>
+        public static Parser<ExecFormRunCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new ExecFormRunCommand(tokens);
 

@@ -58,10 +58,10 @@ namespace DockerfileModel
             return Parse($"AS {stageName}", escapeChar);
         }
 
-        public static StageName Parse(string text, char escapeChar) =>
+        public static StageName Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new StageName(text, escapeChar);
 
-        public static Parser<StageName> GetParser(char escapeChar) =>
+        public static Parser<StageName> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new StageName(tokens);
 

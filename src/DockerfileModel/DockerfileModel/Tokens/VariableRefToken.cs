@@ -203,7 +203,8 @@ namespace DockerfileModel.Tokens
             return value;
         }
 
-        public static VariableRefToken Create(string variableName, bool includeBraces = false)
+        public static VariableRefToken Create(string variableName, bool includeBraces = false,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             Requires.NotNullOrEmpty(variableName, nameof(variableName));
 
@@ -218,21 +219,22 @@ namespace DockerfileModel.Tokens
                 builder.Append("}");
             }
 
-            return Parse(builder.ToString(), Dockerfile.DefaultEscapeChar);
+            return Parse(builder.ToString(), escapeChar);
         }
 
-        public static VariableRefToken Create(string variableName, string modifier, string modifierValue)
+        public static VariableRefToken Create(string variableName, string modifier, string modifierValue,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             Requires.NotNullOrEmpty(variableName, nameof(variableName));
             Requires.NotNullOrEmpty(modifier, nameof(modifier));
             Requires.NotNullOrEmpty(modifierValue, nameof(modifierValue));
             ValidateModifier(modifier);
 
-            return Parse($"${{{variableName}{modifier}{modifierValue}}}", Dockerfile.DefaultEscapeChar);
+            return Parse($"${{{variableName}{modifier}{modifierValue}}}", escapeChar);
         }
             
 
-        public static VariableRefToken Parse(string text, char escapeChar) =>
+        public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new VariableRefToken(text, escapeChar, (char escapeChar, IEnumerable<char> excludedChars) =>
                 LiteralString(escapeChar, excludedChars));
 
@@ -244,7 +246,7 @@ namespace DockerfileModel.Tokens
         /// <param name="createModifierValueTokenParser">Delegate to create tokens nested within a modifier value.</param>
         /// <returns>Parsed variable reference token.</returns>
         public static Parser<VariableRefToken> GetParser(
-            char escapeChar, CreateTokenParserDelegate createModifierValueTokenParser) =>
+            CreateTokenParserDelegate createModifierValueTokenParser, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar, createModifierValueTokenParser)
             select new VariableRefToken(tokens);
 

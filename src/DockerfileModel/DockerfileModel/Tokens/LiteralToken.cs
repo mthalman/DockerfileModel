@@ -10,7 +10,7 @@ namespace DockerfileModel.Tokens
         {
         }
 
-        public LiteralToken(IEnumerable<Token> tokens) : base(tokens)
+        internal LiteralToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 

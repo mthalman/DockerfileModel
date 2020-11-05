@@ -22,10 +22,10 @@ namespace DockerfileModel
         public static ShellFormRunCommand Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(command, escapeChar);
 
-        public static ShellFormRunCommand Parse(string text, char escapeChar) =>
+        public static ShellFormRunCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new ShellFormRunCommand(text, escapeChar);
 
-        public static Parser<ShellFormRunCommand> GetParser(char escapeChar) =>
+        public static Parser<ShellFormRunCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new ShellFormRunCommand(tokens);
 

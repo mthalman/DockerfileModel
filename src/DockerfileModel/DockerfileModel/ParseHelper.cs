@@ -468,7 +468,7 @@ namespace DockerfileModel
         /// <returns>A token parser.</returns>
         public static Parser<IEnumerable<Token>> ValueOrVariableRef(char escapeChar, CreateTokenParserDelegate createParser,
             IEnumerable<char> excludedChars) =>
-            VariableRefToken.GetParser(escapeChar, createParser).AsEnumerable()
+            VariableRefToken.GetParser(createParser, escapeChar).AsEnumerable()
                 .Or(createParser(escapeChar, excludedChars));
 
         /// <summary>

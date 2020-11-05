@@ -10,7 +10,7 @@ namespace DockerfileModel.Tokens
         {
         }
 
-        public KeywordToken(IEnumerable<Token> tokens) : base(tokens)
+        internal KeywordToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 

@@ -88,10 +88,10 @@ namespace DockerfileModel
             return Parse($"type=secret,id={id}{destinationSegment}", escapeChar);
         }
 
-        public static SecretMount Parse(string text, char escapeChar) =>
+        public static SecretMount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new SecretMount(text, escapeChar);
 
-        public static Parser<SecretMount> GetParser(char escapeChar) =>
+        public static Parser<SecretMount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new SecretMount(tokens);
 
