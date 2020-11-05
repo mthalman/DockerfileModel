@@ -8,7 +8,7 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class ArgInstruction : InstructionBase
+    public class ArgInstruction : Instruction
     {
         private const char AssignmentOperator = '=';
 

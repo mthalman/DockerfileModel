@@ -11,27 +11,27 @@ namespace DockerfileModel
 {
     internal static class DockerfileParser
     {
-        private static readonly Dictionary<string, Func<string, char, InstructionBase>> instructionParsers =
-            new Dictionary<string, Func<string, char, InstructionBase>>
+        private static readonly Dictionary<string, Func<string, char, Instruction>> instructionParsers =
+            new Dictionary<string, Func<string, char, Instruction>>
             {
-                { "ADD", Instruction.Parse },
+                { "ADD", GenericInstruction.Parse },
                 { "ARG", ArgInstruction.Parse },
-                { "CMD", Instruction.Parse },
-                { "COPY", Instruction.Parse },
-                { "ENTRYPOINT", Instruction.Parse },
-                { "EXPOSE", Instruction.Parse },
-                { "ENV", Instruction.Parse },
+                { "CMD", GenericInstruction.Parse },
+                { "COPY", GenericInstruction.Parse },
+                { "ENTRYPOINT", GenericInstruction.Parse },
+                { "EXPOSE", GenericInstruction.Parse },
+                { "ENV", GenericInstruction.Parse },
                 { "FROM", FromInstruction.Parse },
-                { "HEALTHCHECK", Instruction.Parse },
-                { "LABEL", Instruction.Parse },
-                { "MAINTAINER", Instruction.Parse },
-                { "ONBUILD", Instruction.Parse },
+                { "HEALTHCHECK", GenericInstruction.Parse },
+                { "LABEL", GenericInstruction.Parse },
+                { "MAINTAINER", GenericInstruction.Parse },
+                { "ONBUILD", GenericInstruction.Parse },
                 { "RUN", RunInstruction.Parse },
-                { "SHELL", Instruction.Parse },
-                { "STOPSIGNAL", Instruction.Parse },
-                { "USER", Instruction.Parse },
-                { "VOLUME", Instruction.Parse },
-                { "WORKDIR", Instruction.Parse },
+                { "SHELL", GenericInstruction.Parse },
+                { "STOPSIGNAL", GenericInstruction.Parse },
+                { "USER", GenericInstruction.Parse },
+                { "VOLUME", GenericInstruction.Parse },
+                { "WORKDIR", GenericInstruction.Parse },
             };
 
         public static Dockerfile ParseContent(string text)
@@ -107,7 +107,7 @@ namespace DockerfileModel
                 {
                     dockerfileConstructs.Add(Comment.Parse(line));
                 }
-                else if (Instruction.IsInstruction(line, escapeChar))
+                else if (GenericInstruction.IsInstruction(line, escapeChar))
                 {
                     dockerfileConstructs.Add(CreateInstruction(line, escapeChar));
                 }
@@ -120,7 +120,7 @@ namespace DockerfileModel
             return new Dockerfile(dockerfileConstructs);
         }
 
-        private static InstructionBase CreateInstruction(string text, char escapeChar)
+        private static Instruction CreateInstruction(string text, char escapeChar)
         {
             string instructionName = InstructionName(escapeChar).Parse(text);
             return instructionParsers[instructionName](text, escapeChar);

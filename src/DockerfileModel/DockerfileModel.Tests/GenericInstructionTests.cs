@@ -9,7 +9,7 @@ using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
 {
-    public class InstructionTests
+    public class GenericInstructionTests
     {
         [Theory]
         [MemberData(nameof(ParseTestInput))]
@@ -17,14 +17,14 @@ namespace DockerfileModel.Tests
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                Instruction result = Instruction.Parse(scenario.Text, scenario.EscapeChar);
-                ValidateAggregate<Instruction>(result, scenario.Text, scenario.TokenValidators);
+                GenericInstruction result = GenericInstruction.Parse(scenario.Text, scenario.EscapeChar);
+                ValidateAggregate<GenericInstruction>(result, scenario.Text, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
             }
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => Instruction.Parse(scenario.Text, scenario.EscapeChar));
+                    () => GenericInstruction.Parse(scenario.Text, scenario.EscapeChar));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
@@ -34,7 +34,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            Instruction result = Instruction.Create(scenario.InstructionName, scenario.Args);
+            GenericInstruction result = GenericInstruction.Create(scenario.InstructionName, scenario.Args);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate(result);
         }
@@ -218,12 +218,12 @@ namespace DockerfileModel.Tests
             return testInputs.Select(input => new object[] { input });
         }
 
-        public class InstructionParseTestScenario : ParseTestScenario<Instruction>
+        public class InstructionParseTestScenario : ParseTestScenario<GenericInstruction>
         {
             public char EscapeChar { get; set; }
         }
 
-        public class CreateTestScenario : TestScenario<Instruction>
+        public class CreateTestScenario : TestScenario<GenericInstruction>
         {
             public string InstructionName { get; set; }
             public string Args { get; set; }

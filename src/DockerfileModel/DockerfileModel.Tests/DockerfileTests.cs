@@ -56,7 +56,7 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveVariables((InstructionBase)dockerfile.Items.Last());
+            string resolvedVal = dockerfile.ResolveVariables((Instruction)dockerfile.Items.Last());
             Assert.Equal("ARG x=a-`$test", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -84,7 +84,7 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveVariables((InstructionBase)dockerfile.Items.Last(), argValues);
+            string resolvedVal = dockerfile.ResolveVariables((Instruction)dockerfile.Items.Last(), argValues);
             Assert.Equal("ARG x=b-\\$test", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -111,9 +111,9 @@ namespace DockerfileModel.Tests
 
             string originalDockerfileString = dockerfile.ToString();
 
-            string resolvedVal = dockerfile.ResolveVariables((InstructionBase)stagesView.Stages.First().Items.Last());
+            string resolvedVal = dockerfile.ResolveVariables((Instruction)stagesView.Stages.First().Items.Last());
             Assert.Equal("ARG x=a\n", resolvedVal);
-            resolvedVal = dockerfile.ResolveVariables((InstructionBase)stagesView.Stages.Last().Items.Last());
+            resolvedVal = dockerfile.ResolveVariables((Instruction)stagesView.Stages.Last().Items.Last());
             Assert.Equal("ARG y=-c", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -147,10 +147,10 @@ namespace DockerfileModel.Tests
             string originalDockerfileString = dockerfile.ToString();
 
             string resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)stagesView.Stages.First().Items.Last(), argValues);
+                (Instruction)stagesView.Stages.First().Items.Last(), argValues);
             Assert.Equal("ARG x=z\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)stagesView.Stages.Last().Items.Last(), argValues);
+                (Instruction)stagesView.Stages.Last().Items.Last(), argValues);
             Assert.Equal("ARG y=z-c", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -183,7 +183,7 @@ namespace DockerfileModel.Tests
                 dockerfile.Items.OfType<FromInstruction>().First());
             Assert.Equal("FROM image:a\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)dockerfile.Items.Last());
+                (Instruction)dockerfile.Items.Last());
             Assert.Equal("ARG x=-b-c1-d", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -224,7 +224,7 @@ namespace DockerfileModel.Tests
                 dockerfile.Items.OfType<FromInstruction>().First(), argValues);
             Assert.Equal("FROM image:a1\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)dockerfile.Items.Last(), argValues);
+                (Instruction)dockerfile.Items.Last(), argValues);
             Assert.Equal("ARG x=-b1-c2-d1", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -263,13 +263,13 @@ namespace DockerfileModel.Tests
                 stagesView.Stages.First().FromInstruction);
             Assert.Equal("FROM image:a as stage1\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)stagesView.Stages.First().Items.Last());
+                (Instruction)stagesView.Stages.First().Items.Last());
             Assert.Equal("ARG x=--c1-d\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
                 stagesView.Stages.Last().FromInstruction);
             Assert.Equal("FROM image: as stage2\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)stagesView.Stages.Last().Items.Last());
+                (Instruction)stagesView.Stages.Last().Items.Last());
             Assert.Equal("ARG y=--c-d", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -317,13 +317,13 @@ namespace DockerfileModel.Tests
                 stagesView.Stages.First().FromInstruction, argValues);
             Assert.Equal("FROM image:a1 as stage1\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)stagesView.Stages.First().Items.Last(), argValues);
+                (Instruction)stagesView.Stages.First().Items.Last(), argValues);
             Assert.Equal("ARG x=-b1-c2-d\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
                 stagesView.Stages.Last().FromInstruction, argValues);
             Assert.Equal("FROM image:b1 as stage2\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)stagesView.Stages.Last().Items.Last(), argValues);
+                (Instruction)stagesView.Stages.Last().Items.Last(), argValues);
             Assert.Equal("ARG y=-b1-c2-d", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -353,10 +353,10 @@ namespace DockerfileModel.Tests
             string originalDockerfileString = dockerfile.ToString();
 
             string resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)dockerfile.Items.ElementAt(1), argValues);
+                (Instruction)dockerfile.Items.ElementAt(1), argValues);
             Assert.Equal("ARG x=\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)dockerfile.Items.Last(), argValues);
+                (Instruction)dockerfile.Items.Last(), argValues);
             Assert.Equal("ARG y=a", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -384,10 +384,10 @@ namespace DockerfileModel.Tests
             string originalDockerfileString = dockerfile.ToString();
 
             string resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)dockerfile.Items.ElementAt(3));
+                (Instruction)dockerfile.Items.ElementAt(3));
             Assert.Equal("ARG x=a\n", resolvedVal);
             resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)dockerfile.Items.ElementAt(5));
+                (Instruction)dockerfile.Items.ElementAt(5));
             Assert.Equal("ARG y=b", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -461,7 +461,7 @@ namespace DockerfileModel.Tests
             string originalDockerfileString = dockerfile.ToString();
 
             string resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)dockerfile.Items.Last(), argValues);
+                (Instruction)dockerfile.Items.Last(), argValues);
             Assert.Equal("ARG x=", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -490,7 +490,7 @@ namespace DockerfileModel.Tests
             string originalDockerfileString = dockerfile.ToString();
 
             string resolvedVal = dockerfile.ResolveVariables(
-                (InstructionBase)dockerfile.Items.Last(), argValues);
+                (Instruction)dockerfile.Items.Last(), argValues);
             Assert.Equal("ARG x=", resolvedVal);
             Assert.Equal(originalDockerfileString, dockerfile.ToString());
 
@@ -654,7 +654,7 @@ namespace DockerfileModel.Tests
                     Text = $"ENV \\\t \n VAR=VAL",
                     TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateAggregate<Instruction>(line, "ENV \\\t \n VAR=VAL",
+                        line => ValidateAggregate<GenericInstruction>(line, "ENV \\\t \n VAR=VAL",
                             new Action<Token>[]
                             {
                                 token => ValidateKeyword(token, "ENV"),
