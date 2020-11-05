@@ -75,7 +75,8 @@ namespace DockerfileModel
             }
         }
 
-        public static SecretMount Create(string id, string? destinationPath = null)
+        public static SecretMount Create(string id, string? destinationPath = null,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             string? destinationSegment = null;
             if (!String.IsNullOrEmpty(destinationPath))
@@ -83,7 +84,7 @@ namespace DockerfileModel
                 destinationSegment = $",dst={destinationPath}";
             }
 
-            return Parse($"type=secret,id={id}{destinationSegment}", Instruction.DefaultEscapeChar);
+            return Parse($"type=secret,id={id}{destinationSegment}", escapeChar);
         }
 
         public static SecretMount Parse(string text, char escapeChar) =>

@@ -230,15 +230,15 @@ namespace DockerfileModel.Tests
 
                         };
 
-                        string result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test", result);
 
                         variables["foo"] = null;
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("", result);
 
                         variables["foo"] = "test2";
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test2", result);
                     }
                 },
@@ -263,15 +263,15 @@ namespace DockerfileModel.Tests
                         {
                         };
 
-                        string result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test", result);
 
                         variables["foo"] = null;
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test", result);
 
                         variables["foo"] = "test2";
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test2", result);
                     }
                 },
@@ -295,15 +295,15 @@ namespace DockerfileModel.Tests
                         {
                         };
 
-                        string result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("", result);
 
                         variables["foo"] = null;
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test", result);
 
                         variables["foo"] = "test2";
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test", result);
                     }
                 },
@@ -328,15 +328,15 @@ namespace DockerfileModel.Tests
                         {
                         };
 
-                        string result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("", result);
 
                         variables["foo"] = null;
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("", result);
 
                         variables["foo"] = "test2";
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test", result);
                     }
                 },
@@ -360,14 +360,14 @@ namespace DockerfileModel.Tests
                         {
                         };
 
-                        Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Instruction.DefaultEscapeChar, variables));
+                        Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables));
 
                         variables["foo"] = null;
-                        string result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("", result);
 
                         variables["foo"] = "test2";
-                        result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test2", result);
                     }
                 },
@@ -392,13 +392,13 @@ namespace DockerfileModel.Tests
                         {
                         };
 
-                        Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Instruction.DefaultEscapeChar, variables));
+                        Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables));
 
                         variables["foo"] = null;
-                        Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Instruction.DefaultEscapeChar, variables));
+                        Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables));
 
                         variables["foo"] = "test2";
-                        string result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("test2", result);
                     }
                 },
@@ -429,7 +429,7 @@ namespace DockerfileModel.Tests
                             { "bar", "test2" }
                         };
 
-                        string result = token.ResolveVariables(Instruction.DefaultEscapeChar, variables);
+                        string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                         Assert.Equal("atest2x", result);
 
                     }

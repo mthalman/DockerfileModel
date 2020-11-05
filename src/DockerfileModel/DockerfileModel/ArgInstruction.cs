@@ -94,7 +94,8 @@ namespace DockerfileModel
         public static ArgInstruction Parse(string text, char escapeChar) =>
             new ArgInstruction(text, escapeChar);
 
-        public static ArgInstruction Create(string argName, string? argValue = null)
+        public static ArgInstruction Create(string argName, string? argValue = null,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             StringBuilder builder = new StringBuilder($"ARG {argName}");
             if (argValue != null)
@@ -102,7 +103,7 @@ namespace DockerfileModel
                 builder.Append($"{AssignmentOperator}{argValue}");
             }
 
-            return Parse(builder.ToString(), Instruction.DefaultEscapeChar);
+            return Parse(builder.ToString(), escapeChar);
         }
 
         public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>

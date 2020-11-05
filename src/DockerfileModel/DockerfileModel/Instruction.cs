@@ -9,8 +9,6 @@ namespace DockerfileModel
 {
     public class Instruction : InstructionBase
     {
-        public const char DefaultEscapeChar = '\\';
-
         private Instruction(string text, char escapeChar)
             : base(text, InstructionParser(escapeChar))
         {
@@ -25,8 +23,8 @@ namespace DockerfileModel
         public static bool IsInstruction(string text, char escapeChar) =>
             InstructionParser(escapeChar).TryParse(text).WasSuccessful;
 
-        public static Instruction Create(string instruction, string args) =>
-            Parse($"{instruction} {args}", DefaultEscapeChar);
+        public static Instruction Create(string instruction, string args, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse($"{instruction} {args}", escapeChar);
 
         public static Instruction Parse(string text, char escapeChar) =>
             new Instruction(text, escapeChar);

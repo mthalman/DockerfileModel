@@ -7,6 +7,8 @@ namespace DockerfileModel
 {
     public class Dockerfile : IConstructContainer
     {
+        public const char DefaultEscapeChar = '\\';
+
         public Dockerfile(IEnumerable<DockerfileConstruct> items)
         {
             this.Items = items;
@@ -18,7 +20,7 @@ namespace DockerfileModel
             Items
                 .OfType<ParserDirective>()
                 .FirstOrDefault(directive => directive.DirectiveName == ParserDirective.EscapeDirective)
-                ?.DirectiveValue[0] ?? Instruction.DefaultEscapeChar;
+                ?.DirectiveValue[0] ?? DefaultEscapeChar; 
 
         public static Dockerfile Parse(string text) =>
             DockerfileParser.ParseContent(text);
