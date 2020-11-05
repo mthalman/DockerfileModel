@@ -9,7 +9,7 @@ namespace DockerfileModel.Tokens
         {
         }
 
-        public IdentifierToken(IEnumerable<Token> tokens) : base(tokens)
+        internal IdentifierToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 

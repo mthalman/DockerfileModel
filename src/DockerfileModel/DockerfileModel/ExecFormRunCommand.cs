@@ -44,7 +44,7 @@ namespace DockerfileModel
             select execFormArgs;
 
         public IList<string> CommandArgs =>
-            new StringWrapperList<LiteralToken>(
+            new ProjectedItemList<LiteralToken, string>(
                 CommandArgTokens,
                 token => token.Value,
                 (token, value) => token.Value = value);

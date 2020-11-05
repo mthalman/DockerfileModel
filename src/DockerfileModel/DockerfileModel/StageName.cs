@@ -48,7 +48,7 @@ namespace DockerfileModel
             }
         }
 
-        public IList<string> Comments => GetComments();
+        public IList<string?> Comments => GetComments();
 
         public IEnumerable<CommentToken> CommentTokens => GetCommentTokens();
 

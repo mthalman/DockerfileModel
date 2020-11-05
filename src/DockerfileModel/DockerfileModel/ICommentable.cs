@@ -8,7 +8,7 @@ namespace DockerfileModel
     /// </summary>
     public interface ICommentable
     {
-        public IList<string> Comments { get; }
+        public IList<string?> Comments { get; }
         public IEnumerable<CommentToken> CommentTokens { get; }
     }
 }

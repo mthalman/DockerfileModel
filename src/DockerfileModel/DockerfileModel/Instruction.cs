@@ -15,7 +15,7 @@ namespace DockerfileModel
         }
 
         public IList<string> ArgLines =>
-            new StringWrapperList<LiteralToken>(
+            new ProjectedItemList<LiteralToken, string>(
                 Tokens.OfType<LiteralToken>(),
                 token => token.Value,
                 (token, value) => token.Value = value);
