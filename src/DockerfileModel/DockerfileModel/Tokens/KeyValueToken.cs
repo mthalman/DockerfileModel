@@ -22,11 +22,6 @@ namespace DockerfileModel.Tokens
         public string Key
         {
             get => KeyToken.Value;
-            set
-            {
-                Requires.NotNull(value, nameof(value));
-                KeyToken.Value = value;
-            }
         }
 
         public KeywordToken KeyToken

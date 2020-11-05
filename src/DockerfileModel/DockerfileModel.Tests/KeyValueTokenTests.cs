@@ -48,14 +48,6 @@ namespace DockerfileModel.Tests
             Assert.Equal("foo", token.Key);
             Assert.Equal("foo", token.KeyToken.Value);
 
-            token.Key = "foo2";
-            Assert.Equal("foo2", token.Key);
-            Assert.Equal("foo2", token.KeyToken.Value);
-
-            token.KeyToken.Value = "foo3";
-            Assert.Equal("foo3", token.Key);
-            Assert.Equal("foo3", token.KeyToken.Value);
-
             token.KeyToken = new KeywordToken("foo4");
             Assert.Equal("foo4", token.Key);
             Assert.Equal("foo4", token.KeyToken.Value);
