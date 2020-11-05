@@ -44,22 +44,24 @@ namespace DockerfileModel.Tests
         public void Text()
         {
             Comment comment = Comment.Create("test");
-            Assert.Equal("test", comment.Text);
-            Assert.Equal("test", comment.TextToken.Text);
+            Assert.Equal("test", comment.Value);
+            Assert.Equal("test", comment.ValueToken.Text);
 
-            comment.Text = "test2";
-            Assert.Equal("test2", comment.Text);
-            Assert.Equal("test2", comment.TextToken.Text);
+            comment.Value = "test2";
+            Assert.Equal("test2", comment.Value);
+            Assert.Equal("test2", comment.ValueToken.Text);
 
-            comment.Text = "";
-            Assert.Equal("", comment.Text);
-            Assert.Equal("", comment.TextToken.Text);
+            comment.Value = "";
+            Assert.Null(comment.Value);
+            Assert.Null(comment.ValueToken.Text);
 
-            comment.Text = null;
-            Assert.Null(comment.Text);
-            Assert.Null(comment.TextToken.Text);
+            comment.Value = "test2";
 
-            Assert.Throws<ArgumentNullException>(() => comment.TextToken = null);
+            comment.Value = null;
+            Assert.Null(comment.Value);
+            Assert.Null(comment.ValueToken.Text);
+
+            Assert.Throws<ArgumentNullException>(() => comment.ValueToken = null);
         }
 
         public static IEnumerable<object[]> ParseTestInput()
@@ -77,9 +79,9 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("mycomment", result.Text);
+                        Assert.Equal("mycomment", result.Value);
 
-                        result.Text += "2  ";
+                        result.Value += "2  ";
                         Assert.Equal($"#mycomment2  ", result.ToString());
                     }
                 },
@@ -95,9 +97,9 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("mycomment", result.Text);
+                        Assert.Equal("mycomment", result.Value);
 
-                        result.Text += "2  ";
+                        result.Value += "2  ";
                         Assert.Equal($"#mycomment2  \n", result.ToString());
                     }
                 },
@@ -115,9 +117,9 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("mycomment", result.Text);
+                        Assert.Equal("mycomment", result.Value);
 
-                        result.Text += "2  ";
+                        result.Value += "2  ";
                         Assert.Equal($" \t#\tmycomment2  \t  ", result.ToString());
                     }
                 },
@@ -147,9 +149,9 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("test", result.Text);
+                        Assert.Equal("test", result.Value);
 
-                        result.Text = "override";
+                        result.Value = "override";
                         Assert.Equal("# override", result.ToString());
                     }
                 },
@@ -166,9 +168,9 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal("comment", result.Text);
+                        Assert.Equal("comment", result.Value);
 
-                        result.Text = "newcomment";
+                        result.Value = "newcomment";
                         Assert.Equal($"# newcomment   ", result.ToString());
                     }
                 }

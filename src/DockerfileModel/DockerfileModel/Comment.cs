@@ -12,19 +12,19 @@ namespace DockerfileModel
         {
         }
 
-        public string? Text
+        public string? Value
         {
-            get => TextToken.Text;
-            set => TextToken.Text = value;
+            get => ValueToken.Text;
+            set => ValueToken.Text = value;
         }
 
-        public CommentToken TextToken
+        public CommentToken ValueToken
         {
             get => Tokens.OfType<CommentToken>().First();
             set
             {
                 Requires.NotNull(value, nameof(value));
-                SetToken(TextToken, value);
+                SetToken(ValueToken, value);
             }
         }
 

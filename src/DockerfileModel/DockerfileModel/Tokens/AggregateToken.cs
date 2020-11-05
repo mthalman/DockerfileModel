@@ -105,7 +105,7 @@ namespace DockerfileModel.Tokens
 
         internal void ReplaceWithToken(Token token)
         {
-            TokenList.RemoveAll(token => true);
+            TokenList.Clear();
             TokenList.Add(token);
         }
 
@@ -113,7 +113,7 @@ namespace DockerfileModel.Tokens
         {
             StringBuilder builder = new StringBuilder();
 
-            for (int i = 0; i < TokenList.Count; i++)
+            for (int i = TokenList.Count - 1; i >= 0; i--)
             {
                 Token token = TokenList[i];
                 string? value;
@@ -122,7 +122,14 @@ namespace DockerfileModel.Tokens
                     value = aggregate.ResolveVariables(escapeChar, variables, options);
                     if (options.UpdateInline)
                     {
-                        TokenList[i] = new StringToken(value ?? String.Empty);
+                        if (value is null)
+                        {
+                            TokenList.RemoveAt(i);
+                        }
+                        else
+                        {
+                            TokenList[i] = new StringToken(value);
+                        }
                     }
                 }
                 else
@@ -130,7 +137,7 @@ namespace DockerfileModel.Tokens
                     value = options.FormatValue(escapeChar, token.ToString());
                 }
 
-                builder.Append(value);
+                builder.Insert(0, value);
             }
 
             return builder.ToString();

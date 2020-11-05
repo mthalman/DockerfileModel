@@ -51,10 +51,14 @@ namespace DockerfileModel.Tests
             Assert.Null(comment.TextToken);
             Assert.Equal("#", comment.ToString());
 
+            comment.Text = "foo";
+
             comment.Text = "";
-            Assert.Equal("", comment.Text);
-            Assert.Equal("", comment.TextToken.Value);
+            Assert.Null(comment.Text);
+            Assert.Null(comment.TextToken);
             Assert.Equal("#", comment.ToString());
+
+            comment.Text = "foo";
 
             comment.TextToken = null;
             Assert.Null(comment.Text);

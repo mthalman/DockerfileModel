@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Validation;
 
 namespace DockerfileModel.Tokens
 {
@@ -13,10 +14,14 @@ namespace DockerfileModel.Tokens
         {
         }
 
-        public virtual string Value
+        public string Value
         {
             get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
-            set => ReplaceWithToken(new StringToken(value));
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                ReplaceWithToken(new StringToken(value));
+            }
         }
 
         public char? QuoteChar { get; set; }

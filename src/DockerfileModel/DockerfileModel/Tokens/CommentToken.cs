@@ -24,13 +24,13 @@ namespace DockerfileModel.Tokens
             set
             {
                 StringToken? textToken = TextToken;
-                if (textToken != null && value is not null)
+                if (textToken != null && !String.IsNullOrEmpty(value))
                 {
-                    textToken.Value = value;
+                    textToken.Value = value!;
                 }
                 else
                 {
-                    TextToken = value is null ? null : new StringToken(value!);
+                    TextToken = String.IsNullOrEmpty(value) ? null : new StringToken(value!);
                 }
             }
         }
