@@ -13,20 +13,19 @@ namespace DockerfileModel
     {
         private LiteralToken imageName;
 
-        private FromInstruction(string text, char escapeChar)
-            : base(text, GetParser(escapeChar))
+#pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
+        private FromInstruction(IEnumerable<Token> tokens) : base(tokens)
+#pragma warning restore CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
         {
-            PlatformFlag? platform = this.PlatformFlag;
-            int startIndex = 0;
-            if (platform != null)
-            {
-                startIndex = this.TokenList.IndexOf(platform) + 1;
-            }
+            Initialize();
+        }
 
-            this.imageName = this.TokenList
-                .Skip(startIndex)
-                .OfType<LiteralToken>()
-                .First();
+#pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
+        private FromInstruction(string text, char escapeChar)
+#pragma warning restore CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
+            : base(text, GetInnerParser(escapeChar))
+        {
+            Initialize();
         }
 
         public string ImageName
@@ -146,7 +145,11 @@ namespace DockerfileModel
             return Parse(builder.ToString(), escapeChar);
         }
 
-        public static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static Parser<FromInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            from tokens in GetInnerParser(escapeChar)
+            select new FromInstruction(tokens);
+
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("FROM", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
@@ -167,5 +170,20 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
             ArgTokens(
                 LiteralAggregate(escapeChar).AsEnumerable(), escapeChar);
+
+        private void Initialize()
+        {
+            PlatformFlag? platform = this.PlatformFlag;
+            int startIndex = 0;
+            if (platform != null)
+            {
+                startIndex = this.TokenList.IndexOf(platform) + 1;
+            }
+
+            this.imageName = this.TokenList
+                .Skip(startIndex)
+                .OfType<LiteralToken>()
+                .First();
+        }
     }
 }

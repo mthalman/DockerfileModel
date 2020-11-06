@@ -9,6 +9,10 @@ namespace DockerfileModel
 {
     public abstract class Instruction : DockerfileConstruct, ICommentable
     {
+        protected Instruction(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
+
         protected Instruction(string text, Parser<IEnumerable<Token?>> parser)
             : base(text, parser)
         {

@@ -9,8 +9,12 @@ namespace DockerfileModel
 {
     public class CommandInstruction : Instruction
     {
+        private CommandInstruction(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
+
         private CommandInstruction(string text, char escapeChar)
-            : base(text, GetParser(escapeChar))
+            : base(text, GetInnerParser(escapeChar))
         {
         }
 
@@ -27,9 +31,9 @@ namespace DockerfileModel
         public static CommandInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new CommandInstruction(text, escapeChar);
 
-        public static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Instruction("CMD", escapeChar,
-                GetArgsParser(escapeChar));
+        public static Parser<CommandInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            from tokens in GetInnerParser(escapeChar)
+            select new CommandInstruction(tokens);
 
         public static CommandInstruction Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
         {
@@ -48,6 +52,10 @@ namespace DockerfileModel
             // Do not resolve variables for the command of a CMD instruction. It is shell/runtime-specific.
             return ToString();
         }
+
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Instruction("CMD", escapeChar,
+                GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             from mounts in ArgTokens(MountFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Many()
