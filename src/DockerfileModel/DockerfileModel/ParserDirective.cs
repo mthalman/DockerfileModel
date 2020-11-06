@@ -10,6 +10,7 @@ namespace DockerfileModel
     public class ParserDirective : DockerfileConstruct
     {
         public const string EscapeDirective = "escape";
+        public const string SyntaxDirective = "syntax";
 
         private ParserDirective(string text)
             : base(text, GetParser())
@@ -48,7 +49,6 @@ namespace DockerfileModel
         public static ParserDirective Create(string directive, string value)
         {
             Requires.NotNullOrEmpty(directive, nameof(directive));
-            Requires.NotNullOrEmpty(value, nameof(value));
             return Parse($"#{directive}={value}"); ;
         }
 

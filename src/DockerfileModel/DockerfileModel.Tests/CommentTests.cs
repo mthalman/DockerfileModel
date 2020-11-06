@@ -142,9 +142,8 @@ namespace DockerfileModel.Tests
                     Comment = "test",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateAggregate<CommentToken>(token, "# test",
+                        token => ValidateAggregate<CommentToken>(token, "#test",
                             token => ValidateSymbol(token, '#'),
-                            token => ValidateWhitespace(token, " "),
                             token => ValidateString(token, "test")),
                     },
                     Validate = result =>
@@ -152,7 +151,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("test", result.Value);
 
                         result.Value = "override";
-                        Assert.Equal("# override", result.ToString());
+                        Assert.Equal("#override", result.ToString());
                     }
                 },
                 new CreateTestScenario
@@ -160,9 +159,8 @@ namespace DockerfileModel.Tests
                     Comment = "comment   ",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateAggregate<CommentToken>(token, "# comment   ",
+                        token => ValidateAggregate<CommentToken>(token, "#comment   ",
                             token => ValidateSymbol(token, '#'),
-                            token => ValidateWhitespace(token, " "),
                             token => ValidateString(token, "comment"),
                             token => ValidateWhitespace(token, "   "))
                     },
@@ -171,7 +169,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("comment", result.Value);
 
                         result.Value = "newcomment";
-                        Assert.Equal($"# newcomment   ", result.ToString());
+                        Assert.Equal($"#newcomment   ", result.ToString());
                     }
                 }
             };

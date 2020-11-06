@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Xunit;
@@ -237,6 +238,32 @@ namespace DockerfileModel.Tests
             Assert.Single(fromInstruction.Comments);
 
             Assert.IsType<Comment>(dockerfileConstructs[2]);
+        }
+
+        /// <summary>
+        /// Create a Dockerfile from scratch using the fluent API of DockerfileBuilder.
+        /// </summary>
+        [Fact]
+        public void CreateNewDockerfileWithDockerfileBuilder()
+        {
+            DockerfileBuilder builder = new DockerfileBuilder();
+            builder
+                .Comment("Made from scratch Dockerfile")
+                .NewLine()
+                .ArgInstruction("TAG", "latest")
+                .FromInstruction("alpine:$TAG")
+                .ArgInstruction("MESSAGE")
+                .RunInstruction("echo $MESSAGE");
+
+            string expectedOutput =
+                "# Made from scratch Dockerfile" + Environment.NewLine +
+                Environment.NewLine +
+                "ARG TAG=latest" + Environment.NewLine +
+                "FROM alpine:$TAG" + Environment.NewLine +
+                "ARG MESSAGE" + Environment.NewLine +
+                "RUN echo $MESSAGE" + Environment.NewLine;
+
+            Assert.Equal(expectedOutput, builder.Dockerfile.ToString());
         }
     }
 }

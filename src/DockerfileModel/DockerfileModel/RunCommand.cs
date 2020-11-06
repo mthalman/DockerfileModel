@@ -29,7 +29,7 @@ namespace DockerfileModel
         {
             Requires.NotNull(excludedChars, nameof(excludedChars));
             return
-                from literal in LiteralString(escapeChar, excludedChars).Many().Flatten()
+                from literal in LiteralString(escapeChar, excludedChars, excludeVariableRefChars: false).Many().Flatten()
                 where literal.Any()
                 select new LiteralToken(TokenHelper.CollapseStringTokens(literal));
         }

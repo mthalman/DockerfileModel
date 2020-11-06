@@ -31,7 +31,7 @@ namespace DockerfileModel
         public override ConstructType Type => ConstructType.Comment;
 
         public static Comment Create(string comment) =>
-            new Comment($"# {comment}");
+            new Comment($"#{comment}");
 
         public static Comment Parse(string text) =>
             new Comment(text);
