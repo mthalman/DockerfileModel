@@ -54,10 +54,16 @@ namespace DockerfileModel
             AddConstruct(DockerfileModel.ParserDirective.Create(CommentSeparator + directive, value));
 
         public DockerfileBuilder RunInstruction(string command) =>
-            AddConstruct(DockerfileModel.RunInstruction.Create(command, EscapeChar));
+            RunInstruction(command, Enumerable.Empty<MountFlag>());
+
+        public DockerfileBuilder RunInstruction(string command, IEnumerable<MountFlag> mountFlags) =>
+            AddConstruct(DockerfileModel.RunInstruction.Create(command, mountFlags, EscapeChar));
 
         public DockerfileBuilder RunInstruction(IEnumerable<string> commands) =>
-            AddConstruct(DockerfileModel.RunInstruction.Create(commands, EscapeChar));
+            RunInstruction(commands, Enumerable.Empty<MountFlag>());
+
+        public DockerfileBuilder RunInstruction(IEnumerable<string> commands, IEnumerable<MountFlag> mountFlags) =>
+            AddConstruct(DockerfileModel.RunInstruction.Create(commands, mountFlags, EscapeChar));
 
         private DockerfileBuilder AddConstruct(DockerfileConstruct dockerfileConstruct)
         {

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
@@ -33,22 +34,42 @@ namespace DockerfileModel
             Instruction("RUN", escapeChar,
                 GetArgsParser(escapeChar));
 
-        public static RunInstruction Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public static RunInstruction Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Create(command, Enumerable.Empty<MountFlag>(), escapeChar);
+
+        public static RunInstruction Create(string command, IEnumerable<MountFlag> mountFlags, char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             Requires.NotNullOrEmpty(command, nameof(command));
-            return Parse($"RUN {command}", escapeChar);
+            Requires.NotNull(mountFlags, nameof(mountFlags));
+
+            return Parse($"RUN {CreateMountFlagArgs(mountFlags)}{command}", escapeChar);
         }
 
-        public static RunInstruction Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public static RunInstruction Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Create(commands, Enumerable.Empty<MountFlag>(), escapeChar);
+
+        public static RunInstruction Create(IEnumerable<string> commands, IEnumerable<MountFlag> mountFlags, char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
-            return Parse($"RUN {ExecFormRunCommand.FormatCommands(commands)}", escapeChar);
+            Requires.NotNull(mountFlags, nameof(mountFlags));
+
+            return Parse($"RUN {CreateMountFlagArgs(mountFlags)}{ExecFormRunCommand.FormatCommands(commands)}", escapeChar);
         }
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
             // Do not resolve variables for the command of a RUN instruction. It is shell/runtime-specific.
             return ToString();
+        }
+
+        private static string CreateMountFlagArgs(IEnumerable<MountFlag> mountFlags)
+        {
+            if (!mountFlags.Any())
+            {
+                return String.Empty;
+            }
+
+            return $"{String.Join(" ", mountFlags.Select(flag => flag.ToString()).ToArray())} ";
         }
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
