@@ -102,7 +102,7 @@ namespace DockerfileModel
 
             return from type in KeyValueToken<LiteralToken>.GetParser("type", escapeChar, valueParser).AsEnumerable()
                    from comma in CharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char(','), ch => new SymbolToken(ch))
-                   from lineCont in LineContinuation(escapeChar).AsEnumerable().Optional()
+                   from lineCont in LineContinuationToken.GetParser(escapeChar).AsEnumerable().Optional()
                    from id in KeyValueToken<LiteralToken>.GetParser("id", escapeChar, valueParser).AsEnumerable()
                    from destination in Destination(escapeChar).Optional()
                    select ConcatTokens(type, comma, lineCont.GetOrDefault(), id, destination.GetOrDefault());

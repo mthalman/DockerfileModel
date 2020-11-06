@@ -25,7 +25,7 @@ namespace DockerfileModel.Tokens
         {
         }
 
-        private VariableRefToken(IEnumerable<Token> tokens) : base(tokens)
+        internal VariableRefToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 

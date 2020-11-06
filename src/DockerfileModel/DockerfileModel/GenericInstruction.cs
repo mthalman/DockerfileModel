@@ -38,7 +38,7 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> InstructionParser(char escapeChar) =>
             from leading in Whitespace()
             from instruction in TokenWithTrailingWhitespace(DockerfileParser.InstructionIdentifier(escapeChar))
-            from lineContinuation in LineContinuation(escapeChar).Optional()
+            from lineContinuation in LineContinuationToken.GetParser(escapeChar).Optional()
             from instructionArgs in InstructionArgs(escapeChar)
             select ConcatTokens(leading, instruction, new Token[] { lineContinuation.GetOrDefault() }, instructionArgs);
     }

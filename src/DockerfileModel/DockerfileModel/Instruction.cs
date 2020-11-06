@@ -35,8 +35,8 @@ namespace DockerfileModel
             select lineSets.SelectMany(lineSet => lineSet);
 
         private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
-            from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Except(Parse.LineEnd).Many().Text()
-            from lineContinuation in LineContinuation(escapeChar).Optional()
+            from text in Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Except(Parse.LineEnd).Many().Text()
+            from lineContinuation in LineContinuationToken.GetParser(escapeChar).Optional()
             from lineEnd in OptionalNewLine().AsEnumerable()
             select ConcatTokens(
                 GetInstructionArgLineContent(text),

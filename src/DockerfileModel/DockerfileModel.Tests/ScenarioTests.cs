@@ -265,5 +265,45 @@ namespace DockerfileModel.Tests
 
             Assert.Equal(expectedOutput, builder.Dockerfile.ToString());
         }
+
+        /// <summary>
+        /// Create a fully-customized Dockerfile from scratch using the fluent API of TokenBuilder.
+        /// </summary>
+        [Fact]
+        public void CreateNewDockerfileWithTokenBuilder()
+        {
+            DockerfileBuilder builder = new DockerfileBuilder();
+            builder
+                .Comment("Made from scratch Dockerfile")
+                .NewLine()
+                .ArgInstruction("TAG", "latest")
+                .FromInstruction("alpine:$TAG")
+                .ArgInstruction("MESSAGE")
+                .RunInstruction(tokenBuilder =>
+                {
+                    // Configure the RUN instruction to have a line continuation with an inline comment
+                    tokenBuilder
+                        .Keyword("RUN")
+                        .Whitespace(" ")
+                        .LineContinuation()
+                        .Whitespace("  ")
+                        .Comment(" Output message")
+                        .NewLine()
+                        .Whitespace("  ")
+                        .ShellFormRunCommand("echo $MESSAGE");
+                });
+
+            string expectedOutput =
+                "# Made from scratch Dockerfile" + Environment.NewLine +
+                Environment.NewLine +
+                "ARG TAG=latest" + Environment.NewLine +
+                "FROM alpine:$TAG" + Environment.NewLine +
+                "ARG MESSAGE" + Environment.NewLine +
+                "RUN \\" + Environment.NewLine +
+                "  # Output message" + Environment.NewLine +
+                "  echo $MESSAGE" + Environment.NewLine;
+
+            Assert.Equal(expectedOutput, builder.Dockerfile.ToString());
+        }
     }
 }
