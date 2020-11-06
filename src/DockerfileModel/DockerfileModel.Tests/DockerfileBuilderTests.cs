@@ -18,19 +18,21 @@ namespace DockerfileModel.Tests
         {
             DockerfileBuilder builder = new DockerfileBuilder();
             builder
-                .ParserDirective("escape", "\\")
                 .ArgInstruction("ARG", "value")
+                .CommandInstruction("echo hello")
                 .Comment("my comment")
                 .FromInstruction("scratch")
                 .NewLine()
+                .ParserDirective("escape", "\\")
                 .RunInstruction("echo hi");
 
             string expectedOutput =
-                "# escape=\\" + Environment.NewLine +
                 "ARG ARG=value" + Environment.NewLine +
+                "CMD echo hello" + Environment.NewLine +
                 "# my comment" + Environment.NewLine +
                 "FROM scratch" + Environment.NewLine +
                 Environment.NewLine +
+                "# escape=\\" + Environment.NewLine +
                 "RUN echo hi" + Environment.NewLine;
 
             Assert.Equal(expectedOutput, builder.Dockerfile.ToString());

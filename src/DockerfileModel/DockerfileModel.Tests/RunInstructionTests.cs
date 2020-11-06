@@ -74,18 +74,18 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("RUN", result.InstructionName);
-                        Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
+                        Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
                         Assert.Equal("echo hello", result.Command.ToString());
-                        Assert.IsType<ShellFormRunCommand>(result.Command);
+                        Assert.IsType<ShellFormCommand>(result.Command);
                         Assert.Empty(result.MountFlags);
-                        ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
+                        ShellFormCommand cmd = (ShellFormCommand)result.Command;
                         Assert.Equal("echo hello", cmd.Value);
                     }
                 },
@@ -96,7 +96,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "$TEST",
+                        token => ValidateAggregate<ShellFormCommand>(token, "$TEST",
                             token => ValidateLiteral(token, "$TEST"))
                     }
                 },
@@ -107,7 +107,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo $TEST",
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo $TEST",
                             token => ValidateLiteral(token, "echo $TEST"))
                     }
                 },
@@ -118,7 +118,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "T\\$EST",
+                        token => ValidateAggregate<ShellFormCommand>(token, "T\\$EST",
                             token => ValidateLiteral(token, "T\\$EST"))
                     }
                 },
@@ -130,7 +130,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo `\n#test comment\nhello",
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo `\n#test comment\nhello",
                             token => ValidateQuotableAggregate<LiteralToken>(token, "echo `\n#test comment\nhello", null,
                                 token => ValidateString(token, "echo "),
                                 token => ValidateAggregate<LineContinuationToken>(token, "`\n",
@@ -147,10 +147,10 @@ namespace DockerfileModel.Tests
                         Assert.Single(result.Comments);
                         Assert.Equal("test comment", result.Comments.First());
                         Assert.Equal("RUN", result.InstructionName);
-                        Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
+                        Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
                         Assert.Equal("echo `\n#test comment\nhello", result.Command.ToString());
-                        Assert.IsType<ShellFormRunCommand>(result.Command);
-                        ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
+                        Assert.IsType<ShellFormCommand>(result.Command);
+                        ShellFormCommand cmd = (ShellFormCommand)result.Command;
                         Assert.Equal("echo hello", cmd.Value);
                     }
                 },
@@ -161,7 +161,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ExecFormRunCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                        token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
                             token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                             token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
@@ -174,10 +174,10 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("RUN", result.InstructionName);
-                        Assert.Equal(RunCommandType.ExecForm, result.Command.CommandType);
+                        Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
                         Assert.Equal("[\"/bin/bash\", \"-c\", \"echo hello\"]", result.Command.ToString());
-                        Assert.IsType<ExecFormRunCommand>(result.Command);
-                        ExecFormRunCommand cmd = (ExecFormRunCommand)result.Command;
+                        Assert.IsType<ExecFormCommand>(result.Command);
+                        ExecFormCommand cmd = (ExecFormCommand)result.Command;
                         Assert.Equal(
                             new string[]
                             {
@@ -199,7 +199,7 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
-                        token => ValidateAggregate<ExecFormRunCommand>(token, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
+                        token => ValidateAggregate<ExecFormCommand>(token, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
                             token => ValidateWhitespace(token, " "),
                             token => ValidateQuotableAggregate<LiteralToken>(token, "\"/bi`\nn/bash\"", ParseHelper.DoubleQuote,
                                 token => ValidateString(token, "/bi"),
@@ -223,10 +223,10 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("RUN", result.InstructionName);
-                        Assert.Equal(RunCommandType.ExecForm, result.Command.CommandType);
+                        Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
                         Assert.Equal("[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]", result.Command.ToString());
-                        Assert.IsType<ExecFormRunCommand>(result.Command);
-                        ExecFormRunCommand cmd = (ExecFormRunCommand)result.Command;
+                        Assert.IsType<ExecFormCommand>(result.Command);
+                        ExecFormCommand cmd = (ExecFormCommand)result.Command;
                         Assert.Equal(
                             new string[]
                             {
@@ -245,7 +245,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "ec`\nho `test",
+                        token => ValidateAggregate<ShellFormCommand>(token, "ec`\nho `test",
                             token => ValidateAggregate<LiteralToken>(token, "ec`\nho `test",
                                 token => ValidateString(token, "ec"),
                                 token => ValidateAggregate<LineContinuationToken>(token, "`\n",
@@ -262,7 +262,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "\"ec`\nh`\"o `test\"",
+                        token => ValidateAggregate<ShellFormCommand>(token, "\"ec`\nh`\"o `test\"",
                             token => ValidateQuotableAggregate<LiteralToken>(token, "\"ec`\nh`\"o `test\"", null,
                                 token => ValidateString(token, "\"ec"),
                                 token => ValidateAggregate<LineContinuationToken>(token, "`\n",
@@ -289,17 +289,17 @@ namespace DockerfileModel.Tests
                                     token => ValidateSymbol(token, ','),
                                     token => ValidateKeyValue(token, "id", "id")))),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("RUN", result.InstructionName);
-                        Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
+                        Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
                         Assert.Equal("echo hello", result.Command.ToString());
-                        Assert.IsType<ShellFormRunCommand>(result.Command);
-                        ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
+                        Assert.IsType<ShellFormCommand>(result.Command);
+                        ShellFormCommand cmd = (ShellFormCommand)result.Command;
                         Assert.Equal("echo hello", cmd.Value);
 
                         Assert.Single(result.MountFlags);
@@ -330,17 +330,17 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLineContinuation(token, '`', "\n"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("RUN", result.InstructionName);
-                        Assert.Equal(RunCommandType.ShellForm, result.Command.CommandType);
+                        Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
                         Assert.Equal("echo hello", result.Command.ToString());
-                        Assert.IsType<ShellFormRunCommand>(result.Command);
-                        ShellFormRunCommand cmd = (ShellFormRunCommand)result.Command;
+                        Assert.IsType<ShellFormCommand>(result.Command);
+                        ShellFormCommand cmd = (ShellFormCommand)result.Command;
                         Assert.Equal("echo hello", cmd.Value);
 
                         Assert.Single(result.MountFlags);
@@ -364,7 +364,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
                     }
                 },
@@ -380,7 +380,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ExecFormRunCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                        token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
                             token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                             token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
@@ -412,7 +412,7 @@ namespace DockerfileModel.Tests
                                     token => ValidateSymbol(token, ','),
                                     token => ValidateKeyValue(token, "id", "id")))),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
                     }
                 },
@@ -450,7 +450,7 @@ namespace DockerfileModel.Tests
                                     token => ValidateSymbol(token, ','),
                                     token => ValidateKeyValue(token, "id", "id2")))),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo hello",
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
                     }
                 },

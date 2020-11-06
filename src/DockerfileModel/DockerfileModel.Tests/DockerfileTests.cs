@@ -616,7 +616,7 @@ namespace DockerfileModel.Tests
                             {
                                 token => ValidateKeyword(token, "RUN"),
                                 token => ValidateWhitespace(token, " "),
-                                token => ValidateAggregate<ShellFormRunCommand>(token, "apt-get update \\\r\n  && apt-get install curl\r\n",
+                                token => ValidateAggregate<ShellFormCommand>(token, "apt-get update \\\r\n  && apt-get install curl\r\n",
                                     token => ValidateAggregate<LiteralToken>(token, "apt-get update \\\r\n  && apt-get install curl\r\n",
                                         token => ValidateString(token, "apt-get update "),
                                         token => ValidateAggregate<LineContinuationToken>(token, "\\\r\n",
@@ -639,7 +639,7 @@ namespace DockerfileModel.Tests
                             {
                                 token => ValidateKeyword(token, "RUN"),
                                 token => ValidateWhitespace(token, " "),
-                                token => ValidateAggregate<ShellFormRunCommand>(token, "apk add \\\n  userspace-rcu",
+                                token => ValidateAggregate<ShellFormCommand>(token, "apk add \\\n  userspace-rcu",
                                     token => ValidateAggregate<LiteralToken>(token, "apk add \\\n  userspace-rcu",
                                         token => ValidateString(token, "apk add "),
                                         token => ValidateAggregate<LineContinuationToken>(token, "\\\n",
@@ -666,6 +666,20 @@ namespace DockerfileModel.Tests
                                 token => ValidateWhitespace(token, " "),
                                 token => ValidateLiteral(token, "VAR=VAL"),
                             })
+                    }
+                },
+                new ParseTestScenario<Dockerfile>
+                {
+                    Text = $"CMD echo hello",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        line => ValidateAggregate<CommandInstruction>(line, "CMD echo hello", new Action<Token>[]
+                        {
+                            token => ValidateKeyword(token, "CMD"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                                token => ValidateLiteral(token, "echo hello"))
+                        })
                     }
                 }
             };

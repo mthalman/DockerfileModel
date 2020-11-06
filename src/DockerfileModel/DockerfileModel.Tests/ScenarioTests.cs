@@ -290,7 +290,7 @@ namespace DockerfileModel.Tests
                         .Comment(" Output message")
                         .NewLine()
                         .Whitespace("  ")
-                        .ShellFormRunCommand("echo $MESSAGE");
+                        .ShellFormCommand("echo $MESSAGE");
                 });
 
             string expectedOutput =

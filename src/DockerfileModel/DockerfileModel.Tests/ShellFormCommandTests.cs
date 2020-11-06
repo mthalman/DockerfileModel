@@ -9,15 +9,15 @@ using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
 {
-    public class ShellFormRunCommandTests
+    public class ShellFormCommandTests
     {
         [Theory]
         [MemberData(nameof(ParseTestInput))]
-        public void Parse(ShellFormRunCommandParseTestScenario scenario)
+        public void Parse(ShellFormCommandParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                ShellFormRunCommand result = ShellFormRunCommand.Parse(scenario.Text, scenario.EscapeChar);
+                ShellFormCommand result = ShellFormCommand.Parse(scenario.Text, scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ShellFormRunCommand result = ShellFormRunCommand.Create(scenario.Command);
+            ShellFormCommand result = ShellFormCommand.Create(scenario.Command);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Value()
         {
-            ShellFormRunCommand result = ShellFormRunCommand.Create("echo hello");
+            ShellFormCommand result = ShellFormCommand.Create("echo hello");
             Assert.Equal("echo hello", result.Value);
             Assert.Equal("echo hello", result.ValueToken.Value);
 
@@ -61,9 +61,9 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            ShellFormRunCommandParseTestScenario[] testInputs = new ShellFormRunCommandParseTestScenario[]
+            ShellFormCommandParseTestScenario[] testInputs = new ShellFormCommandParseTestScenario[]
             {
-                new ShellFormRunCommandParseTestScenario
+                new ShellFormCommandParseTestScenario
                 {
                     Text = "echo hello",
                     TokenValidators = new Action<Token>[]
@@ -72,12 +72,12 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal(RunCommandType.ShellForm, result.CommandType);
+                        Assert.Equal(CommandType.ShellForm, result.CommandType);
                         Assert.Equal("echo hello", result.ToString());
                         Assert.Equal("echo hello", result.Value);
                     }
                 },
-                new ShellFormRunCommandParseTestScenario
+                new ShellFormCommandParseTestScenario
                 {
                     Text = "echo `\n#test comment\nhello",
                     EscapeChar = '`',
@@ -96,12 +96,12 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal(RunCommandType.ShellForm, result.CommandType);
+                        Assert.Equal(CommandType.ShellForm, result.CommandType);
                         Assert.Equal("echo `\n#test comment\nhello", result.ToString());
                         Assert.Equal("echo hello", result.Value);
                     }
                 },
-                new ShellFormRunCommandParseTestScenario
+                new ShellFormCommandParseTestScenario
                 {
                     Text = "ec`\nho `test",
                     EscapeChar = '`',
@@ -115,7 +115,7 @@ namespace DockerfileModel.Tests
                             token => ValidateString(token, "ho `test"))
                     }
                 },
-                new ShellFormRunCommandParseTestScenario
+                new ShellFormCommandParseTestScenario
                 {
                     Text = "\"ec`\nh`\"o `test\"",
                     EscapeChar = '`',
@@ -151,12 +151,12 @@ namespace DockerfileModel.Tests
             return testInputs.Select(input => new object[] { input });
         }
 
-        public class ShellFormRunCommandParseTestScenario : ParseTestScenario<ShellFormRunCommand>
+        public class ShellFormCommandParseTestScenario : ParseTestScenario<ShellFormCommand>
         {
             public char EscapeChar { get; set; }
         }
 
-        public class CreateTestScenario : TestScenario<ShellFormRunCommand>
+        public class CreateTestScenario : TestScenario<ShellFormCommand>
         {
             public string Command { get; set; }
         }

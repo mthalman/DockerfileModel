@@ -8,25 +8,25 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class ExecFormRunCommand : RunCommand
+    public class ExecFormCommand : Command
     {
-        private ExecFormRunCommand(string text, char escapeChar)
+        private ExecFormCommand(string text, char escapeChar)
             : base(text, GetInnerParser(escapeChar))
         {
         }
 
-        internal ExecFormRunCommand(IEnumerable<Token> tokens) : base(tokens)
+        internal ExecFormCommand(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
-        public static ExecFormRunCommand Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public static ExecFormCommand Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
             return Parse(FormatCommands(commands), escapeChar);
         }
 
-        public static ExecFormRunCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ExecFormRunCommand(text, escapeChar);
+        public static ExecFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new ExecFormCommand(text, escapeChar);
 
         public static string FormatCommands(IEnumerable<string> commands)
         {
@@ -34,9 +34,9 @@ namespace DockerfileModel
             return $"[{String.Join(", ", commands.Select(command => $"\"{command}\"").ToArray())}]";
         }
 
-        public static Parser<ExecFormRunCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static Parser<ExecFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new ExecFormRunCommand(tokens);
+            select new ExecFormCommand(tokens);
 
         public IList<string> CommandArgs =>
             new ProjectedItemList<LiteralToken, string>(
@@ -46,7 +46,7 @@ namespace DockerfileModel
 
         public IEnumerable<LiteralToken> CommandArgTokens => Tokens.OfType<LiteralToken>();
 
-        public override RunCommandType CommandType => RunCommandType.ExecForm;
+        public override CommandType CommandType => CommandType.ExecForm;
 
         protected override string GetUnderlyingValue(TokenStringOptions options) =>
             $"[{base.GetUnderlyingValue(options)}]";
@@ -80,7 +80,7 @@ namespace DockerfileModel
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
                 leading,
-                CollapseRunCommandTokens(argValue.Flatten(), DoubleQuote),
+                CollapseCommandTokens(argValue.Flatten(), DoubleQuote),
                 trailing);
     }
 }

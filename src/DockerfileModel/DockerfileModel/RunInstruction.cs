@@ -15,9 +15,9 @@ namespace DockerfileModel
         {
         }
 
-        public RunCommand Command
+        public Command Command
         {
-            get => this.Tokens.OfType<RunCommand>().First();
+            get => this.Tokens.OfType<Command>().First();
             set
             {
                 Requires.NotNull(value, nameof(value));
@@ -53,7 +53,7 @@ namespace DockerfileModel
             Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
             Requires.NotNull(mountFlags, nameof(mountFlags));
 
-            return Parse($"RUN {CreateMountFlagArgs(mountFlags)}{ExecFormRunCommand.FormatCommands(commands)}", escapeChar);
+            return Parse($"RUN {CreateMountFlagArgs(mountFlags)}{ExecFormCommand.FormatCommands(commands)}", escapeChar);
         }
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
@@ -79,9 +79,9 @@ namespace DockerfileModel
             select ConcatTokens(
                 mounts.Flatten(), whitespace, command);
 
-        private static Parser<RunCommand> GetCommandParser(char escapeChar) =>
-            ExecFormRunCommand.GetParser(escapeChar)
-                .Cast<ExecFormRunCommand, RunCommand>()
-                .XOr(ShellFormRunCommand.GetParser(escapeChar));
+        private static Parser<Command> GetCommandParser(char escapeChar) =>
+            ExecFormCommand.GetParser(escapeChar)
+                .Cast<ExecFormCommand, Command>()
+                .XOr(ShellFormCommand.GetParser(escapeChar));
     }
 }

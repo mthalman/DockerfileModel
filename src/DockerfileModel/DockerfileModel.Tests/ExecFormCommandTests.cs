@@ -9,15 +9,15 @@ using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
 {
-    public class ExecFormRunCommandTests
+    public class ExecFormCommandTests
     {
         [Theory]
         [MemberData(nameof(ParseTestInput))]
-        public void Parse(ExecFormRunCommandParseTestScenario scenario)
+        public void Parse(ExecFormCommandParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                ExecFormRunCommand result = ExecFormRunCommand.Parse(scenario.Text, scenario.EscapeChar);
+                ExecFormCommand result = ExecFormCommand.Parse(scenario.Text, scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ExecFormRunCommand result = ExecFormRunCommand.Create(scenario.Commands);
+            ExecFormCommand result = ExecFormCommand.Create(scenario.Commands);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Commands()
         {
-            ExecFormRunCommand result = ExecFormRunCommand.Create(new string[]
+            ExecFormCommand result = ExecFormCommand.Create(new string[]
             {
                 "/bin/bash",
                 "-c",
@@ -104,9 +104,9 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            ExecFormRunCommandParseTestScenario[] testInputs = new ExecFormRunCommandParseTestScenario[]
+            ExecFormCommandParseTestScenario[] testInputs = new ExecFormCommandParseTestScenario[]
             {
-                new ExecFormRunCommandParseTestScenario
+                new ExecFormCommandParseTestScenario
                 {
                     Text = "[\"/bin/bash\", \"-c\", \"echo hello\"]",
                     TokenValidators = new Action<Token>[]
@@ -121,7 +121,7 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal(RunCommandType.ExecForm, result.CommandType);
+                        Assert.Equal(CommandType.ExecForm, result.CommandType);
                         Assert.Equal("[\"/bin/bash\", \"-c\", \"echo hello\"]", result.ToString());
                         Assert.Equal(
                             new string[]
@@ -133,7 +133,7 @@ namespace DockerfileModel.Tests
                             result.CommandArgs.ToArray());
                     }
                 },
-                new ExecFormRunCommandParseTestScenario
+                new ExecFormCommandParseTestScenario
                 {
                     Text = "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
                     EscapeChar = '`',
@@ -160,7 +160,7 @@ namespace DockerfileModel.Tests
                     },
                     Validate = result =>
                     {
-                        Assert.Equal(RunCommandType.ExecForm, result.CommandType);
+                        Assert.Equal(CommandType.ExecForm, result.CommandType);
                         Assert.Equal("[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]", result.ToString());
                         Assert.Equal(
                             new string[]
@@ -172,7 +172,7 @@ namespace DockerfileModel.Tests
                             result.CommandArgs.ToArray());
                     }
                 },
-                new ExecFormRunCommandParseTestScenario
+                new ExecFormCommandParseTestScenario
                 {
                     Text = "echo hello",
                     ParseExceptionPosition = new Position(0, 1, 1)
@@ -210,12 +210,12 @@ namespace DockerfileModel.Tests
             return testInputs.Select(input => new object[] { input });
         }
 
-        public class ExecFormRunCommandParseTestScenario : ParseTestScenario<ExecFormRunCommand>
+        public class ExecFormCommandParseTestScenario : ParseTestScenario<ExecFormCommand>
         {
             public char EscapeChar { get; set; }
         }
 
-        public class CreateTestScenario : TestScenario<ExecFormRunCommand>
+        public class CreateTestScenario : TestScenario<ExecFormCommand>
         {
             public IEnumerable<string> Commands { get; set; }
         }
