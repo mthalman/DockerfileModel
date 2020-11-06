@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using DockerfileModel.Tokens;
 using Validation;
 
 namespace DockerfileModel
@@ -42,16 +43,35 @@ namespace DockerfileModel
         public DockerfileBuilder ArgInstruction(string argName, string? argValue = null) =>
             AddConstruct(DockerfileModel.ArgInstruction.Create(argName, argValue, EscapeChar));
 
+        public DockerfileBuilder ArgInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.ArgInstruction.Parse);
+
         public DockerfileBuilder Comment(string comment) =>
             AddConstruct(
                 DockerfileModel.Comment.Create(CommentSeparator + comment));
+
+        public DockerfileBuilder Comment(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
         public DockerfileBuilder FromInstruction(string imageName, string? stageName = null, string? platform = null) =>
             AddConstruct(
                 DockerfileModel.FromInstruction.Create(imageName, stageName, platform, EscapeChar));
 
+        public DockerfileBuilder FromInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.FromInstruction.Parse);
+
+        public DockerfileBuilder GenericInstruction(string instruction, string args) =>
+            AddConstruct(
+                DockerfileModel.GenericInstruction.Create(instruction, args, EscapeChar));
+
+        public DockerfileBuilder GenericInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.GenericInstruction.Parse);
+
         public DockerfileBuilder ParserDirective(string directive, string value) =>
             AddConstruct(DockerfileModel.ParserDirective.Create(CommentSeparator + directive, value));
+
+        public DockerfileBuilder ParserDirective(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.ParserDirective.Parse);
 
         public DockerfileBuilder RunInstruction(string command) =>
             RunInstruction(command, Enumerable.Empty<MountFlag>());
@@ -64,6 +84,37 @@ namespace DockerfileModel
 
         public DockerfileBuilder RunInstruction(IEnumerable<string> commands, IEnumerable<MountFlag> mountFlags) =>
             AddConstruct(DockerfileModel.RunInstruction.Create(commands, mountFlags, EscapeChar));
+
+        public DockerfileBuilder RunInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.RunInstruction.Parse);
+
+        private DockerfileBuilder ParseTokens(Action<TokenBuilder> configureBuilder, Func<string, DockerfileConstruct> parseConstruct)
+        {
+            TokenBuilder builder = new TokenBuilder
+            {
+                DefaultNewLine = DefaultNewLine,
+                EscapeChar = EscapeChar
+            };
+
+            configureBuilder(builder);
+            AddConstruct(parseConstruct(builder.ToString()));
+
+            return this;
+        }
+
+        private DockerfileBuilder ParseTokens(Action<TokenBuilder> configureBuilder, Func<string, char, DockerfileConstruct> parseConstruct)
+        {
+            TokenBuilder builder = new TokenBuilder
+            {
+                DefaultNewLine = DefaultNewLine,
+                EscapeChar = EscapeChar
+            };
+
+            configureBuilder(builder);
+            AddConstruct(parseConstruct(builder.ToString(), EscapeChar));
+
+            return this;
+        }
 
         private DockerfileBuilder AddConstruct(DockerfileConstruct dockerfileConstruct)
         {

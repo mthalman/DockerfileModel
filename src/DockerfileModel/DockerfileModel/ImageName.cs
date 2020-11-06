@@ -26,6 +26,14 @@ namespace DockerfileModel
             digestToken = Tokens.OfType<DigestToken>().FirstOrDefault();
         }
 
+        internal ImageName(IEnumerable<Token> tokens) : base(tokens)
+        {
+            registryToken = Tokens.OfType<RegistryToken>().FirstOrDefault();
+            repositoryToken = Tokens.OfType<RepositoryToken>().First();
+            tagToken = Tokens.OfType<TagToken>().FirstOrDefault();
+            digestToken = Tokens.OfType<DigestToken>().FirstOrDefault();
+        }
+
         public static ImageName Create(string repository, string? registry = null, string? tag = null, string? digest = null)
         {
             Requires.NotNullOrWhiteSpace(repository, nameof(repository));
@@ -289,11 +297,19 @@ namespace DockerfileModel
         public RegistryToken(string value) : base(value)
         {
         }
+
+        internal RegistryToken(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
     }
 
     public class RepositoryToken : IdentifierToken
     {
         public RepositoryToken(string value) : base(value)
+        {
+        }
+
+        internal RepositoryToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
     }
@@ -303,11 +319,19 @@ namespace DockerfileModel
         public TagToken(string value) : base(value)
         {
         }
+
+        internal TagToken(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
     }
 
     public class DigestToken : IdentifierToken
     {
         public DigestToken(string value) : base(value)
+        {
+        }
+
+        internal DigestToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
     }

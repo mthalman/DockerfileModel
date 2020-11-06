@@ -67,7 +67,7 @@ namespace DockerfileModel.Tokens
 
             return from keyword in Keyword(key, escapeChar).AsEnumerable()
                    from equalOperator in CharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char('='), ch => new SymbolToken(ch))
-                   from lineCont in LineContinuation(escapeChar).AsEnumerable().Optional()
+                   from lineCont in LineContinuationToken.GetParser(escapeChar).AsEnumerable().Optional()
                    from value in valueTokenParser.AsEnumerable()
                    select ConcatTokens(keyword, equalOperator, lineCont.GetOrDefault(), value);
         }

@@ -58,7 +58,7 @@ namespace DockerfileModel
         /// <param name="escapeChar">Escape character.</param>
         public static Parser<IEnumerable<Token>> OptionalWhitespaceOrLineContinuation(char escapeChar) =>
             from leading in Whitespace().Optional()
-            from lineContinuation in LineContinuation(escapeChar).Optional()
+            from lineContinuation in LineContinuationToken.GetParser(escapeChar).Optional()
             from trailing in Whitespace().Optional()
             select ConcatTokens(
                 leading.GetOrDefault(),
@@ -157,7 +157,7 @@ namespace DockerfileModel
                 from leadingWhitespace in Whitespace()
                 from token in tokenParser
                 from trailingWhitespace in Whitespace().Optional()
-                from lineContinuation in LineContinuation(escapeChar).Optional()
+                from lineContinuation in LineContinuationToken.GetParser(escapeChar).Optional()
                 from lineEnd in OptionalNewLine().AsEnumerable()
                 select ConcatTokens(
                     leadingWhitespace,
@@ -165,20 +165,6 @@ namespace DockerfileModel
                     trailingWhitespace.GetOrDefault(),
                     new Token[] { lineContinuation.GetOrDefault() },
                     lineEnd));
-
-        /// <summary>
-        /// Parses a line continuation, consisting of an escape character followed by a new line.
-        /// </summary>
-        /// <param name="escapeChar">Escape character.</param>
-        /// <returns>Line continuation tokens.</returns>
-        public static Parser<LineContinuationToken> LineContinuation(char escapeChar) =>
-           from escape in Symbol(escapeChar)
-           from whitespace in Parse.WhiteSpace.Except(Parse.LineEnd).Many()
-           from lineEnding in Parse.LineEnd
-           select new LineContinuationToken(ConcatTokens(
-               escape,
-               whitespace.Any() ? new WhitespaceToken(new string(whitespace.ToArray())) : null,
-               new NewLineToken(lineEnding)));
 
         /// <summary>
         /// Parses a keyword.
@@ -224,7 +210,7 @@ namespace DockerfileModel
         /// <param name="charParser">Character parser.</param>
         /// <returns>Parsed tokens.</returns>
         public static Parser<IEnumerable<Token>> CharWithOptionalLineContinuation(char escapeChar, Parser<char> charParser, Func<char, Token> createToken) =>
-            from lineContinuation in LineContinuation(escapeChar).Many()
+            from lineContinuation in LineContinuationToken.GetParser(escapeChar).Many()
             from ch in charParser
             select ConcatTokens(lineContinuation, new Token[] { createToken(ch) });
 
@@ -334,7 +320,7 @@ namespace DockerfileModel
 
         public static Parser<IEnumerable<Token>> Flag(char escapeChar, Parser<Token> flagParser) =>
              from flag in SymbolTokenCharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char('-')).Repeat(2)
-             from lineCont in LineContinuation(escapeChar).AsEnumerable().Optional()
+             from lineCont in LineContinuationToken.GetParser(escapeChar).AsEnumerable().Optional()
              from token in flagParser
              select ConcatTokens(flag.Flatten(), lineCont.GetOrDefault(), new Token[] { token });
 
@@ -610,7 +596,7 @@ namespace DockerfileModel
             WithTrailingComments(
                 from leading in Whitespace()
                 from instruction in TokenWithTrailingWhitespace(Keyword(instructionName, escapeChar))
-                from lineContinuation in LineContinuation(escapeChar).Optional()
+                from lineContinuation in LineContinuationToken.GetParser(escapeChar).Optional()
                 select ConcatTokens(leading, instruction, new Token[] { lineContinuation.GetOrDefault() }));
 
         /// <summary>

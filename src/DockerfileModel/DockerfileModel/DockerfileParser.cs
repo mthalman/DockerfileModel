@@ -132,8 +132,8 @@ namespace DockerfileModel
             select instruction.Value;
 
         private static Parser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
-            from text in Parse.AnyChar.Except(LineContinuation(escapeChar)).Many().Text()
-            from lineCont in LineContinuation(escapeChar)
+            from text in Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Many().Text()
+            from lineCont in LineContinuationToken.GetParser(escapeChar)
             select lineCont;
 
         public static Parser<KeywordToken> InstructionIdentifier(char escapeChar) =>
