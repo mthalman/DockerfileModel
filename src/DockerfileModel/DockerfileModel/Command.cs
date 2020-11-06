@@ -7,18 +7,18 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public abstract class RunCommand : AggregateToken
+    public abstract class Command : AggregateToken
     {
-        protected RunCommand(IEnumerable<Token> tokens) : base(tokens)
+        protected Command(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
-        protected RunCommand(string text, Parser<IEnumerable<Token?>> parser)
+        protected Command(string text, Parser<IEnumerable<Token?>> parser)
             : base(text, parser)
         {
         }
 
-        public abstract RunCommandType CommandType { get; }
+        public abstract CommandType CommandType { get; }
 
         /// <summary>
         /// Parses a literal token.
@@ -34,7 +34,7 @@ namespace DockerfileModel
                 select new LiteralToken(TokenHelper.CollapseStringTokens(literal));
         }
 
-        protected static IEnumerable<Token> CollapseRunCommandTokens(IEnumerable<Token> tokens, char? quoteChar = null)
+        protected static IEnumerable<Token> CollapseCommandTokens(IEnumerable<Token> tokens, char? quoteChar = null)
         {
             Requires.NotNullEmptyOrNullElements(tokens, nameof(tokens));
             return new Token[]

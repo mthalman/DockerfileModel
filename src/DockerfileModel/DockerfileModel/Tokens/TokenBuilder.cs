@@ -24,11 +24,11 @@ namespace DockerfileModel.Tokens
         public TokenBuilder Digest(Action<TokenBuilder> configureBuilder) =>
             AddToken(new DigestToken(GetTokens(configureBuilder)));
 
-        public TokenBuilder ExecFormRunCommand(params string[] commands) =>
-            AddToken(DockerfileModel.ExecFormRunCommand.Create(commands, EscapeChar));
+        public TokenBuilder ExecFormCommand(params string[] commands) =>
+            AddToken(DockerfileModel.ExecFormCommand.Create(commands, EscapeChar));
 
-        public TokenBuilder ExecFormRunCommand(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new ExecFormRunCommand(GetTokens(configureBuilder)));
+        public TokenBuilder ExecFormCommand(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new ExecFormCommand(GetTokens(configureBuilder)));
 
         public TokenBuilder Identifier(string value) =>
             AddToken(new IdentifierToken(value));
@@ -101,11 +101,11 @@ namespace DockerfileModel.Tokens
         public TokenBuilder SecretMount(Action<TokenBuilder> configureBuilder) =>
             AddToken(new SecretMount(GetTokens(configureBuilder)));
 
-        public TokenBuilder ShellFormRunCommand(string command) =>
-            AddToken(DockerfileModel.ShellFormRunCommand.Create(command, EscapeChar));
+        public TokenBuilder ShellFormCommand(string command) =>
+            AddToken(DockerfileModel.ShellFormCommand.Create(command, EscapeChar));
 
-        public TokenBuilder ShellFormRunCommand(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new ShellFormRunCommand(GetTokens(configureBuilder)));
+        public TokenBuilder ShellFormCommand(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new ShellFormCommand(GetTokens(configureBuilder)));
 
         public TokenBuilder StageName(string stageName) =>
             AddToken(DockerfileModel.StageName.Create(stageName, EscapeChar));

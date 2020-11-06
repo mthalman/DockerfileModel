@@ -1,6 +1,6 @@
 ﻿namespace DockerfileModel
 {
-    public enum RunCommandType
+    public enum CommandType
     {
         ShellForm,
         ExecForm

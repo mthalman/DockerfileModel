@@ -15,7 +15,7 @@ namespace DockerfileModel.Tests
             builder
                 .Comment("comment")
                 .Digest("digest")
-                .ExecFormRunCommand("cmd1", "cmd2")
+                .ExecFormCommand("cmd1", "cmd2")
                 .Identifier("id")
                 .ImageName("repo")
                 .KeyValue<KeywordToken>("key", "value")
@@ -28,7 +28,7 @@ namespace DockerfileModel.Tests
                 .Registry("registry")
                 .Repository("repo")
                 .SecretMount("id")
-                .ShellFormRunCommand("cmd")
+                .ShellFormCommand("cmd")
                 .StageName("stage")
                 .Symbol('-')
                 .Tag("tag")
@@ -42,7 +42,7 @@ namespace DockerfileModel.Tests
                     token => ValidateString(token, "comment")),
                 token => ValidateAggregate<DigestToken>(token, "digest",
                     token => ValidateString(token, "digest")),
-                token => ValidateAggregate<ExecFormRunCommand>(token, "[\"cmd1\", \"cmd2\"]",
+                token => ValidateAggregate<ExecFormCommand>(token, "[\"cmd1\", \"cmd2\"]",
                     token => ValidateLiteral(token, "cmd1", ParseHelper.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
@@ -84,7 +84,7 @@ namespace DockerfileModel.Tests
                     token => ValidateKeyValue(token, "type", "secret"),
                     token => ValidateSymbol(token, ','),
                     token => ValidateKeyValue(token, "id", "id")),
-                token => ValidateAggregate<ShellFormRunCommand>(token, "cmd",
+                token => ValidateAggregate<ShellFormCommand>(token, "cmd",
                     token => ValidateLiteral(token, "cmd")),
                 token => ValidateAggregate<StageName>(token, "AS stage",
                     token => ValidateKeyword(token, "AS"),

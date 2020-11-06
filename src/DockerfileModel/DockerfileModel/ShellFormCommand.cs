@@ -8,28 +8,28 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class ShellFormRunCommand : RunCommand
+    public class ShellFormCommand : Command
     {
-        private ShellFormRunCommand(string text, char escapeChar)
+        private ShellFormCommand(string text, char escapeChar)
             : base(text, GetInnerParser(escapeChar))
         {
         }
 
-        internal ShellFormRunCommand(IEnumerable<Token> tokens) : base(tokens)
+        internal ShellFormCommand(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
-        public static ShellFormRunCommand Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static ShellFormCommand Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(command, escapeChar);
 
-        public static ShellFormRunCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ShellFormRunCommand(text, escapeChar);
+        public static ShellFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new ShellFormCommand(text, escapeChar);
 
-        public static Parser<ShellFormRunCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static Parser<ShellFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new ShellFormRunCommand(tokens);
+            select new ShellFormCommand(tokens);
 
-        public override RunCommandType CommandType => RunCommandType.ShellForm;
+        public override CommandType CommandType => CommandType.ShellForm;
 
         public string Value
         {
@@ -55,6 +55,6 @@ namespace DockerfileModel
             from literals in ArgTokens(
                 LiteralToken(escapeChar, new char[0]).AsEnumerable(),
                 escapeChar).Many()
-            select CollapseRunCommandTokens(literals.Flatten());
+            select CollapseCommandTokens(literals.Flatten());
     }
 }
