@@ -106,10 +106,10 @@ namespace DockerfileModel.Tests
                 "repo" +
                 "key=value" +
                 "key" +
-                "\\\r\n" +
+                "\\" + Environment.NewLine +
                 "literal" +
                 "--mount=type=secret,id=id" +
-                "\r\n" +
+                Environment.NewLine +
                 "--platform=platform" +
                 "registry" +
                 "repo" +
@@ -153,7 +153,7 @@ namespace DockerfileModel.Tests
                 .LineContinuation()
                 .ToString();
 
-            string expectedResult = "`\r\n";
+            string expectedResult = "`" + Environment.NewLine;
             Assert.Equal(expectedResult, result);
         }
     }
