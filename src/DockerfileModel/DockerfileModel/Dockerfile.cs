@@ -10,13 +10,19 @@ namespace DockerfileModel
     {
         public const char DefaultEscapeChar = '\\';
 
-        public Dockerfile(IEnumerable<DockerfileConstruct> items)
+        public Dockerfile() : this(Enumerable.Empty<DockerfileConstruct>())
         {
-            Requires.NotNullEmptyOrNullElements(items, nameof(items));
-            this.Items = items;
         }
 
-        public IEnumerable<DockerfileConstruct> Items { get; }
+        public Dockerfile(IEnumerable<DockerfileConstruct> items)
+        {
+            Requires.NotNull(items, nameof(items));
+            this.Items = items.ToList();
+        }
+
+        public IList<DockerfileConstruct> Items { get; }
+
+        IEnumerable<DockerfileConstruct> IConstructContainer.Items => Items;
 
         public char EscapeChar =>
             Items

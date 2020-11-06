@@ -325,10 +325,11 @@ namespace DockerfileModel
         /// </summary>
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="excludedChars">Characters to exclude from the parsing.</param>
+        /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
         /// <returns>Parser for a literal string that is not wrapped in quotes.</returns>
-        public static Parser<IEnumerable<Token>> LiteralString(char escapeChar, IEnumerable<char> excludedChars) =>
+        public static Parser<IEnumerable<Token>> LiteralString(char escapeChar, IEnumerable<char> excludedChars, bool excludeVariableRefChars = true) =>
             OrConcat(
-                LiteralStringWithoutSpaces(escapeChar, excludedChars),
+                LiteralStringWithoutSpaces(escapeChar, excludedChars, excludeVariableRefChars),
                 EscapedChar(escapeChar));
 
         public static Parser<IEnumerable<Token>> Flag(char escapeChar, Parser<Token> flagParser) =>
@@ -398,10 +399,12 @@ namespace DockerfileModel
         /// </summary>
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="excludedChars">Characters to exclude from the parsing.</param>
+        /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
         /// <returns>Parser for a literal string that does not contain any spaces.</returns>
-        private static Parser<IEnumerable<Token>> LiteralStringWithoutSpaces(char escapeChar, IEnumerable<char> excludedChars)
+        private static Parser<IEnumerable<Token>> LiteralStringWithoutSpaces(char escapeChar, IEnumerable<char> excludedChars,
+            bool excludeVariableRefChars = true)
         {
-            Parser<char> parser = LiteralChar(escapeChar, excludedChars);
+            Parser<char> parser = LiteralChar(escapeChar, excludedChars, excludeVariableRefChars: excludeVariableRefChars);
             return
                 from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
                 from rest in StringTokenCharWithOptionalLineContinuation(escapeChar, parser)
@@ -501,11 +504,24 @@ namespace DockerfileModel
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
         /// <param name="isWhitespaceAllowed">A value indicating whether whitespace is allowed.</param>
-        private static Parser<char> LiteralChar(char escapeChar, IEnumerable<char> excludedChars, bool isWhitespaceAllowed = false) =>
-            (isWhitespaceAllowed ? Parse.AnyChar : NonWhitespace())
+        /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
+        private static Parser<char> LiteralChar(char escapeChar, IEnumerable<char> excludedChars,
+            bool isWhitespaceAllowed = false, bool excludeVariableRefChars = true)
+        {
+            Parser<char> parser = (isWhitespaceAllowed ? Parse.AnyChar : NonWhitespace())
                 .ExceptChars(excludedChars)
-                .Except(Parse.Char(escapeChar))
-                .Except(Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{'))));
+                .Except(Parse.Char(escapeChar));
+
+            if (excludeVariableRefChars)
+            {
+                parser = parser.Except(ExceptVariableRefChars());
+            }
+
+            return parser;
+        }
+            
+        private static Parser<char> ExceptVariableRefChars() =>
+            Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{')));
 
         /// <summary>
         /// Parses an escaped character.

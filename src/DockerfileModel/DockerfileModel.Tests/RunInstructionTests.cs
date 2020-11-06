@@ -77,6 +77,39 @@ namespace DockerfileModel.Tests
                 },
                 new RunInstructionParseTestScenario
                 {
+                    Text = "RUN $TEST",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "$TEST",
+                            token => ValidateLiteral(token, "$TEST"))
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN echo $TEST",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "echo $TEST",
+                            token => ValidateLiteral(token, "echo $TEST"))
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
+                    Text = "RUN T\\$EST",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormRunCommand>(token, "T\\$EST",
+                            token => ValidateLiteral(token, "T\\$EST"))
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
                     Text = "RUN echo `\n#test comment\nhello",
                     EscapeChar = '`',
                     TokenValidators = new Action<Token>[]
