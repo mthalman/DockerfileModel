@@ -366,17 +366,17 @@ namespace DockerfileModel.Tests
                 new FromInstructionParseTestScenario
                 {
                     Text = "FROM x y",
-                    ParseExceptionPosition = new Position(1, 1, 8)
+                    ParseExceptionPosition = new Position(1, 1, 7)
                 },
                 new FromInstructionParseTestScenario
                 {
                     Text = "FROM platform= alpine",
-                    ParseExceptionPosition = new Position(1, 1, 16)
+                    ParseExceptionPosition = new Position(1, 1, 15)
                 },
                 new FromInstructionParseTestScenario
                 {
                     Text = "FROM alpine AS",
-                    ParseExceptionPosition = new Position(1, 1, 13)
+                    ParseExceptionPosition = new Position(1, 1, 12)
                 },
             };
 

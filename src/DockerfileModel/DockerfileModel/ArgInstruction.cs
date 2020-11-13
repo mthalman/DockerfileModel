@@ -116,7 +116,7 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             ArgTokens(
-                from argName in GetArgNameParser(escapeChar).AsEnumerable()
+                from argName in ArgTokens(GetArgNameParser(escapeChar).AsEnumerable(), escapeChar)
                 from argAssignment in GetArgAssignmentParser(escapeChar).Optional()
                 select ConcatTokens(
                     argName,
@@ -126,8 +126,7 @@ namespace DockerfileModel
             IdentifierToken(ArgRefFirstLetterParser, ArgRefTailParser, escapeChar);
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
-            from assignment in CharWrappedInOptionalLineContinuations(
-                escapeChar, Sprache.Parse.Char(AssignmentOperator), ch => new SymbolToken(ch))
+            from assignment in ArgTokens(Symbol(AssignmentOperator).AsEnumerable(), escapeChar)
             from value in LiteralAggregate(escapeChar).AsEnumerable().Optional()
             select ConcatTokens(
                 assignment,

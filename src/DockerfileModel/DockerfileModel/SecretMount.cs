@@ -97,15 +97,21 @@ namespace DockerfileModel
             Parser<LiteralToken> valueParser = LiteralAggregate(
                 escapeChar, new char[] { ',' });
 
-            return from type in KeyValueToken<LiteralToken>.GetParser("type", escapeChar, valueParser).AsEnumerable()
-                   from comma in CharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char(','), ch => new SymbolToken(ch))
-                   from lineCont in LineContinuationToken.GetParser(escapeChar).AsEnumerable().Optional()
-                   from id in KeyValueToken<LiteralToken>.GetParser("id", escapeChar, valueParser).AsEnumerable()
-                   from destination in Destination(escapeChar).Optional()
-                   select ConcatTokens(type, comma, lineCont.GetOrDefault(), id, destination.GetOrDefault());
+            return from type in ArgTokens(KeyValueToken<LiteralToken>.GetParser("type", escapeChar, valueParser).AsEnumerable(), escapeChar)
+                   from comma in ArgTokens(Symbol(',').AsEnumerable(), escapeChar)
+                   from idDest in IdAndDestinationParser(valueParser, escapeChar).Or(IdParser(valueParser, escapeChar))
+                   select ConcatTokens(type, comma, idDest);
         }
 
-        private static Parser<IEnumerable<Token>> Destination(char escapeChar) =>
+        private static Parser<IEnumerable<Token>> IdAndDestinationParser(Parser<LiteralToken> valueParser, char escapeChar) =>
+            from id in ArgTokens(KeyValueToken<LiteralToken>.GetParser("id", escapeChar, valueParser).AsEnumerable(), escapeChar)
+            from dest in ArgTokens(DestinationParser(escapeChar), escapeChar, excludeTrailingWhitespace: true)
+            select ConcatTokens(id, dest);
+
+        private static Parser<IEnumerable<Token>> IdParser(Parser<LiteralToken> valueParser, char escapeChar) =>
+            KeyValueToken<LiteralToken>.GetParser("id", escapeChar, valueParser).AsEnumerable();
+
+        private static Parser<IEnumerable<Token>> DestinationParser(char escapeChar) =>
             from comma in Symbol(',')
             from dst in KeyValueToken<LiteralToken>.GetParser("dst", escapeChar)
             select ConcatTokens(comma, dst);

@@ -85,10 +85,11 @@ namespace DockerfileModel
             select new ChangeOwner(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            from user in LiteralAggregate(escapeChar, new char[] { ':' }).AsEnumerable()
+            from user in ArgTokens(LiteralAggregate(escapeChar, new char[] { ':' }).AsEnumerable(), escapeChar)
             from groupSegment in (
-                from colon in CharWrappedInOptionalLineContinuations(escapeChar, Sprache.Parse.Char(':'), ch => new SymbolToken(ch))
-                from @group in LiteralAggregate(escapeChar, Enumerable.Empty<char>()).AsEnumerable()
+                from colon in ArgTokens(Symbol(':').AsEnumerable(), escapeChar)
+                from @group in ArgTokens(
+                    LiteralAggregate(escapeChar, Enumerable.Empty<char>()).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
                 select ConcatTokens(colon, @group)).Optional()
             select ConcatTokens(user, groupSegment.GetOrDefault());
     }

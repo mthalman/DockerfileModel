@@ -86,7 +86,7 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             from port in ArgTokens(LiteralAggregate(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
             from protocolTokens in 
-                (from separator in CharWrappedInOptionalLineContinuations(escapeChar, Sprache.Parse.Char('/'), ch => new SymbolToken(ch))
+                (from separator in ArgTokens(Symbol('/').AsEnumerable(), escapeChar)
                 from protocol in ArgTokens(LiteralAggregate(escapeChar).AsEnumerable(), escapeChar)
                 select ConcatTokens(separator, protocol)).Optional()
             select ConcatTokens(port, protocolTokens.GetOrDefault());

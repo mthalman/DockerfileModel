@@ -57,10 +57,8 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             from asKeyword in ArgTokens(AsKeyword().AsEnumerable(), escapeChar)
-            from stageName in ArgTokens(StageNameIdentifier().AsEnumerable(), escapeChar)
-            select ConcatTokens(
-                asKeyword,
-                stageName);
+            from stageName in ArgTokens(StageNameIdentifier().AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
+            select ConcatTokens(asKeyword, stageName);
 
         private static Parser<KeywordToken> AsKeyword() =>
             from asKeyword in Sprache.Parse.IgnoreCase("as").Text()
