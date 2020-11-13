@@ -43,6 +43,9 @@ namespace DockerfileModel
         public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, ChangeOwnerFlag? changeOwnerFlag = null) =>
             AddConstruct(DockerfileModel.AddInstruction.Create(sources, destination, changeOwnerFlag, EscapeChar));
 
+        public DockerfileBuilder AddInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.AddInstruction.Parse);
+
         public DockerfileBuilder ArgInstruction(string argName, string? argValue = null) =>
             AddConstruct(DockerfileModel.ArgInstruction.Create(argName, argValue, EscapeChar));
 
@@ -67,6 +70,18 @@ namespace DockerfileModel
 
         public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination, ChangeOwnerFlag? changeOwnerFlag = null) =>
             AddConstruct(DockerfileModel.CopyInstruction.Create(sources, destination, changeOwnerFlag, EscapeChar));
+
+        public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.CopyInstruction.Parse);
+
+        public DockerfileBuilder EntrypointInstruction(string command) =>
+            AddConstruct(DockerfileModel.EntrypointInstruction.Create(command, EscapeChar));
+
+        public DockerfileBuilder EntrypointInstruction(IEnumerable<string> commands) =>
+            AddConstruct(DockerfileModel.EntrypointInstruction.Create(commands, EscapeChar));
+
+        public DockerfileBuilder EntrypointInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.EntrypointInstruction.Parse);
 
         public DockerfileBuilder FromInstruction(string imageName, string? stageName = null, string? platform = null) =>
             AddConstruct(
