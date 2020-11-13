@@ -64,11 +64,10 @@ namespace DockerfileModel.Tokens
                 valueTokenParser = LiteralAggregate(escapeChar);
             }
 
-            return from keyword in Keyword(key, escapeChar).AsEnumerable()
-                   from equalOperator in CharWrappedInOptionalLineContinuations(escapeChar, Sprache.Parse.Char('='), ch => new SymbolToken(ch))
-                   from lineCont in LineContinuationToken.GetParser(escapeChar).AsEnumerable().Optional()
-                   from value in valueTokenParser.AsEnumerable()
-                   select ConcatTokens(keyword, equalOperator, lineCont.GetOrDefault(), value);
+            return from keyword in ArgTokens(Keyword(key, escapeChar).AsEnumerable(), escapeChar)
+                   from equalOperator in ArgTokens(Symbol('=').AsEnumerable(), escapeChar)
+                   from value in ArgTokens(valueTokenParser.AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
+                   select ConcatTokens(keyword, equalOperator, value);
         }
     }
 }

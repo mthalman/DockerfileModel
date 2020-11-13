@@ -137,7 +137,7 @@ namespace DockerfileModel.Tests
                 new SecretMountParseTestScenario
                 {
                     EscapeChar = '`',
-                    Text = "typ`\ne`\n=`\nsecret`\n,id=foo",
+                    Text = "typ`\ne`\n=`\nsecret`\n,`\nid=foo",
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateAggregate<KeyValueToken<LiteralToken>>(token, "typ`\ne`\n=`\nsecret",
@@ -151,6 +151,7 @@ namespace DockerfileModel.Tests
                             token => ValidateLiteral(token, "secret")),
                         token => ValidateLineContinuation(token, '`', "\n"),
                         token => ValidateSymbol(token, ','),
+                        token => ValidateLineContinuation(token, '`', "\n"),
                         token => ValidateKeyValue(token, "id", "foo")
                     },
                     Validate = result =>
