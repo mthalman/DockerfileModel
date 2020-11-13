@@ -10,7 +10,7 @@ namespace DockerfileModel
     public class GenericInstruction : Instruction
     {
         private GenericInstruction(string text, char escapeChar)
-            : base(text, InstructionParser(escapeChar))
+            : base(GetTokens(text, InstructionParser(escapeChar)))
         {
         }
 

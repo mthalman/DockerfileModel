@@ -111,13 +111,15 @@ namespace DockerfileModel.Tests
                     Text = "[\"/bin/bash\", \"-c\", \"echo hello\"]",
                     TokenValidators = new Action<Token>[]
                     {
+                        token => ValidateSymbol(token, '['),
                         token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                         token => ValidateSymbol(token, ','),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
                         token => ValidateSymbol(token, ','),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote)
+                        token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ']')
                     },
                     Validate = result =>
                     {
@@ -139,6 +141,7 @@ namespace DockerfileModel.Tests
                     EscapeChar = '`',
                     TokenValidators = new Action<Token>[]
                     {
+                        token => ValidateSymbol(token, '['),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateQuotableAggregate<LiteralToken>(token, "\"/bi`\nn/bash\"", ParseHelper.DoubleQuote,
                             token => ValidateString(token, "/bi"),
@@ -156,7 +159,8 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateSymbol(token, ','),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "echo he`\"llo", ParseHelper.DoubleQuote)
+                        token => ValidateLiteral(token, "echo he`\"llo", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ']')
                     },
                     Validate = result =>
                     {
@@ -196,13 +200,15 @@ namespace DockerfileModel.Tests
                     },
                     TokenValidators = new Action<Token>[]
                     {
+                        token => ValidateSymbol(token, '['),
                         token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                         token => ValidateSymbol(token, ','),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
                         token => ValidateSymbol(token, ','),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote)
+                        token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ']')
                     }
                 }
             };

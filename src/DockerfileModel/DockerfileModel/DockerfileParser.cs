@@ -14,10 +14,10 @@ namespace DockerfileModel
         private static readonly Dictionary<string, Func<string, char, Instruction>> instructionParsers =
             new Dictionary<string, Func<string, char, Instruction>>
             {
-                { "ADD", GenericInstruction.Parse },
+                { "ADD", AddInstruction.Parse },
                 { "ARG", ArgInstruction.Parse },
                 { "CMD", CommandInstruction.Parse },
-                { "COPY", GenericInstruction.Parse },
+                { "COPY", CopyInstruction.Parse },
                 { "ENTRYPOINT", GenericInstruction.Parse },
                 { "EXPOSE", GenericInstruction.Parse },
                 { "ENV", GenericInstruction.Parse },

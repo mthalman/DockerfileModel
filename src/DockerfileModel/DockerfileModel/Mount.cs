@@ -12,11 +12,6 @@ namespace DockerfileModel
         {
         }
 
-        protected Mount(string text, Parser<IEnumerable<Token?>> parser)
-            : base(text, parser)
-        {
-        }
-
         public string Type
         {
             get => TypeToken.Value;

@@ -147,13 +147,15 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "CMD"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                            token => ValidateSymbol(token, '['),
                             token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                             token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
                             token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote))
+                            token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                            token => ValidateSymbol(token, ']'))
                     },
                     Validate = result =>
                     {
@@ -206,13 +208,15 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyword(token, "CMD"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                            token => ValidateSymbol(token, '['),
                             token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                             token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
                             token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote))
+                            token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                            token => ValidateSymbol(token, ']'))
                     }
                 }
             };

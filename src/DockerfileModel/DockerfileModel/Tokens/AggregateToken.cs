@@ -10,31 +10,20 @@ namespace DockerfileModel.Tokens
 {
     public abstract class AggregateToken : Token
     {
-        protected AggregateToken(string text, Parser<IEnumerable<Token?>> parser)
-        {
-            Requires.NotNull(text, nameof(text));
-            Requires.NotNull(parser, nameof(parser));
-
-            this.TokenList = FilterNulls(parser.Parse(text))
-                .ToList();
-        }
-
-        protected AggregateToken(string text, Parser<Token> parser)
-        {
-            Requires.NotNull(text, nameof(text));
-            Requires.NotNull(parser, nameof(parser));
-
-            this.TokenList = new List<Token>
-            {
-                parser.Parse(text)
-            };
-        }
-
         protected AggregateToken(IEnumerable<Token> tokens)
         {
             Requires.NotNull(tokens, nameof(tokens));
 
             this.TokenList = tokens.ToList();
+        }
+
+        protected static IEnumerable<Token> GetTokens(string text, Parser<IEnumerable<Token?>> parser)
+        {
+            Requires.NotNull(text, nameof(text));
+            Requires.NotNull(parser, nameof(parser));
+
+            return FilterNulls(parser.Parse(text))
+                .ToList();
         }
 
         protected internal List<Token> TokenList { get; }

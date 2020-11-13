@@ -18,6 +18,7 @@ namespace DockerfileModel.Tests
         {
             DockerfileBuilder builder = new DockerfileBuilder();
             builder
+                .AddInstruction(new string[] { "src" }, "dst")
                 .ArgInstruction("ARG", "value")
                 .CommandInstruction("echo hello")
                 .Comment("my comment")
@@ -27,6 +28,7 @@ namespace DockerfileModel.Tests
                 .RunInstruction("echo hi");
 
             string expectedOutput =
+                "ADD src dst" + Environment.NewLine +
                 "ARG ARG=value" + Environment.NewLine +
                 "CMD echo hello" + Environment.NewLine +
                 "# my comment" + Environment.NewLine +

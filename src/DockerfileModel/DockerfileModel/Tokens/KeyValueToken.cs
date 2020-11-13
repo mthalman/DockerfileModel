@@ -9,11 +9,6 @@ namespace DockerfileModel.Tokens
     public class KeyValueToken<TValue> : AggregateToken
         where TValue : Token
     {
-        private KeyValueToken(string text, string key, char escapeChar)
-            : base(text, GetInnerParser(key, escapeChar))
-        {
-        }
-
         internal KeyValueToken(IEnumerable<Token> tokens)
             : base(tokens)
         {
@@ -46,11 +41,15 @@ namespace DockerfileModel.Tokens
             }
         }
 
-        public static KeyValueToken<LiteralToken> Create(string key, string value, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse($"{key}={value}", key, escapeChar);
+        public static KeyValueToken<TValue> Create(string key, TValue value, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new KeyValueToken<TValue>(
+                ConcatTokens(
+                    new KeywordToken(key),
+                    new SymbolToken('='),
+                    value));
 
         public static KeyValueToken<LiteralToken> Parse(string text, string key, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new KeyValueToken<LiteralToken>(text, key, escapeChar);
+            new KeyValueToken<LiteralToken>(GetTokens(text, GetInnerParser(key, escapeChar)));
 
         public static Parser<KeyValueToken<TValue>> GetParser(string key, char escapeChar = Dockerfile.DefaultEscapeChar, Parser<TValue>? valueTokenParser = null) =>
             from tokens in GetInnerParser(key, escapeChar, valueTokenParser)
@@ -66,7 +65,7 @@ namespace DockerfileModel.Tokens
             }
 
             return from keyword in Keyword(key, escapeChar).AsEnumerable()
-                   from equalOperator in CharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char('='), ch => new SymbolToken(ch))
+                   from equalOperator in CharWrappedInOptionalLineContinuations(escapeChar, Sprache.Parse.Char('='), ch => new SymbolToken(ch))
                    from lineCont in LineContinuationToken.GetParser(escapeChar).AsEnumerable().Optional()
                    from value in valueTokenParser.AsEnumerable()
                    select ConcatTokens(keyword, equalOperator, lineCont.GetOrDefault(), value);

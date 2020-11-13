@@ -8,7 +8,7 @@ namespace DockerfileModel
     public class Comment : DockerfileConstruct
     {
         private Comment(string text)
-            : base(text, ParseHelper.CommentText())
+            : base(GetTokens(text, ParseHelper.CommentText()))
         {
         }
 

@@ -17,15 +17,6 @@ namespace DockerfileModel
         private TagToken? tagToken;
         private DigestToken? digestToken;
 
-        private ImageName(string text)
-            : base(text, ImageNameParser.GetParser())
-        {
-            registryToken = Tokens.OfType<RegistryToken>().FirstOrDefault();
-            repositoryToken = Tokens.OfType<RepositoryToken>().First();
-            tagToken = Tokens.OfType<TagToken>().FirstOrDefault();
-            digestToken = Tokens.OfType<DigestToken>().FirstOrDefault();
-        }
-
         internal ImageName(IEnumerable<Token> tokens) : base(tokens)
         {
             registryToken = Tokens.OfType<RegistryToken>().FirstOrDefault();
@@ -65,7 +56,7 @@ namespace DockerfileModel
         }
 
         public static ImageName Parse(string imageName) =>
-            new ImageName(imageName);
+            new ImageName(GetTokens(imageName, ImageNameParser.GetParser()));
 
         public static Parser<IEnumerable<Token>> GetParser() =>
             ImageNameParser.GetParser();

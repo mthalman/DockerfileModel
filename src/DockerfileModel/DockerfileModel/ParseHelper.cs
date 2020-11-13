@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
+using Validation;
 
 namespace DockerfileModel
 {
@@ -220,6 +221,18 @@ namespace DockerfileModel
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="charParser">Character parser.</param>
         /// <returns>Parsed tokens.</returns>
+        public static Parser<IEnumerable<Token>> CharWrappedInOptionalLineContinuations(char escapeChar, Parser<char> charParser, Func<char, Token> createToken) =>
+            from leadingLineContinuations in LineContinuationToken.GetParser(escapeChar).Many()
+            from ch in charParser
+            from trailingLineContinuations in LineContinuationToken.GetParser(escapeChar).Many()
+            select ConcatTokens(leadingLineContinuations, new Token[] { createToken(ch) }, trailingLineContinuations);
+
+        /// <summary>
+        /// Parses a single character preceded by an optional line continuation.
+        /// </summary>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="charParser">Character parser.</param>
+        /// <returns>Parsed tokens.</returns>
         private static Parser<IEnumerable<Token>> StringTokenCharWithOptionalLineContinuation(char escapeChar, Parser<char> charParser) =>
             CharWithOptionalLineContinuation(escapeChar, charParser, ch => new StringToken(ch.ToString()));
 
@@ -318,11 +331,100 @@ namespace DockerfileModel
                 LiteralStringWithoutSpaces(escapeChar, excludedChars, excludeVariableRefChars),
                 EscapedChar(escapeChar));
 
-        public static Parser<IEnumerable<Token>> Flag(char escapeChar, Parser<Token> flagParser) =>
-             from flag in SymbolTokenCharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char('-')).Repeat(2)
+        public static Parser<IEnumerable<Token>> Flag(char escapeChar, Parser<IEnumerable<Token>> flagParser) =>
+             from flag in SymbolTokenCharWithOptionalLineContinuation(escapeChar, Parse.Char('-')).Repeat(2)
              from lineCont in LineContinuationToken.GetParser(escapeChar).AsEnumerable().Optional()
              from token in flagParser
-             select ConcatTokens(flag.Flatten(), lineCont.GetOrDefault(), new Token[] { token });
+             select ConcatTokens(flag.Flatten(), lineCont.GetOrDefault(), token);
+
+        public static Parser<IEnumerable<Token>> ArgumentListAsLiteral(char escapeChar) =>
+            from literals in ArgTokens(
+                LiteralToken(escapeChar, Enumerable.Empty<char>()).AsEnumerable(),
+                escapeChar).Many()
+            select CollapseLiteralTokens(literals.Flatten());
+
+        /// <summary>
+        /// Parses a literal token.
+        /// </summary>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
+        public static Parser<LiteralToken> LiteralToken(char escapeChar, IEnumerable<char> excludedChars) =>
+            from literal in LiteralString(escapeChar, excludedChars, excludeVariableRefChars: false).Many().Flatten()
+            where literal.Any()
+            select new LiteralToken(TokenHelper.CollapseStringTokens(literal));
+
+        public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables) =>
+           from openingBracket in Symbol('[').AsEnumerable()
+           from execFormArgs in
+               from arg in JsonArrayElement(escapeChar, canContainVariables).Once().Flatten()
+               from tail in (
+                   from delimiter in JsonArrayElementDelimiter(escapeChar)
+                   from nextArg in JsonArrayElement(escapeChar, canContainVariables)
+                   select ConcatTokens(delimiter, nextArg)).Many()
+               select ConcatTokens(arg, tail.Flatten())
+           from closingBracket in Symbol(']').AsEnumerable()
+           select ConcatTokens(openingBracket, execFormArgs, closingBracket);
+
+        private static IEnumerable<Token> CollapseLiteralTokens(IEnumerable<Token> tokens, char? quoteChar = null)
+        {
+            Requires.NotNullEmptyOrNullElements(tokens, nameof(tokens));
+            return new Token[]
+           {
+                new LiteralToken(
+                    TokenHelper.CollapseTokens(ExtractLiteralTokenContents(tokens),
+                        token => token is StringToken || token.GetType() == typeof(WhitespaceToken),
+                        val => new StringToken(val)))
+                {
+                    QuoteChar = quoteChar
+                }
+           };
+        }
+
+        private static Parser<IEnumerable<Token>> JsonArrayElementDelimiter(char escapeChar) =>
+            from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
+            from comma in Symbol(',').AsEnumerable()
+            from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
+            select ConcatTokens(
+                leading,
+                comma,
+                trailing);
+
+        private static Parser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables)
+        {
+            Parser<LiteralToken> literalParser = canContainVariables ?
+                LiteralAggregate(escapeChar, new char[] { DoubleQuote }) :
+                LiteralToken(escapeChar, new char[] { DoubleQuote });
+
+            return
+                from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
+                from openingQuote in Symbol(DoubleQuote)
+                from argValue in ArgTokens(literalParser.AsEnumerable(), escapeChar).Many()
+                from closingQuote in Symbol(DoubleQuote)
+                from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
+                select ConcatTokens(
+                    leading,
+                    CollapseLiteralTokens(argValue.Flatten(), DoubleQuote),
+                    trailing);
+        }
+            
+
+        private static IEnumerable<Token> ExtractLiteralTokenContents(IEnumerable<Token> tokens)
+        {
+            foreach (Token token in tokens)
+            {
+                if (token is LiteralToken literal)
+                {
+                    foreach (Token literalItem in literal.Tokens)
+                    {
+                        yield return literalItem;
+                    }
+                }
+                else
+                {
+                    yield return token;
+                }
+            }
+        }
 
         /// <summary>
         /// Parses an identifier string wrapped in quotes.

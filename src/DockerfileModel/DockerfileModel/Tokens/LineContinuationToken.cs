@@ -8,17 +8,12 @@ namespace DockerfileModel.Tokens
 {
     public class LineContinuationToken : AggregateToken
     {
-        private LineContinuationToken(string text, char escapeChar)
-            : base(text, GetInnerParser(escapeChar))
-        {
-        }
-
         internal LineContinuationToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
         public static LineContinuationToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new LineContinuationToken(text, escapeChar);
+            new LineContinuationToken(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static LineContinuationToken Create(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Create(Environment.NewLine, escapeChar);

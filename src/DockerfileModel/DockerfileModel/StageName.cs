@@ -11,20 +11,10 @@ namespace DockerfileModel
     {
         private IdentifierToken stage;
 
-#pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
-        private StageName(string text, char escapeChar)
-#pragma warning restore CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
-            : base(text, GetInnerParser(escapeChar))
-        {
-            Initialize();
-        }
-
-#pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
         internal StageName(IEnumerable<Token> tokens)
-#pragma warning restore CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
             : base(tokens)
         {
-            Initialize();
+            this.stage = this.TokenList.OfType<IdentifierToken>().First();
         }
 
         public string Stage
@@ -59,7 +49,7 @@ namespace DockerfileModel
         }
 
         public static StageName Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new StageName(text, escapeChar);
+            new StageName(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static Parser<StageName> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
@@ -81,10 +71,5 @@ namespace DockerfileModel
                 Sprache.Parse.Letter,
                 Sprache.Parse.LetterOrDigit.Or(Sprache.Parse.Char('_')).Or(Sprache.Parse.Char('-')).Or(Sprache.Parse.Char('.')))
             select new IdentifierToken(stageName);
-
-        private void Initialize()
-        {
-            this.stage = this.TokenList.OfType<IdentifierToken>().First();
-        }
     }
 }

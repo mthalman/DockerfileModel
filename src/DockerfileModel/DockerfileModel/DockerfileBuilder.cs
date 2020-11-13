@@ -40,6 +40,9 @@ namespace DockerfileModel
         public DockerfileBuilder NewLine() =>
             AddConstruct(Whitespace.Create(DefaultNewLine));
 
+        public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, ChangeOwnerFlag? changeOwnerFlag = null) =>
+            AddConstruct(DockerfileModel.AddInstruction.Create(sources, destination, changeOwnerFlag, EscapeChar));
+
         public DockerfileBuilder ArgInstruction(string argName, string? argValue = null) =>
             AddConstruct(DockerfileModel.ArgInstruction.Create(argName, argValue, EscapeChar));
 
@@ -61,6 +64,9 @@ namespace DockerfileModel
 
         public DockerfileBuilder Comment(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
+
+        public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination, ChangeOwnerFlag? changeOwnerFlag = null) =>
+            AddConstruct(DockerfileModel.CopyInstruction.Create(sources, destination, changeOwnerFlag, EscapeChar));
 
         public DockerfileBuilder FromInstruction(string imageName, string? stageName = null, string? platform = null) =>
             AddConstruct(

@@ -13,11 +13,6 @@ namespace DockerfileModel
         {
         }
 
-        protected Instruction(string text, Parser<IEnumerable<Token?>> parser)
-            : base(text, parser)
-        {
-        }
-
         public string InstructionName
         {
             get => this.InstructionNameToken.Value;
