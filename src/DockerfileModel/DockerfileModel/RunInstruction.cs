@@ -14,11 +14,6 @@ namespace DockerfileModel
         {
         }
 
-        private RunInstruction(string text, char escapeChar)
-            : base(text, GetInnerParser(escapeChar))
-        {
-        }
-
         public Command Command
         {
             get => this.Tokens.OfType<Command>().First();
@@ -32,7 +27,7 @@ namespace DockerfileModel
         public IEnumerable<MountFlag> MountFlags => Tokens.OfType<MountFlag>();
 
         public static RunInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new RunInstruction(text, escapeChar);
+            new RunInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static Parser<RunInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
@@ -57,7 +52,7 @@ namespace DockerfileModel
             Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
             Requires.NotNull(mountFlags, nameof(mountFlags));
 
-            return Parse($"RUN {CreateMountFlagArgs(mountFlags)}{ExecFormCommand.FormatCommands(commands)}", escapeChar);
+            return Parse($"RUN {CreateMountFlagArgs(mountFlags)}{StringHelper.FormatAsJson(commands)}", escapeChar);
         }
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)

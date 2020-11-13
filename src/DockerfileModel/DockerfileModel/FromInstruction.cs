@@ -13,19 +13,19 @@ namespace DockerfileModel
     {
         private LiteralToken imageName;
 
-#pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
         private FromInstruction(IEnumerable<Token> tokens) : base(tokens)
-#pragma warning restore CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
         {
-            Initialize();
-        }
+            PlatformFlag? platform = this.PlatformFlag;
+            int startIndex = 0;
+            if (platform != null)
+            {
+                startIndex = this.TokenList.IndexOf(platform) + 1;
+            }
 
-#pragma warning disable CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
-        private FromInstruction(string text, char escapeChar)
-#pragma warning restore CS8618 // Non-nullable field is uninitialized. Consider declaring as nullable.
-            : base(text, GetInnerParser(escapeChar))
-        {
-            Initialize();
+            this.imageName = this.TokenList
+                .Skip(startIndex)
+                .OfType<LiteralToken>()
+                .First();
         }
 
         public string ImageName
@@ -122,7 +122,7 @@ namespace DockerfileModel
         }
 
         public static FromInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new FromInstruction(text, escapeChar);
+            new FromInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static FromInstruction Create(string imageName, string? stageName = null, string? platform = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
@@ -170,20 +170,5 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
             ArgTokens(
                 LiteralAggregate(escapeChar).AsEnumerable(), escapeChar);
-
-        private void Initialize()
-        {
-            PlatformFlag? platform = this.PlatformFlag;
-            int startIndex = 0;
-            if (platform != null)
-            {
-                startIndex = this.TokenList.IndexOf(platform) + 1;
-            }
-
-            this.imageName = this.TokenList
-                .Skip(startIndex)
-                .OfType<LiteralToken>()
-                .First();
-        }
     }
 }

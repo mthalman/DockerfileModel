@@ -55,7 +55,7 @@ namespace DockerfileModel.Tests
             Assert.Equal("test3", platformFlag.Platform);
             Assert.Equal("test3", platformFlag.PlatformToken.Value);
 
-            platformFlag.PlatformToken = KeyValueToken<LiteralToken>.Create("platform", "test4");
+            platformFlag.PlatformToken = KeyValueToken<LiteralToken>.Create("platform", new LiteralToken("test4"));
             Assert.Equal("test4", platformFlag.Platform);
             Assert.Equal("test4", platformFlag.PlatformToken.Value);
 

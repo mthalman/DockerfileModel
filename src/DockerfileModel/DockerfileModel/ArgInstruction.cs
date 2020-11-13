@@ -16,11 +16,6 @@ namespace DockerfileModel
         {
         }
 
-        private ArgInstruction(string text, char escapeChar)
-            : base(text, GetInnerParser(escapeChar))
-        {
-        }
-
         public string ArgName
         {
             get => this.ArgNameToken.Value;
@@ -96,7 +91,7 @@ namespace DockerfileModel
         }
 
         public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ArgInstruction(text, escapeChar);
+            new ArgInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static ArgInstruction Create(string argName, string? argValue = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)

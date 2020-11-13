@@ -13,12 +13,14 @@ namespace DockerfileModel.Tests
         {
             TokenBuilder builder = new TokenBuilder();
             builder
+                .ChangeOwner("user")
+                .ChangeOwnerFlag("user", "group")
                 .Comment("comment")
                 .Digest("digest")
                 .ExecFormCommand("cmd1", "cmd2")
                 .Identifier("id")
                 .ImageName("repo")
-                .KeyValue<KeywordToken>("key", "value")
+                .KeyValue("key", new LiteralToken("value"))
                 .Keyword("key")
                 .LineContinuation()
                 .Literal("literal")
@@ -37,16 +39,30 @@ namespace DockerfileModel.Tests
 
             Assert.Collection(builder.Tokens, new Action<Token>[]
             {
+                token => ValidateAggregate<ChangeOwner>(token, "user",
+                    token => ValidateLiteral(token, "user")),
+                token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user:group",
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateAggregate<KeyValueToken<ChangeOwner>>(token, "chown=user:group",
+                        token => ValidateKeyword(token, "chown"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<ChangeOwner>(token, "user:group",
+                            token => ValidateLiteral(token, "user"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateLiteral(token, "group")))),
                 token => ValidateAggregate<CommentToken>(token, "#comment",
                     token => ValidateSymbol(token, '#'),
                     token => ValidateString(token, "comment")),
                 token => ValidateAggregate<DigestToken>(token, "digest",
                     token => ValidateString(token, "digest")),
                 token => ValidateAggregate<ExecFormCommand>(token, "[\"cmd1\", \"cmd2\"]",
+                    token => ValidateSymbol(token, '['),
                     token => ValidateLiteral(token, "cmd1", ParseHelper.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "cmd2", ParseHelper.DoubleQuote)),
+                    token => ValidateLiteral(token, "cmd2", ParseHelper.DoubleQuote),
+                    token => ValidateSymbol(token, ']')),
                 token => ValidateIdentifier(token, "id"),
                 token => ValidateAggregate<ImageName>(token, "repo",
                     token => ValidateAggregate<RepositoryToken>(token, "repo",
@@ -99,6 +115,8 @@ namespace DockerfileModel.Tests
             });
 
             string expectedResult =
+                "user" +
+                "--chown=user:group" +
                 "#comment" +
                 "digest" +
                 "[\"cmd1\", \"cmd2\"]" +

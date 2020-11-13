@@ -20,11 +20,6 @@ namespace DockerfileModel.Tokens
                 .Select(modifier => Sprache.Parse.String(modifier).Text())
                 .ToArray();
 
-        private VariableRefToken(string text, char escapeChar, CreateTokenParserDelegate createModifierValueToken)
-            : base(text, GetInnerParser(escapeChar, createModifierValueToken))
-        {
-        }
-
         internal VariableRefToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
@@ -235,8 +230,8 @@ namespace DockerfileModel.Tokens
             
 
         public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new VariableRefToken(text, escapeChar, (char escapeChar, IEnumerable<char> excludedChars) =>
-                LiteralString(escapeChar, excludedChars));
+            new VariableRefToken(GetTokens(text, GetInnerParser(escapeChar, (char escapeChar, IEnumerable<char> excludedChars) =>
+                LiteralString(escapeChar, excludedChars))));
 
         /// <summary>
         /// Parses a variable reference.

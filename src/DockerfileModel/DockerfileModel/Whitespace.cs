@@ -9,7 +9,7 @@ namespace DockerfileModel
     public class Whitespace : DockerfileConstruct
     {
         private Whitespace(string value)
-            : base(value, GetParser())
+            : base(GetTokens(value, GetParser()))
         {
         }
 

@@ -12,6 +12,12 @@ namespace DockerfileModel.Tokens
 
         public IList<Token> Tokens { get; } = new List<Token>();
 
+        public TokenBuilder ChangeOwner(string user, string? group = null) =>
+            AddToken(DockerfileModel.ChangeOwner.Create(user, group, EscapeChar));
+
+        public TokenBuilder ChangeOwnerFlag(string user, string? group = null) =>
+            AddToken(DockerfileModel.ChangeOwnerFlag.Create(user, group, EscapeChar));
+
         public TokenBuilder Comment(string comment) =>
             AddToken(CommentToken.Create(comment));
 
@@ -42,7 +48,7 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ImageName(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ImageName(GetTokens(configureBuilder)));
 
-        public TokenBuilder KeyValue<TValue>(string key, string value)
+        public TokenBuilder KeyValue<TValue>(string key, TValue value)
             where TValue : Token =>
             AddToken(KeyValueToken<TValue>.Create(key, value, EscapeChar));
 

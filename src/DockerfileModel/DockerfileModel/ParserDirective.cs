@@ -13,7 +13,7 @@ namespace DockerfileModel
         public const string SyntaxDirective = "syntax";
 
         private ParserDirective(string text)
-            : base(text, GetParser())
+            : base(GetTokens(text, GetParser()))
         {
         }
 

@@ -9,11 +9,6 @@ namespace DockerfileModel
 {
     public class PlatformFlag : AggregateToken
     {
-        private PlatformFlag(string text, char escapeChar)
-            : base(text, GetInnerParser(escapeChar))
-        {
-        }
-
         internal PlatformFlag(IEnumerable<Token> tokens)
             : base(tokens)
         {
@@ -46,13 +41,13 @@ namespace DockerfileModel
         }
 
         public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new PlatformFlag(text, escapeChar);
+            new PlatformFlag(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static Parser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new PlatformFlag(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            Flag(escapeChar, KeyValueToken<LiteralToken>.GetParser("platform", escapeChar));
+            Flag(escapeChar, KeyValueToken<LiteralToken>.GetParser("platform", escapeChar).AsEnumerable());
     }
 }

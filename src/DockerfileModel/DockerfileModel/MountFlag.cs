@@ -9,11 +9,6 @@ namespace DockerfileModel
 {
     public class MountFlag : AggregateToken
     {
-        private MountFlag(string text, char escapeChar)
-            : base(text, GetInnerParser(escapeChar))
-        {
-        }
-
         internal MountFlag(IEnumerable<Token> tokens)
             : base(tokens)
         {
@@ -38,14 +33,14 @@ namespace DockerfileModel
         }
 
         public static MountFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new MountFlag(text, escapeChar);
+            new MountFlag(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new MountFlag(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            Flag(escapeChar, KeyValueToken<Mount>.GetParser("mount", escapeChar, GetMount(escapeChar)));
+            Flag(escapeChar, KeyValueToken<Mount>.GetParser("mount", escapeChar, GetMount(escapeChar)).AsEnumerable());
 
         private static Parser<Mount> GetMount(char escapeChar) =>
             SecretMount.GetParser(escapeChar);

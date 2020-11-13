@@ -50,7 +50,7 @@ namespace DockerfileModel
                 argValues,
                 stagesView =>
                 {
-                    Stage stage = stagesView.Stages
+                    Stage? stage = stagesView.Stages
                         .FirstOrDefault(stage => stage.FromInstruction == instruction || stage.Items.Contains(instruction));
 
                     if (stage is null)

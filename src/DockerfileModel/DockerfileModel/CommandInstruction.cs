@@ -13,11 +13,6 @@ namespace DockerfileModel
         {
         }
 
-        private CommandInstruction(string text, char escapeChar)
-            : base(text, GetInnerParser(escapeChar))
-        {
-        }
-
         public Command Command
         {
             get => this.Tokens.OfType<Command>().First();
@@ -29,7 +24,7 @@ namespace DockerfileModel
         }
 
         public static CommandInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new CommandInstruction(text, escapeChar);
+            new CommandInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static Parser<CommandInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
@@ -44,7 +39,7 @@ namespace DockerfileModel
         public static CommandInstruction Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
-            return Parse($"CMD {ExecFormCommand.FormatCommands(commands)}", escapeChar);
+            return Parse($"CMD {StringHelper.FormatAsJson(commands)}", escapeChar);
         }
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
