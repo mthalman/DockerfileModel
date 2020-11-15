@@ -67,7 +67,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<Mount>>(token, "mount=type=secret,id=foo",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=foo",
                             token => ValidateKeyword(token, "mount"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<SecretMount>(token, "type=secret,id=foo",
@@ -87,7 +87,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<Mount>>(token, "mount=type=secret,id=foo,dst=test",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=foo,dst=test",
                             token => ValidateKeyword(token, "mount"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<SecretMount>(token, "type=secret,id=foo,dst=test",
@@ -112,7 +112,7 @@ namespace DockerfileModel.Tests
                         token => ValidateLineContinuation(token, '`', "\n"),
                         token => ValidateSymbol(token, '-'),
                         token => ValidateLineContinuation(token, '`', "\n"),
-                        token => ValidateAggregate<KeyValueToken<Mount>>(token, "mount=type=secret,id=foo",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=foo",
                             token => ValidateKeyword(token, "mount"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<SecretMount>(token, "type=secret,id=foo",
@@ -146,7 +146,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<Mount>>(token, "mount=type=secret,id=foo",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=foo",
                             token => ValidateKeyword(token, "mount"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<SecretMount>(token, "type=secret,id=foo",
@@ -166,7 +166,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<Mount>>(token, "mount=type=secret,id=foo,dst=test",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=foo,dst=test",
                             token => ValidateKeyword(token, "mount"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<SecretMount>(token, "type=secret,id=foo,dst=test",

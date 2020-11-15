@@ -17,8 +17,11 @@ namespace DockerfileModel.Tests
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                KeyValueToken<LiteralToken> result = KeyValueToken<LiteralToken>.Parse(
-                    scenario.Text, scenario.Key, scenario.EscapeChar);
+                KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.Parse(
+                    scenario.Text,
+                    ParseHelper.Keyword(scenario.Key, scenario.EscapeChar),
+                    ParseHelper.LiteralAggregate(scenario.EscapeChar),
+                    escapeChar: scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
@@ -36,7 +39,8 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            KeyValueToken<LiteralToken> result = KeyValueToken<LiteralToken>.Create(scenario.Key, new LiteralToken(scenario.Value));
+            KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.Create(
+                new KeywordToken(scenario.Key), new LiteralToken(scenario.Value));
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -44,7 +48,8 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Key()
         {
-            KeyValueToken<LiteralToken> token = KeyValueToken<LiteralToken>.Create("foo", new LiteralToken("test"));
+            KeyValueToken<KeywordToken, LiteralToken> token = KeyValueToken<KeywordToken, LiteralToken>.Create(
+                new KeywordToken("foo"), new LiteralToken("test"));
             Assert.Equal("foo", token.Key);
             Assert.Equal("foo", token.KeyToken.Value);
 
@@ -154,13 +159,13 @@ namespace DockerfileModel.Tests
             return testInputs.Select(input => new object[] { input });
         }
 
-        public class KeyValueTokenParseTestScenario : ParseTestScenario<KeyValueToken<LiteralToken>>
+        public class KeyValueTokenParseTestScenario : ParseTestScenario<KeyValueToken<KeywordToken, LiteralToken>>
         {
             public char EscapeChar { get; set; }
             public string Key { get; set; }
         }
 
-        public class CreateTestScenario : TestScenario<KeyValueToken<LiteralToken>>
+        public class CreateTestScenario : TestScenario<KeyValueToken<KeywordToken, LiteralToken>>
         {
             public string Key { get; set; }
             public string Value { get; set; }

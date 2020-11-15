@@ -55,7 +55,8 @@ namespace DockerfileModel.Tests
             Assert.Equal("test3", platformFlag.Platform);
             Assert.Equal("test3", platformFlag.PlatformToken.Value);
 
-            platformFlag.PlatformToken = KeyValueToken<LiteralToken>.Create("platform", new LiteralToken("test4"));
+            platformFlag.PlatformToken = KeyValueToken<KeywordToken, LiteralToken>.Create(
+                new KeywordToken("platform"), new LiteralToken("test4"));
             Assert.Equal("test4", platformFlag.Platform);
             Assert.Equal("test4", platformFlag.PlatformToken.Value);
 
@@ -90,7 +91,7 @@ namespace DockerfileModel.Tests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateLineContinuation(token, '`', "\n"),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<LiteralToken>>(token, $"plat`\nform=win`\ndows/amd64",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, LiteralToken>>(token, $"plat`\nform=win`\ndows/amd64",
                             token => ValidateAggregate<KeywordToken>(token, "plat`\nform",
                                 token => ValidateString(token, "plat"),
                                 token => ValidateLineContinuation(token, '`', "\n"),

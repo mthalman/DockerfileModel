@@ -83,6 +83,12 @@ namespace DockerfileModel
         public DockerfileBuilder EntrypointInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.EntrypointInstruction.Parse);
 
+        public DockerfileBuilder EnvInstruction(IDictionary<string, string> variables) =>
+            AddConstruct(DockerfileModel.EnvInstruction.Create(variables, EscapeChar));
+
+        public DockerfileBuilder EnvInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.EnvInstruction.Parse);
+
         public DockerfileBuilder ExposeInstruction(int port, string? protocol = null) =>
             AddConstruct(DockerfileModel.ExposeInstruction.Create(port, protocol, EscapeChar));
 

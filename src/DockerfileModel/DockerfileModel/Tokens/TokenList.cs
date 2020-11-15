@@ -9,16 +9,19 @@ namespace DockerfileModel.Tokens
         where TToken : Token
     {
         private readonly IList<Token> innerTokens;
-        private readonly Func<IEnumerable<TToken>, IEnumerable<TToken>> filterTokens;
+        private readonly Func<IEnumerable<TToken>, IEnumerable<TToken>>? filterTokens;
 
-        internal TokenList(IList<Token> innerTokens, Func<IEnumerable<TToken>, IEnumerable<TToken>> filterTokens)
+        internal TokenList(IList<Token> innerTokens, Func<IEnumerable<TToken>, IEnumerable<TToken>>? filterTokens = null)
         {
             this.innerTokens = innerTokens;
             this.filterTokens = filterTokens;
         }
 
-        private IEnumerable<TToken> GetFilteredTokens() =>
-            filterTokens(innerTokens.OfType<TToken>());
+        private IEnumerable<TToken> GetFilteredTokens()
+        {
+            IEnumerable<TToken> tokensOfType = innerTokens.OfType<TToken>();
+            return filterTokens is null ? tokensOfType : filterTokens(tokensOfType);
+        }
 
         public TToken this[int index]
         {
@@ -41,7 +44,10 @@ namespace DockerfileModel.Tokens
         public bool Contains(TToken item) =>
             GetFilteredTokens().Contains(item);
 
-        public void CopyTo(TToken[] array, int arrayIndex) => ThrowAddRemoveNotSupported();
+        public void CopyTo(TToken[] array, int arrayIndex) =>
+            GetFilteredTokens()
+                .ToList()
+                .CopyTo(array, arrayIndex);
 
         public IEnumerator<TToken> GetEnumerator() => GetFilteredTokens().GetEnumerator();
 

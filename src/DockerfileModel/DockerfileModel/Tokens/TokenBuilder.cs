@@ -48,13 +48,15 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ImageName(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ImageName(GetTokens(configureBuilder)));
 
-        public TokenBuilder KeyValue<TValue>(string key, TValue value)
+        public TokenBuilder KeyValue<TKey, TValue>(TKey key, TValue value, char separator = KeyValueToken<TKey, TValue>.DefaultSeparator)
+            where TKey : Token, IValueToken
             where TValue : Token =>
-            AddToken(KeyValueToken<TValue>.Create(key, value, EscapeChar));
+            AddToken(KeyValueToken<TKey, TValue>.Create(key, value, separator));
 
-        public TokenBuilder KeyValue<TValue>(Action<TokenBuilder> configureBuilder)
+        public TokenBuilder KeyValue<TKey, TValue>(Action<TokenBuilder> configureBuilder)
+            where TKey : Token, IValueToken
             where TValue : Token =>
-            AddToken(new KeyValueToken<TValue>(GetTokens(configureBuilder)));
+            AddToken(new KeyValueToken<TKey, TValue>(GetTokens(configureBuilder)));
 
         public TokenBuilder Keyword(string value) =>
             AddToken(new KeywordToken(value));

@@ -20,7 +20,7 @@ namespace DockerfileModel
                 { "COPY", CopyInstruction.Parse },
                 { "ENTRYPOINT", EntrypointInstruction.Parse },
                 { "EXPOSE", ExposeInstruction.Parse },
-                { "ENV", GenericInstruction.Parse },
+                { "ENV", EnvInstruction.Parse },
                 { "FROM", FromInstruction.Parse },
                 { "HEALTHCHECK", GenericInstruction.Parse },
                 { "LABEL", GenericInstruction.Parse },

@@ -22,9 +22,9 @@ namespace DockerfileModel
             }
         }
 
-        public KeyValueToken<LiteralToken> TypeToken
+        public KeyValueToken<KeywordToken, LiteralToken> TypeToken
         {
-            get => Tokens.OfType<KeyValueToken<LiteralToken>>().First();
+            get => Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>().First();
             set
             {
                 Requires.NotNull(value, nameof(value));

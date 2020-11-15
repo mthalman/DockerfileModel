@@ -36,19 +36,19 @@ namespace DockerfileModel
             if (registry != null)
             {
                 builder.Append(registry);
-                builder.Append("/");
+                builder.Append('/');
             }
 
             builder.Append(repository);
 
             if (tag != null)
             {
-                builder.Append(":");
+                builder.Append(':');
                 builder.Append(tag);
             }
             else if (digest != null)
             {
-                builder.Append("@");
+                builder.Append('@');
                 builder.Append(digest);
             }
 

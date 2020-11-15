@@ -41,6 +41,10 @@ namespace DockerfileModel
             from newLine in OptionalNewLine()
             select ConcatTokens(whitespace, newLine);
 
+        public static Parser<WhitespaceToken> Whitespace(string whitespace) =>
+            from whitespaceChars in Parse.String(whitespace).Text()
+            select new WhitespaceToken(whitespaceChars);
+
         /// <summary>
         /// Parses the text of a comment, including leading whitespace.
         /// </summary>
@@ -293,14 +297,14 @@ namespace DockerfileModel
                 .Aggregate(parser, (current, next) => current.Except(next));
 
         /// <summary>
-        /// Parses the first letter of an argument reference.
+        /// Parses the first letter of a variable reference.
         /// </summary>
-        public static Parser<char> ArgRefFirstLetterParser => Parse.Letter;
+        public static Parser<char> VariableRefFirstLetterParser => Parse.Letter;
 
         /// <summary>
-        /// Parses the tail characters of an argument reference.
+        /// Parses the tail characters of a variable reference.
         /// </summary>
-        public static Parser<char> ArgRefTailParser => Parse.LetterOrDigit.Or(Parse.Char('_'));
+        public static Parser<char> VariableRefTailParser => Parse.LetterOrDigit.Or(Parse.Char('_'));
 
         /// <summary>
         /// Parses an identifier token.
@@ -482,9 +486,10 @@ namespace DockerfileModel
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="excludedChars">Characters to exclude from the parsing.</param>
         /// <returns>Parser for a literal string wrapped in quotes.</returns>
-        private static Parser<IEnumerable<Token>> WrappedInQuotesLiteralString(char escapeChar, IEnumerable<char> excludedChars)
+        private static Parser<IEnumerable<Token>> WrappedInQuotesLiteralString(char escapeChar, IEnumerable<char> excludedChars,
+            bool isWhitespaceAllowed = false)
         {
-            Parser<char> parser = ExceptQuotes(LiteralChar(escapeChar, excludedChars));
+            Parser<char> parser = ExceptQuotes(LiteralChar(escapeChar, excludedChars, isWhitespaceAllowed));
             return
                 from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
                 from rest in OrConcat(
@@ -519,7 +524,7 @@ namespace DockerfileModel
         /// </summary>
         /// <returns>Parser for a variable identifier.</returns>
         public static Parser<string> VariableIdentifier() =>
-            Parse.Identifier(ArgRefFirstLetterParser, ArgRefTailParser);
+            Parse.Identifier(VariableRefFirstLetterParser, VariableRefTailParser);
 
         /// <summary>
         /// Parses an aggregate containing literals. This handles any variable references.
@@ -530,7 +535,7 @@ namespace DockerfileModel
         /// <param name="excludedChars">Characters to exclude from parsing.</param>
         /// <returns>A parsed aggregate token.</returns>
         public static Parser<LiteralToken> LiteralAggregate(
-            char escapeChar, IEnumerable<char>? excludedChars = null)
+            char escapeChar, IEnumerable<char>? excludedChars = null, bool isWhitespaceAllowed = false)
         {
             if (excludedChars is null)
             {
@@ -542,7 +547,7 @@ namespace DockerfileModel
                     from tokens in ValueOrVariableRef(
                         escapeChar,
                         (char escapeChar, IEnumerable<char> additionalExcludedChars) =>
-                            WrappedInQuotesLiteralString(escapeChar, excludedChars.Union(additionalExcludedChars)),
+                            WrappedInQuotesLiteralString(escapeChar, excludedChars.Union(additionalExcludedChars), isWhitespaceAllowed),
                         excludedChars)
                         .Many()
                         .Flatten()

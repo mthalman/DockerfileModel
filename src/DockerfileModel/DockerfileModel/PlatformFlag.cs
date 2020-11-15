@@ -24,9 +24,9 @@ namespace DockerfileModel
             }
         }
 
-        public KeyValueToken<LiteralToken> PlatformToken
+        public KeyValueToken<KeywordToken, LiteralToken> PlatformToken
         {
-            get => Tokens.OfType<KeyValueToken<LiteralToken>>().First();
+            get => Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>().First();
             set
             {
                 Requires.NotNull(value, nameof(value));
@@ -48,6 +48,8 @@ namespace DockerfileModel
             select new PlatformFlag(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            Flag(escapeChar, KeyValueToken<LiteralToken>.GetParser("platform", escapeChar).AsEnumerable());
+            Flag(escapeChar,
+                KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                    Keyword("platform", escapeChar), LiteralAggregate(escapeChar), escapeChar: escapeChar).AsEnumerable());
     }
 }

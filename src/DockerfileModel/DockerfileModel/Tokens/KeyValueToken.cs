@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Sprache;
 using Validation;
@@ -6,9 +7,12 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel.Tokens
 {
-    public class KeyValueToken<TValue> : AggregateToken
+    public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
+        where TKey : Token, IValueToken
         where TValue : Token
     {
+        public const char DefaultSeparator = '=';
+
         internal KeyValueToken(IEnumerable<Token> tokens)
             : base(tokens)
         {
@@ -17,11 +21,16 @@ namespace DockerfileModel.Tokens
         public string Key
         {
             get => KeyToken.Value;
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                KeyToken.Value = value;
+            }
         }
 
-        public KeywordToken KeyToken
+        public TKey KeyToken
         {
-            get => Tokens.OfType<KeywordToken>().First();
+            get => Tokens.OfType<TKey>().First();
             set
             {
                 Requires.NotNull(value, nameof(value));
@@ -29,7 +38,23 @@ namespace DockerfileModel.Tokens
             }
         }
 
-        public string Value => ValueToken.ToString(TokenStringOptions.CreateOptionsForValueString());
+        public string Value
+        {
+            get => ValueToken.ToString(TokenStringOptions.CreateOptionsForValueString());
+            set
+            {
+                Requires.NotNull(value, nameof(value));
+                
+                if (ValueToken is IValueToken valueToken)
+                {
+                    valueToken.Value = value;
+                }
+                else
+                {
+                    throw new NotSupportedException($"Setting the value is not supported for values of type '{typeof(TValue)}'.");
+                }
+            }
+        }
 
         public TValue ValueToken
         {
@@ -41,33 +66,33 @@ namespace DockerfileModel.Tokens
             }
         }
 
-        public static KeyValueToken<TValue> Create(string key, TValue value, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new KeyValueToken<TValue>(
+        public static KeyValueToken<TKey, TValue> Create(TKey key, TValue value, char separator = DefaultSeparator) =>
+            new KeyValueToken<TKey, TValue>(
                 ConcatTokens(
-                    new KeywordToken(key),
-                    new SymbolToken('='),
+                    key,
+                    Char.IsWhiteSpace(separator) ? new WhitespaceToken(separator.ToString()) : new SymbolToken(separator),
                     value));
 
-        public static KeyValueToken<LiteralToken> Parse(string text, string key, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new KeyValueToken<LiteralToken>(GetTokens(text, GetInnerParser(key, escapeChar)));
+        public static KeyValueToken<TKey, TValue> Parse(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
+            char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new KeyValueToken<TKey, TValue>(GetTokens(text, GetInnerParser(separator, keyTokenParser, valueTokenParser, escapeChar)));
 
-        public static Parser<KeyValueToken<TValue>> GetParser(string key, char escapeChar = Dockerfile.DefaultEscapeChar, Parser<TValue>? valueTokenParser = null) =>
-            from tokens in GetInnerParser(key, escapeChar, valueTokenParser)
-            select new KeyValueToken<TValue>(tokens);
+        public static Parser<KeyValueToken<TKey, TValue>> GetParser(
+            Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
+            char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            from tokens in GetInnerParser(separator, keyTokenParser, valueTokenParser, escapeChar)
+            select new KeyValueToken<TKey, TValue>(tokens);
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(string key, char escapeChar, Parser<Token>? valueTokenParser = null)
-        {
-            Requires.NotNullOrEmpty(key, nameof(key));
+        private static Parser<IEnumerable<Token>> GetInnerParser(char separator, Parser<TKey> keyTokenParser,
+            Parser<TValue> valueTokenParser, char escapeChar) =>
+            from keyword in ArgTokens(keyTokenParser.AsEnumerable(), escapeChar)
+            from separatorToken in ArgTokens(SeparatorParser(separator, escapeChar).AsEnumerable().FilterNulls(), escapeChar)
+            from value in ArgTokens(valueTokenParser.AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
+            select ConcatTokens(keyword, separatorToken, value);
 
-            if (valueTokenParser is null)
-            {
-                valueTokenParser = LiteralAggregate(escapeChar);
-            }
-
-            return from keyword in ArgTokens(Keyword(key, escapeChar).AsEnumerable(), escapeChar)
-                   from equalOperator in ArgTokens(Symbol('=').AsEnumerable(), escapeChar)
-                   from value in ArgTokens(valueTokenParser.AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
-                   select ConcatTokens(keyword, equalOperator, value);
-        }
+        private static Parser<Token?> SeparatorParser(char separator, char escapeChar) =>
+            Char.IsWhiteSpace(separator) ?
+                Sprache.Parse.Return<Token?>(null) :
+                Symbol(separator).Cast<SymbolToken, Token>();
     }
 }

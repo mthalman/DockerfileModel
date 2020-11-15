@@ -24,7 +24,7 @@ namespace DockerfileModel
             }
         }
 
-        private KeyValueToken<Mount> MountKeyValueToken => Tokens.OfType<KeyValueToken<Mount>>().First();
+        private KeyValueToken<KeywordToken, Mount> MountKeyValueToken => Tokens.OfType<KeyValueToken<KeywordToken, Mount>>().First();
 
         public static MountFlag Create(Mount mount, char escapeChar = Dockerfile.DefaultEscapeChar)
         {
@@ -40,7 +40,9 @@ namespace DockerfileModel
             select new MountFlag(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            Flag(escapeChar, KeyValueToken<Mount>.GetParser("mount", escapeChar, GetMount(escapeChar)).AsEnumerable());
+            Flag(escapeChar,
+                KeyValueToken<KeywordToken, Mount>.GetParser(
+                    Keyword("mount", escapeChar), GetMount(escapeChar), escapeChar: escapeChar).AsEnumerable());
 
         private static Parser<Mount> GetMount(char escapeChar) =>
             SecretMount.GetParser(escapeChar);
