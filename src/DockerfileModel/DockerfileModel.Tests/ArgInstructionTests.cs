@@ -181,6 +181,25 @@ namespace DockerfileModel.Tests
                 },
                 new ArgInstructionParseTestScenario
                 {
+                    Text = "ARG MYARG=\"\"",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "MYARG"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "", '\"')
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal("MYARG", result.ArgName);
+                        Assert.Equal("", result.ArgValue);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
                     Text = "ARG `\n# my comment\n  MYARG=",
                     EscapeChar = '`',
                     TokenValidators = new Action<Token>[]

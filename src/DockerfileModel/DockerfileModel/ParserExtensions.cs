@@ -10,6 +10,11 @@ namespace DockerfileModel
             from item in parser
             select new T[] { item };
 
+        public static Parser<IEnumerable<T>> FilterNulls<T>(this Parser<IEnumerable<T?>> parser) =>
+            from item in parser
+            where item is not null
+            select item;
+
         public static Parser<IEnumerable<T>> Flatten<T>(this Parser<IEnumerable<IEnumerable<T>>> parser) =>
             from itemSets in parser
             select itemSets.Flatten();

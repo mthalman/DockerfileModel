@@ -25,9 +25,9 @@ namespace DockerfileModel
             }
         }
 
-        public KeyValueToken<LiteralToken> IdToken
+        public KeyValueToken<KeywordToken, LiteralToken> IdToken
         {
-            get => Tokens.OfType<KeyValueToken<LiteralToken>>().Skip(1).First();
+            get => Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>().Skip(1).First();
             set
             {
                 Requires.NotNull(value, nameof(value));
@@ -40,7 +40,7 @@ namespace DockerfileModel
             get => DestinationPathToken?.Value;
             set
             {
-                KeyValueToken<LiteralToken>? destinationPath = DestinationPathToken;
+                KeyValueToken<KeywordToken, LiteralToken>? destinationPath = DestinationPathToken;
                 if (destinationPath is not null && value is not null)
                 {
                     destinationPath.ValueToken.Value = value;
@@ -49,14 +49,14 @@ namespace DockerfileModel
                 {
                     DestinationPathToken = String.IsNullOrEmpty(value) ?
                         null :
-                        KeyValueToken<LiteralToken>.Create("dst", new LiteralToken(value!));
+                        KeyValueToken<KeywordToken, LiteralToken>.Create(new KeywordToken("dst"), new LiteralToken(value!));
                 }
             }
         }
 
-        public KeyValueToken<LiteralToken>? DestinationPathToken
+        public KeyValueToken<KeywordToken, LiteralToken>? DestinationPathToken
         {
-            get => Tokens.OfType<KeyValueToken<LiteralToken>>().Skip(2).FirstOrDefault();
+            get => Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>().Skip(2).FirstOrDefault();
             set
             {
                 SetToken(DestinationPathToken, value,
@@ -97,23 +97,30 @@ namespace DockerfileModel
             Parser<LiteralToken> valueParser = LiteralAggregate(
                 escapeChar, new char[] { ',' });
 
-            return from type in ArgTokens(KeyValueToken<LiteralToken>.GetParser("type", escapeChar, valueParser).AsEnumerable(), escapeChar)
-                   from comma in ArgTokens(Symbol(',').AsEnumerable(), escapeChar)
-                   from idDest in IdAndDestinationParser(valueParser, escapeChar).Or(IdParser(valueParser, escapeChar))
-                   select ConcatTokens(type, comma, idDest);
+            return
+                from type in ArgTokens(
+                    KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                        Keyword("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
+                from comma in ArgTokens(Symbol(',').AsEnumerable(), escapeChar)
+                from idDest in IdAndDestinationParser(valueParser, escapeChar).Or(IdParser(valueParser, escapeChar))
+                select ConcatTokens(type, comma, idDest);
         }
 
         private static Parser<IEnumerable<Token>> IdAndDestinationParser(Parser<LiteralToken> valueParser, char escapeChar) =>
-            from id in ArgTokens(KeyValueToken<LiteralToken>.GetParser("id", escapeChar, valueParser).AsEnumerable(), escapeChar)
+            from id in ArgTokens(
+                KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                    Keyword("id", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
             from dest in ArgTokens(DestinationParser(escapeChar), escapeChar, excludeTrailingWhitespace: true)
             select ConcatTokens(id, dest);
 
         private static Parser<IEnumerable<Token>> IdParser(Parser<LiteralToken> valueParser, char escapeChar) =>
-            KeyValueToken<LiteralToken>.GetParser("id", escapeChar, valueParser).AsEnumerable();
+            KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                Keyword("id", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable();
 
         private static Parser<IEnumerable<Token>> DestinationParser(char escapeChar) =>
             from comma in Symbol(',')
-            from dst in KeyValueToken<LiteralToken>.GetParser("dst", escapeChar)
+            from dst in KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                Keyword("dst", escapeChar), LiteralAggregate(escapeChar), escapeChar: escapeChar)
             select ConcatTokens(comma, dst);
     }
 }

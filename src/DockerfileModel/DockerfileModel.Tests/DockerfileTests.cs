@@ -654,7 +654,7 @@ namespace DockerfileModel.Tests
                     Text = $"ENV \\\t \n VAR=VAL",
                     TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateAggregate<GenericInstruction>(line, "ENV \\\t \n VAR=VAL",
+                        line => ValidateAggregate<EnvInstruction>(line, "ENV \\\t \n VAR=VAL",
                             new Action<Token>[]
                             {
                                 token => ValidateKeyword(token, "ENV"),
@@ -664,7 +664,10 @@ namespace DockerfileModel.Tests
                                     token => ValidateWhitespace(token, "\t "),
                                     token => ValidateNewLine(token, "\n")),
                                 token => ValidateWhitespace(token, " "),
-                                token => ValidateLiteral(token, "VAR=VAL"),
+                                token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "VAR=VAL",
+                                    token => ValidateIdentifier(token, "VAR"),
+                                    token => ValidateSymbol(token, '='),
+                                    token => ValidateLiteral(token, "VAL"))
                             })
                     }
                 },

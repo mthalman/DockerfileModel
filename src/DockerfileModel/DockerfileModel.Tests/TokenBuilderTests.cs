@@ -20,7 +20,7 @@ namespace DockerfileModel.Tests
                 .ExecFormCommand("cmd1", "cmd2")
                 .Identifier("id")
                 .ImageName("repo")
-                .KeyValue("key", new LiteralToken("value"))
+                .KeyValue(new KeywordToken("key"), new LiteralToken("value"))
                 .Keyword("key")
                 .LineContinuation()
                 .Literal("literal")
@@ -44,7 +44,7 @@ namespace DockerfileModel.Tests
                 token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user:group",
                     token => ValidateSymbol(token, '-'),
                     token => ValidateSymbol(token, '-'),
-                    token => ValidateAggregate<KeyValueToken<ChangeOwner>>(token, "chown=user:group",
+                    token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown=user:group",
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateAggregate<ChangeOwner>(token, "user:group",
@@ -67,7 +67,7 @@ namespace DockerfileModel.Tests
                 token => ValidateAggregate<ImageName>(token, "repo",
                     token => ValidateAggregate<RepositoryToken>(token, "repo",
                         token => ValidateString(token, "repo"))),
-                token => ValidateAggregate<KeyValueToken<LiteralToken>>(token, "key=value",
+                token => ValidateAggregate<KeyValueToken<KeywordToken, LiteralToken>>(token, "key=value",
                     token => ValidateKeyword(token, "key"),
                     token => ValidateSymbol(token, '='),
                     token => ValidateLiteral(token, "value")),
@@ -77,7 +77,7 @@ namespace DockerfileModel.Tests
                 token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
                     token => ValidateSymbol(token, '-'),
                     token => ValidateSymbol(token, '-'),
-                    token => ValidateAggregate<KeyValueToken<Mount>>(token, "mount=type=secret,id=id",
+                    token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=id",
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
@@ -88,7 +88,7 @@ namespace DockerfileModel.Tests
                 token => ValidateAggregate<PlatformFlag>(token, "--platform=platform",
                     token => ValidateSymbol(token, '-'),
                     token => ValidateSymbol(token, '-'),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken>>(token, "platform=platform",
+                    token => ValidateAggregate<KeyValueToken<KeywordToken, LiteralToken>>(token, "platform=platform",
                         token => ValidateKeyword(token, "platform"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "platform"))),

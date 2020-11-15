@@ -81,7 +81,8 @@ namespace DockerfileModel.Tests
             Assert.Equal("foo", flag.Group);
             Assert.Equal("--chown=user:foo", flag.ToString());
 
-            flag.ChangeOwnerToken = KeyValueToken<ChangeOwner>.Create("chown", ChangeOwner.Create("test1:test2"));
+            flag.ChangeOwnerToken = KeyValueToken<KeywordToken, ChangeOwner>.Create(
+                new KeywordToken("chown"), ChangeOwner.Create("test1:test2"));
             Assert.Equal("test2", flag.Group);
             Assert.Equal("--chown=test1:test2", flag.ToString());
         }
@@ -97,7 +98,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<ChangeOwner>>(token, "chown=foo:bar",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown=foo:bar",
                             token => ValidateKeyword(token, "chown"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<ChangeOwner>(token, "foo:bar",
@@ -113,7 +114,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<ChangeOwner>>(token, "chown=foo",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown=foo",
                             token => ValidateKeyword(token, "chown"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<ChangeOwner>(token, "foo",
@@ -128,7 +129,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<ChangeOwner>>(token, "chown`\n=`\nfoo",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown`\n=`\nfoo",
                             token => ValidateKeyword(token, "chown"),
                             token => ValidateLineContinuation(token, '`', "\n"),
                             token => ValidateSymbol(token, '='),
@@ -159,7 +160,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<ChangeOwner>>(token, "chown=user:group",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown=user:group",
                             token => ValidateKeyword(token, "chown"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<ChangeOwner>(token, "user:group",
@@ -175,7 +176,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '-'),
                         token => ValidateSymbol(token, '-'),
-                        token => ValidateAggregate<KeyValueToken<ChangeOwner>>(token, "chown=user",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown=user",
                             token => ValidateKeyword(token, "chown"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<ChangeOwner>(token, "user",

@@ -30,9 +30,9 @@ namespace DockerfileModel
             set => ChangeOwnerToken.ValueToken.Group = value;
         }
 
-        public KeyValueToken<ChangeOwner> ChangeOwnerToken
+        public KeyValueToken<KeywordToken, ChangeOwner> ChangeOwnerToken
         {
-            get => Tokens.OfType<KeyValueToken<ChangeOwner>>().First();
+            get => Tokens.OfType<KeyValueToken<KeywordToken, ChangeOwner>>().First();
             set
             {
                 Requires.NotNull(value, nameof(value));
@@ -54,6 +54,8 @@ namespace DockerfileModel
             select new ChangeOwnerFlag(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            Flag(escapeChar, KeyValueToken<ChangeOwner>.GetParser("chown", escapeChar, ChangeOwner.GetParser(escapeChar)).AsEnumerable());
+            Flag(escapeChar,
+                KeyValueToken<KeywordToken, ChangeOwner>.GetParser(
+                    Keyword("chown", escapeChar), ChangeOwner.GetParser(escapeChar), escapeChar: escapeChar).AsEnumerable());
     }
 }

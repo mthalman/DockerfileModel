@@ -55,7 +55,8 @@ namespace DockerfileModel.Tests
             Assert.Equal("test3", secretMount.Id);
             Assert.Equal("test3", secretMount.IdToken.Value);
 
-            secretMount.IdToken = KeyValueToken<LiteralToken>.Create("id", new LiteralToken("test4"));
+            secretMount.IdToken = KeyValueToken<KeywordToken, LiteralToken>.Create(
+                new KeywordToken("id"), new LiteralToken("test4"));
             Assert.Equal("test4", secretMount.Id);
             Assert.Equal("test4", secretMount.IdToken.Value);
 
@@ -78,7 +79,8 @@ namespace DockerfileModel.Tests
             Assert.Equal("test3", secretMount.DestinationPath);
             Assert.Equal("test3", secretMount.DestinationPathToken.Value);
 
-            secretMount.DestinationPathToken = KeyValueToken<LiteralToken>.Create("dst", new LiteralToken("test4"));
+            secretMount.DestinationPathToken = KeyValueToken<KeywordToken, LiteralToken>.Create(
+                new KeywordToken("dst"), new LiteralToken("test4"));
             Assert.Equal("test4", secretMount.DestinationPath);
             Assert.Equal("test4", secretMount.DestinationPathToken.Value);
             Assert.Equal("type=secret,id=foo,dst=test4", secretMount.ToString());
@@ -140,7 +142,7 @@ namespace DockerfileModel.Tests
                     Text = "typ`\ne`\n=`\nsecret`\n,`\nid=foo",
                     TokenValidators = new Action<Token>[]
                     {
-                        token => ValidateAggregate<KeyValueToken<LiteralToken>>(token, "typ`\ne`\n=`\nsecret",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, LiteralToken>>(token, "typ`\ne`\n=`\nsecret",
                             token => ValidateAggregate<KeywordToken>(token, "typ`\ne",
                                 token => ValidateString(token, "typ"),
                                 token => ValidateLineContinuation(token, '`', "\n"),
@@ -168,7 +170,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyValue(token, "type", "secret"),
                         token => ValidateSymbol(token, ','),
-                        token => ValidateAggregate<KeyValueToken<LiteralToken>>(token, "id=$secretid",
+                        token => ValidateAggregate<KeyValueToken<KeywordToken, LiteralToken>>(token, "id=$secretid",
                             token => ValidateKeyword(token, "id"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateAggregate<LiteralToken>(token, "$secretid",

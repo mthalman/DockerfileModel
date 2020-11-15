@@ -206,12 +206,12 @@ namespace DockerfileModel.Tokens
             StringBuilder builder = new StringBuilder("$");
             if (includeBraces)
             {
-                builder.Append("{");
+                builder.Append('{');
             }
             builder.Append(variableName);
             if (includeBraces)
             {
-                builder.Append("}");
+                builder.Append('}');
             }
 
             return Parse(builder.ToString(), escapeChar);

@@ -123,7 +123,7 @@ namespace DockerfileModel
                     argAssignment.GetOrDefault()), escapeChar).End();
 
         private static Parser<IdentifierToken> GetArgNameParser(char escapeChar) =>
-            IdentifierToken(ArgRefFirstLetterParser, ArgRefTailParser, escapeChar);
+            IdentifierToken(VariableRefFirstLetterParser, VariableRefTailParser, escapeChar);
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
             from assignment in ArgTokens(Symbol(AssignmentOperator).AsEnumerable(), escapeChar)
