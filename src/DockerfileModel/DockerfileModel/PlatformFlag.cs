@@ -1,55 +1,24 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
-using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class PlatformFlag : AggregateToken
+    public class PlatformFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
         internal PlatformFlag(IEnumerable<Token> tokens)
             : base(tokens)
         {
         }
 
-        public string Platform
-        {
-            get => PlatformToken.Value;
-            set
-            {
-                Requires.NotNullOrEmpty(value, nameof(value));
-                PlatformToken.ValueToken.Value = value;
-            }
-        }
-
-        public KeyValueToken<KeywordToken, LiteralToken> PlatformToken
-        {
-            get => Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>().First();
-            set
-            {
-                Requires.NotNull(value, nameof(value));
-                SetToken(PlatformToken, value);
-            }
-        }
-
-        public static PlatformFlag Create(string platform, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullOrEmpty(platform, nameof(platform));
-            return Parse($"--platform={platform}", escapeChar); ;
-        }
+        public static PlatformFlag Create(string platform) =>
+            Create(new KeywordToken("platform"), new LiteralToken(platform), tokens => new PlatformFlag(tokens), isFlag: true);
 
         public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new PlatformFlag(GetTokens(text, GetInnerParser(escapeChar)));
+            Parse(text, Keyword("platform", escapeChar), LiteralAggregate(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);
 
         public static Parser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            from tokens in GetInnerParser(escapeChar)
-            select new PlatformFlag(tokens);
-
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            Flag(escapeChar,
-                KeyValueToken<KeywordToken, LiteralToken>.GetParser(
-                    Keyword("platform", escapeChar), LiteralAggregate(escapeChar), escapeChar: escapeChar).AsEnumerable());
+            GetParser(Keyword("platform", escapeChar), LiteralAggregate(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);
     }
 }

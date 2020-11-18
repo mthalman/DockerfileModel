@@ -15,9 +15,6 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ChangeOwner(string user, string? group = null) =>
             AddToken(DockerfileModel.ChangeOwner.Create(user, group, EscapeChar));
 
-        public TokenBuilder ChangeOwnerFlag(string user, string? group = null) =>
-            AddToken(DockerfileModel.ChangeOwnerFlag.Create(user, group, EscapeChar));
-
         public TokenBuilder Comment(string comment) =>
             AddToken(CommentToken.Create(comment));
 
@@ -48,10 +45,11 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ImageName(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ImageName(GetTokens(configureBuilder)));
 
-        public TokenBuilder KeyValue<TKey, TValue>(TKey key, TValue value, char separator = KeyValueToken<TKey, TValue>.DefaultSeparator)
+        public TokenBuilder KeyValue<TKey, TValue>(TKey key, TValue value, bool isFlag = false,
+            char separator = KeyValueToken<TKey, TValue>.DefaultSeparator)
             where TKey : Token, IValueToken
             where TValue : Token =>
-            AddToken(KeyValueToken<TKey, TValue>.Create(key, value, separator));
+            AddToken(KeyValueToken<TKey, TValue>.Create(key, value, isFlag, separator));
 
         public TokenBuilder KeyValue<TKey, TValue>(Action<TokenBuilder> configureBuilder)
             where TKey : Token, IValueToken
@@ -77,13 +75,13 @@ namespace DockerfileModel.Tokens
             AddToken(new LiteralToken(GetTokens(configureBuilder)));
 
         public TokenBuilder MountFlag(Mount mount) =>
-            AddToken(DockerfileModel.MountFlag.Create(mount, EscapeChar));
+            AddToken(DockerfileModel.MountFlag.Create(mount));
 
         public TokenBuilder MountFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new MountFlag(GetTokens(configureBuilder)));
 
         public TokenBuilder PlatformFlag(string platform) =>
-            AddToken(DockerfileModel.PlatformFlag.Create(platform, EscapeChar));
+            AddToken(DockerfileModel.PlatformFlag.Create(platform));
 
         public TokenBuilder PlatformFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new PlatformFlag(GetTokens(configureBuilder)));

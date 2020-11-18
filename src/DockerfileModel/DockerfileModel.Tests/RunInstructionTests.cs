@@ -38,29 +38,43 @@ namespace DockerfileModel.Tests
             RunInstruction result;
             if (scenario.Command != null)
             {
-                if (scenario.MountFlags is null)
+                if (scenario.Mounts is null)
                 {
                     result = RunInstruction.Create(scenario.Command);
                 }
                 else
                 {
-                    result = RunInstruction.Create(scenario.Command, scenario.MountFlags);
+                    result = RunInstruction.Create(scenario.Command, scenario.Mounts);
                 }
             }
             else
             {
-                if (scenario.MountFlags is null)
+                if (scenario.Mounts is null)
                 {
                     result = RunInstruction.Create(scenario.Commands);
                 }
                 else
                 {
-                    result = RunInstruction.Create(scenario.Commands, scenario.MountFlags);
+                    result = RunInstruction.Create(scenario.Commands, scenario.Mounts);
                 }
             }
 
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
+        }
+
+        [Fact]
+        public void Mounts()
+        {
+            RunInstruction instruction = RunInstruction.Create("echo hello", new Mount[] { SecretMount.Create("id") });
+            Assert.Single(instruction.Mounts);
+            Assert.Equal("RUN --mount=type=secret,id=id echo hello", instruction.ToString());
+
+            ((SecretMount)instruction.Mounts[0]).Id = "id2";
+            Assert.Equal("RUN --mount=type=secret,id=id2 echo hello", instruction.ToString());
+
+            instruction.Mounts[0] = SecretMount.Create("id3");
+            Assert.Equal("RUN --mount=type=secret,id=id3 echo hello", instruction.ToString());
         }
 
         public static IEnumerable<object[]> ParseTestInput()
@@ -84,7 +98,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
                         Assert.Equal("echo hello", result.Command.ToString());
                         Assert.IsType<ShellFormCommand>(result.Command);
-                        Assert.Empty(result.MountFlags);
+                        Assert.Empty(result.Mounts);
                         ShellFormCommand cmd = (ShellFormCommand)result.Command;
                         Assert.Equal("echo hello", cmd.Value);
                     }
@@ -285,13 +299,12 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=id",
-                                token => ValidateKeyword(token, "mount"),
-                                token => ValidateSymbol(token, '='),
-                                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
-                                    token => ValidateKeyValue(token, "type", "secret"),
-                                    token => ValidateSymbol(token, ','),
-                                    token => ValidateKeyValue(token, "id", "id")))),
+                            token => ValidateKeyword(token, "mount"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                                token => ValidateKeyValue(token, "type", "secret"),
+                                token => ValidateSymbol(token, ','),
+                                token => ValidateKeyValue(token, "id", "id"))),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
@@ -306,9 +319,9 @@ namespace DockerfileModel.Tests
                         ShellFormCommand cmd = (ShellFormCommand)result.Command;
                         Assert.Equal("echo hello", cmd.Value);
 
-                        Assert.Single(result.MountFlags);
-                        Assert.IsType<SecretMount>(result.MountFlags.First().Mount);
-                        Assert.Equal("--mount=type=secret,id=id", result.MountFlags.First().ToString());
+                        Assert.Single(result.Mounts);
+                        Assert.IsType<SecretMount>(result.Mounts.First());
+                        Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
                     }
                 },
                 new RunInstructionParseTestScenario
@@ -324,13 +337,12 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=id",
-                                token => ValidateKeyword(token, "mount"),
-                                token => ValidateSymbol(token, '='),
-                                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
-                                    token => ValidateKeyValue(token, "type", "secret"),
-                                    token => ValidateSymbol(token, ','),
-                                    token => ValidateKeyValue(token, "id", "id")))),
+                            token => ValidateKeyword(token, "mount"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                                token => ValidateKeyValue(token, "type", "secret"),
+                                token => ValidateSymbol(token, ','),
+                                token => ValidateKeyValue(token, "id", "id"))),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLineContinuation(token, '`', "\n"),
                         token => ValidateWhitespace(token, " "),
@@ -347,9 +359,9 @@ namespace DockerfileModel.Tests
                         ShellFormCommand cmd = (ShellFormCommand)result.Command;
                         Assert.Equal("echo hello", cmd.Value);
 
-                        Assert.Single(result.MountFlags);
-                        Assert.IsType<SecretMount>(result.MountFlags.First().Mount);
-                        Assert.Equal("--mount=type=secret,id=id", result.MountFlags.First().ToString());
+                        Assert.Single(result.Mounts);
+                        Assert.IsType<SecretMount>(result.Mounts.First());
+                        Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
                     }
                 },
             };
@@ -399,9 +411,9 @@ namespace DockerfileModel.Tests
                 new CreateTestScenario
                 {
                     Command = "echo hello",
-                    MountFlags = new MountFlag[]
+                    Mounts = new Mount[]
                     {
-                        MountFlag.Create(SecretMount.Create("id"))
+                        SecretMount.Create("id")
                     },
                     TokenValidators = new Action<Token>[]
                     {
@@ -410,13 +422,12 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=id",
-                                token => ValidateKeyword(token, "mount"),
-                                token => ValidateSymbol(token, '='),
-                                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
-                                    token => ValidateKeyValue(token, "type", "secret"),
-                                    token => ValidateSymbol(token, ','),
-                                    token => ValidateKeyValue(token, "id", "id")))),
+                            token => ValidateKeyword(token, "mount"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                                token => ValidateKeyValue(token, "type", "secret"),
+                                token => ValidateSymbol(token, ','),
+                                token => ValidateKeyValue(token, "id", "id"))),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
@@ -425,10 +436,10 @@ namespace DockerfileModel.Tests
                 new CreateTestScenario
                 {
                     Command = "echo hello",
-                    MountFlags = new MountFlag[]
+                    Mounts = new Mount[]
                     {
-                        MountFlag.Create(SecretMount.Create("id")),
-                        MountFlag.Create(SecretMount.Create("id2"))
+                        SecretMount.Create("id"),
+                        SecretMount.Create("id2")
                     },
                     TokenValidators = new Action<Token>[]
                     {
@@ -437,24 +448,22 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=id",
-                                token => ValidateKeyword(token, "mount"),
-                                token => ValidateSymbol(token, '='),
-                                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
-                                    token => ValidateKeyValue(token, "type", "secret"),
-                                    token => ValidateSymbol(token, ','),
-                                    token => ValidateKeyValue(token, "id", "id")))),
+                            token => ValidateKeyword(token, "mount"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                                token => ValidateKeyValue(token, "type", "secret"),
+                                token => ValidateSymbol(token, ','),
+                                token => ValidateKeyValue(token, "id", "id"))),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id2",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=id2",
-                                token => ValidateKeyword(token, "mount"),
-                                token => ValidateSymbol(token, '='),
-                                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id2",
-                                    token => ValidateKeyValue(token, "type", "secret"),
-                                    token => ValidateSymbol(token, ','),
-                                    token => ValidateKeyValue(token, "id", "id2")))),
+                            token => ValidateKeyword(token, "mount"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<SecretMount>(token, "type=secret,id=id2",
+                                token => ValidateKeyValue(token, "type", "secret"),
+                                token => ValidateSymbol(token, ','),
+                                token => ValidateKeyValue(token, "id", "id2"))),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                             token => ValidateLiteral(token, "echo hello"))
@@ -474,7 +483,7 @@ namespace DockerfileModel.Tests
         {
             public string Command { get; set; }
             public IEnumerable<string> Commands { get; set; }
-            public IEnumerable<MountFlag> MountFlags { get; set; }
+            public IEnumerable<Mount> Mounts { get; set; }
         }
     }
 }

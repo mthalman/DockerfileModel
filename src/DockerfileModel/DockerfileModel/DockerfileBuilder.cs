@@ -40,7 +40,7 @@ namespace DockerfileModel
         public DockerfileBuilder NewLine() =>
             AddConstruct(Whitespace.Create(DefaultNewLine));
 
-        public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, ChangeOwnerFlag? changeOwnerFlag = null) =>
+        public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, ChangeOwner? changeOwnerFlag = null) =>
             AddConstruct(DockerfileModel.AddInstruction.Create(sources, destination, changeOwnerFlag, EscapeChar));
 
         public DockerfileBuilder AddInstruction(Action<TokenBuilder> configureBuilder) =>
@@ -68,8 +68,8 @@ namespace DockerfileModel
         public DockerfileBuilder Comment(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
-        public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination, ChangeOwnerFlag? changeOwnerFlag = null) =>
-            AddConstruct(DockerfileModel.CopyInstruction.Create(sources, destination, changeOwnerFlag, EscapeChar));
+        public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination, ChangeOwner? changeOwner = null) =>
+            AddConstruct(DockerfileModel.CopyInstruction.Create(sources, destination, changeOwner, EscapeChar));
 
         public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.CopyInstruction.Parse);
@@ -116,16 +116,16 @@ namespace DockerfileModel
             ParseTokens(configureBuilder, DockerfileModel.ParserDirective.Parse);
 
         public DockerfileBuilder RunInstruction(string command) =>
-            RunInstruction(command, Enumerable.Empty<MountFlag>());
+            RunInstruction(command, Enumerable.Empty<Mount>());
 
-        public DockerfileBuilder RunInstruction(string command, IEnumerable<MountFlag> mountFlags) =>
-            AddConstruct(DockerfileModel.RunInstruction.Create(command, mountFlags, EscapeChar));
+        public DockerfileBuilder RunInstruction(string command, IEnumerable<Mount> mounts) =>
+            AddConstruct(DockerfileModel.RunInstruction.Create(command, mounts, EscapeChar));
 
         public DockerfileBuilder RunInstruction(IEnumerable<string> commands) =>
-            RunInstruction(commands, Enumerable.Empty<MountFlag>());
+            RunInstruction(commands, Enumerable.Empty<Mount>());
 
-        public DockerfileBuilder RunInstruction(IEnumerable<string> commands, IEnumerable<MountFlag> mountFlags) =>
-            AddConstruct(DockerfileModel.RunInstruction.Create(commands, mountFlags, EscapeChar));
+        public DockerfileBuilder RunInstruction(IEnumerable<string> commands, IEnumerable<Mount> mounts) =>
+            AddConstruct(DockerfileModel.RunInstruction.Create(commands, mounts, EscapeChar));
 
         public DockerfileBuilder RunInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.RunInstruction.Parse);

@@ -12,13 +12,16 @@ namespace DockerfileModel.Tests
     public abstract class FileTransferInstructionTests<TInstruction>
         where TInstruction : FileTransferInstruction
     {
+        private readonly string instructionName;
         private readonly Func<string, char, TInstruction> parse;
-        private readonly Func<IEnumerable<string>, string, ChangeOwnerFlag, char, TInstruction> create;
+        private readonly Func<IEnumerable<string>, string, ChangeOwner, char, TInstruction> create;
 
         public FileTransferInstructionTests(
+            string instructionName,
             Func<string, char, TInstruction> parse,
-            Func<IEnumerable<string>, string, ChangeOwnerFlag, char, TInstruction> create)
+            Func<IEnumerable<string>, string, ChangeOwner, char, TInstruction> create)
         {
+            this.instructionName = instructionName;
             this.parse = parse;
             this.create = create;
         }
@@ -67,6 +70,37 @@ namespace DockerfileModel.Tests
             Assert.Throws<ArgumentNullException>(() => instruction.DestinationToken = null);
         }
 
+        [Fact]
+        public void ChangeOwner()
+        {
+            void Validate(TInstruction instruction, string user)
+            {
+                Assert.Equal(user, instruction.ChangeOwner.User);
+                Assert.Equal($"{instructionName} --chown={user} src dst", instruction.ToString());
+            }
+
+            ChangeOwner changeOwner = DockerfileModel.ChangeOwner.Create("user");
+            TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, Dockerfile.DefaultEscapeChar);
+            Validate(instruction, "user");
+
+            instruction.ChangeOwner = DockerfileModel.ChangeOwner.Create("user2");
+            Validate(instruction, "user2");
+
+            instruction.ChangeOwner = null;
+            Assert.Null(instruction.ChangeOwner);
+            Assert.Equal($"{instructionName} src dst", instruction.ToString());
+
+            instruction = this.parse($"{instructionName}`\n src dst", '`');
+            instruction.ChangeOwner = DockerfileModel.ChangeOwner.Create("user");
+            Assert.Equal("user", instruction.ChangeOwner.User);
+            Assert.Equal($"{instructionName} --chown=user`\n src dst", instruction.ToString());
+
+            instruction = this.parse($"{instructionName}`\n --chown=user`\n src dst", '`');
+            instruction.ChangeOwner = null;
+            Assert.Null(instruction.ChangeOwner);
+            Assert.Equal($"{instructionName}`\n`\n src dst", instruction.ToString());
+        }
+
         protected void RunParseTest(FileTransferInstructionParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
@@ -87,7 +121,7 @@ namespace DockerfileModel.Tests
 
         protected void RunCreateTest(CreateTestScenario scenario)
         {
-            TInstruction result = this.create(scenario.Sources, scenario.Destination, scenario.ChangeOwnerFlag, scenario.EscapeChar);
+            TInstruction result = this.create(scenario.Sources, scenario.Destination, scenario.ChangeOwner, scenario.EscapeChar);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -125,13 +159,12 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=1:2",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown=1:2",
-                                token => ValidateKeyword(token, "chown"),
-                                token => ValidateSymbol(token, '='),
-                                token => ValidateAggregate<ChangeOwner>(token, "1:2",
-                                    token => ValidateLiteral(token, "1"),
-                                    token => ValidateSymbol(token, ':'),
-                                    token => ValidateLiteral(token, "2")))),
+                            token => ValidateKeyword(token, "chown"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<ChangeOwner>(token, "1:2",
+                                token => ValidateLiteral(token, "1"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateLiteral(token, "2"))),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "src"),
                         token => ValidateWhitespace(token, " "),
@@ -321,7 +354,7 @@ namespace DockerfileModel.Tests
                         "src2"
                     },
                     Destination = "dst",
-                    ChangeOwnerFlag = ChangeOwnerFlag.Create("user", "group"),
+                    ChangeOwner = DockerfileModel.ChangeOwner.Create("user", "group"),
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, instructionName),
@@ -329,13 +362,12 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user:group",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown=user:group",
-                                token => ValidateKeyword(token, "chown"),
-                                token => ValidateSymbol(token, '='),
-                                token => ValidateAggregate<ChangeOwner>(token, "user:group",
-                                    token => ValidateLiteral(token, "user"),
-                                    token => ValidateSymbol(token, ':'),
-                                    token => ValidateLiteral(token, "group")))),
+                            token => ValidateKeyword(token, "chown"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<ChangeOwner>(token, "user:group",
+                                token => ValidateLiteral(token, "user"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateLiteral(token, "group"))),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "src1"),
                         token => ValidateWhitespace(token, " "),
@@ -358,7 +390,7 @@ namespace DockerfileModel.Tests
         {
             public string Destination { get; set; }
             public IEnumerable<string> Sources { get; set; }
-            public ChangeOwnerFlag ChangeOwnerFlag { get; set; }
+            public ChangeOwner ChangeOwner { get; set; }
             public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
         }
     }

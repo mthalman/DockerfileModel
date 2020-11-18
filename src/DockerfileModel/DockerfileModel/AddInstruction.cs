@@ -21,7 +21,7 @@ namespace DockerfileModel
             select new AddInstruction(tokens);
 
         public static AddInstruction Create(IEnumerable<string> sources, string destination,
-            ChangeOwnerFlag? changeOwnerFlag = null, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Create(sources, destination, changeOwnerFlag, escapeChar, Name, Parse);
+            ChangeOwner? changeOwner = null, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Create(sources, destination, changeOwner, escapeChar, Name, Parse);
     }
 }
