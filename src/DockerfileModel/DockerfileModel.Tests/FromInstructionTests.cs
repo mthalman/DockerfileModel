@@ -113,11 +113,11 @@ namespace DockerfileModel.Tests
 
             instruction.StageName = "foo";
             Assert.Equal("foo", instruction.StageName);
-            Assert.Equal("foo", instruction.StageNameToken.Stage);
+            Assert.Equal("foo", instruction.StageNameToken.Value);
 
-            instruction.StageNameToken.Stage = "foo2";
+            instruction.StageNameToken.Value = "foo2";
             Assert.Equal("foo2", instruction.StageName);
-            Assert.Equal("foo2", instruction.StageNameToken.Stage);
+            Assert.Equal("foo2", instruction.StageNameToken.Value);
 
             instruction.StageName = null;
             Assert.Null(instruction.StageName);
@@ -127,9 +127,9 @@ namespace DockerfileModel.Tests
             Assert.Null(instruction.StageName);
             Assert.Null(instruction.StageNameToken);
 
-            instruction.StageNameToken = DockerfileModel.StageName.Create("foo3");
+            instruction.StageNameToken = new IdentifierToken("foo3");
             Assert.Equal("foo3", instruction.StageName);
-            Assert.Equal("foo3", instruction.StageNameToken.Stage);
+            Assert.Equal("foo3", instruction.StageNameToken.Value);
 
             instruction.StageNameToken = null;
             Assert.Null(instruction.StageName);
@@ -189,10 +189,9 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine:latest"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<StageName>(token, "as build",
-                            token => ValidateKeyword(token, "as"),
-                            token => ValidateWhitespace(token, " "),
-                            token => ValidateIdentifier(token, "build"))
+                        token => ValidateKeyword(token, "as"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "build")
                     },
                     Validate = result =>
                     {
@@ -214,10 +213,9 @@ namespace DockerfileModel.Tests
                         token => ValidateLiteral(token, "alpine"),
                         token => ValidateLineContinuation(token, '`', "\n"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<StageName>(token, "as build",
-                            token => ValidateKeyword(token, "as"),
-                            token => ValidateWhitespace(token, " "),
-                            token => ValidateIdentifier(token, "build"))
+                        token => ValidateKeyword(token, "as"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "build")
                     },
                     Validate = result =>
                     {
@@ -244,17 +242,16 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
-                        token => ValidateAggregate<StageName>(token, "as `\n#comment\nbuild",
-                            token => ValidateKeyword(token, "as"),
-                            token => ValidateWhitespace(token, " "),
-                            token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                                token => ValidateSymbol(token, '`'),
-                                token => ValidateNewLine(token, "\n")),
-                            token => ValidateAggregate<CommentToken>(token, "#comment\n",
-                                token => ValidateSymbol(token, '#'),
-                                token => ValidateString(token, "comment"),
-                                token => ValidateNewLine(token, "\n")),
-                            token => ValidateIdentifier(token, "build"))
+                        token => ValidateKeyword(token, "as"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<LineContinuationToken>(token, "`\n",
+                            token => ValidateSymbol(token, '`'),
+                            token => ValidateNewLine(token, "\n")),
+                        token => ValidateAggregate<CommentToken>(token, "#comment\n",
+                            token => ValidateSymbol(token, '#'),
+                            token => ValidateString(token, "comment"),
+                            token => ValidateNewLine(token, "\n")),
+                        token => ValidateIdentifier(token, "build")
                     },
                     Validate = result =>
                     {
@@ -288,10 +285,9 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<StageName>(token, "as build",
-                            token => ValidateKeyword(token, "as"),
-                            token => ValidateWhitespace(token, " "),
-                            token => ValidateIdentifier(token, "build"))
+                        token => ValidateKeyword(token, "as"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "build")
                     },
                     Validate = result =>
                     {
@@ -491,11 +487,9 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine:latest"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<StageName>(token, "AS test",
-                            token => ValidateKeyword(token, "AS"),
-                            token => ValidateWhitespace(token, " "),
-                            token => ValidateIdentifier(token, "test")
-                        )
+                        token => ValidateKeyword(token, "AS"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "test")
                     }
                 },
                 new CreateTestScenario
@@ -517,11 +511,9 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine:latest"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<StageName>(token, "AS test",
-                            token => ValidateKeyword(token, "AS"),
-                            token => ValidateWhitespace(token, " "),
-                            token => ValidateIdentifier(token, "test")
-                        )
+                        token => ValidateKeyword(token, "AS"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateIdentifier(token, "test")
                     }
                 }
             };
