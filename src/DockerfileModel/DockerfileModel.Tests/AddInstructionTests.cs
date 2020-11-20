@@ -6,7 +6,7 @@ namespace DockerfileModel.Tests
     public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
     {
         public AddInstructionTests()
-            : base(AddInstruction.Parse, AddInstruction.Create)
+            : base("ADD", AddInstruction.Parse, AddInstruction.Create)
         {
         }
 

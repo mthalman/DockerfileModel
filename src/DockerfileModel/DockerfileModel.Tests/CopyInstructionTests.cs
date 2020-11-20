@@ -6,7 +6,7 @@ namespace DockerfileModel.Tests
     public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction>
     {
         public CopyInstructionTests()
-            : base(CopyInstruction.Parse, CopyInstruction.Create)
+            : base("COPY", CopyInstruction.Parse, CopyInstruction.Create)
         {
         }
 

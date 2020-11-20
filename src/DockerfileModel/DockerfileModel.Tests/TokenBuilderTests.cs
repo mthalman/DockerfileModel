@@ -14,7 +14,6 @@ namespace DockerfileModel.Tests
             TokenBuilder builder = new TokenBuilder();
             builder
                 .ChangeOwner("user")
-                .ChangeOwnerFlag("user", "group")
                 .Comment("comment")
                 .Digest("digest")
                 .ExecFormCommand("cmd1", "cmd2")
@@ -41,16 +40,6 @@ namespace DockerfileModel.Tests
             {
                 token => ValidateAggregate<ChangeOwner>(token, "user",
                     token => ValidateLiteral(token, "user")),
-                token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user:group",
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateAggregate<KeyValueToken<KeywordToken, ChangeOwner>>(token, "chown=user:group",
-                        token => ValidateKeyword(token, "chown"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<ChangeOwner>(token, "user:group",
-                            token => ValidateLiteral(token, "user"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "group")))),
                 token => ValidateAggregate<CommentToken>(token, "#comment",
                     token => ValidateSymbol(token, '#'),
                     token => ValidateString(token, "comment")),
@@ -77,21 +66,19 @@ namespace DockerfileModel.Tests
                 token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
                     token => ValidateSymbol(token, '-'),
                     token => ValidateSymbol(token, '-'),
-                    token => ValidateAggregate<KeyValueToken<KeywordToken, Mount>>(token, "mount=type=secret,id=id",
-                        token => ValidateKeyword(token, "mount"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
-                            token => ValidateKeyValue(token, "type", "secret"),
-                            token => ValidateSymbol(token, ','),
-                            token => ValidateKeyValue(token, "id", "id")))),
+                    token => ValidateKeyword(token, "mount"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateKeyValue(token, "type", "secret"),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateKeyValue(token, "id", "id"))),
                 token => ValidateNewLine(token, Environment.NewLine),
                 token => ValidateAggregate<PlatformFlag>(token, "--platform=platform",
                     token => ValidateSymbol(token, '-'),
                     token => ValidateSymbol(token, '-'),
-                    token => ValidateAggregate<KeyValueToken<KeywordToken, LiteralToken>>(token, "platform=platform",
-                        token => ValidateKeyword(token, "platform"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "platform"))),
+                    token => ValidateKeyword(token, "platform"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "platform")),
                 token => ValidateAggregate<RegistryToken>(token, "registry",
                     token => ValidateString(token, "registry")),
                 token => ValidateAggregate<RepositoryToken>(token, "repo",
@@ -116,7 +103,6 @@ namespace DockerfileModel.Tests
 
             string expectedResult =
                 "user" +
-                "--chown=user:group" +
                 "#comment" +
                 "digest" +
                 "[\"cmd1\", \"cmd2\"]" +

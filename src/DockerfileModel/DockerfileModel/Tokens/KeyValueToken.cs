@@ -66,31 +66,54 @@ namespace DockerfileModel.Tokens
             }
         }
 
-        public static KeyValueToken<TKey, TValue> Create(TKey key, TValue value, char separator = DefaultSeparator) =>
-            new KeyValueToken<TKey, TValue>(
-                ConcatTokens(
-                    key,
-                    Char.IsWhiteSpace(separator) ? new WhitespaceToken(separator.ToString()) : new SymbolToken(separator),
-                    value));
+        public static KeyValueToken<TKey, TValue> Create(TKey key, TValue value, bool isFlag = false, char separator = DefaultSeparator) =>
+            Create(key, value, tokens => new KeyValueToken<TKey, TValue>(tokens), isFlag, separator);
 
         public static KeyValueToken<TKey, TValue> Parse(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
             char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new KeyValueToken<TKey, TValue>(GetTokens(text, GetInnerParser(separator, keyTokenParser, valueTokenParser, escapeChar)));
+            Parse(text, keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar);
 
         public static Parser<KeyValueToken<TKey, TValue>> GetParser(
             Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
             char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            GetParser(keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar);
+
+        protected static T Create<T>(TKey key, TValue value, Func<IEnumerable<Token>, T> createToken, bool isFlag = false, char separator = DefaultSeparator)
+            where T : KeyValueToken<TKey, TValue> =>
+            createToken(
+                ConcatTokens(
+                    isFlag ? new Token[] { new SymbolToken('-'), new SymbolToken('-') } : Enumerable.Empty<Token>(),
+                    new Token[]
+                    {
+                        key,
+                        Char.IsWhiteSpace(separator) ? new WhitespaceToken(separator.ToString()) : new SymbolToken(separator),
+                        value
+                    }));
+
+        protected static T Parse<T>(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
+            Func<IEnumerable<Token>, T> createToken, char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar)
+            where T : KeyValueToken<TKey, TValue> =>
+            createToken(GetTokens(text, GetInnerParser(separator, keyTokenParser, valueTokenParser, escapeChar)));
+
+        protected static Parser<T> GetParser<T>(
+            Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser, Func<IEnumerable<Token>, T> createToken,
+            char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar)
+            where T : KeyValueToken<TKey, TValue> =>
             from tokens in GetInnerParser(separator, keyTokenParser, valueTokenParser, escapeChar)
-            select new KeyValueToken<TKey, TValue>(tokens);
+            select createToken(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char separator, Parser<TKey> keyTokenParser,
             Parser<TValue> valueTokenParser, char escapeChar) =>
+            from flag in ArgTokens(FlagParser(escapeChar), escapeChar).Optional()
             from keyword in ArgTokens(keyTokenParser.AsEnumerable(), escapeChar)
-            from separatorToken in ArgTokens(SeparatorParser(separator, escapeChar).AsEnumerable().FilterNulls(), escapeChar)
+            from separatorToken in ArgTokens(SeparatorParser(separator).AsEnumerable().FilterNulls(), escapeChar)
             from value in ArgTokens(valueTokenParser.AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
-            select ConcatTokens(keyword, separatorToken, value);
+            select ConcatTokens(flag.GetOrDefault(), keyword, separatorToken, value);
 
-        private static Parser<Token?> SeparatorParser(char separator, char escapeChar) =>
+        private static Parser<IEnumerable<Token>> FlagParser(char escapeChar) =>
+            ArgTokens(Symbol('-').AsEnumerable(), escapeChar).Repeat(2).Flatten();
+
+        private static Parser<Token?> SeparatorParser(char separator) =>
             Char.IsWhiteSpace(separator) ?
                 Sprache.Parse.Return<Token?>(null) :
                 Symbol(separator).Cast<SymbolToken, Token>();

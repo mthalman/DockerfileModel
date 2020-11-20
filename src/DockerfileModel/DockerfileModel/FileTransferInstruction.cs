@@ -47,7 +47,51 @@ namespace DockerfileModel
             }
         }
 
-        protected static TInstruction Create<TInstruction>(IEnumerable<string> sources, string destination, ChangeOwnerFlag? changeOwnerFlag, char escapeChar,
+        public ChangeOwner? ChangeOwner
+        {
+            get => ChangeOwnerFlagToken?.ValueToken;
+            set
+            {
+                KeyValueToken<KeywordToken, ChangeOwner>? changeOwnerToken = ChangeOwnerFlagToken;
+                if (changeOwnerToken is not null && value is not null)
+                {
+                    changeOwnerToken.ValueToken = value;
+                }
+                else
+                {
+                    ChangeOwnerFlagToken = value is null ?
+                        null :
+                        DockerfileModel.ChangeOwnerFlag.Create(value);
+                }
+            }
+        }
+
+        private ChangeOwnerFlag? ChangeOwnerFlagToken
+        {
+            get => Tokens.OfType<ChangeOwnerFlag>().FirstOrDefault();
+            set
+            {
+                SetToken(ChangeOwnerFlagToken, value,
+                    addToken: token =>
+                    {
+                        TokenList.InsertRange(1, new Token[]
+                        {
+                            new WhitespaceToken(" "),
+                            token
+                        });
+                    },
+                    removeToken: token =>
+                    {
+                        int reversedTokenIndex = TokenList.Count - TokenList.IndexOf(token);
+                        TokenList.Remove(token);
+                        // Remove the first whitespace token that preceded the change owner token
+                        TokenList.Remove(Tokens.Reverse().Skip(reversedTokenIndex - 1).OfType<WhitespaceToken>().First());
+                    });
+            }
+        }
+
+        protected static TInstruction Create<TInstruction>(IEnumerable<string> sources, string destination,
+            ChangeOwner? changeOwner, char escapeChar,
             string instructionName, Func<string, char, TInstruction> parse)
             where TInstruction : FileTransferInstruction
         {
@@ -56,7 +100,9 @@ namespace DockerfileModel
 
             IEnumerable<string> locations = sources.Append(destination);
 
-            string changeOwnerFlagStr = changeOwnerFlag is null ? string.Empty : $"{changeOwnerFlag} ";
+            string changeOwnerFlagStr = changeOwner is null ?
+                string.Empty :
+                $"{DockerfileModel.ChangeOwnerFlag.Create(changeOwner)} ";
 
             bool useJsonForm = locations.Any(loc => loc.Contains(" "));
             if (useJsonForm)
@@ -74,7 +120,8 @@ namespace DockerfileModel
                 GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-            from changeOwner in ArgTokens(ChangeOwnerFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Optional()
+            from changeOwner in ArgTokens(
+                DockerfileModel.ChangeOwnerFlag.GetParser(escapeChar: escapeChar).AsEnumerable(), escapeChar).Optional()
             from whitespace in Whitespace()
             from files in JsonArray(escapeChar, canContainVariables: true).Or(
                 from literals in ArgTokens(

@@ -1,50 +1,27 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
-using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class MountFlag : AggregateToken
+    public class MountFlag : KeyValueToken<KeywordToken, Mount>
     {
-        internal MountFlag(IEnumerable<Token> tokens)
-            : base(tokens)
+        internal MountFlag(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
-        public Mount Mount
-        {
-            get => MountKeyValueToken.ValueToken;
-            set
-            {
-                Requires.NotNull(value, nameof(value));
-                MountKeyValueToken.ValueToken = value;
-            }
-        }
+        public static MountFlag Create(Mount mount) =>
+            Create(new KeywordToken("mount"), mount, tokens => new MountFlag(tokens), isFlag: true);
 
-        private KeyValueToken<KeywordToken, Mount> MountKeyValueToken => Tokens.OfType<KeyValueToken<KeywordToken, Mount>>().First();
-
-        public static MountFlag Create(Mount mount, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNull(mount, nameof(mount));
-            return Parse($"--mount={mount}", escapeChar);
-        }
-
-        public static MountFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new MountFlag(GetTokens(text, GetInnerParser(escapeChar)));
+        public static MountFlag Parse(string text,
+            char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse(text, Keyword("mount", escapeChar), MountParser(escapeChar), tokens => new MountFlag(tokens), escapeChar: escapeChar);
 
         public static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            from tokens in GetInnerParser(escapeChar)
-            select new MountFlag(tokens);
+            GetParser(Keyword("mount", escapeChar), MountParser(escapeChar), tokens => new MountFlag(tokens), escapeChar: escapeChar);
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            Flag(escapeChar,
-                KeyValueToken<KeywordToken, Mount>.GetParser(
-                    Keyword("mount", escapeChar), GetMount(escapeChar), escapeChar: escapeChar).AsEnumerable());
-
-        private static Parser<Mount> GetMount(char escapeChar) =>
+        private static Parser<Mount> MountParser(char escapeChar) =>
             SecretMount.GetParser(escapeChar);
     }
 }

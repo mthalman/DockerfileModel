@@ -51,13 +51,13 @@ namespace DockerfileModel
 
         public string? Platform
         {
-            get => this.PlatformFlag?.Platform;
+            get => this.PlatformFlag?.Value;
             set
             {
                 PlatformFlag? platformFlag = PlatformFlag;
                 if (platformFlag != null && value is not null)
                 {
-                    platformFlag.Platform = value;
+                    platformFlag.Value = value;
                 }
                 else
                 {
@@ -130,16 +130,16 @@ namespace DockerfileModel
             Requires.NotNullOrEmpty(imageName, nameof(imageName));
 
             StringBuilder builder = new StringBuilder("FROM ");
-            if (platform != null)
+            if (platform is not null)
             {
-                builder.Append($"--platform={platform} ");
+                builder.Append($"{PlatformFlag.Create(platform)} ");
             }
 
             builder.Append(imageName);
 
-            if (stageName != null)
+            if (stageName is not null)
             {
-                builder.Append($" AS {stageName}");
+                builder.Append($" {DockerfileModel.StageName.Create(stageName, escapeChar)}");
             }
 
             return Parse(builder.ToString(), escapeChar);

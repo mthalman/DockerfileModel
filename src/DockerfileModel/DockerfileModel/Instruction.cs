@@ -35,11 +35,11 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
             from text in Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Except(Parse.LineEnd).Many().Text()
-            from lineContinuation in LineContinuationToken.GetParser(escapeChar).Optional()
+            from lineContinuation in LineContinuations(escapeChar).Optional()
             from lineEnd in OptionalNewLine().AsEnumerable()
             select ConcatTokens(
                 GetInstructionArgLineContent(text),
-                new Token[] { lineContinuation.GetOrDefault() },
+                lineContinuation.GetOrDefault(),
                 lineEnd);
 
         private static IEnumerable<Token?> GetInstructionArgLineContent(string text)

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using DockerfileModel.Tokens;
 using Sprache;
 using Validation;
@@ -85,12 +84,20 @@ namespace DockerfileModel
             select new ChangeOwner(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            from user in ArgTokens(LiteralAggregate(escapeChar, new char[] { ':' }).AsEnumerable(), escapeChar)
-            from groupSegment in (
-                from colon in ArgTokens(Symbol(':').AsEnumerable(), escapeChar)
-                from @group in ArgTokens(
-                    LiteralAggregate(escapeChar, Enumerable.Empty<char>()).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
-                select ConcatTokens(colon, @group)).Optional()
-            select ConcatTokens(user, groupSegment.GetOrDefault());
+            UserAndGroup(escapeChar).Or(ArgTokens(UserParser(escapeChar), escapeChar, excludeTrailingWhitespace: true));
+
+        private static Parser<IEnumerable<Token>> UserAndGroup(char escapeChar) =>
+            from user in ArgTokens(UserParser(escapeChar), escapeChar)
+            from groupSegment in GroupSegment(escapeChar)
+            select ConcatTokens(user, groupSegment);
+
+        private static Parser<IEnumerable<Token>> UserParser(char escapeChar) =>
+            LiteralAggregate(escapeChar, new char[] { ':' }).AsEnumerable();
+
+        private static Parser<IEnumerable<Token>> GroupSegment(char escapeChar) =>
+            from colon in ArgTokens(Symbol(':').AsEnumerable(), escapeChar)
+            from @group in ArgTokens(
+                LiteralAggregate(escapeChar, Enumerable.Empty<char>()).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
+            select ConcatTokens(colon, @group);
     }
 }

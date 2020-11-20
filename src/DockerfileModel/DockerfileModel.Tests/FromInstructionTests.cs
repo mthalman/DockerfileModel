@@ -73,11 +73,11 @@ namespace DockerfileModel.Tests
 
             instruction.Platform = "foo";
             Assert.Equal("foo", instruction.Platform);
-            Assert.Equal("foo", instruction.PlatformFlag.Platform);
+            Assert.Equal("foo", instruction.PlatformFlag.Value);
 
-            instruction.PlatformFlag.Platform = "foo2";
+            instruction.PlatformFlag.Value = "foo2";
             Assert.Equal("foo2", instruction.Platform);
-            Assert.Equal("foo2", instruction.PlatformFlag.Platform);
+            Assert.Equal("foo2", instruction.PlatformFlag.Value);
 
             instruction.Platform = null;
             Assert.Null(instruction.Platform);
@@ -89,11 +89,19 @@ namespace DockerfileModel.Tests
 
             instruction.PlatformFlag = PlatformFlag.Create("foo3");
             Assert.Equal("foo3", instruction.Platform);
-            Assert.Equal("foo3", instruction.PlatformFlag.Platform);
+            Assert.Equal("foo3", instruction.PlatformFlag.Value);
 
             instruction.PlatformFlag = null;
             Assert.Null(instruction.Platform);
             Assert.Null(instruction.PlatformFlag);
+
+            instruction = FromInstruction.Parse("FROM `\n`\n  alpine", '`');
+            instruction.PlatformFlag = PlatformFlag.Create("linux/amd64");
+            Assert.Equal("FROM --platform=linux/amd64 `\n`\n  alpine", instruction.ToString());
+
+            instruction = FromInstruction.Parse("FROM `\n`\n --platform=linux/amd64 alpine", '`');
+            instruction.PlatformFlag = null;
+            Assert.Equal("FROM `\n`\n alpine", instruction.ToString());
         }
 
         [Fact]
@@ -197,6 +205,31 @@ namespace DockerfileModel.Tests
                 },
                 new FromInstructionParseTestScenario
                 {
+                    Text = "FROM alpine`\n as build",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "FROM"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "alpine"),
+                        token => ValidateLineContinuation(token, '`', "\n"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<StageName>(token, "as build",
+                            token => ValidateKeyword(token, "as"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateIdentifier(token, "build"))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("alpine", result.ImageName);
+                        Assert.Equal("FROM", result.InstructionName);
+                        Assert.Null(result.Platform);
+                        Assert.Equal("build", result.StageName);
+                    }
+                },
+                new FromInstructionParseTestScenario
+                {
                     Text = "FROM `\nalpine:latest `\nas `\n#comment\nbuild",
                     EscapeChar = '`',
                     TokenValidators = new Action<Token>[]
@@ -249,7 +282,9 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateKeyValue(token, "platform", "linux/amd64")),
+                            token => ValidateKeyword(token, "platform"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine"),
                         token => ValidateWhitespace(token, " "),
@@ -277,7 +312,9 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateKeyValue(token, "platform", "linux/amd64")),
+                            token => ValidateKeyword(token, "platform"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine")
                     },
@@ -305,7 +342,9 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=linux/amd64",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateKeyValue(token, "platform", "linux/amd64")),
+                            token => ValidateKeyword(token, "platform"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "linux/amd64")),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
@@ -366,17 +405,17 @@ namespace DockerfileModel.Tests
                 new FromInstructionParseTestScenario
                 {
                     Text = "FROM x y",
-                    ParseExceptionPosition = new Position(1, 1, 7)
+                    ParseExceptionPosition = new Position(1, 1, 8)
                 },
                 new FromInstructionParseTestScenario
                 {
                     Text = "FROM platform= alpine",
-                    ParseExceptionPosition = new Position(1, 1, 15)
+                    ParseExceptionPosition = new Position(1, 1, 22)
                 },
                 new FromInstructionParseTestScenario
                 {
                     Text = "FROM alpine AS",
-                    ParseExceptionPosition = new Position(1, 1, 12)
+                    ParseExceptionPosition = new Position(1, 1, 13)
                 },
             };
 
@@ -434,7 +473,9 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=windows/amd64",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateKeyValue(token, "platform", "windows/amd64")
+                            token => ValidateKeyword(token, "platform"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "windows/amd64")
                         ),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine:latest")
@@ -469,7 +510,9 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<PlatformFlag>(token, "--platform=windows/amd64",
                             token => ValidateSymbol(token, '-'),
                             token => ValidateSymbol(token, '-'),
-                            token => ValidateKeyValue(token, "platform", "windows/amd64")
+                            token => ValidateKeyword(token, "platform"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "windows/amd64")
                         ),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "alpine:latest"),

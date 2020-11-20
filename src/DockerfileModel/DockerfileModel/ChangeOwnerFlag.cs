@@ -1,61 +1,27 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
-using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class ChangeOwnerFlag : AggregateToken
+    public class ChangeOwnerFlag : KeyValueToken<KeywordToken, ChangeOwner>
     {
-        internal ChangeOwnerFlag(IEnumerable<Token> tokens)
-            : base(tokens)
+        internal ChangeOwnerFlag(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
-        public string User
-        {
-            get => ChangeOwnerToken.ValueToken.User;
-            set
-            {
-                Requires.NotNull(value, nameof(value));
-                ChangeOwnerToken.ValueToken.User = value;
-            }
-        }
+        public static ChangeOwnerFlag Create(ChangeOwner changeOwner) =>
+            Create(new KeywordToken("chown"), changeOwner, tokens => new ChangeOwnerFlag(tokens), isFlag: true);
 
-        public string? Group
-        {
-            get => ChangeOwnerToken.ValueToken.Group;
-            set => ChangeOwnerToken.ValueToken.Group = value;
-        }
-
-        public KeyValueToken<KeywordToken, ChangeOwner> ChangeOwnerToken
-        {
-            get => Tokens.OfType<KeyValueToken<KeywordToken, ChangeOwner>>().First();
-            set
-            {
-                Requires.NotNull(value, nameof(value));
-                SetToken(ChangeOwnerToken, value);
-            }
-        }
-
-        public static ChangeOwnerFlag Create(string user, string? group = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNull(user, nameof(user));
-            return Parse($"--chown={ChangeOwner.Create(user, group, escapeChar)}", escapeChar);
-        }
-
-        public static ChangeOwnerFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ChangeOwnerFlag(GetTokens(text, GetInnerParser(escapeChar)));
+        public static ChangeOwnerFlag Parse(string text,
+            char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            Parse(text, Keyword("chown", escapeChar), ChangeOwnerParser(escapeChar), tokens => new ChangeOwnerFlag(tokens), escapeChar: escapeChar);
 
         public static Parser<ChangeOwnerFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            from tokens in GetInnerParser(escapeChar)
-            select new ChangeOwnerFlag(tokens);
+            GetParser(Keyword("chown", escapeChar), ChangeOwnerParser(escapeChar), tokens => new ChangeOwnerFlag(tokens), escapeChar: escapeChar);
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            Flag(escapeChar,
-                KeyValueToken<KeywordToken, ChangeOwner>.GetParser(
-                    Keyword("chown", escapeChar), ChangeOwner.GetParser(escapeChar), escapeChar: escapeChar).AsEnumerable());
+        private static Parser<ChangeOwner> ChangeOwnerParser(char escapeChar) =>
+            ChangeOwner.GetParser(escapeChar);
     }
 }

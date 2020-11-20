@@ -61,11 +61,11 @@ namespace DockerfileModel
         /// <param name="escapeChar">Escape character.</param>
         public static Parser<IEnumerable<Token>> OptionalWhitespaceOrLineContinuation(char escapeChar) =>
             from leading in Whitespace().Optional()
-            from lineContinuation in LineContinuationToken.GetParser(escapeChar).Optional()
+            from lineContinuation in LineContinuations(escapeChar).Optional()
             from trailing in Whitespace().Optional()
             select ConcatTokens(
                 leading.GetOrDefault(),
-                lineContinuation.IsDefined ? new Token[] { lineContinuation.GetOrDefault() } : Enumerable.Empty<Token>(),
+                lineContinuation.IsDefined ? lineContinuation.GetOrDefault() : Enumerable.Empty<Token>(),
                 trailing.GetOrDefault());
 
         /// <summary>
@@ -172,7 +172,7 @@ namespace DockerfileModel
                     from token in tokenParser
                     from trailingWhitespace in
                         (from trailingWhitespace in Whitespace()
-                         from lineContinuation in LineContinuationToken.GetParser(escapeChar).AsEnumerable()
+                         from lineContinuation in LineContinuations(escapeChar)
                          select ConcatTokens(trailingWhitespace, lineContinuation)).Or(
                             from whitespace in WhitespaceWithoutNewLine()
                             from newLine in NewLine()
@@ -229,7 +229,7 @@ namespace DockerfileModel
         /// <param name="charParser">Character parser.</param>
         /// <returns>Parsed tokens.</returns>
         public static Parser<IEnumerable<Token>> CharWithOptionalLineContinuation(char escapeChar, Parser<char> charParser, Func<char, Token> createToken) =>
-            from lineContinuation in LineContinuationToken.GetParser(escapeChar).Many()
+            from lineContinuation in LineContinuations(escapeChar)
             from ch in charParser
             select ConcatTokens(lineContinuation, new Token[] { createToken(ch) });
 
@@ -343,7 +343,7 @@ namespace DockerfileModel
 
         public static Parser<IEnumerable<Token>> Flag(char escapeChar, Parser<IEnumerable<Token>> flagParser) =>
              from flag in ArgTokens(Symbol('-').AsEnumerable(), escapeChar).Repeat(2)
-             from lineCont in LineContinuationToken.GetParser(escapeChar).AsEnumerable().Optional()
+             from lineCont in LineContinuations(escapeChar).Optional()
              from token in flagParser
              select ConcatTokens(flag.Flatten(), lineCont.GetOrDefault(), token);
 
@@ -585,7 +585,14 @@ namespace DockerfileModel
         /// </summary>
         public static Parser<char> NonWhitespace() =>
             Parse.AnyChar.Except(Parse.WhiteSpace);
-        
+
+        /// <summary>
+        /// Parses multiple line continuations and any whitespace.
+        /// </summary>
+        /// <param name="escapeChar">Escape character.</param>
+        public static Parser<IEnumerable<Token>> LineContinuations(char escapeChar) =>
+            LineContinuationToken.GetParser(escapeChar).Many();
+
         /// <summary>
         /// Creates an aggregate token.
         /// </summary>
@@ -716,8 +723,8 @@ namespace DockerfileModel
             WithTrailingComments(
                 from leading in Whitespace()
                 from instruction in TokenWithTrailingWhitespace(Keyword(instructionName, escapeChar))
-                from lineContinuation in LineContinuationToken.GetParser(escapeChar).Optional()
-                select ConcatTokens(leading, instruction, new Token[] { lineContinuation.GetOrDefault() }));
+                from lineContinuation in LineContinuations(escapeChar).Optional()
+                select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault()));
 
         /// <summary>
         /// Parses a set of tokens and any trailing comments.
