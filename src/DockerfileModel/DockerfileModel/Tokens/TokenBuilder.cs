@@ -113,12 +113,6 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ShellFormCommand(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ShellFormCommand(GetTokens(configureBuilder)));
 
-        public TokenBuilder StageName(string stageName) =>
-            AddToken(DockerfileModel.StageName.Create(stageName, EscapeChar));
-
-        public TokenBuilder StageName(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new StageName(GetTokens(configureBuilder)));
-
         public TokenBuilder String(string value) =>
             AddToken(new StringToken(value));
 

@@ -77,34 +77,38 @@ namespace DockerfileModel
                         this.TokenList.InsertRange(2, new Token[]
                         {
                             token,
-                            Whitespace.Create(" ")
+                            new WhitespaceToken(" ")
                         });
                     },
                     removeToken: token =>
-                        this.TokenList.RemoveRange(this.TokenList.IndexOf(token), 2));
+                    {
+                        TokenList.RemoveRange(
+                            TokenList.After(token).OfType<WhitespaceToken>().First(),
+                            token);
+                    });
             }
         }
 
         public string? StageName
         {
-            get => this.Tokens.OfType<StageName>().FirstOrDefault()?.Stage;
+            get => StageNameToken?.Value;
             set
             {
-                StageName? stageName = StageNameToken;
+                IdentifierToken? stageName = StageNameToken;
                 if (stageName != null && value is not null)
                 {
-                    stageName.Stage = value;
+                    stageName.Value = value;
                 }
                 else
                 {
-                    StageNameToken = String.IsNullOrEmpty(value) ? null : DockerfileModel.StageName.Create(value!);
+                    StageNameToken = String.IsNullOrEmpty(value) ? null : new IdentifierToken(value!);
                 }
             }
         }
 
-        public StageName? StageNameToken
+        public IdentifierToken? StageNameToken
         {
-            get => this.Tokens.OfType<StageName>().FirstOrDefault();
+            get => this.Tokens.OfType<IdentifierToken>().FirstOrDefault();
             set
             {
                 SetToken(StageNameToken, value,
@@ -112,12 +116,18 @@ namespace DockerfileModel
                     {
                         this.TokenList.AddRange(new Token[]
                         {
-                            Whitespace.Create(" "),
+                            new WhitespaceToken(" "),
+                            new KeywordToken("AS"),
+                            new WhitespaceToken(" "),
                             token,
                         });
                     },
                     removeToken: token =>
-                        this.TokenList.RemoveRange(this.TokenList.IndexOf(token) - 1, 2));
+                    {
+                        TokenList.RemoveRange(
+                            TokenList.FirstPreviousOfType<Token, WhitespaceToken>(TokenList.FirstPreviousOfType<Token, KeywordToken>(token)),
+                            token);
+                    });
             }
         }
 
@@ -139,7 +149,7 @@ namespace DockerfileModel
 
             if (stageName is not null)
             {
-                builder.Append($" {DockerfileModel.StageName.Create(stageName, escapeChar)}");
+                builder.Append($" AS {stageName}");
             }
 
             return Parse(builder.ToString(), escapeChar);
@@ -161,14 +171,21 @@ namespace DockerfileModel
                 imageName,
                 stageName.GetOrDefault())).End();
 
+        private static Parser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
+           from asKeyword in ArgTokens(Keyword("AS", escapeChar).AsEnumerable(), escapeChar)
+           from stageName in ArgTokens(StageNameIdentifier().AsEnumerable(), escapeChar)
+           select ConcatTokens(asKeyword, stageName);
+
+        private static Parser<IdentifierToken> StageNameIdentifier() =>
+            from stageName in Sprache.Parse.Identifier(
+                Sprache.Parse.Letter,
+                Sprache.Parse.LetterOrDigit.Or(Sprache.Parse.Char('_')).Or(Sprache.Parse.Char('-')).Or(Sprache.Parse.Char('.')))
+            select new IdentifierToken(stageName);
+
         private static Parser<IEnumerable<Token>> GetPlatformParser(char escapeChar) =>
             ArgTokens(PlatformFlag.GetParser(escapeChar).AsEnumerable(), escapeChar);
 
-        private static Parser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
-            ArgTokens(DockerfileModel.StageName.GetParser(escapeChar).AsEnumerable(), escapeChar);
-
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
-            ArgTokens(
-                LiteralAggregate(escapeChar).AsEnumerable(), escapeChar);
+            ArgTokens(LiteralAggregate(escapeChar).AsEnumerable(), escapeChar);
     }
 }

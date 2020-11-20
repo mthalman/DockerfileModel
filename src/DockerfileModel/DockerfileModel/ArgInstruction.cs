@@ -86,7 +86,12 @@ namespace DockerfileModel
                             });
                         }
                     },
-                    removeToken: token => this.TokenList.RemoveRange(this.TokenList.IndexOf(token) - 1, 2));
+                    removeToken: token =>
+                    {
+                        TokenList.RemoveRange(
+                            TokenList.FirstPreviousOfType<Token, SymbolToken>(token),
+                            token);
+                    });
             }
         }
 

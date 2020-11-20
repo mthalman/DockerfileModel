@@ -60,8 +60,9 @@ namespace DockerfileModel
                     },
                     removeToken: token =>
                     {
-                        int separatorIndex = TokenList.IndexOf(Tokens.OfType<SymbolToken>().First());
-                        TokenList.RemoveRange(separatorIndex, TokenList.Count - separatorIndex);
+                        TokenList.RemoveRange(
+                            TokenList.FirstPreviousOfType<Token, SymbolToken>(token),
+                            token);
                     });
             }
         }

@@ -61,7 +61,7 @@ namespace DockerfileModel
                 {
                     ChangeOwnerFlagToken = value is null ?
                         null :
-                        DockerfileModel.ChangeOwnerFlag.Create(value);
+                        ChangeOwnerFlag.Create(value);
                 }
             }
         }
@@ -82,10 +82,9 @@ namespace DockerfileModel
                     },
                     removeToken: token =>
                     {
-                        int reversedTokenIndex = TokenList.Count - TokenList.IndexOf(token);
-                        TokenList.Remove(token);
-                        // Remove the first whitespace token that preceded the change owner token
-                        TokenList.Remove(Tokens.Reverse().Skip(reversedTokenIndex - 1).OfType<WhitespaceToken>().First());
+                        TokenList.RemoveRange(
+                            TokenList.FirstPreviousOfType<Token, WhitespaceToken>(token),
+                            token);
                     });
             }
         }
@@ -102,7 +101,7 @@ namespace DockerfileModel
 
             string changeOwnerFlagStr = changeOwner is null ?
                 string.Empty :
-                $"{DockerfileModel.ChangeOwnerFlag.Create(changeOwner)} ";
+                $"{ChangeOwnerFlag.Create(changeOwner)} ";
 
             bool useJsonForm = locations.Any(loc => loc.Contains(" "));
             if (useJsonForm)

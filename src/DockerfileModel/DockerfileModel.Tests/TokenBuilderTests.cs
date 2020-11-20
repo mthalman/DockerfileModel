@@ -30,7 +30,6 @@ namespace DockerfileModel.Tests
                 .Repository("repo")
                 .SecretMount("id")
                 .ShellFormCommand("cmd")
-                .StageName("stage")
                 .Symbol('-')
                 .Tag("tag")
                 .VariableRef("var")
@@ -89,10 +88,6 @@ namespace DockerfileModel.Tests
                     token => ValidateKeyValue(token, "id", "id")),
                 token => ValidateAggregate<ShellFormCommand>(token, "cmd",
                     token => ValidateLiteral(token, "cmd")),
-                token => ValidateAggregate<StageName>(token, "AS stage",
-                    token => ValidateKeyword(token, "AS"),
-                    token => ValidateWhitespace(token, " "),
-                    token => ValidateIdentifier(token, "stage")),
                 token => ValidateSymbol(token, '-'),
                 token => ValidateAggregate<TagToken>(token, "tag",
                     token => ValidateString(token, "tag")),
@@ -119,7 +114,6 @@ namespace DockerfileModel.Tests
                 "repo" +
                 "type=secret,id=id" +
                 "cmd" +
-                "AS stage" +
                 "-" +
                 "tag" +
                 "$var" +
