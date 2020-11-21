@@ -52,58 +52,26 @@ namespace DockerfileModel
         public string? Platform
         {
             get => this.PlatformFlag?.Value;
-            set
-            {
-                PlatformFlag? platformFlag = PlatformFlag;
-                if (platformFlag != null && value is not null)
-                {
-                    platformFlag.Value = value;
-                }
-                else
-                {
-                    PlatformFlag = String.IsNullOrEmpty(value) ? null : PlatformFlag.Create(value!);
-                }
-            }
+            set => SetOptionalLiteralTokenValue(PlatformToken, value, token => PlatformToken = token);
         }
 
-        public PlatformFlag? PlatformFlag
+        public LiteralToken? PlatformToken
+        {
+            get => PlatformFlag?.ValueToken;
+            set => SetOptionalKeyValueTokenValue(
+                PlatformFlag, value, val => PlatformFlag.Create(val), token => PlatformFlag = token);
+        }
+
+        private PlatformFlag? PlatformFlag
         {
             get => this.Tokens.OfType<PlatformFlag>().FirstOrDefault();
-            set
-            {
-                SetToken(PlatformFlag, value,
-                    addToken: token =>
-                    {
-                        this.TokenList.InsertRange(2, new Token[]
-                        {
-                            token,
-                            new WhitespaceToken(" ")
-                        });
-                    },
-                    removeToken: token =>
-                    {
-                        TokenList.RemoveRange(
-                            TokenList.After(token).OfType<WhitespaceToken>().First(),
-                            token);
-                    });
-            }
+            set => SetOptionalFlagToken(PlatformFlag, value);
         }
 
         public string? StageName
         {
             get => StageNameToken?.Value;
-            set
-            {
-                IdentifierToken? stageName = StageNameToken;
-                if (stageName != null && value is not null)
-                {
-                    stageName.Value = value;
-                }
-                else
-                {
-                    StageNameToken = String.IsNullOrEmpty(value) ? null : new IdentifierToken(value!);
-                }
-            }
+            set => SetOptionalTokenValue(StageNameToken, value, val => new IdentifierToken(val), token => StageNameToken = token);
         }
 
         public IdentifierToken? StageNameToken

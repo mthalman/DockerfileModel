@@ -52,7 +52,7 @@ namespace DockerfileModel
             get => ChangeOwnerFlagToken?.ValueToken;
             set
             {
-                KeyValueToken<KeywordToken, ChangeOwner>? changeOwnerToken = ChangeOwnerFlagToken;
+                ChangeOwnerFlag? changeOwnerToken = ChangeOwnerFlagToken;
                 if (changeOwnerToken is not null && value is not null)
                 {
                     changeOwnerToken.ValueToken = value;
@@ -120,7 +120,7 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             from changeOwner in ArgTokens(
-                DockerfileModel.ChangeOwnerFlag.GetParser(escapeChar: escapeChar).AsEnumerable(), escapeChar).Optional()
+                ChangeOwnerFlag.GetParser(escapeChar: escapeChar).AsEnumerable(), escapeChar).Optional()
             from whitespace in Whitespace()
             from files in JsonArray(escapeChar, canContainVariables: true).Or(
                 from literals in ArgTokens(

@@ -69,38 +69,38 @@ namespace DockerfileModel.Tests
         {
             FromInstruction instruction = FromInstruction.Create("test");
             Assert.Null(instruction.Platform);
-            Assert.Null(instruction.PlatformFlag);
+            Assert.Null(instruction.PlatformToken);
 
             instruction.Platform = "foo";
             Assert.Equal("foo", instruction.Platform);
-            Assert.Equal("foo", instruction.PlatformFlag.Value);
+            Assert.Equal("foo", instruction.PlatformToken.Value);
 
-            instruction.PlatformFlag.Value = "foo2";
+            instruction.PlatformToken.Value = "foo2";
             Assert.Equal("foo2", instruction.Platform);
-            Assert.Equal("foo2", instruction.PlatformFlag.Value);
+            Assert.Equal("foo2", instruction.PlatformToken.Value);
 
             instruction.Platform = null;
             Assert.Null(instruction.Platform);
-            Assert.Null(instruction.PlatformFlag);
+            Assert.Null(instruction.PlatformToken);
 
             instruction.Platform = "";
             Assert.Null(instruction.Platform);
-            Assert.Null(instruction.PlatformFlag);
+            Assert.Null(instruction.PlatformToken);
 
-            instruction.PlatformFlag = PlatformFlag.Create("foo3");
+            instruction.PlatformToken = new LiteralToken("foo3");
             Assert.Equal("foo3", instruction.Platform);
-            Assert.Equal("foo3", instruction.PlatformFlag.Value);
+            Assert.Equal("foo3", instruction.PlatformToken.Value);
 
-            instruction.PlatformFlag = null;
+            instruction.PlatformToken = null;
             Assert.Null(instruction.Platform);
-            Assert.Null(instruction.PlatformFlag);
+            Assert.Null(instruction.PlatformToken);
 
             instruction = FromInstruction.Parse("FROM `\n`\n  alpine", '`');
-            instruction.PlatformFlag = PlatformFlag.Create("linux/amd64");
+            instruction.PlatformToken = new LiteralToken("linux/amd64");
             Assert.Equal("FROM --platform=linux/amd64 `\n`\n  alpine", instruction.ToString());
 
             instruction = FromInstruction.Parse("FROM `\n`\n --platform=linux/amd64 alpine", '`');
-            instruction.PlatformFlag = null;
+            instruction.PlatformToken = null;
             Assert.Equal("FROM `\n`\n alpine", instruction.ToString());
         }
 

@@ -22,7 +22,7 @@ namespace DockerfileModel
                 { "EXPOSE", ExposeInstruction.Parse },
                 { "ENV", EnvInstruction.Parse },
                 { "FROM", FromInstruction.Parse },
-                { "HEALTHCHECK", GenericInstruction.Parse },
+                { "HEALTHCHECK", HealthCheckInstruction.Parse },
                 { "LABEL", GenericInstruction.Parse },
                 { "MAINTAINER", GenericInstruction.Parse },
                 { "ONBUILD", GenericInstruction.Parse },

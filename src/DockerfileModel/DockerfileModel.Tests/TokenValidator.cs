@@ -35,11 +35,24 @@ namespace DockerfileModel.Tests
             ValidateAggregate<KeywordToken>(token, keyword,
                 token => ValidateString(token, keyword));
 
-        public static void ValidateKeyValue(Token token, string key, string value) =>
+        public static void ValidateKeyValueFlag<T>(Token token, string key, string value)
+            where T : KeyValueToken<KeywordToken, LiteralToken>
+        {
+            ValidateAggregate<T>(token, $"--{key}={value}",
+                token => ValidateSymbol(token, '-'),
+                token => ValidateSymbol(token, '-'),
+                token => ValidateKeyword(token, key),
+                token => ValidateSymbol(token, '='),
+                token => ValidateLiteral(token, value));
+        }
+
+        public static void ValidateKeyValue(Token token, string key, string value)
+        {
             ValidateAggregate<KeyValueToken<KeywordToken, LiteralToken>>(token, $"{key}={value}",
                 token => ValidateKeyword(token, key),
                 token => ValidateSymbol(token, '='),
                 token => ValidateLiteral(token, value));
+        }
 
         public static void ValidateLiteral(Token token, string literal, char? quoteChar = null)
         {
