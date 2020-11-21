@@ -57,7 +57,7 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("EXPOSE", result.InstructionName);
-                        Assert.Equal(80, result.Port);
+                        Assert.Equal("80", result.Port);
                     }
                 },
                 new ExposeInstructionParseTestScenario
@@ -75,7 +75,7 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("EXPOSE", result.InstructionName);
-                        Assert.Equal(433, result.Port);
+                        Assert.Equal("433", result.Port);
                         Assert.Equal("tcp", result.Protocol);
                     }
                 },

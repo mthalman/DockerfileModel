@@ -45,6 +45,12 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ImageName(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ImageName(GetTokens(configureBuilder)));
 
+        public TokenBuilder IntervalFlag(string interval) =>
+            AddToken(DockerfileModel.IntervalFlag.Create(interval));
+
+        public TokenBuilder IntervalFlag(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new IntervalFlag(GetTokens(configureBuilder)));
+
         public TokenBuilder KeyValue<TKey, TValue>(TKey key, TValue value, bool isFlag = false,
             char separator = KeyValueToken<TKey, TValue>.DefaultSeparator)
             where TKey : Token, IValueToken
@@ -98,6 +104,12 @@ namespace DockerfileModel.Tokens
         public TokenBuilder Repository(Action<TokenBuilder> configureBuilder) =>
             AddToken(new RepositoryToken(GetTokens(configureBuilder)));
 
+        public TokenBuilder RetriesFlag(string retries) =>
+            AddToken(DockerfileModel.RetriesFlag.Create(retries));
+
+        public TokenBuilder RetriesFlag(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new RetriesFlag(GetTokens(configureBuilder)));
+
         public TokenBuilder NewLine() =>
             AddToken(new NewLineToken(DefaultNewLine));
 
@@ -113,6 +125,12 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ShellFormCommand(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ShellFormCommand(GetTokens(configureBuilder)));
 
+        public TokenBuilder StartPeriodFlag(string startPeriod) =>
+            AddToken(DockerfileModel.StartPeriodFlag.Create(startPeriod));
+
+        public TokenBuilder StartPeriodFlag(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new StartPeriodFlag(GetTokens(configureBuilder)));
+
         public TokenBuilder String(string value) =>
             AddToken(new StringToken(value));
 
@@ -124,6 +142,12 @@ namespace DockerfileModel.Tokens
 
         public TokenBuilder Tag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new TagToken(GetTokens(configureBuilder)));
+
+        public TokenBuilder TimeoutFlag(string timeout) =>
+            AddToken(DockerfileModel.TimeoutFlag.Create(timeout));
+
+        public TokenBuilder TimeoutFlag(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new TimeoutFlag(GetTokens(configureBuilder)));
 
         public TokenBuilder VariableRef(string variableName, bool includeBraces = false) =>
             AddToken(VariableRefToken.Create(variableName, includeBraces, EscapeChar));

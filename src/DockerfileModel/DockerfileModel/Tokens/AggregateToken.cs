@@ -102,6 +102,63 @@ namespace DockerfileModel.Tokens
             }
         }
 
+        protected void SetOptionalFlagToken<TToken>(TToken? currentValue, TToken? newValue)
+            where TToken : Token
+        {
+            SetToken(currentValue, newValue,
+                addToken: token =>
+                {
+                    TokenList.InsertRange(1, new Token[]
+                    {
+                        new WhitespaceToken(" "),
+                        token
+                    });
+                },
+                removeToken: token =>
+                {
+                    TokenList.RemoveRange(
+                        TokenList.FirstPreviousOfType<Token, WhitespaceToken>(token),
+                        token);
+                });
+        }
+
+        protected static void SetOptionalLiteralTokenValue(LiteralToken? currentToken, string? value,
+            Action<LiteralToken?> setToken) =>
+            SetOptionalTokenValue(currentToken, value, val => new LiteralToken(val), setToken);
+
+        protected static void SetOptionalKeyValueTokenValue<TKeyValueToken>(TKeyValueToken? currentToken, LiteralToken? value,
+            Func<string, TKeyValueToken> createToken, Action<TKeyValueToken?> setToken)
+            where TKeyValueToken : KeyValueToken<KeywordToken, LiteralToken> =>
+            SetOptionalTokenValue(currentToken, value, token => createToken(token.Value), (token, val) => token.ValueToken = val, setToken);
+
+        protected static void SetOptionalKeyValueTokenValue<TKey, TValue, TKeyValueToken>(TKeyValueToken? currentToken, TValue? value,
+            Func<TValue, TKeyValueToken> createToken, Action<TKeyValueToken?> setToken)
+            where TKeyValueToken : KeyValueToken<TKey, TValue>
+            where TKey : Token, IValueToken
+            where TValue : Token =>
+            SetOptionalTokenValue(currentToken, value, createToken, (token, val) => token.ValueToken = val, setToken);
+
+        protected static void SetOptionalTokenValue<TToken>(TToken? currentToken, string? value, Func<string, TToken> createToken,
+            Action<TToken?> setToken)
+            where TToken : Token, IValueToken =>
+            SetOptionalTokenValue(currentToken, value, createToken, (token, val) => token.Value = val, setToken);
+
+        protected static void SetOptionalTokenValue<TToken, TValue>(TToken? currentToken, TValue? value, Func<TValue, TToken> createToken,
+            Action<TToken, TValue> setTokenValue, Action<TToken?> setToken)
+            where TToken : Token
+        {
+            if (currentToken is not null && !IsNullOrEmpty(value))
+            {
+                setTokenValue(currentToken, value!);
+            }
+            else
+            {
+                setToken(IsNullOrEmpty(value) ? null : createToken(value!));
+            }
+        }
+
+        private static bool IsNullOrEmpty(object? obj) => obj is null || (obj is string str && str == string.Empty);
+
         internal void ReplaceWithToken(Token token)
         {
             TokenList.Clear();

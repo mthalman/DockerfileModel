@@ -109,6 +109,20 @@ namespace DockerfileModel
         public DockerfileBuilder GenericInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.GenericInstruction.Parse);
 
+        public DockerfileBuilder HealthCheckInstruction(string command, string? interval = null, string? timeout = null,
+            string? startPeriod = null, string? retries = null) =>
+            AddConstruct(DockerfileModel.HealthCheckInstruction.Create(command, interval, timeout, startPeriod, retries, EscapeChar));
+
+        public DockerfileBuilder HealthCheckInstruction(IEnumerable<string> commands, string? interval = null, string? timeout = null,
+            string? startPeriod = null, string? retries = null) =>
+            AddConstruct(DockerfileModel.HealthCheckInstruction.Create(commands, interval, timeout, startPeriod, retries, EscapeChar));
+
+        public DockerfileBuilder HealthCheckDisabledInstruction() =>
+            AddConstruct(DockerfileModel.HealthCheckInstruction.CreateDisabled());
+
+        public DockerfileBuilder HealthCheckInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.HealthCheckInstruction.Parse);
+
         public DockerfileBuilder ParserDirective(string directive, string value) =>
             AddConstruct(DockerfileModel.ParserDirective.Create(CommentSeparator + directive, value));
 

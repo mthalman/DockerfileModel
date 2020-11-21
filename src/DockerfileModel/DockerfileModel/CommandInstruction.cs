@@ -48,7 +48,7 @@ namespace DockerfileModel
             return ToString();
         }
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Instruction("CMD", escapeChar,
                 GetArgsParser(escapeChar));
 

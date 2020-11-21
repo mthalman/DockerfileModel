@@ -14,9 +14,9 @@ namespace DockerfileModel
         {
         }
 
-        public int Port
+        public string Port
         {
-            get => int.Parse(PortToken.Value);
+            get => PortToken.Value;
             set => PortToken.Value = value.ToString();
         }
 
