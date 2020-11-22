@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
+using Sprache;
 using Validation;
+using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel.Tokens
 {
@@ -25,5 +27,20 @@ namespace DockerfileModel.Tokens
         }
 
         public char? QuoteChar { get; set; }
+
+        public static LiteralToken Parse(string text, bool canContainVariables = false, char escapeChar = Dockerfile.DefaultEscapeChar)
+        {
+            Parser<LiteralToken> parser;
+            if (canContainVariables)
+            {
+                parser = LiteralAggregate(escapeChar, whitespaceMode: WhitespaceMode.Allowed);
+            }
+            else
+            {
+                parser = WrappedInOptionalQuotesLiteralStringWithSpaces(escapeChar, excludeVariableRefChars: false);
+            }
+
+            return parser.Parse(text);
+        }
     }
 }

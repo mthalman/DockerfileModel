@@ -284,7 +284,13 @@ namespace DockerfileModel.Tests
                         .Comment(" Output message")
                         .NewLine()
                         .Whitespace("  ")
-                        .ShellFormCommand("echo $MESSAGE");
+                        .ShellFormCommand(tokenBuilder =>
+                        {
+                            tokenBuilder.Literal(tokenBuilder =>
+                                tokenBuilder
+                                    .String("echo ")
+                                    .VariableRef("MESSAGE"));
+                        });
                 });
 
             string expectedOutput =

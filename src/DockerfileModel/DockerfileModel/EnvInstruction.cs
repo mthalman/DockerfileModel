@@ -74,7 +74,7 @@ namespace DockerfileModel
             ).AtLeastOnce().Flatten();
 
         private static Parser<LiteralToken> MultiVariableFormatValueParser(char escapeChar) =>
-            from literal in LiteralAggregate(escapeChar, isWhitespaceAllowed: true).Optional()
+            from literal in LiteralAggregate(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).Optional()
             select literal.GetOrElse(new LiteralToken(""));
 
         private static Parser<IEnumerable<Token>> SingleVariableFormat(char escapeChar) =>
