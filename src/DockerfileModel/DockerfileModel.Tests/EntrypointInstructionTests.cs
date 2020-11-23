@@ -38,11 +38,11 @@ namespace DockerfileModel.Tests
             EntrypointInstruction result;
             if (scenario.Command != null)
             {
-                result = EntrypointInstruction.Create(scenario.Command);
+                result = new EntrypointInstruction(scenario.Command);
             }
             else
             {
-                result = EntrypointInstruction.Create(scenario.Commands);
+                result = new EntrypointInstruction(scenario.Commands);
             }
 
             Assert.Collection(result.Tokens, scenario.TokenValidators);

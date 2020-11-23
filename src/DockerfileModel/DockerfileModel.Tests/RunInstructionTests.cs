@@ -40,22 +40,22 @@ namespace DockerfileModel.Tests
             {
                 if (scenario.Mounts is null)
                 {
-                    result = RunInstruction.Create(scenario.Command);
+                    result = new RunInstruction(scenario.Command);
                 }
                 else
                 {
-                    result = RunInstruction.Create(scenario.Command, scenario.Mounts);
+                    result = new RunInstruction(scenario.Command, scenario.Mounts);
                 }
             }
             else
             {
                 if (scenario.Mounts is null)
                 {
-                    result = RunInstruction.Create(scenario.Commands);
+                    result = new RunInstruction(scenario.Commands);
                 }
                 else
                 {
-                    result = RunInstruction.Create(scenario.Commands, scenario.Mounts);
+                    result = new RunInstruction(scenario.Commands, scenario.Mounts);
                 }
             }
 
@@ -66,14 +66,14 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Mounts()
         {
-            RunInstruction instruction = RunInstruction.Create("echo hello", new Mount[] { SecretMount.Create("id") });
+            RunInstruction instruction = new RunInstruction("echo hello", new Mount[] { new SecretMount("id") });
             Assert.Single(instruction.Mounts);
             Assert.Equal("RUN --mount=type=secret,id=id echo hello", instruction.ToString());
 
             ((SecretMount)instruction.Mounts[0]).Id = "id2";
             Assert.Equal("RUN --mount=type=secret,id=id2 echo hello", instruction.ToString());
 
-            instruction.Mounts[0] = SecretMount.Create("id3");
+            instruction.Mounts[0] = new SecretMount("id3");
             Assert.Equal("RUN --mount=type=secret,id=id3 echo hello", instruction.ToString());
         }
 
@@ -413,7 +413,7 @@ namespace DockerfileModel.Tests
                     Command = "echo hello",
                     Mounts = new Mount[]
                     {
-                        SecretMount.Create("id")
+                        new SecretMount("id")
                     },
                     TokenValidators = new Action<Token>[]
                     {
@@ -438,8 +438,8 @@ namespace DockerfileModel.Tests
                     Command = "echo hello",
                     Mounts = new Mount[]
                     {
-                        SecretMount.Create("id"),
-                        SecretMount.Create("id2")
+                        new SecretMount("id"),
+                        new SecretMount("id2")
                     },
                     TokenValidators = new Action<Token>[]
                     {

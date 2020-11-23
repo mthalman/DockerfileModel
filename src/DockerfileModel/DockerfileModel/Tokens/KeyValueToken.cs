@@ -13,6 +13,19 @@ namespace DockerfileModel.Tokens
     {
         public const char DefaultSeparator = '=';
 
+        public KeyValueToken(TKey key, TValue value, bool isFlag = false, char separator = DefaultSeparator)
+            : this(
+                ConcatTokens(
+                    isFlag ? new Token[] { new SymbolToken('-'), new SymbolToken('-') } : Enumerable.Empty<Token>(),
+                    new Token[]
+                    {
+                        key,
+                        Char.IsWhiteSpace(separator) ? new WhitespaceToken(separator.ToString()) : new SymbolToken(separator),
+                        value
+                    }))
+        {
+        }
+
         internal KeyValueToken(IEnumerable<Token> tokens)
             : base(tokens)
         {
@@ -66,9 +79,6 @@ namespace DockerfileModel.Tokens
             }
         }
 
-        public static KeyValueToken<TKey, TValue> Create(TKey key, TValue value, bool isFlag = false, char separator = DefaultSeparator) =>
-            Create(key, value, tokens => new KeyValueToken<TKey, TValue>(tokens), isFlag, separator);
-
         public static KeyValueToken<TKey, TValue> Parse(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
             char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(text, keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar);
@@ -77,18 +87,6 @@ namespace DockerfileModel.Tokens
             Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
             char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             GetParser(keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar);
-
-        protected static T Create<T>(TKey key, TValue value, Func<IEnumerable<Token>, T> createToken, bool isFlag = false, char separator = DefaultSeparator)
-            where T : KeyValueToken<TKey, TValue> =>
-            createToken(
-                ConcatTokens(
-                    isFlag ? new Token[] { new SymbolToken('-'), new SymbolToken('-') } : Enumerable.Empty<Token>(),
-                    new Token[]
-                    {
-                        key,
-                        Char.IsWhiteSpace(separator) ? new WhitespaceToken(separator.ToString()) : new SymbolToken(separator),
-                        value
-                    }));
 
         protected static T Parse<T>(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
             Func<IEnumerable<Token>, T> createToken, char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar)

@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ArgInstruction result = ArgInstruction.Create(scenario.ArgName, scenario.ArgValue);
+            ArgInstruction result = new ArgInstruction(scenario.ArgName, scenario.ArgValue);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void ArgName()
         {
-            ArgInstruction arg = ArgInstruction.Create("test");
+            ArgInstruction arg = new ArgInstruction("test");
             Assert.Equal("test", arg.ArgName);
             Assert.Equal("test", arg.ArgNameToken.Value);
 
@@ -63,7 +63,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void ArgValue()
         {
-            ArgInstruction arg = ArgInstruction.Create("test");
+            ArgInstruction arg = new ArgInstruction("test");
             Assert.Null(arg.ArgValue);
             Assert.Null(arg.ArgValueToken);
             Assert.False(arg.HasAssignmentOperator);

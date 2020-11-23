@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
@@ -10,14 +9,19 @@ namespace DockerfileModel
 {
     public class ExecFormCommand : Command
     {
+        public ExecFormCommand(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(commands, escapeChar))
+        {
+        }
+
         internal ExecFormCommand(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
-        public static ExecFormCommand Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+        private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, char escapeChar)
         {
             Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
-            return Parse(StringHelper.FormatAsJson(commands), escapeChar);
+            return GetTokens(StringHelper.FormatAsJson(commands), GetInnerParser(escapeChar));
         }
 
         public static ExecFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>

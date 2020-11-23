@@ -10,6 +10,11 @@ namespace DockerfileModel
 {
     public class ExposeInstruction : Instruction
     {
+        public ExposeInstruction(int port, string? protocol = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(port, protocol, escapeChar))
+        {
+        }
+
         private ExposeInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
         }
@@ -74,10 +79,10 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new ExposeInstruction(tokens);
 
-        public static ExposeInstruction Create(int port, string? protocol = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+        private static IEnumerable<Token> GetTokens(int port, string? protocol, char escapeChar)
         {
             string protocolSegment = protocol is null ? string.Empty : $"/{protocol}";
-            return Parse($"EXPOSE {port}{protocolSegment}", escapeChar);
+            return GetTokens($"EXPOSE {port}{protocolSegment}", GetInnerParser(escapeChar));
         }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>

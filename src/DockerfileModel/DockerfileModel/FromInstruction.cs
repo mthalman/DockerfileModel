@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using DockerfileModel.Tokens;
@@ -12,6 +11,12 @@ namespace DockerfileModel
     public class FromInstruction : Instruction
     {
         private LiteralToken imageName;
+
+        public FromInstruction(string imageName, string? stageName = null, string? platform = null,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(imageName, stageName, platform, escapeChar))
+        {
+        }
 
         private FromInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
@@ -59,7 +64,7 @@ namespace DockerfileModel
         {
             get => PlatformFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                PlatformFlag, value, val => PlatformFlag.Create(val), token => PlatformFlag = token);
+                PlatformFlag, value, val => new PlatformFlag(val), token => PlatformFlag = token);
         }
 
         private PlatformFlag? PlatformFlag
@@ -102,15 +107,18 @@ namespace DockerfileModel
         public static FromInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new FromInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
-        public static FromInstruction Create(string imageName, string? stageName = null, string? platform = null,
-            char escapeChar = Dockerfile.DefaultEscapeChar)
+        public static Parser<FromInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            from tokens in GetInnerParser(escapeChar)
+            select new FromInstruction(tokens);
+
+        private static IEnumerable<Token> GetTokens(string imageName, string? stageName, string? platform, char escapeChar)
         {
             Requires.NotNullOrEmpty(imageName, nameof(imageName));
 
             StringBuilder builder = new StringBuilder("FROM ");
             if (platform is not null)
             {
-                builder.Append($"{PlatformFlag.Create(platform)} ");
+                builder.Append($"{new PlatformFlag(platform)} ");
             }
 
             builder.Append(imageName);
@@ -120,12 +128,8 @@ namespace DockerfileModel
                 builder.Append($" AS {stageName}");
             }
 
-            return Parse(builder.ToString(), escapeChar);
+            return GetTokens(builder.ToString(), GetInnerParser(escapeChar));
         }
-
-        public static Parser<FromInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            from tokens in GetInnerParser(escapeChar)
-            select new FromInstruction(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("FROM", escapeChar, GetArgsParser(escapeChar));

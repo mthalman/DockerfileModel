@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            FromInstruction result = FromInstruction.Create(scenario.ImageName, scenario.Stage, scenario.Platform);
+            FromInstruction result = new FromInstruction(scenario.ImageName, scenario.Stage, scenario.Platform);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void ImageName()
         {
-            FromInstruction instruction = FromInstruction.Create("test");
+            FromInstruction instruction = new FromInstruction("test");
             Assert.Equal("test", instruction.ImageName);
             Assert.Equal("test", instruction.ImageNameToken.Value);
 
@@ -67,7 +67,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Platform()
         {
-            FromInstruction instruction = FromInstruction.Create("test");
+            FromInstruction instruction = new FromInstruction("test");
             Assert.Null(instruction.Platform);
             Assert.Null(instruction.PlatformToken);
 
@@ -107,7 +107,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void StageName()
         {
-            FromInstruction instruction = FromInstruction.Create("test");
+            FromInstruction instruction = new FromInstruction("test");
             Assert.Null(instruction.StageName);
             Assert.Null(instruction.StageNameToken);
 

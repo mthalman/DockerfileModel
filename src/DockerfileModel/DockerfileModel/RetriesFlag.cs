@@ -7,12 +7,14 @@ namespace DockerfileModel
 {
     public class RetriesFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
-        internal RetriesFlag(IEnumerable<Token> tokens) : base(tokens)
+        public RetriesFlag(string retryCount)
+            : base(new KeywordToken("retries"), new LiteralToken(retryCount), isFlag: true)
         {
         }
 
-        public static RetriesFlag Create(string retryCount) =>
-            Create(new KeywordToken("retries"), new LiteralToken(retryCount), tokens => new RetriesFlag(tokens), isFlag: true);
+        internal RetriesFlag(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
 
         public static RetriesFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>

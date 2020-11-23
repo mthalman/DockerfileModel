@@ -1,15 +1,38 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using DockerfileModel.Tokens;
 using Sprache;
+using Validation;
 using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
     public class HealthCheckInstruction : Instruction
     {
+        public HealthCheckInstruction(string command, string? interval = null, string? timeout = null,
+            string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(command, interval, timeout, startPeriod, retries, escapeChar))
+        {
+        }
+
+        public HealthCheckInstruction(IEnumerable<string> commands, string? interval = null, string? timeout = null,
+            string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(commands, interval, timeout, startPeriod, retries, escapeChar))
+        {
+        }
+
+        public HealthCheckInstruction()
+            : this(
+                new Token[]
+                {
+                    new KeywordToken("HEALTHCHECK"),
+                    new WhitespaceToken(" "),
+                    new KeywordToken("NONE")
+                })
+        {
+        }
+
         private HealthCheckInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
         }
@@ -24,7 +47,7 @@ namespace DockerfileModel
         {
             get => IntervalFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                IntervalFlag, value, val => IntervalFlag.Create(val), token => IntervalFlag = token);
+                IntervalFlag, value, val => new IntervalFlag(val), token => IntervalFlag = token);
         }
 
         private IntervalFlag? IntervalFlag
@@ -43,7 +66,7 @@ namespace DockerfileModel
         {
             get => TimeoutFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                TimeoutFlag, value, val => TimeoutFlag.Create(val), token => TimeoutFlag = token);
+                TimeoutFlag, value, val => new TimeoutFlag(val), token => TimeoutFlag = token);
         }
 
         private TimeoutFlag? TimeoutFlag
@@ -62,7 +85,7 @@ namespace DockerfileModel
         {
             get => StartPeriodFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                StartPeriodFlag, value, val => StartPeriodFlag.Create(val), token => StartPeriodFlag = token);
+                StartPeriodFlag, value, val => new StartPeriodFlag(val), token => StartPeriodFlag = token);
         }
 
         private StartPeriodFlag? StartPeriodFlag
@@ -81,7 +104,7 @@ namespace DockerfileModel
         {
             get => RetriesFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                RetriesFlag, value, val => RetriesFlag.Create(val), token => RetriesFlag = token);
+                RetriesFlag, value, val => new RetriesFlag(val), token => RetriesFlag = token);
         }
 
         private RetriesFlag? RetriesFlag
@@ -126,40 +149,40 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new HealthCheckInstruction(tokens);
 
-        public static HealthCheckInstruction Create(string command, string? interval = null, string? timeout = null,
-            string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse($"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries)}CMD {command}", escapeChar);
+        private static IEnumerable<Token> GetTokens(string command, string? interval, string? timeout,
+            string? startPeriod, string? retries, char escapeChar)
+        {
+            Requires.NotNullOrEmpty(command, nameof(command));
+            return GetTokens(
+                $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries)}CMD {command}", GetInnerParser(escapeChar));
+        }
 
-        public static HealthCheckInstruction Create(IEnumerable<string> commands, string? interval = null, string? timeout = null,
-            string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse($"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries)}CMD {StringHelper.FormatAsJson(commands)}", escapeChar);
-
-        public static HealthCheckInstruction CreateDisabled() =>
-            new HealthCheckInstruction(new Token[]
-            {
-                new KeywordToken("HEALTHCHECK"),
-                new WhitespaceToken(" "),
-                new KeywordToken("NONE")
-            });
+        private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, string? interval, string? timeout,
+            string? startPeriod, string? retries, char escapeChar)
+        {
+            Requires.NotNullOrEmpty(commands, nameof(commands));
+            return GetTokens(
+                $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries)}CMD {StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
+        }
 
         private static string GetOptionArgs(string? interval, string? timeout, string? startPeriod, string? retries)
         {
             StringBuilder builder = new StringBuilder();
             if (interval is not null)
             {
-                builder.Append($"{IntervalFlag.Create(interval)} ");
+                builder.Append($"{new IntervalFlag(interval)} ");
             }
             if (timeout is not null)
             {
-                builder.Append($"{TimeoutFlag.Create(timeout)} ");
+                builder.Append($"{new TimeoutFlag(timeout)} ");
             }
             if (startPeriod is not null)
             {
-                builder.Append($"{StartPeriodFlag.Create(startPeriod)} ");
+                builder.Append($"{new StartPeriodFlag(startPeriod)} ");
             }
             if (retries is not null)
             {
-                builder.Append($"{RetriesFlag.Create(retries)} ");
+                builder.Append($"{new RetriesFlag(retries)} ");
             }
 
             return builder.ToString();

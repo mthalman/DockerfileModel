@@ -9,8 +9,14 @@ namespace DockerfileModel
 {
     public class GenericInstruction : Instruction
     {
-        private GenericInstruction(string text, char escapeChar)
-            : base(GetTokens(text, InstructionParser(escapeChar)))
+        public GenericInstruction(string instruction, string args, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(instruction, args, escapeChar))
+        {
+            
+        }
+
+        private GenericInstruction(IEnumerable<Token> tokens)
+            : base(tokens)
         {
         }
 
@@ -23,19 +29,20 @@ namespace DockerfileModel
         internal static bool IsInstruction(string text, char escapeChar)
         {
             Requires.NotNull(text, nameof(text));
-            return InstructionParser(escapeChar).TryParse(text).WasSuccessful;
-        }
-
-        public static GenericInstruction Create(string instruction, string args, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullOrEmpty(instruction, nameof(instruction));
-            return Parse($"{instruction} {args}", escapeChar);
+            return GetInnerParser(escapeChar).TryParse(text).WasSuccessful;
         }
 
         public static GenericInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new GenericInstruction(text, escapeChar);
+            new GenericInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
-        private static Parser<IEnumerable<Token>> InstructionParser(char escapeChar) =>
+        private static IEnumerable<Token> GetTokens(string instruction, string args, char escapeChar)
+        {
+            Requires.NotNullOrEmpty(instruction, nameof(instruction));
+            Requires.NotNullOrEmpty(args, nameof(args));
+            return GetTokens($"{instruction} {args}", GetInnerParser(escapeChar));
+        }
+
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             from leading in Whitespace()
             from instruction in TokenWithTrailingWhitespace(DockerfileParser.InstructionIdentifier(escapeChar))
             from lineContinuation in LineContinuations(escapeChar).Optional()

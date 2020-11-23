@@ -17,7 +17,7 @@ namespace DockerfileModel.Tests
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                Whitespace result = Whitespace.Create(scenario.Text);
+                Whitespace result = new Whitespace(scenario.Text);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
@@ -25,7 +25,7 @@ namespace DockerfileModel.Tests
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => Whitespace.Create(scenario.Text));
+                    () => new Whitespace(scenario.Text));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
@@ -34,7 +34,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Value()
         {
-            Whitespace whitespace = Whitespace.Create(" ");
+            Whitespace whitespace = new Whitespace(" ");
             Assert.Equal(" ", whitespace.Value);
             Assert.Equal(" ", whitespace.ValueToken.Value);
 
@@ -62,7 +62,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void NewLine()
         {
-            Whitespace whitespace = Whitespace.Create(" ");
+            Whitespace whitespace = new Whitespace(" ");
             Assert.Null(whitespace.NewLine);
             Assert.Null(whitespace.NewLineToken);
 

@@ -34,7 +34,7 @@ namespace DockerfileModel.Tests
         [InlineData("docker.io", "library/image", null, TestSha, "docker.io/library/image@" + TestSha)]
         public void Create(string registry, string repository, string tag, string digest, string expectedOutput)
         {
-            ImageName result = ImageName.Create(repository, registry, tag, digest);
+            ImageName result = new ImageName(repository, registry, tag, digest);
             Assert.Equal(expectedOutput, result.ToString());
 
             Assert.Equal(registry, result.Registry);
@@ -46,23 +46,24 @@ namespace DockerfileModel.Tests
         [Fact]
         public void CannotSetTagWhenDigestIsSet()
         {
-            ImageName imageName = ImageName.Create("repo", "registry.io", digest: "sha256:digest");
+            ImageName imageName = new ImageName("repo", "registry.io", digest: "sha256:digest");
             Assert.Throws<InvalidOperationException>(() => imageName.Tag = "tag");
         }
 
         [Fact]
         public void CannotSetDigestWhenTagIsSet()
         {
-            ImageName imageName = ImageName.Create("repo", "registry.io", "tag");
+            ImageName imageName = new ImageName("repo", "registry.io", "tag");
             Assert.Throws<InvalidOperationException>(() => imageName.Digest = "digest");
         }
 
         [Fact]
         public void ChangeValues()
         {
-            ImageName imageName = ImageName.Create("repo", "registry.io", "tag");
-            
-            imageName.Registry = "registry2.io";
+            ImageName imageName = new ImageName("repo", "registry.io", "tag")
+            {
+                Registry = "registry2.io"
+            };
             Assert.Equal("registry2.io", imageName.Registry);
 
             imageName.Repository = "repo2";
@@ -104,7 +105,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Registry()
         {
-            ImageName imageName = ImageName.Create("repo");
+            ImageName imageName = new ImageName("repo");
             Assert.Null(imageName.Registry);
             Assert.Null(imageName.RegistryToken);
 
@@ -132,7 +133,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Repository()
         {
-            ImageName imageName = ImageName.Create("test");
+            ImageName imageName = new ImageName("test");
             Assert.Equal("test", imageName.Repository);
             Assert.Equal("test", imageName.RepositoryToken.Value);
 
@@ -155,7 +156,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Tag()
         {
-            ImageName imageName = ImageName.Create("repo");
+            ImageName imageName = new ImageName("repo");
             Assert.Null(imageName.Tag);
             Assert.Null(imageName.TagToken);
 
@@ -186,7 +187,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Digest()
         {
-            ImageName imageName = ImageName.Create("repo");
+            ImageName imageName = new ImageName("repo");
             Assert.Null(imageName.Digest);
             Assert.Null(imageName.DigestToken);
 

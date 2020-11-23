@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ParserDirective result = ParserDirective.Create(scenario.Directive, scenario.Value);
+            ParserDirective result = new ParserDirective(scenario.Directive, scenario.Value);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate(result);
         }

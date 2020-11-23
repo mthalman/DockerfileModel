@@ -9,6 +9,16 @@ namespace DockerfileModel
 {
     public class CommandInstruction : Instruction
     {
+        public CommandInstruction(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(command, escapeChar))
+        {
+        }
+
+        public CommandInstruction(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(commands, escapeChar))
+        {
+        }
+
         private CommandInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
         }
@@ -30,18 +40,6 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new CommandInstruction(tokens);
 
-        public static CommandInstruction Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullOrEmpty(command, nameof(command));
-            return Parse($"CMD {command}", escapeChar);
-        }
-
-        public static CommandInstruction Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
-            return Parse($"CMD {StringHelper.FormatAsJson(commands)}", escapeChar);
-        }
-
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
             // Do not resolve variables for the command of a CMD instruction. It is shell/runtime-specific.
@@ -51,6 +49,18 @@ namespace DockerfileModel
         internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Instruction("CMD", escapeChar,
                 GetArgsParser(escapeChar));
+
+        private static IEnumerable<Token> GetTokens(string command, char escapeChar)
+        {
+            Requires.NotNullOrEmpty(command, nameof(command));
+            return GetTokens($"CMD {command}", GetInnerParser(escapeChar));
+        }
+
+        private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, char escapeChar)
+        {
+            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
+            return GetTokens($"CMD {StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
+        }
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             from mounts in ArgTokens(MountFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Many()

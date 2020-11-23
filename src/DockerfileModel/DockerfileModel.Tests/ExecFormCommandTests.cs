@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ExecFormCommand result = ExecFormCommand.Create(scenario.Commands);
+            ExecFormCommand result = new ExecFormCommand(scenario.Commands);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Commands()
         {
-            ExecFormCommand result = ExecFormCommand.Create(new string[]
+            ExecFormCommand result = new ExecFormCommand(new string[]
             {
                 "/bin/bash",
                 "-c",

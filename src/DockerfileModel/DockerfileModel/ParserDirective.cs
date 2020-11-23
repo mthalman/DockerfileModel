@@ -12,8 +12,13 @@ namespace DockerfileModel
         public const string EscapeDirective = "escape";
         public const string SyntaxDirective = "syntax";
 
-        private ParserDirective(string text)
-            : base(GetTokens(text, GetParser()))
+        public ParserDirective(string directive, string value)
+            : this(GetTokens(directive, value))
+        {
+        }
+
+        private ParserDirective(IEnumerable<Token> tokens)
+            : base(tokens)
         {
         }
 
@@ -46,14 +51,8 @@ namespace DockerfileModel
 
         public override ConstructType Type => ConstructType.ParserDirective;
 
-        public static ParserDirective Create(string directive, string value)
-        {
-            Requires.NotNullOrEmpty(directive, nameof(directive));
-            return Parse($"#{directive}={value}"); ;
-        }
-
         public static ParserDirective Parse(string text) =>
-            new ParserDirective(text);
+            new ParserDirective(GetTokens(text, GetParser()));
 
         public static Parser<IEnumerable<Token>> GetParser() =>
             from leading in Whitespace()
@@ -70,6 +69,13 @@ namespace DockerfileModel
 
         internal static bool IsParserDirective(string text) =>
             GetParser().TryParse(text).WasSuccessful;
+
+        private static IEnumerable<Token> GetTokens(string directive, string value)
+        {
+            Requires.NotNullOrEmpty(directive, nameof(directive));
+            Requires.NotNullOrEmpty(value, nameof(value));
+            return GetTokens($"#{directive}={value}", GetParser());
+        }
 
         private static Parser<KeywordToken> DirectiveNameParser() =>
             from name in Sprache.Parse.Identifier(Sprache.Parse.Letter, Sprache.Parse.LetterOrDigit)

@@ -24,7 +24,7 @@ namespace DockerfileModel.Tests
                 .Keyword("key")
                 .LineContinuation()
                 .Literal("literal")
-                .MountFlag(SecretMount.Create("id"))
+                .MountFlag(new SecretMount("id"))
                 .NewLine()
                 .PlatformFlag("platform")
                 .Registry("registry")

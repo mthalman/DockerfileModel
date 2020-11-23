@@ -17,42 +17,17 @@ namespace DockerfileModel
         private TagToken? tagToken;
         private DigestToken? digestToken;
 
+        public ImageName(string repository, string? registry = null, string? tag = null, string? digest = null)
+            : this(GetTokens(repository, registry, tag, digest))
+        {
+        }
+
         internal ImageName(IEnumerable<Token> tokens) : base(tokens)
         {
             registryToken = Tokens.OfType<RegistryToken>().FirstOrDefault();
             repositoryToken = Tokens.OfType<RepositoryToken>().First();
             tagToken = Tokens.OfType<TagToken>().FirstOrDefault();
             digestToken = Tokens.OfType<DigestToken>().FirstOrDefault();
-        }
-
-        public static ImageName Create(string repository, string? registry = null, string? tag = null, string? digest = null)
-        {
-            Requires.NotNullOrWhiteSpace(repository, nameof(repository));
-            Requires.ValidState(
-                (tag is null && digest is null) || String.IsNullOrEmpty(tag) ^ String.IsNullOrEmpty(digest),
-                $"Either {nameof(tag)} may be set or {nameof(digest)} may be set but not both.");
-
-            StringBuilder builder = new StringBuilder();
-            if (registry != null)
-            {
-                builder.Append(registry);
-                builder.Append('/');
-            }
-
-            builder.Append(repository);
-
-            if (tag != null)
-            {
-                builder.Append(':');
-                builder.Append(tag);
-            }
-            else if (digest != null)
-            {
-                builder.Append('@');
-                builder.Append(digest);
-            }
-
-            return Parse(builder.ToString());
         }
 
         public static ImageName Parse(string imageName) =>
@@ -219,6 +194,36 @@ namespace DockerfileModel
                         this.TokenList.RemoveRange(this.TokenList.Count - 2, 2);
                     });
             }
+        }
+
+        private static IEnumerable<Token> GetTokens(string repository, string? registry, string? tag, string? digest)
+        {
+            Requires.NotNullOrWhiteSpace(repository, nameof(repository));
+            Requires.ValidState(
+                (tag is null && digest is null) || String.IsNullOrEmpty(tag) ^ String.IsNullOrEmpty(digest),
+                $"Either {nameof(tag)} may be set or {nameof(digest)} may be set but not both.");
+
+            StringBuilder builder = new StringBuilder();
+            if (registry != null)
+            {
+                builder.Append(registry);
+                builder.Append('/');
+            }
+
+            builder.Append(repository);
+
+            if (tag != null)
+            {
+                builder.Append(':');
+                builder.Append(tag);
+            }
+            else if (digest != null)
+            {
+                builder.Append('@');
+                builder.Append(digest);
+            }
+
+            return GetTokens(builder.ToString(), GetParser());
         }
 
         private static class ImageNameParser

@@ -79,11 +79,11 @@ namespace DockerfileModel.Tests
                 Assert.Equal($"{instructionName} --chown={user} src dst", instruction.ToString());
             }
 
-            ChangeOwner changeOwner = DockerfileModel.ChangeOwner.Create("user");
+            ChangeOwner changeOwner = new ChangeOwner("user");
             TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, Dockerfile.DefaultEscapeChar);
             Validate(instruction, "user");
 
-            instruction.ChangeOwner = DockerfileModel.ChangeOwner.Create("user2");
+            instruction.ChangeOwner = new ChangeOwner("user2");
             Validate(instruction, "user2");
 
             instruction.ChangeOwner = null;
@@ -91,7 +91,7 @@ namespace DockerfileModel.Tests
             Assert.Equal($"{instructionName} src dst", instruction.ToString());
 
             instruction = this.parse($"{instructionName}`\n src dst", '`');
-            instruction.ChangeOwner = DockerfileModel.ChangeOwner.Create("user");
+            instruction.ChangeOwner = new ChangeOwner("user");
             Assert.Equal("user", instruction.ChangeOwner.User);
             Assert.Equal($"{instructionName} --chown=user`\n src dst", instruction.ToString());
 
@@ -354,7 +354,7 @@ namespace DockerfileModel.Tests
                         "src2"
                     },
                     Destination = "dst",
-                    ChangeOwner = DockerfileModel.ChangeOwner.Create("user", "group"),
+                    ChangeOwner = new ChangeOwner("user", "group"),
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, instructionName),

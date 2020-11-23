@@ -12,6 +12,26 @@ namespace DockerfileModel
     {
         private readonly ProjectedItemList<MountFlag, Mount> mounts;
 
+        public RunInstruction(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(command, Enumerable.Empty<Mount>(), escapeChar)
+        {
+        }
+
+        public RunInstruction(string command, IEnumerable<Mount> mounts, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(command, mounts, escapeChar))
+        {
+        }
+
+        public RunInstruction(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(commands, Enumerable.Empty<Mount>(), escapeChar)
+        {
+        }
+
+        public RunInstruction(IEnumerable<string> commands, IEnumerable<Mount> mounts, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(commands, mounts, escapeChar))
+        {
+        }
+
         private RunInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
             this.mounts = new ProjectedItemList<MountFlag, Mount>(
@@ -39,32 +59,26 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new RunInstruction(tokens);
 
-        public static RunInstruction Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Create(command, Enumerable.Empty<Mount>(), escapeChar);
-
-        public static RunInstruction Create(string command, IEnumerable<Mount> mounts, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullOrEmpty(command, nameof(command));
-            Requires.NotNull(mounts, nameof(mounts));
-
-            return Parse($"RUN {CreateMountFlagArgs(mounts)}{command}", escapeChar);
-        }
-
-        public static RunInstruction Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Create(commands, Enumerable.Empty<Mount>(), escapeChar);
-
-        public static RunInstruction Create(IEnumerable<string> commands, IEnumerable<Mount> mounts, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
-            Requires.NotNull(mounts, nameof(mounts));
-
-            return Parse($"RUN {CreateMountFlagArgs(mounts)}{StringHelper.FormatAsJson(commands)}", escapeChar);
-        }
-
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
             // Do not resolve variables for the command of a RUN instruction. It is shell/runtime-specific.
             return ToString();
+        }
+
+        private static IEnumerable<Token> GetTokens(string command, IEnumerable<Mount> mounts, char escapeChar)
+        {
+            Requires.NotNullOrEmpty(command, nameof(command));
+            Requires.NotNull(mounts, nameof(mounts));
+
+            return GetTokens($"RUN {CreateMountFlagArgs(mounts)}{command}", GetInnerParser(escapeChar));
+        }
+
+        private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, IEnumerable<Mount> mounts, char escapeChar)
+        {
+            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
+            Requires.NotNull(mounts, nameof(mounts));
+
+            return GetTokens($"RUN {CreateMountFlagArgs(mounts)}{StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
         }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
@@ -78,7 +92,7 @@ namespace DockerfileModel
                 return String.Empty;
             }
 
-            return $"{String.Join(" ", mounts.Select(mount => MountFlag.Create(mount).ToString()).ToArray())} ";
+            return $"{String.Join(" ", mounts.Select(mount => new MountFlag(mount).ToString()).ToArray())} ";
         }
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>

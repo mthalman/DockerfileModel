@@ -7,12 +7,14 @@ namespace DockerfileModel
 {
     public class MountFlag : KeyValueToken<KeywordToken, Mount>
     {
-        internal MountFlag(IEnumerable<Token> tokens) : base(tokens)
+        public MountFlag(Mount mount)
+            : base(new KeywordToken("mount"), mount, isFlag: true)
         {
         }
 
-        public static MountFlag Create(Mount mount) =>
-            Create(new KeywordToken("mount"), mount, tokens => new MountFlag(tokens), isFlag: true);
+        internal MountFlag(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
 
         public static MountFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>

@@ -9,6 +9,16 @@ namespace DockerfileModel
 {
     public class EntrypointInstruction : Instruction
     {
+        public EntrypointInstruction(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(command, escapeChar))
+        {
+        }
+
+        public EntrypointInstruction(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(commands, escapeChar))
+        {
+        }
+
         private EntrypointInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
         }
@@ -30,22 +40,22 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new EntrypointInstruction(tokens);
 
-        public static EntrypointInstruction Create(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullOrEmpty(command, nameof(command));
-            return Parse($"ENTRYPOINT {command}", escapeChar);
-        }
-
-        public static EntrypointInstruction Create(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
-            return Parse($"ENTRYPOINT {StringHelper.FormatAsJson(commands)}", escapeChar);
-        }
-
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
             // Do not resolve variables for the command of an ENTRYPOINT instruction. It is shell/runtime-specific.
             return ToString();
+        }
+
+        private static IEnumerable<Token> GetTokens(string command, char escapeChar)
+        {
+            Requires.NotNullOrEmpty(command, nameof(command));
+            return GetTokens($"ENTRYPOINT {command}", GetInnerParser(escapeChar));
+        }
+
+        private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, char escapeChar)
+        {
+            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
+            return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
         }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>

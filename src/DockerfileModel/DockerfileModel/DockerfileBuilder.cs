@@ -38,93 +38,90 @@ namespace DockerfileModel
         }
 
         public DockerfileBuilder NewLine() =>
-            AddConstruct(Whitespace.Create(DefaultNewLine));
+            AddConstruct(new Whitespace(DefaultNewLine));
 
         public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, ChangeOwner? changeOwnerFlag = null) =>
-            AddConstruct(DockerfileModel.AddInstruction.Create(sources, destination, changeOwnerFlag, EscapeChar));
+            AddConstruct(new AddInstruction(sources, destination, changeOwnerFlag, EscapeChar));
 
         public DockerfileBuilder AddInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.AddInstruction.Parse);
 
         public DockerfileBuilder ArgInstruction(string argName, string? argValue = null) =>
-            AddConstruct(DockerfileModel.ArgInstruction.Create(argName, argValue, EscapeChar));
+            AddConstruct(new ArgInstruction(argName, argValue, EscapeChar));
 
         public DockerfileBuilder ArgInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.ArgInstruction.Parse);
 
         public DockerfileBuilder CommandInstruction(string command) =>
-            AddConstruct(DockerfileModel.CommandInstruction.Create(command, EscapeChar));
+            AddConstruct(new CommandInstruction(command, EscapeChar));
 
         public DockerfileBuilder CommandInstruction(IEnumerable<string> commands) =>
-            AddConstruct(DockerfileModel.CommandInstruction.Create(commands, EscapeChar));
+            AddConstruct(new CommandInstruction(commands, EscapeChar));
 
         public DockerfileBuilder CommandInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.CommandInstruction.Parse);
 
         public DockerfileBuilder Comment(string comment) =>
-            AddConstruct(
-                DockerfileModel.Comment.Create(CommentSeparator + comment));
+            AddConstruct(new Comment(CommentSeparator + comment));
 
         public DockerfileBuilder Comment(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
         public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination, ChangeOwner? changeOwner = null) =>
-            AddConstruct(DockerfileModel.CopyInstruction.Create(sources, destination, changeOwner, EscapeChar));
+            AddConstruct(new CopyInstruction(sources, destination, changeOwner, EscapeChar));
 
         public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.CopyInstruction.Parse);
 
         public DockerfileBuilder EntrypointInstruction(string command) =>
-            AddConstruct(DockerfileModel.EntrypointInstruction.Create(command, EscapeChar));
+            AddConstruct(new EntrypointInstruction(command, EscapeChar));
 
         public DockerfileBuilder EntrypointInstruction(IEnumerable<string> commands) =>
-            AddConstruct(DockerfileModel.EntrypointInstruction.Create(commands, EscapeChar));
+            AddConstruct(new EntrypointInstruction(commands, EscapeChar));
 
         public DockerfileBuilder EntrypointInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.EntrypointInstruction.Parse);
 
         public DockerfileBuilder EnvInstruction(IDictionary<string, string> variables) =>
-            AddConstruct(DockerfileModel.EnvInstruction.Create(variables, EscapeChar));
+            AddConstruct(new EnvInstruction(variables, EscapeChar));
 
         public DockerfileBuilder EnvInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.EnvInstruction.Parse);
 
         public DockerfileBuilder ExposeInstruction(int port, string? protocol = null) =>
-            AddConstruct(DockerfileModel.ExposeInstruction.Create(port, protocol, EscapeChar));
+            AddConstruct(new ExposeInstruction(port, protocol, EscapeChar));
 
         public DockerfileBuilder ExposeInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.ExposeInstruction.Parse);
 
         public DockerfileBuilder FromInstruction(string imageName, string? stageName = null, string? platform = null) =>
-            AddConstruct(
-                DockerfileModel.FromInstruction.Create(imageName, stageName, platform, EscapeChar));
+            AddConstruct(new FromInstruction(imageName, stageName, platform, EscapeChar));
 
         public DockerfileBuilder FromInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.FromInstruction.Parse);
 
         public DockerfileBuilder GenericInstruction(string instruction, string args) =>
-            AddConstruct(
-                DockerfileModel.GenericInstruction.Create(instruction, args, EscapeChar));
+            AddConstruct(new GenericInstruction(instruction, args, EscapeChar));
 
         public DockerfileBuilder GenericInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.GenericInstruction.Parse);
 
         public DockerfileBuilder HealthCheckInstruction(string command, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null) =>
-            AddConstruct(DockerfileModel.HealthCheckInstruction.Create(command, interval, timeout, startPeriod, retries, EscapeChar));
+            AddConstruct(new HealthCheckInstruction(command, interval, timeout, startPeriod, retries, EscapeChar));
 
         public DockerfileBuilder HealthCheckInstruction(IEnumerable<string> commands, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null) =>
-            AddConstruct(DockerfileModel.HealthCheckInstruction.Create(commands, interval, timeout, startPeriod, retries, EscapeChar));
+            AddConstruct(new HealthCheckInstruction(commands, interval, timeout, startPeriod, retries, EscapeChar));
 
         public DockerfileBuilder HealthCheckDisabledInstruction() =>
-            AddConstruct(DockerfileModel.HealthCheckInstruction.CreateDisabled());
+            AddConstruct(new HealthCheckInstruction());
 
         public DockerfileBuilder HealthCheckInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.HealthCheckInstruction.Parse);
 
         public DockerfileBuilder ParserDirective(string directive, string value) =>
-            AddConstruct(DockerfileModel.ParserDirective.Create(CommentSeparator + directive, value));
+            AddConstruct(new ParserDirective(CommentSeparator + directive, value));
 
         public DockerfileBuilder ParserDirective(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.ParserDirective.Parse);
@@ -133,13 +130,13 @@ namespace DockerfileModel
             RunInstruction(command, Enumerable.Empty<Mount>());
 
         public DockerfileBuilder RunInstruction(string command, IEnumerable<Mount> mounts) =>
-            AddConstruct(DockerfileModel.RunInstruction.Create(command, mounts, EscapeChar));
+            AddConstruct(new RunInstruction(command, mounts, EscapeChar));
 
         public DockerfileBuilder RunInstruction(IEnumerable<string> commands) =>
             RunInstruction(commands, Enumerable.Empty<Mount>());
 
         public DockerfileBuilder RunInstruction(IEnumerable<string> commands, IEnumerable<Mount> mounts) =>
-            AddConstruct(DockerfileModel.RunInstruction.Create(commands, mounts, EscapeChar));
+            AddConstruct(new RunInstruction(commands, mounts, EscapeChar));
 
         public DockerfileBuilder RunInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.RunInstruction.Parse);
@@ -177,12 +174,12 @@ namespace DockerfileModel
             if (CanAutoAddEscapeDirective(dockerfileConstruct))
             {
                 Dockerfile.Items.Add(
-                    DockerfileModel.ParserDirective.Create(
+                    new ParserDirective(
                         CommentSeparator + DockerfileModel.ParserDirective.EscapeDirective,
                         EscapeChar.ToString()));
                 if (!DisableAutoNewLines)
                 {
-                    Dockerfile.Items.Add(Whitespace.Create(DefaultNewLine));
+                    Dockerfile.Items.Add(new Whitespace(DefaultNewLine));
                 }
             }
 
@@ -196,7 +193,7 @@ namespace DockerfileModel
 
             if (!DisableAutoNewLines && !(dockerfileConstruct is Whitespace whitespace && whitespace.NewLineToken is not null))
             {
-                Dockerfile.Items.Add(Whitespace.Create(DefaultNewLine));
+                Dockerfile.Items.Add(new Whitespace(DefaultNewLine));
             }
 
             return this;

@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ExposeInstruction result = ExposeInstruction.Create(scenario.Port, scenario.Protocol);
+            ExposeInstruction result = new ExposeInstruction(scenario.Port, scenario.Protocol);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }

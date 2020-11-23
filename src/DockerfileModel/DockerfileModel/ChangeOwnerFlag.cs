@@ -7,12 +7,14 @@ namespace DockerfileModel
 {
     public class ChangeOwnerFlag : KeyValueToken<KeywordToken, ChangeOwner>
     {
-        internal ChangeOwnerFlag(IEnumerable<Token> tokens) : base(tokens)
+        public ChangeOwnerFlag(ChangeOwner changeOwner)
+            : base(new KeywordToken("chown"), changeOwner, isFlag: true)
         {
         }
 
-        public static ChangeOwnerFlag Create(ChangeOwner changeOwner) =>
-            Create(new KeywordToken("chown"), changeOwner, tokens => new ChangeOwnerFlag(tokens), isFlag: true);
+        internal ChangeOwnerFlag(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
 
         public static ChangeOwnerFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>

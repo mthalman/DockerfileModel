@@ -101,7 +101,7 @@ namespace DockerfileModel
                 string line = constructLines[i];
                 if (Whitespace.IsWhitespace(line))
                 {
-                    dockerfileConstructs.Add(Whitespace.Create(line));
+                    dockerfileConstructs.Add(new Whitespace(line));
                 }
                 else if (Comment.IsComment(line))
                 {

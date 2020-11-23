@@ -38,11 +38,11 @@ namespace DockerfileModel.Tests
             CommandInstruction result;
             if (scenario.Command != null)
             {
-                result = CommandInstruction.Create(scenario.Command);
+                result = new CommandInstruction(scenario.Command);
             }
             else
             {
-                result = CommandInstruction.Create(scenario.Commands);
+                result = new CommandInstruction(scenario.Commands);
             }
 
             Assert.Collection(result.Tokens, scenario.TokenValidators);

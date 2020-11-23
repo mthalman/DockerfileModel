@@ -39,15 +39,15 @@ namespace DockerfileModel.Tests
             
             if (scenario.Command is not null)
             {
-                result = HealthCheckInstruction.Create(scenario.Command, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
+                result = new HealthCheckInstruction(scenario.Command, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
             }
             else if (scenario.Commands is not null)
             {
-                result = HealthCheckInstruction.Create(scenario.Commands, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
+                result = new HealthCheckInstruction(scenario.Commands, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
             }
             else
             {
-                result = HealthCheckInstruction.CreateDisabled();
+                result = new HealthCheckInstruction();
             }
 
             Assert.Collection(result.Tokens, scenario.TokenValidators);
@@ -57,7 +57,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Interval()
         {
-            HealthCheckInstruction instruction = HealthCheckInstruction.Create("command", interval: "10s");
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command", interval: "10s");
             Assert.Equal("10s", instruction.Interval);
             Assert.Equal("10s", instruction.IntervalToken.Value);
             Assert.Equal("HEALTHCHECK --interval=10s CMD command", instruction.ToString());
@@ -91,7 +91,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Timeout()
         {
-            HealthCheckInstruction instruction = HealthCheckInstruction.Create("command", timeout: "10s");
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command", timeout: "10s");
             Assert.Equal("10s", instruction.Timeout);
             Assert.Equal("10s", instruction.TimeoutToken.Value);
             Assert.Equal("HEALTHCHECK --timeout=10s CMD command", instruction.ToString());
@@ -125,7 +125,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void StartPeriod()
         {
-            HealthCheckInstruction instruction = HealthCheckInstruction.Create("command", startPeriod: "10s");
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command", startPeriod: "10s");
             Assert.Equal("10s", instruction.StartPeriod);
             Assert.Equal("10s", instruction.StartPeriodToken.Value);
             Assert.Equal("HEALTHCHECK --start-period=10s CMD command", instruction.ToString());
@@ -159,7 +159,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Retries()
         {
-            HealthCheckInstruction instruction = HealthCheckInstruction.Create("command", retries: "10s");
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command", retries: "10s");
             Assert.Equal("10s", instruction.Retries);
             Assert.Equal("10s", instruction.RetriesToken.Value);
             Assert.Equal("HEALTHCHECK --retries=10s CMD command", instruction.ToString());
@@ -193,16 +193,16 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Command()
         {
-            HealthCheckInstruction instruction = HealthCheckInstruction.Create("command1");
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command1");
             Assert.Equal("HEALTHCHECK CMD command1", instruction.ToString());
 
-            instruction.Command = ExecFormCommand.Create(new string[] { "command", "arg" });
+            instruction.Command = new ExecFormCommand(new string[] { "command", "arg" });
             Assert.Equal("HEALTHCHECK CMD [\"command\", \"arg\"]", instruction.ToString());
 
             instruction.Command = null;
             Assert.Equal("HEALTHCHECK NONE", instruction.ToString());
 
-            instruction.Command = ShellFormCommand.Create("cmd");
+            instruction.Command = new ShellFormCommand("cmd");
             Assert.Equal("HEALTHCHECK CMD cmd", instruction.ToString());
         }
 
