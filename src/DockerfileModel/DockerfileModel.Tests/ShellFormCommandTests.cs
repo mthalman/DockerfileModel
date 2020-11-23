@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ShellFormCommand result = ShellFormCommand.Create(scenario.Command);
+            ShellFormCommand result = new ShellFormCommand(scenario.Command);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Value()
         {
-            ShellFormCommand result = ShellFormCommand.Create("echo hello");
+            ShellFormCommand result = new ShellFormCommand("echo hello");
             Assert.Equal("echo hello", result.Value);
             Assert.Equal("echo hello", result.ValueToken.Value);
 

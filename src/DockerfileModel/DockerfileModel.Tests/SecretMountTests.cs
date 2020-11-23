@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            SecretMount result = SecretMount.Create(scenario.Id, scenario.DestinationPath);
+            SecretMount result = new SecretMount(scenario.Id, scenario.DestinationPath);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Id()
         {
-            SecretMount secretMount = SecretMount.Create("test");
+            SecretMount secretMount = new SecretMount("test");
             Assert.Equal("test", secretMount.Id);
             Assert.Equal("test", secretMount.IdToken.Value);
 
@@ -55,7 +55,7 @@ namespace DockerfileModel.Tests
             Assert.Equal("test3", secretMount.Id);
             Assert.Equal("test3", secretMount.IdToken.Value);
 
-            secretMount.IdToken = KeyValueToken<KeywordToken, LiteralToken>.Create(
+            secretMount.IdToken = new KeyValueToken<KeywordToken, LiteralToken>(
                 new KeywordToken("id"), new LiteralToken("test4"));
             Assert.Equal("test4", secretMount.Id);
             Assert.Equal("test4", secretMount.IdToken.Value);
@@ -67,7 +67,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void DestinationPath()
         {
-            SecretMount secretMount = SecretMount.Create("foo", "test");
+            SecretMount secretMount = new SecretMount("foo", "test");
             Assert.Equal("test", secretMount.DestinationPath);
             Assert.Equal("test", secretMount.DestinationPathToken.Value);
 
@@ -79,7 +79,7 @@ namespace DockerfileModel.Tests
             Assert.Equal("test3", secretMount.DestinationPath);
             Assert.Equal("test3", secretMount.DestinationPathToken.Value);
 
-            secretMount.DestinationPathToken = KeyValueToken<KeywordToken, LiteralToken>.Create(
+            secretMount.DestinationPathToken = new KeyValueToken<KeywordToken, LiteralToken>(
                 new KeywordToken("dst"), new LiteralToken("test4"));
             Assert.Equal("test4", secretMount.DestinationPath);
             Assert.Equal("test4", secretMount.DestinationPathToken.Value);

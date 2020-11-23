@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
 using Validation;
@@ -7,8 +8,13 @@ namespace DockerfileModel
 {
     public class Comment : DockerfileConstruct
     {
-        private Comment(string text)
-            : base(GetTokens(text, ParseHelper.CommentText()))
+        public Comment(string comment)
+            : this(GetTokens(comment))
+        {
+        }
+
+        private Comment(IEnumerable<Token> tokens)
+            : base(tokens)
         {
         }
 
@@ -30,13 +36,22 @@ namespace DockerfileModel
 
         public override ConstructType Type => ConstructType.Comment;
 
-        public static Comment Create(string comment) =>
-            new Comment($"#{comment}");
+        public static Comment Parse(string text)
+        {
+            Requires.NotNullOrEmpty(text, nameof(text));
+            return new Comment(GetTokens(text, ParseHelper.CommentText()));
+        }
 
-        public static Comment Parse(string text) =>
-            new Comment(text);
+        private static IEnumerable<Token> GetTokens(string comment)
+        {
+            Requires.NotNullOrEmpty(comment, nameof(comment));
+            return GetTokens($"#{comment}", ParseHelper.CommentText());
+        }
 
-        public static bool IsComment(string text) =>
-            ParseHelper.CommentText().TryParse(text).WasSuccessful;
+        public static bool IsComment(string text)
+        {
+            Requires.NotNullOrEmpty(text, nameof(text));
+            return ParseHelper.CommentText().TryParse(text).WasSuccessful;
+        }
     }
 }

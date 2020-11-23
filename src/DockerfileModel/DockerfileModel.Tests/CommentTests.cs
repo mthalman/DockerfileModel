@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            Comment result = Comment.Create(scenario.Comment);
+            Comment result = new Comment(scenario.Comment);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Text()
         {
-            Comment comment = Comment.Create("test");
+            Comment comment = new Comment("test");
             Assert.Equal("test", comment.Value);
             Assert.Equal("test", comment.ValueToken.Text);
 

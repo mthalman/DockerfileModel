@@ -9,6 +9,12 @@ namespace DockerfileModel
     {
         private const string Name = "ADD";
 
+        public AddInstruction(IEnumerable<string> sources, string destination,
+            ChangeOwner? changeOwner = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : base(sources, destination, changeOwner, escapeChar, Name)
+        {
+        }
+
         private AddInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
         }
@@ -19,9 +25,5 @@ namespace DockerfileModel
         public static Parser<AddInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar, Name)
             select new AddInstruction(tokens);
-
-        public static AddInstruction Create(IEnumerable<string> sources, string destination,
-            ChangeOwner? changeOwner = null, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Create(sources, destination, changeOwner, escapeChar, Name, Parse);
     }
 }

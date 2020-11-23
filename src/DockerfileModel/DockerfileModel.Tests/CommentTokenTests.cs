@@ -19,17 +19,17 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Create()
         {
-            CommentToken comment = CommentToken.Create("test");
+            CommentToken comment = new CommentToken("test");
             Assert.Equal("#test", comment.ToString());
 
-            comment = CommentToken.Create(" \ttest");
+            comment = new CommentToken(" \ttest");
             Assert.Equal("# \ttest", comment.ToString());
         }
 
         [Fact]
         public void Text()
         {
-            CommentToken comment = CommentToken.Create("test");
+            CommentToken comment = new CommentToken("test");
 
             Assert.Equal("test", comment.Text);
             Assert.Equal("test", comment.TextToken.Value);

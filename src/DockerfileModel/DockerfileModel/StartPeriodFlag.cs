@@ -7,12 +7,14 @@ namespace DockerfileModel
 {
     public class StartPeriodFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
-        internal StartPeriodFlag(IEnumerable<Token> tokens) : base(tokens)
+        public StartPeriodFlag(string startPeriod)
+            : base(new KeywordToken("start-period"), new LiteralToken(startPeriod), isFlag: true)
         {
         }
 
-        public static StartPeriodFlag Create(string startPeriod) =>
-            Create(new KeywordToken("start-period"), new LiteralToken(startPeriod), tokens => new StartPeriodFlag(tokens), isFlag: true);
+        internal StartPeriodFlag(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
 
         public static StartPeriodFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>

@@ -10,6 +10,11 @@ namespace DockerfileModel
 {
     public class SecretMount : Mount
     {
+        public SecretMount(string id, string? destinationPath = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(id, destinationPath, escapeChar))
+        {
+        }
+
         internal SecretMount(IEnumerable<Token> tokens)
             : base(tokens)
         {
@@ -49,7 +54,7 @@ namespace DockerfileModel
                 {
                     DestinationPathToken = String.IsNullOrEmpty(value) ?
                         null :
-                        KeyValueToken<KeywordToken, LiteralToken>.Create(new KeywordToken("dst"), new LiteralToken(value!));
+                        new KeyValueToken<KeywordToken, LiteralToken>(new KeywordToken("dst"), new LiteralToken(value!));
                 }
             }
         }
@@ -74,7 +79,7 @@ namespace DockerfileModel
             }
         }
 
-        public static SecretMount Create(string id, string? destinationPath = null,
+        private static IEnumerable<Token> GetTokens(string id, string? destinationPath = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
         {
             Requires.NotNullOrEmpty(id, nameof(id));
@@ -84,7 +89,7 @@ namespace DockerfileModel
                 destinationSegment = $",dst={destinationPath}";
             }
 
-            return Parse($"type=secret,id={id}{destinationSegment}", escapeChar);
+            return GetTokens($"type=secret,id={id}{destinationSegment}", GetInnerParser(escapeChar));
         }
 
         public static SecretMount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>

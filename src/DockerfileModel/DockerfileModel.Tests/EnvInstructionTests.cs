@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            EnvInstruction result = EnvInstruction.Create(scenario.Variables);
+            EnvInstruction result = new EnvInstruction(scenario.Variables);
 
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
@@ -64,7 +64,7 @@ namespace DockerfileModel.Tests
                 });
             }
 
-            EnvInstruction result = EnvInstruction.Create(
+            EnvInstruction result = new EnvInstruction(
                 new Dictionary<string, string>
                 {
                     { "VAR1", "test" }

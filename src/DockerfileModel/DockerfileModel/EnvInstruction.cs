@@ -9,6 +9,11 @@ namespace DockerfileModel
 {
     public class EnvInstruction : Instruction
     {
+        public EnvInstruction(IDictionary<string, string> variables, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(variables, escapeChar))
+        {
+        }
+
         private EnvInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
             VariableTokens = new TokenList<KeyValueToken<IdentifierToken, LiteralToken>>(TokenList);
@@ -34,7 +39,7 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new EnvInstruction(tokens);
 
-        public static EnvInstruction Create(IDictionary<string, string> variables, char escapeChar = Dockerfile.DefaultEscapeChar)
+        private static IEnumerable<Token> GetTokens(IDictionary<string, string> variables, char escapeChar)
         {
             Requires.NotNullOrEmpty(variables, nameof(variables));
 
@@ -51,7 +56,7 @@ namespace DockerfileModel
                 })
                 .ToArray();
 
-            return Parse($"ENV {string.Join(" ", keyValueAssignments)}", escapeChar);
+            return GetTokens($"ENV {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));
         }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>

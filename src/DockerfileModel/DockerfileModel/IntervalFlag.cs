@@ -7,12 +7,14 @@ namespace DockerfileModel
 {
     public class IntervalFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
-        internal IntervalFlag(IEnumerable<Token> tokens) : base(tokens)
+        public IntervalFlag(string interval)
+            : base(new KeywordToken("interval"), new LiteralToken(interval), isFlag: true)
         {
         }
 
-        public static IntervalFlag Create(string interval) =>
-            Create(new KeywordToken("interval"), new LiteralToken(interval), tokens => new IntervalFlag(tokens), isFlag: true);
+        internal IntervalFlag(IEnumerable<Token> tokens) : base(tokens)
+        {
+        }
 
         public static IntervalFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>

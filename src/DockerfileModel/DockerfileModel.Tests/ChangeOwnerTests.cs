@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ChangeOwner result = ChangeOwner.Create(scenario.User, scenario.Group);
+            ChangeOwner result = new ChangeOwner(scenario.User, scenario.Group);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,7 +43,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void User()
         {
-            ChangeOwner changeOwner = ChangeOwner.Create("test", "group");
+            ChangeOwner changeOwner = new ChangeOwner("test", "group");
             Assert.Equal("test", changeOwner.User);
             Assert.Equal("test", changeOwner.UserToken.Value);
 
@@ -68,7 +68,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Group()
         {
-            ChangeOwner changeOwner = ChangeOwner.Create("user", "test");
+            ChangeOwner changeOwner = new ChangeOwner("user", "test");
             Assert.Equal("test", changeOwner.Group);
             Assert.Equal("test", changeOwner.GroupToken.Value);
 

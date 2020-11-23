@@ -9,6 +9,12 @@ namespace DockerfileModel
     {
         private const string Name = "COPY";
 
+        public CopyInstruction(IEnumerable<string> sources, string destination,
+            ChangeOwner? changeOwner = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : base(sources, destination, changeOwner, escapeChar, Name)
+        {
+        }
+
         private CopyInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
         }
@@ -19,9 +25,5 @@ namespace DockerfileModel
         public static Parser<CopyInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar, Name)
             select new CopyInstruction(tokens);
-
-        public static CopyInstruction Create(IEnumerable<string> sources, string destination,
-            ChangeOwner? changeOwner = null, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Create(sources, destination, changeOwner, escapeChar, Name, Parse);
     }
 }

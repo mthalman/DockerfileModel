@@ -10,6 +10,11 @@ namespace DockerfileModel
 {
     public class ChangeOwner : AggregateToken
     {
+        public ChangeOwner(string user, string? group = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(user, group, escapeChar))
+        {
+        }
+
         internal ChangeOwner(IEnumerable<Token> tokens)
             : base(tokens)
         {
@@ -72,15 +77,18 @@ namespace DockerfileModel
             }
         }
 
-        public static ChangeOwner Create(string user, string? group = null, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse($"{user}{(String.IsNullOrEmpty(group) ? "" : $":{group}")}", escapeChar);
-
         public static ChangeOwner Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new ChangeOwner(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static Parser<ChangeOwner> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
             select new ChangeOwner(tokens);
+
+        private static IEnumerable<Token> GetTokens(string user, string? group, char escapeChar)
+        {
+            Requires.NotNullOrEmpty(user, nameof(user));
+            return GetTokens($"{user}{(String.IsNullOrEmpty(group) ? "" : $":{group}")}", GetInnerParser(escapeChar));
+        }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             UserAndGroup(escapeChar).Or(ArgTokens(UserParser(escapeChar), escapeChar, excludeTrailingWhitespace: true));

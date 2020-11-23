@@ -39,7 +39,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.Create(
+            KeyValueToken<KeywordToken, LiteralToken> result = new KeyValueToken<KeywordToken, LiteralToken>(
                 new KeywordToken(scenario.Key), new LiteralToken(scenario.Value));
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
@@ -48,7 +48,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Key()
         {
-            KeyValueToken<KeywordToken, LiteralToken> token = KeyValueToken<KeywordToken, LiteralToken>.Create(
+            KeyValueToken<KeywordToken, LiteralToken> token = new KeyValueToken<KeywordToken, LiteralToken>(
                 new KeywordToken("foo"), new LiteralToken("test"));
             Assert.Equal("foo", token.Key);
             Assert.Equal("foo", token.KeyToken.Value);

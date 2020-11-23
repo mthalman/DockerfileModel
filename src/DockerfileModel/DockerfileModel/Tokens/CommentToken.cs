@@ -8,6 +8,11 @@ namespace DockerfileModel.Tokens
 {
     public class CommentToken : AggregateToken
     {
+        public CommentToken(string comment)
+            : this(GetTokens($"#{comment}", GetParser()))
+        {
+        }
+
         internal CommentToken(IEnumerable<Token> tokens)
             : base(tokens)
         {
@@ -35,9 +40,6 @@ namespace DockerfileModel.Tokens
             get => Tokens.OfType<StringToken>().FirstOrDefault();
             set => SetToken(TextToken, value);
         }
-
-        public static CommentToken Create(string comment) =>
-            Parse($"#{comment}");
 
         public static CommentToken Parse(string text) =>
             new CommentToken(GetTokens(text, GetParser()));

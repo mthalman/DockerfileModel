@@ -13,6 +13,12 @@ namespace DockerfileModel
     {
         private readonly TokenList<LiteralToken> sourceTokens;
 
+        protected FileTransferInstruction(IEnumerable<string> sources, string destination,
+           ChangeOwner? changeOwner, char escapeChar, string instructionName)
+            : this(GetTokens(sources, destination, changeOwner, escapeChar, instructionName))
+        {
+        }
+
         protected FileTransferInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
             this.sourceTokens = new TokenList<LiteralToken>(TokenList,
@@ -61,7 +67,7 @@ namespace DockerfileModel
                 {
                     ChangeOwnerFlagToken = value is null ?
                         null :
-                        ChangeOwnerFlag.Create(value);
+                        new ChangeOwnerFlag(value);
                 }
             }
         }
@@ -89,10 +95,12 @@ namespace DockerfileModel
             }
         }
 
-        protected static TInstruction Create<TInstruction>(IEnumerable<string> sources, string destination,
-            ChangeOwner? changeOwner, char escapeChar,
-            string instructionName, Func<string, char, TInstruction> parse)
-            where TInstruction : FileTransferInstruction
+        protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName) =>
+            Instruction(instructionName, escapeChar,
+                GetArgsParser(escapeChar));
+
+        private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
+           ChangeOwner? changeOwner, char escapeChar, string instructionName)
         {
             Requires.NotNullEmptyOrNullElements(sources, nameof(sources));
             Requires.NotNullOrEmpty(destination, nameof(destination));
@@ -101,22 +109,33 @@ namespace DockerfileModel
 
             string changeOwnerFlagStr = changeOwner is null ?
                 string.Empty :
-                $"{ChangeOwnerFlag.Create(changeOwner)} ";
+                $"{new ChangeOwnerFlag(changeOwner)} ";
+
+            TokenBuilder builder = new TokenBuilder();
+            builder
+                .Keyword(instructionName)
+                .Whitespace(" ");
+
+            if (changeOwner is not null)
+            {
+                builder.Tokens.Add(changeOwner);
+                builder.Whitespace(" ");
+            }
+
 
             bool useJsonForm = locations.Any(loc => loc.Contains(" "));
+            string text;
             if (useJsonForm)
             {
-                return parse($"{instructionName} {changeOwnerFlagStr}{StringHelper.FormatAsJson(locations)}", escapeChar);
+                text = $"{instructionName} {changeOwnerFlagStr}{StringHelper.FormatAsJson(locations)}";
             }
             else
             {
-                return parse($"{instructionName} {changeOwnerFlagStr}{String.Join(" ", locations.ToArray())}", escapeChar);
+                text = $"{instructionName} {changeOwnerFlagStr}{String.Join(" ", locations.ToArray())}";
             }
-        }
 
-        protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName) =>
-            Instruction(instructionName, escapeChar,
-                GetArgsParser(escapeChar));
+            return GetTokens(text, GetInnerParser(escapeChar, instructionName));
+        }
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             from changeOwner in ArgTokens(

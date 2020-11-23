@@ -8,7 +8,7 @@ namespace DockerfileModel
 {
     public class Whitespace : DockerfileConstruct
     {
-        private Whitespace(string value)
+        public Whitespace(string value)
             : base(GetTokens(value, GetParser()))
         {
         }
@@ -67,9 +67,6 @@ namespace DockerfileModel
         }
 
         public override ConstructType Type => ConstructType.Whitespace;
-
-        public static Whitespace Create(string value) =>
-            new Whitespace(value);
 
         public static bool IsWhitespace(string value) =>
             GetParser().TryParse(value).WasSuccessful;

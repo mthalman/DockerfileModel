@@ -7,13 +7,15 @@ namespace DockerfileModel
 {
     public class PlatformFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
+        public PlatformFlag(string platform)
+            : base(new KeywordToken("platform"), new LiteralToken(platform), isFlag: true)
+        {
+        }
+
         internal PlatformFlag(IEnumerable<Token> tokens)
             : base(tokens)
         {
         }
-
-        public static PlatformFlag Create(string platform) =>
-            Create(new KeywordToken("platform"), new LiteralToken(platform), tokens => new PlatformFlag(tokens), isFlag: true);
 
         public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(text, Keyword("platform", escapeChar), LiteralAggregate(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);

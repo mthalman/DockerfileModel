@@ -12,6 +12,12 @@ namespace DockerfileModel
     {
         private const char AssignmentOperator = '=';
 
+        public ArgInstruction(string argName, string? argValue = null,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(argName, argValue, escapeChar))
+        {
+        }
+
         private ArgInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
         }
@@ -98,8 +104,11 @@ namespace DockerfileModel
         public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new ArgInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
-        public static ArgInstruction Create(string argName, string? argValue = null,
-            char escapeChar = Dockerfile.DefaultEscapeChar)
+        public static Parser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            from tokens in GetInnerParser(escapeChar)
+            select new ArgInstruction(tokens);
+
+        private static IEnumerable<Token> GetTokens(string argName, string? argValue, char escapeChar)
         {
             Requires.NotNullOrEmpty(argName, nameof(argName));
 
@@ -109,12 +118,8 @@ namespace DockerfileModel
                 builder.Append($"{AssignmentOperator}{argValue}");
             }
 
-            return Parse(builder.ToString(), escapeChar);
+            return GetTokens(builder.ToString(), GetInnerParser(escapeChar));
         }
-
-        public static Parser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            from tokens in GetInnerParser(escapeChar)
-            select new ArgInstruction(tokens);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("ARG", escapeChar, GetArgsParser(escapeChar));

@@ -15,21 +15,21 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Create()
         {
-            LineContinuationToken token = LineContinuationToken.Create();
+            LineContinuationToken token = new LineContinuationToken();
             Assert.Collection(token.Tokens, new Action<Token>[]
             {
                 token => ValidateSymbol(token, '\\'),
                 token => ValidateNewLine(token, Environment.NewLine)
             });
 
-            token = LineContinuationToken.Create('`');
+            token = new LineContinuationToken('`');
             Assert.Collection(token.Tokens, new Action<Token>[]
             {
                 token => ValidateSymbol(token, '`'),
                 token => ValidateNewLine(token, Environment.NewLine)
             });
 
-            token = LineContinuationToken.Create("\n", '`');
+            token = new LineContinuationToken("\n", '`');
             Assert.Collection(token.Tokens, new Action<Token>[]
             {
                 token => ValidateSymbol(token, '`'),

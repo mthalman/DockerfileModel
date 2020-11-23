@@ -34,7 +34,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            GenericInstruction result = GenericInstruction.Create(scenario.InstructionName, scenario.Args);
+            GenericInstruction result = new GenericInstruction(scenario.InstructionName, scenario.Args);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate(result);
         }
