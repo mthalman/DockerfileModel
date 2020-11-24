@@ -121,6 +121,12 @@ namespace DockerfileModel
         public DockerfileBuilder HealthCheckInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.HealthCheckInstruction.Parse);
 
+        public DockerfileBuilder LabelInstruction(IDictionary<string, string> labels) =>
+            AddConstruct(new LabelInstruction(labels, EscapeChar));
+
+        public DockerfileBuilder LabelInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.LabelInstruction.Parse);
+
         public DockerfileBuilder ParserDirective(string directive, string value) =>
             AddConstruct(new ParserDirective(CommentSeparator + directive, value));
 
