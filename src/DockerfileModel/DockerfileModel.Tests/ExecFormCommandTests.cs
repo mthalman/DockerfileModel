@@ -102,6 +102,16 @@ namespace DockerfileModel.Tests
 
         }
 
+        [Fact]
+        public void CommandArgsWithVariablesNotParsed()
+        {
+            ExecFormCommand result = new ExecFormCommand(new string[]
+            {
+                "$var"
+            });
+            TestHelper.TestVariablesWithLiteral(() => result.CommandArgTokens.First(), "$var", canContainVariables: false);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             ExecFormCommandParseTestScenario[] testInputs = new ExecFormCommandParseTestScenario[]

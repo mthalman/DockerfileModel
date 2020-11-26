@@ -11,15 +11,17 @@ namespace DockerfileModel
     public class ArgInstruction : Instruction
     {
         private const char AssignmentOperator = '=';
+        private readonly char escapeChar;
 
         public ArgInstruction(string argName, string? argValue = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(argName, argValue, escapeChar))
+            : this(GetTokens(argName, argValue, escapeChar), escapeChar)
         {
         }
 
-        private ArgInstruction(IEnumerable<Token> tokens) : base(tokens)
+        private ArgInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
         {
+            this.escapeChar = escapeChar;
         }
 
         public string ArgName
@@ -66,7 +68,7 @@ namespace DockerfileModel
                 }
                 else
                 {
-                    ArgValueToken = value is null ? null : new LiteralToken(value);
+                    ArgValueToken = value is null ? null : new LiteralToken(value, canContainVariables: true, escapeChar);
                 }
             }
         }
@@ -102,11 +104,11 @@ namespace DockerfileModel
         }
 
         public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ArgInstruction(GetTokens(text, GetInnerParser(escapeChar)));
+            new ArgInstruction(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
         public static Parser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new ArgInstruction(tokens);
+            select new ArgInstruction(tokens, escapeChar);
 
         private static IEnumerable<Token> GetTokens(string argName, string? argValue, char escapeChar)
         {
@@ -137,7 +139,7 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
             from assignment in ArgTokens(Symbol(AssignmentOperator).AsEnumerable(), escapeChar)
-            from value in LiteralAggregate(escapeChar).AsEnumerable().Optional()
+            from value in LiteralWithVariables(escapeChar).AsEnumerable().Optional()
             select ConcatTokens(
                 assignment,
                 value.GetOrDefault());

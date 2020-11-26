@@ -59,6 +59,13 @@ namespace DockerfileModel.Tests
             Assert.Throws<ArgumentException>(() => result.Value = "");
         }
 
+        [Fact]
+        public void ValueWithVariables()
+        {
+            ShellFormCommand result = new ShellFormCommand("$var");
+            TestHelper.TestVariablesWithLiteral(() => result.ValueToken, "$var", canContainVariables: false);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             ShellFormCommandParseTestScenario[] testInputs = new ShellFormCommandParseTestScenario[]

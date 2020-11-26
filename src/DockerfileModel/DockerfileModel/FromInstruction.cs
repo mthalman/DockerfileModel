@@ -11,14 +11,15 @@ namespace DockerfileModel
     public class FromInstruction : Instruction
     {
         private LiteralToken imageName;
+        private readonly char escapeChar;
 
         public FromInstruction(string imageName, string? stageName = null, string? platform = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(imageName, stageName, platform, escapeChar))
+            : this(GetTokens(imageName, stageName, platform, escapeChar), escapeChar)
         {
         }
 
-        private FromInstruction(IEnumerable<Token> tokens) : base(tokens)
+        private FromInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
         {
             PlatformFlag? platform = this.PlatformFlag;
             int startIndex = 0;
@@ -31,6 +32,7 @@ namespace DockerfileModel
                 .Skip(startIndex)
                 .OfType<LiteralToken>()
                 .First();
+            this.escapeChar = escapeChar;
         }
 
         public string ImageName
@@ -57,7 +59,7 @@ namespace DockerfileModel
         public string? Platform
         {
             get => this.PlatformFlag?.Value;
-            set => SetOptionalLiteralTokenValue(PlatformToken, value, token => PlatformToken = token);
+            set => SetOptionalLiteralTokenValue(PlatformToken, value, token => PlatformToken = token, canContainVariables: true, escapeChar);
         }
 
         public LiteralToken? PlatformToken
@@ -105,11 +107,11 @@ namespace DockerfileModel
         }
 
         public static FromInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new FromInstruction(GetTokens(text, GetInnerParser(escapeChar)));
+            new FromInstruction(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
         public static Parser<FromInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new FromInstruction(tokens);
+            select new FromInstruction(tokens, escapeChar);
 
         private static IEnumerable<Token> GetTokens(string imageName, string? stageName, string? platform, char escapeChar)
         {
@@ -158,6 +160,6 @@ namespace DockerfileModel
             ArgTokens(PlatformFlag.GetParser(escapeChar).AsEnumerable(), escapeChar);
 
         private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
-            ArgTokens(LiteralAggregate(escapeChar).AsEnumerable(), escapeChar);
+            ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar);
     }
 }

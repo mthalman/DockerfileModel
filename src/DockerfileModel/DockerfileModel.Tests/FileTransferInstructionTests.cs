@@ -47,6 +47,13 @@ namespace DockerfileModel.Tests
         }
 
         [Fact]
+        public void SourcesWithVariables()
+        {
+            TInstruction instruction = this.create(new string[] { "$var", "src2" }, "dst", null, Dockerfile.DefaultEscapeChar);
+            TestHelper.TestVariablesWithLiteral(() => instruction.SourceTokens[0], "var", canContainVariables: true);
+        }
+
+        [Fact]
         public void Destination()
         {
             TInstruction instruction = this.create(new string[] { "src1", "src2" }, "dst", null, Dockerfile.DefaultEscapeChar);
@@ -68,6 +75,13 @@ namespace DockerfileModel.Tests
             Assert.Throws<ArgumentNullException>(() => instruction.Destination = null);
             Assert.Throws<ArgumentException>(() => instruction.Destination = "");
             Assert.Throws<ArgumentNullException>(() => instruction.DestinationToken = null);
+        }
+
+        [Fact]
+        public void DestinationWithVariables()
+        {
+            TInstruction instruction = this.create(new string[] { "src1", "src2" }, "$var", null, Dockerfile.DefaultEscapeChar);
+            TestHelper.TestVariablesWithLiteral(() => instruction.DestinationToken, "var", canContainVariables: true);
         }
 
         [Fact]

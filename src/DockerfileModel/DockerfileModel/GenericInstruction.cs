@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
@@ -48,5 +49,51 @@ namespace DockerfileModel
             from lineContinuation in LineContinuations(escapeChar).Optional()
             from instructionArgs in InstructionArgs(escapeChar)
             select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs);
+
+        protected static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
+            from lineSets in (CommentText().Or(InstructionArgLine(escapeChar))).Many()
+            select lineSets.SelectMany(lineSet => lineSet);
+
+        private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
+            from text in Sprache.Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Except(Sprache.Parse.LineEnd).Many().Text()
+            from lineContinuation in LineContinuations(escapeChar).Optional()
+            from lineEnd in OptionalNewLine().AsEnumerable()
+            select ConcatTokens(
+                GetInstructionArgLineContent(text, escapeChar),
+                lineContinuation.GetOrDefault(),
+                lineEnd);
+
+        private static IEnumerable<Token?> GetInstructionArgLineContent(string text, char escapeChar)
+        {
+            if (text.Length == 0)
+            {
+                yield break;
+            }
+
+            if (text.Trim().Length == 0)
+            {
+                yield return new WhitespaceToken(text);
+                yield break;
+            }
+
+            yield return GetLeadingWhitespaceToken(text);
+            yield return new LiteralToken(text.Trim(), canContainVariables: false, escapeChar);
+            yield return GetTrailingWhitespaceToken(text);
+        }
+
+        private static WhitespaceToken? GetLeadingWhitespaceToken(string text)
+        {
+            string? whitespace = new string(
+                text
+                    .TakeWhile(ch => Char.IsWhiteSpace(ch))
+                    .ToArray());
+
+            if (whitespace == String.Empty)
+            {
+                return null;
+            }
+
+            return new WhitespaceToken(whitespace);
+        }
     }
 }

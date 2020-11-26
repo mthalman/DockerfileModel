@@ -88,7 +88,7 @@ namespace DockerfileModel
         public DockerfileBuilder EnvInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.EnvInstruction.Parse);
 
-        public DockerfileBuilder ExposeInstruction(int port, string? protocol = null) =>
+        public DockerfileBuilder ExposeInstruction(string port, string? protocol = null) =>
             AddConstruct(new ExposeInstruction(port, protocol, EscapeChar));
 
         public DockerfileBuilder ExposeInstruction(Action<TokenBuilder> configureBuilder) =>
@@ -115,7 +115,7 @@ namespace DockerfileModel
             AddConstruct(new HealthCheckInstruction(commands, interval, timeout, startPeriod, retries, EscapeChar));
 
         public DockerfileBuilder HealthCheckDisabledInstruction() =>
-            AddConstruct(new HealthCheckInstruction());
+            AddConstruct(new HealthCheckInstruction(EscapeChar));
 
         public DockerfileBuilder HealthCheckInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.HealthCheckInstruction.Parse);

@@ -79,13 +79,13 @@ namespace DockerfileModel
             ).AtLeastOnce().Flatten();
 
         private static Parser<LiteralToken> MultiVariableFormatValueParser(char escapeChar) =>
-            from literal in LiteralAggregate(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).Optional()
-            select literal.GetOrElse(new LiteralToken(""));
+            from literal in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).Optional()
+            select literal.GetOrElse(new LiteralToken("", canContainVariables: true, escapeChar));
 
         private static Parser<IEnumerable<Token>> SingleVariableFormat(char escapeChar) =>
             KeyValueToken<IdentifierToken, LiteralToken>.GetParser(
                 IdentifierToken(VariableRefFirstLetterParser, VariableRefTailParser, escapeChar: escapeChar),
-                LiteralAggregate(escapeChar),
+                LiteralWithVariables(escapeChar),
                 separator: ' ',
                 escapeChar: escapeChar).AsEnumerable();
     }

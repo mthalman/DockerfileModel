@@ -19,9 +19,22 @@ namespace DockerfileModel.Tokens
             ValidModifiers
                 .Select(modifier => Sprache.Parse.String(modifier).Text())
                 .ToArray();
+        private readonly char escapeChar;
 
-        internal VariableRefToken(IEnumerable<Token> tokens) : base(tokens)
+        public VariableRefToken(string variableName, bool includeBraces = false, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(variableName, includeBraces, escapeChar), escapeChar)
         {
+        }
+
+        public VariableRefToken(string variableName, string modifier, string modifierValue,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(variableName, modifier, modifierValue, escapeChar), escapeChar)
+        {
+        }
+
+        internal VariableRefToken(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
+        {
+            this.escapeChar = escapeChar;
         }
 
         public string VariableName
@@ -80,18 +93,7 @@ namespace DockerfileModel.Tokens
         public string? ModifierValue
         {
             get => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());
-            set
-            {
-                LiteralToken? modifierValueToken = ModifierValueToken;
-                if (modifierValueToken is not null && value is not null)
-                {
-                    modifierValueToken.Value = value;
-                }
-                else
-                {
-                    ModifierValueToken = String.IsNullOrEmpty(value) ? null : new LiteralToken(value!);
-                }
-            }
+            set => SetOptionalLiteralTokenValue(ModifierValueToken, value, token => ModifierValueToken = token, canContainVariables: true, escapeChar);
         }
 
         public LiteralToken? ModifierValueToken
@@ -198,8 +200,32 @@ namespace DockerfileModel.Tokens
             return value;
         }
 
-        public static VariableRefToken Create(string variableName, bool includeBraces = false,
-            char escapeChar = Dockerfile.DefaultEscapeChar)
+        public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new VariableRefToken(GetTokens(text, GetInnerParser(escapeChar, DefaultValueParser())), escapeChar);
+
+        /// <summary>
+        /// Parses a variable reference.
+        /// </summary>
+        /// <typeparam name="TPrimitiveToken">Type of the token for the variable.</typeparam>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="createModifierValueTokenParser">Delegate to create tokens nested within a modifier value.</param>
+        /// <returns>Parsed variable reference token.</returns>
+        public static Parser<VariableRefToken> GetParser(
+            CreateTokenParserDelegate createModifierValueTokenParser, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            from tokens in GetInnerParser(escapeChar, createModifierValueTokenParser)
+            select new VariableRefToken(tokens, escapeChar);
+
+        private static IEnumerable<Token> GetTokens(string variableName, string modifier, string modifierValue, char escapeChar)
+        {
+            Requires.NotNullOrEmpty(variableName, nameof(variableName));
+            Requires.NotNullOrEmpty(modifier, nameof(modifier));
+            Requires.NotNullOrEmpty(modifierValue, nameof(modifierValue));
+            ValidateModifier(modifier);
+
+            return GetTokens($"${{{variableName}{modifier}{modifierValue}}}", GetInnerParser(escapeChar, DefaultValueParser()));
+        }
+        
+        private static IEnumerable<Token> GetTokens(string variableName, bool includeBraces, char escapeChar)
         {
             Requires.NotNullOrEmpty(variableName, nameof(variableName));
 
@@ -214,36 +240,8 @@ namespace DockerfileModel.Tokens
                 builder.Append('}');
             }
 
-            return Parse(builder.ToString(), escapeChar);
+            return GetTokens(builder.ToString(), GetInnerParser(escapeChar, DefaultValueParser()));
         }
-
-        public static VariableRefToken Create(string variableName, string modifier, string modifierValue,
-            char escapeChar = Dockerfile.DefaultEscapeChar)
-        {
-            Requires.NotNullOrEmpty(variableName, nameof(variableName));
-            Requires.NotNullOrEmpty(modifier, nameof(modifier));
-            Requires.NotNullOrEmpty(modifierValue, nameof(modifierValue));
-            ValidateModifier(modifier);
-
-            return Parse($"${{{variableName}{modifier}{modifierValue}}}", escapeChar);
-        }
-            
-
-        public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new VariableRefToken(GetTokens(text, GetInnerParser(escapeChar, (char escapeChar, IEnumerable<char> excludedChars) =>
-                LiteralString(escapeChar, excludedChars))));
-
-        /// <summary>
-        /// Parses a variable reference.
-        /// </summary>
-        /// <typeparam name="TPrimitiveToken">Type of the token for the variable.</typeparam>
-        /// <param name="escapeChar">Escape character.</param>
-        /// <param name="createModifierValueTokenParser">Delegate to create tokens nested within a modifier value.</param>
-        /// <returns>Parsed variable reference token.</returns>
-        public static Parser<VariableRefToken> GetParser(
-            CreateTokenParserDelegate createModifierValueTokenParser, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            from tokens in GetInnerParser(escapeChar, createModifierValueTokenParser)
-            select new VariableRefToken(tokens);
 
         private static void ValidateModifier(string? modifier)
         {
@@ -253,6 +251,9 @@ namespace DockerfileModel.Tokens
                    $"'{modifier}' is not a valid modifier. Supported modifiers: {String.Join(", ", ValidModifiers)}");
             }
         }
+
+        private static CreateTokenParserDelegate DefaultValueParser() =>
+            (char escapeChar, IEnumerable<char> excludedChars) => LiteralString(escapeChar, excludedChars);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(
             char escapeChar,
@@ -295,7 +296,7 @@ namespace DockerfileModel.Tokens
                     .Where(tokens => tokens.Any())
                 select ConcatTokens(
                     String.Concat(modifier).Select(ch => new SymbolToken(ch)),
-                    new Token[] { new LiteralToken(modifierValueTokens) })
+                    new Token[] { new LiteralToken(modifierValueTokens, canContainVariables: true, escapeChar) })
                 ).Optional()
             from closing in Symbol('}').AsEnumerable()
             select ConcatTokens(opening, new Token[] { varNameToken }, modifierTokens.GetOrDefault(), closing);

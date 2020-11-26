@@ -7,13 +7,25 @@ namespace DockerfileModel.Tokens
 {
     public class LiteralToken : AggregateToken, IQuotableValueToken
     {
-        public LiteralToken(string value)
-             : base(new Token[] { new StringToken(value) })
+        private readonly bool canContainVariables;
+        private readonly char escapeChar;
+
+        public LiteralToken(string value, bool canContainVariables = false, char escapeChar = Dockerfile.DefaultEscapeChar)
+             : this(GetTokens(value, canContainVariables, escapeChar), canContainVariables, escapeChar)
         {
         }
 
-        internal LiteralToken(IEnumerable<Token> tokens) : base(tokens)
+        private LiteralToken((IEnumerable<Token> Tokens, char? QuoteChar) tokensInfo, bool canContainVariables, char escapeChar)
+            : this(tokensInfo.Tokens, canContainVariables, escapeChar)
         {
+            QuoteChar = tokensInfo.QuoteChar;
+        }
+
+        internal LiteralToken(IEnumerable<Token> tokens, bool canContainVariables, char escapeChar)
+            : base(tokens)
+        {
+            this.canContainVariables = canContainVariables;
+            this.escapeChar = escapeChar;
         }
 
         public string Value
@@ -22,25 +34,32 @@ namespace DockerfileModel.Tokens
             set
             {
                 Requires.NotNull(value, nameof(value));
-                ReplaceWithToken(new StringToken(value));
+                ReplaceWithTokens(GetTokens(value, canContainVariables, escapeChar).Tokens);
             }
         }
 
         public char? QuoteChar { get; set; }
 
-        public static LiteralToken Parse(string text, bool canContainVariables = false, char escapeChar = Dockerfile.DefaultEscapeChar)
+        private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)
         {
-            Parser<LiteralToken> parser;
+            Requires.NotNull(value, nameof(value));
+
+            if (value == string.Empty)
+            {
+                return (new Token[] { new StringToken(value) }, null);
+            }
+
+            Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> parser;
             if (canContainVariables)
             {
-                parser = LiteralAggregate(escapeChar, whitespaceMode: WhitespaceMode.Allowed);
+                parser = LiteralWithVariablesTokens(escapeChar, whitespaceMode: WhitespaceMode.Allowed);
             }
             else
             {
                 parser = WrappedInOptionalQuotesLiteralStringWithSpaces(escapeChar, excludeVariableRefChars: false);
             }
 
-            return parser.Parse(text);
+            return parser.Parse(value);
         }
     }
 }

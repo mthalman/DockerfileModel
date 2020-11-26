@@ -65,6 +65,13 @@ namespace DockerfileModel.Tests
         }
 
         [Fact]
+        public void ImageNameWithVariables()
+        {
+            FromInstruction instruction = new FromInstruction("$var");
+            TestHelper.TestVariablesWithLiteral(() => instruction.ImageNameToken, "var", canContainVariables: true);
+        }
+
+        [Fact]
         public void Platform()
         {
             FromInstruction instruction = new FromInstruction("test");
@@ -102,6 +109,14 @@ namespace DockerfileModel.Tests
             instruction = FromInstruction.Parse("FROM `\n`\n --platform=linux/amd64 alpine", '`');
             instruction.PlatformToken = null;
             Assert.Equal("FROM `\n`\n alpine", instruction.ToString());
+        }
+
+        [Fact]
+        public void PlatformWithVariables()
+        {
+            FromInstruction instruction = new FromInstruction("scratch", platform: "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => instruction.PlatformToken, token => instruction.PlatformToken = token, val => instruction.Platform = val, "var", canContainVariables: true);
         }
 
         [Fact]

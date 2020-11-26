@@ -101,6 +101,22 @@ namespace DockerfileModel.Tests
             Assert.Equal("user", changeOwner.ToString());
         }
 
+        [Fact]
+        public void UserWithVariables()
+        {
+            ChangeOwner changeOwner = new ChangeOwner("$var", "group");
+            TestHelper.TestVariablesWithLiteral(
+                () => changeOwner.UserToken, "var", canContainVariables: true);
+        }
+
+        [Fact]
+        public void GroupWithVariables()
+        {
+            ChangeOwner changeOwner = new ChangeOwner("user", "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => changeOwner.GroupToken, token => changeOwner.GroupToken = token, val => changeOwner.Group = val, "var", canContainVariables: true);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             ChangeOwnerParseTestScenario[] testInputs = new ChangeOwnerParseTestScenario[]

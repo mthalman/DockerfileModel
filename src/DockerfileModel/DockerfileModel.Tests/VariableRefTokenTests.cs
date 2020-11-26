@@ -37,11 +37,11 @@ namespace DockerfileModel.Tests
             VariableRefToken result;
             if (scenario.Modifier is null)
             {
-                result = VariableRefToken.Create(scenario.VariableName);
+                result = new VariableRefToken(scenario.VariableName);
             }
             else
             {
-                result = VariableRefToken.Create(scenario.VariableName, scenario.Modifier, scenario.ModifierValue);
+                result = new VariableRefToken(scenario.VariableName, scenario.Modifier, scenario.ModifierValue);
             }
 
             Assert.Collection(result.Tokens, scenario.TokenValidators);
@@ -51,7 +51,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void VariableName()
         {
-            VariableRefToken token = VariableRefToken.Create("foo");
+            VariableRefToken token = new VariableRefToken("foo");
             Assert.Equal("foo", token.VariableName);
             Assert.Equal("foo", token.VariableNameToken.Value);
 
@@ -75,7 +75,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Modifier()
         {
-            VariableRefToken token = VariableRefToken.Create("foo", "-", "bar");
+            VariableRefToken token = new VariableRefToken("foo", "-", "bar");
             Assert.Equal("-", token.Modifier);
             Assert.Collection(token.ModifierTokens, new Action<SymbolToken>[]
             {
@@ -99,7 +99,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void ModifierValue()
         {
-            VariableRefToken token = VariableRefToken.Create("foo", "-", "bar");
+            VariableRefToken token = new VariableRefToken("foo", "-", "bar");
             Assert.Equal("bar", token.ModifierValue);
             Assert.Equal("bar", token.ModifierValueToken.Value);
             Assert.NotEmpty(token.ModifierTokens);
@@ -137,6 +137,14 @@ namespace DockerfileModel.Tests
             Assert.Null(token.ModifierValueToken);
             Assert.Empty(token.ModifierTokens);
             Assert.Equal("${foo}", token.ToString());
+        }
+
+        [Fact]
+        public void ModifierValueWithVariables()
+        {
+            VariableRefToken token = new VariableRefToken("foo", "-", "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => token.ModifierValueToken, t => token.ModifierValueToken = t, val => token.ModifierValue = val, "var", canContainVariables: true);
         }
 
         public static IEnumerable<object[]> ParseTestInput()

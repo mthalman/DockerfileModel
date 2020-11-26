@@ -17,7 +17,7 @@ namespace DockerfileModel.Tests
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                LiteralToken result = LiteralToken.Parse(scenario.Text, scenario.ParseVariableRefs, scenario.EscapeChar);
+                LiteralToken result = new LiteralToken(scenario.Text, scenario.ParseVariableRefs, scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
@@ -29,6 +29,19 @@ namespace DockerfileModel.Tests
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
+        }
+
+        [Fact]
+        public void ValueVariable()
+        {
+            LiteralToken token = new LiteralToken("tag", canContainVariables: true);
+            token.Value = "$REPO:tag";
+            token.ResolveVariables(Dockerfile.DefaultEscapeChar, new Dictionary<string, string>
+            {
+                { "REPO", "test" }
+            }, options: new ResolutionOptions { UpdateInline = true});
+
+            Assert.Equal("test:tag", token.Value);
         }
 
         public static IEnumerable<object[]> ParseTestInput()
