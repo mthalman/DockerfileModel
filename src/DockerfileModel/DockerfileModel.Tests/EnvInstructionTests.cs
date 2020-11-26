@@ -154,6 +154,20 @@ namespace DockerfileModel.Tests
                 },
                 new EnvInstructionParseTestScenario
                 {
+                    Text = "ENV MY_NAME John\r\n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ENV"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME John",
+                            token => ValidateIdentifier(token, "MY_NAME"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "John")),
+                        token => ValidateNewLine(token, "\r\n")
+                    }
+                },
+                new EnvInstructionParseTestScenario
+                {
                     Text = "ENV MY_NAME=John",
                     TokenValidators = new Action<Token>[]
                     {
