@@ -83,10 +83,11 @@ namespace DockerfileModel
             select literal.GetOrElse(new LiteralToken("", canContainVariables: true, escapeChar));
 
         private static Parser<IEnumerable<Token>> SingleVariableFormat(char escapeChar) =>
-            KeyValueToken<IdentifierToken, LiteralToken>.GetParser(
-                IdentifierToken(VariableRefFirstLetterParser, VariableRefTailParser, escapeChar: escapeChar),
-                LiteralWithVariables(escapeChar),
-                separator: ' ',
-                escapeChar: escapeChar).AsEnumerable();
+            ArgTokens(
+                KeyValueToken<IdentifierToken, LiteralToken>.GetParser(
+                    IdentifierToken(VariableRefFirstLetterParser, VariableRefTailParser, escapeChar: escapeChar),
+                    LiteralWithVariables(escapeChar),
+                    separator: ' ',
+                    escapeChar: escapeChar).AsEnumerable(), escapeChar);
     }
 }
