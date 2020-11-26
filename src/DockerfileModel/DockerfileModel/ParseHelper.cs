@@ -308,9 +308,11 @@ namespace DockerfileModel
         /// </summary>
         /// <param name="escapeChar">Escape character.</param>
         public static Parser<IEnumerable<Token>> ArgumentListAsLiteral(char escapeChar) =>
-            from literals in ArgTokens(
-                LiteralToken(escapeChar, Enumerable.Empty<char>()).AsEnumerable(),
-                escapeChar).Many()
+            from literals in
+                ArgTokens(
+                    from literal in LiteralToken(escapeChar, Enumerable.Empty<char>()).Optional()
+                    select new Token[] { literal.GetOrDefault() },
+                    escapeChar).Many()
             select CollapseLiteralTokens(literals.Flatten(), canContainVariables: false, escapeChar);
 
         /// <summary>

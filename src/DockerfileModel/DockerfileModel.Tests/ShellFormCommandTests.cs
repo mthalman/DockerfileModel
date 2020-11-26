@@ -110,6 +110,20 @@ namespace DockerfileModel.Tests
                 },
                 new ShellFormCommandParseTestScenario
                 {
+                    Text = "echo`\n  `\n  hello",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateAggregate<LiteralToken>(token, "echo`\n  `\n  hello",
+                            token => ValidateString(token, "echo"),
+                            token => ValidateLineContinuation(token, '`', "\n"),
+                            token => ValidateString(token, "  "),
+                            token => ValidateLineContinuation(token, '`', "\n"),
+                            token => ValidateString(token, "  hello")),
+                    }
+                },
+                new ShellFormCommandParseTestScenario
+                {
                     Text = "ec`\nho `test",
                     EscapeChar = '`',
                     TokenValidators = new Action<Token>[]
