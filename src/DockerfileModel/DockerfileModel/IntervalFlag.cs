@@ -7,8 +7,8 @@ namespace DockerfileModel
 {
     public class IntervalFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
-        public IntervalFlag(string interval)
-            : base(new KeywordToken("interval"), new LiteralToken(interval), isFlag: true)
+        public IntervalFlag(string interval, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : base(new KeywordToken("interval"), new LiteralToken(interval, canContainVariables: true, escapeChar), isFlag: true)
         {
         }
 
@@ -18,9 +18,9 @@ namespace DockerfileModel
 
         public static IntervalFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("interval", escapeChar), LiteralAggregate(escapeChar), tokens => new IntervalFlag(tokens), escapeChar: escapeChar);
+            Parse(text, Keyword("interval", escapeChar), LiteralWithVariables(escapeChar), tokens => new IntervalFlag(tokens), escapeChar: escapeChar);
 
         public static Parser<IntervalFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("interval", escapeChar), LiteralAggregate(escapeChar), tokens => new IntervalFlag(tokens), escapeChar: escapeChar);
+            GetParser(Keyword("interval", escapeChar), LiteralWithVariables(escapeChar), tokens => new IntervalFlag(tokens), escapeChar: escapeChar);
     }
 }

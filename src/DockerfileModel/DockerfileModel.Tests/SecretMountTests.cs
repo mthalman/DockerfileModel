@@ -65,6 +65,13 @@ namespace DockerfileModel.Tests
         }
 
         [Fact]
+        public void IdWithVariables()
+        {
+            SecretMount secretMount = new SecretMount("$var");
+            TestHelper.TestVariablesWithLiteral(() => secretMount.IdToken.ValueToken, "var", canContainVariables: true);
+        }
+
+        [Fact]
         public void DestinationPath()
         {
             SecretMount secretMount = new SecretMount("foo", "test");
@@ -96,6 +103,14 @@ namespace DockerfileModel.Tests
             Assert.Equal("type=secret,id=foo", secretMount.ToString());
             Assert.Null(secretMount.DestinationPath);
             Assert.Null(secretMount.DestinationPathToken);
+        }
+
+        [Fact]
+        public void DestinationWithVariables()
+        {
+            SecretMount secretMount = new SecretMount("id", "$var");
+            TestHelper.TestVariablesWithLiteral(
+                () => secretMount.DestinationPathToken.ValueToken, "var", canContainVariables: true);
         }
 
         public static IEnumerable<object[]> ParseTestInput()

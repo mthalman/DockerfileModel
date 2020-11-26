@@ -84,6 +84,18 @@ namespace DockerfileModel.Tests
             Validate(result, "VAR3", "bar");
         }
 
+        [Fact]
+        public void EnvVarWithVariables()
+        {
+            EnvInstruction result = new EnvInstruction(
+                new Dictionary<string, string>
+                {
+                    { "VAR1", "$var" }
+                });
+            TestHelper.TestVariablesWithLiteral(
+                () => result.VariableTokens[0].ValueToken, "var", canContainVariables: true);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             EnvInstructionParseTestScenario[] testInputs = new EnvInstructionParseTestScenario[]

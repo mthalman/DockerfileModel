@@ -123,20 +123,13 @@ namespace DockerfileModel.Tokens
         }
 
         protected static void SetOptionalLiteralTokenValue(LiteralToken? currentToken, string? value,
-            Action<LiteralToken?> setToken) =>
-            SetOptionalTokenValue(currentToken, value, val => new LiteralToken(val), setToken);
+            Action<LiteralToken?> setToken, bool canContainVariables, char escapeChar) =>
+            SetOptionalTokenValue(currentToken, value, val => new LiteralToken(val, canContainVariables, escapeChar), setToken);
 
         protected static void SetOptionalKeyValueTokenValue<TKeyValueToken>(TKeyValueToken? currentToken, LiteralToken? value,
             Func<string, TKeyValueToken> createToken, Action<TKeyValueToken?> setToken)
             where TKeyValueToken : KeyValueToken<KeywordToken, LiteralToken> =>
             SetOptionalTokenValue(currentToken, value, token => createToken(token.Value), (token, val) => token.ValueToken = val, setToken);
-
-        protected static void SetOptionalKeyValueTokenValue<TKey, TValue, TKeyValueToken>(TKeyValueToken? currentToken, TValue? value,
-            Func<TValue, TKeyValueToken> createToken, Action<TKeyValueToken?> setToken)
-            where TKeyValueToken : KeyValueToken<TKey, TValue>
-            where TKey : Token, IValueToken
-            where TValue : Token =>
-            SetOptionalTokenValue(currentToken, value, createToken, (token, val) => token.ValueToken = val, setToken);
 
         protected static void SetOptionalTokenValue<TToken>(TToken? currentToken, string? value, Func<string, TToken> createToken,
             Action<TToken?> setToken)
@@ -163,6 +156,12 @@ namespace DockerfileModel.Tokens
         {
             TokenList.Clear();
             TokenList.Add(token);
+        }
+
+        internal void ReplaceWithTokens(IEnumerable<Token> tokens)
+        {
+            TokenList.Clear();
+            TokenList.AddRange(tokens);
         }
 
         private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)

@@ -10,37 +10,40 @@ namespace DockerfileModel
 {
     public class HealthCheckInstruction : Instruction
     {
+        private readonly char escapeChar;
+
         public HealthCheckInstruction(string command, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(command, interval, timeout, startPeriod, retries, escapeChar))
+            : this(GetTokens(command, interval, timeout, startPeriod, retries, escapeChar), escapeChar)
         {
         }
 
         public HealthCheckInstruction(IEnumerable<string> commands, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(commands, interval, timeout, startPeriod, retries, escapeChar))
+            : this(GetTokens(commands, interval, timeout, startPeriod, retries, escapeChar), escapeChar)
         {
         }
 
-        public HealthCheckInstruction()
+        public HealthCheckInstruction(char escapeChar = Dockerfile.DefaultEscapeChar)
             : this(
                 new Token[]
                 {
                     new KeywordToken("HEALTHCHECK"),
                     new WhitespaceToken(" "),
                     new KeywordToken("NONE")
-                })
+                }, escapeChar)
         {
         }
 
-        private HealthCheckInstruction(IEnumerable<Token> tokens) : base(tokens)
+        private HealthCheckInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
         {
+            this.escapeChar = escapeChar;
         }
 
         public string? Interval
         {
             get => IntervalToken?.Value;
-            set => SetOptionalLiteralTokenValue(IntervalToken, value, token => IntervalToken = token);
+            set => SetOptionalLiteralTokenValue(IntervalToken, value, token => IntervalToken = token, canContainVariables: true, escapeChar);
         }
 
         public LiteralToken? IntervalToken
@@ -59,7 +62,7 @@ namespace DockerfileModel
         public string? Timeout
         {
             get => TimeoutToken?.Value;
-            set => SetOptionalLiteralTokenValue(TimeoutToken, value, token => TimeoutToken = token);
+            set => SetOptionalLiteralTokenValue(TimeoutToken, value, token => TimeoutToken = token, canContainVariables: true, escapeChar);
         }
 
         public LiteralToken? TimeoutToken
@@ -78,7 +81,7 @@ namespace DockerfileModel
         public string? StartPeriod
         {
             get => StartPeriodToken?.Value;
-            set => SetOptionalLiteralTokenValue(StartPeriodToken, value, token => StartPeriodToken = token);
+            set => SetOptionalLiteralTokenValue(StartPeriodToken, value, token => StartPeriodToken = token, canContainVariables: true, escapeChar);
         }
 
         public LiteralToken? StartPeriodToken
@@ -97,7 +100,7 @@ namespace DockerfileModel
         public string? Retries
         {
             get => RetriesToken?.Value;
-            set => SetOptionalLiteralTokenValue(RetriesToken, value, token => RetriesToken = token);
+            set => SetOptionalLiteralTokenValue(RetriesToken, value, token => RetriesToken = token, canContainVariables: true, escapeChar);
         }
 
         public LiteralToken? RetriesToken
@@ -143,11 +146,11 @@ namespace DockerfileModel
         }
 
         public static HealthCheckInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new HealthCheckInstruction(GetTokens(text, GetInnerParser(escapeChar)));
+            new HealthCheckInstruction(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
         public static Parser<HealthCheckInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new HealthCheckInstruction(tokens);
+            select new HealthCheckInstruction(tokens, escapeChar);
 
         private static IEnumerable<Token> GetTokens(string command, string? interval, string? timeout,
             string? startPeriod, string? retries, char escapeChar)

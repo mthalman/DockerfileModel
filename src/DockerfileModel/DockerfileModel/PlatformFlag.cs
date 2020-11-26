@@ -7,8 +7,8 @@ namespace DockerfileModel
 {
     public class PlatformFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
-        public PlatformFlag(string platform)
-            : base(new KeywordToken("platform"), new LiteralToken(platform), isFlag: true)
+        public PlatformFlag(string platform, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : base(new KeywordToken("platform"), new LiteralToken(platform, canContainVariables: true, escapeChar), isFlag: true)
         {
         }
 
@@ -18,9 +18,9 @@ namespace DockerfileModel
         }
 
         public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("platform", escapeChar), LiteralAggregate(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);
+            Parse(text, Keyword("platform", escapeChar), LiteralWithVariables(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);
 
         public static Parser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("platform", escapeChar), LiteralAggregate(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);
+            GetParser(Keyword("platform", escapeChar), LiteralWithVariables(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);
     }
 }

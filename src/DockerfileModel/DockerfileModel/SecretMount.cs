@@ -10,14 +10,17 @@ namespace DockerfileModel
 {
     public class SecretMount : Mount
     {
+        private readonly char escapeChar;
+
         public SecretMount(string id, string? destinationPath = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(id, destinationPath, escapeChar))
+            : this(GetTokens(id, destinationPath, escapeChar), escapeChar)
         {
         }
 
-        internal SecretMount(IEnumerable<Token> tokens)
+        internal SecretMount(IEnumerable<Token> tokens, char escapeChar)
             : base(tokens)
         {
+            this.escapeChar = escapeChar;
         }
 
         public string Id
@@ -54,7 +57,9 @@ namespace DockerfileModel
                 {
                     DestinationPathToken = String.IsNullOrEmpty(value) ?
                         null :
-                        new KeyValueToken<KeywordToken, LiteralToken>(new KeywordToken("dst"), new LiteralToken(value!));
+                        new KeyValueToken<KeywordToken, LiteralToken>(
+                            new KeywordToken("dst"),
+                            new LiteralToken(value!, canContainVariables: true, escapeChar));
                 }
             }
         }
@@ -93,15 +98,15 @@ namespace DockerfileModel
         }
 
         public static SecretMount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new SecretMount(GetTokens(text, GetInnerParser(escapeChar)));
+            new SecretMount(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
         public static Parser<SecretMount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new SecretMount(tokens);
+            select new SecretMount(tokens, escapeChar);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar)
         {
-            Parser<LiteralToken> valueParser = LiteralAggregate(
+            Parser<LiteralToken> valueParser = LiteralWithVariables(
                 escapeChar, new char[] { ',' });
 
             return
@@ -127,7 +132,7 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> DestinationParser(char escapeChar) =>
             from comma in Symbol(',')
             from dst in KeyValueToken<KeywordToken, LiteralToken>.GetParser(
-                Keyword("dst", escapeChar), LiteralAggregate(escapeChar), escapeChar: escapeChar)
+                Keyword("dst", escapeChar), LiteralWithVariables(escapeChar), escapeChar: escapeChar)
             select ConcatTokens(comma, dst);
     }
 }

@@ -143,7 +143,7 @@ namespace DockerfileModel
             from whitespace in Whitespace()
             from files in JsonArray(escapeChar, canContainVariables: true).Or(
                 from literals in ArgTokens(
-                    LiteralAggregate(escapeChar).AsEnumerable(),
+                    LiteralWithVariables(escapeChar).AsEnumerable(),
                     escapeChar).Many()
                 select literals.Flatten())
             select ConcatTokens(changeOwner.GetOrDefault(), whitespace, files);

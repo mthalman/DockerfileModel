@@ -83,6 +83,6 @@ namespace DockerfileModel
 
         private static Parser<LiteralToken> DirectiveValueParser() =>
             from val in NonWhitespace().Many().Text()
-            select new LiteralToken(val);
+            select new LiteralToken(new Token[] { new StringToken(val) }, canContainVariables: false, val[0]);
     }
 }

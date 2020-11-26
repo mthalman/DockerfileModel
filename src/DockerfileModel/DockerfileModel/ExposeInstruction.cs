@@ -10,19 +10,26 @@ namespace DockerfileModel
 {
     public class ExposeInstruction : Instruction
     {
-        public ExposeInstruction(int port, string? protocol = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(port, protocol, escapeChar))
+        private readonly char escapeChar;
+
+        public ExposeInstruction(string port, string? protocol = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(port, protocol, escapeChar), escapeChar)
         {
         }
 
-        private ExposeInstruction(IEnumerable<Token> tokens) : base(tokens)
+        private ExposeInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
         {
+            this.escapeChar = escapeChar;
         }
 
         public string Port
         {
             get => PortToken.Value;
-            set => PortToken.Value = value.ToString();
+            set
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                PortToken.Value = value;
+            }
         }
 
         public LiteralToken PortToken
@@ -38,18 +45,7 @@ namespace DockerfileModel
         public string? Protocol
         {
             get => ProtocolToken?.Value;
-            set
-            {
-                LiteralToken? protocol = ProtocolToken;
-                if (protocol != null && value is not null)
-                {
-                    protocol.Value = value;
-                }
-                else
-                {
-                    ProtocolToken = String.IsNullOrEmpty(value) ? null : new LiteralToken(value!);
-                }
-            }
+            set => SetOptionalLiteralTokenValue(ProtocolToken, value, token => ProtocolToken = token, canContainVariables: true, escapeChar);
         }
 
         public LiteralToken? ProtocolToken
@@ -73,13 +69,13 @@ namespace DockerfileModel
         }
 
         public static ExposeInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ExposeInstruction(GetTokens(text, GetInnerParser(escapeChar)));
+            new ExposeInstruction(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
         public static Parser<ExposeInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new ExposeInstruction(tokens);
+            select new ExposeInstruction(tokens, escapeChar);
 
-        private static IEnumerable<Token> GetTokens(int port, string? protocol, char escapeChar)
+        private static IEnumerable<Token> GetTokens(string port, string? protocol, char escapeChar)
         {
             string protocolSegment = protocol is null ? string.Empty : $"/{protocol}";
             return GetTokens($"EXPOSE {port}{protocolSegment}", GetInnerParser(escapeChar));
@@ -90,10 +86,10 @@ namespace DockerfileModel
                 GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-            from port in ArgTokens(LiteralAggregate(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
+            from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
             from protocolTokens in 
                 (from separator in ArgTokens(Symbol('/').AsEnumerable(), escapeChar)
-                from protocol in ArgTokens(LiteralAggregate(escapeChar).AsEnumerable(), escapeChar)
+                from protocol in ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar)
                 select ConcatTokens(separator, protocol)).Optional()
             select ConcatTokens(port, protocolTokens.GetOrDefault());
     }

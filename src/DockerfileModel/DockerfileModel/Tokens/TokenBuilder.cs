@@ -46,7 +46,7 @@ namespace DockerfileModel.Tokens
             AddToken(new ImageName(GetTokens(configureBuilder)));
 
         public TokenBuilder IntervalFlag(string interval) =>
-            AddToken(new IntervalFlag(interval));
+            AddToken(new IntervalFlag(interval, EscapeChar));
 
         public TokenBuilder IntervalFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new IntervalFlag(GetTokens(configureBuilder)));
@@ -74,11 +74,11 @@ namespace DockerfileModel.Tokens
         public TokenBuilder LineContinuation(Action<TokenBuilder> configureBuilder) =>
             AddToken(new LineContinuationToken(GetTokens(configureBuilder)));
 
-        public TokenBuilder Literal(string value) =>
-            AddToken(new LiteralToken(value));
+        public TokenBuilder Literal(string value, bool canContainVariables = false) =>
+            AddToken(new LiteralToken(value, canContainVariables, EscapeChar));
 
-        public TokenBuilder Literal(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new LiteralToken(GetTokens(configureBuilder)));
+        public TokenBuilder Literal(Action<TokenBuilder> configureBuilder, bool canContainVariables = false) =>
+            AddToken(new LiteralToken(GetTokens(configureBuilder), canContainVariables, EscapeChar));
 
         public TokenBuilder MountFlag(Mount mount) =>
             AddToken(new MountFlag(mount));
@@ -87,7 +87,7 @@ namespace DockerfileModel.Tokens
             AddToken(new MountFlag(GetTokens(configureBuilder)));
 
         public TokenBuilder PlatformFlag(string platform) =>
-            AddToken(new PlatformFlag(platform));
+            AddToken(new PlatformFlag(platform, EscapeChar));
 
         public TokenBuilder PlatformFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new PlatformFlag(GetTokens(configureBuilder)));
@@ -105,7 +105,7 @@ namespace DockerfileModel.Tokens
             AddToken(new RepositoryToken(GetTokens(configureBuilder)));
 
         public TokenBuilder RetriesFlag(string retries) =>
-            AddToken(new RetriesFlag(retries));
+            AddToken(new RetriesFlag(retries, EscapeChar));
 
         public TokenBuilder RetriesFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new RetriesFlag(GetTokens(configureBuilder)));
@@ -117,7 +117,7 @@ namespace DockerfileModel.Tokens
             AddToken(new SecretMount(id, destinationPath, EscapeChar));
 
         public TokenBuilder SecretMount(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new SecretMount(GetTokens(configureBuilder)));
+            AddToken(new SecretMount(GetTokens(configureBuilder), EscapeChar));
 
         public TokenBuilder ShellFormCommand(string command) =>
             AddToken(new ShellFormCommand(command, EscapeChar));
@@ -126,7 +126,7 @@ namespace DockerfileModel.Tokens
             AddToken(new ShellFormCommand(GetTokens(configureBuilder)));
 
         public TokenBuilder StartPeriodFlag(string startPeriod) =>
-            AddToken(new StartPeriodFlag(startPeriod));
+            AddToken(new StartPeriodFlag(startPeriod, EscapeChar));
 
         public TokenBuilder StartPeriodFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new StartPeriodFlag(GetTokens(configureBuilder)));
@@ -144,19 +144,19 @@ namespace DockerfileModel.Tokens
             AddToken(new TagToken(GetTokens(configureBuilder)));
 
         public TokenBuilder TimeoutFlag(string timeout) =>
-            AddToken(new TimeoutFlag(timeout));
+            AddToken(new TimeoutFlag(timeout, EscapeChar));
 
         public TokenBuilder TimeoutFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new TimeoutFlag(GetTokens(configureBuilder)));
 
         public TokenBuilder VariableRef(string variableName, bool includeBraces = false) =>
-            AddToken(VariableRefToken.Create(variableName, includeBraces, EscapeChar));
+            AddToken(new VariableRefToken(variableName, includeBraces, EscapeChar));
 
         public TokenBuilder VariableRef(string variableName, string modifier, string modifierValue) =>
-            AddToken(VariableRefToken.Create(variableName, modifier, modifierValue, EscapeChar));
+            AddToken(new VariableRefToken(variableName, modifier, modifierValue, EscapeChar));
 
         public TokenBuilder VariableRef(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new VariableRefToken(GetTokens(configureBuilder)));
+            AddToken(new VariableRefToken(GetTokens(configureBuilder), EscapeChar));
 
         public TokenBuilder Whitespace(string value) =>
             AddToken(new WhitespaceToken(value));

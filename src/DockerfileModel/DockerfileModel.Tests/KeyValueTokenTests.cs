@@ -20,7 +20,7 @@ namespace DockerfileModel.Tests
                 KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.Parse(
                     scenario.Text,
                     ParseHelper.Keyword(scenario.Key, scenario.EscapeChar),
-                    ParseHelper.LiteralAggregate(scenario.EscapeChar),
+                    ParseHelper.LiteralWithVariables(scenario.EscapeChar),
                     escapeChar: scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);

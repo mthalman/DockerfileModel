@@ -89,6 +89,14 @@ namespace DockerfileModel.Tests
         }
 
         [Fact]
+        public void IntervalWithVariables()
+        {
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command", interval: "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => instruction.IntervalToken, token => instruction.IntervalToken = token, val => instruction.Interval = val, "var", canContainVariables: true);
+        }
+
+        [Fact]
         public void Timeout()
         {
             HealthCheckInstruction instruction = new HealthCheckInstruction("command", timeout: "10s");
@@ -120,6 +128,14 @@ namespace DockerfileModel.Tests
             Assert.Null(instruction.Timeout);
             Assert.Null(instruction.TimeoutToken);
             Assert.Equal("HEALTHCHECK CMD command", instruction.ToString());
+        }
+
+        [Fact]
+        public void TimeoutWithVariables()
+        {
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command", timeout: "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => instruction.TimeoutToken, token => instruction.TimeoutToken = token, val => instruction.Timeout = val, "var", canContainVariables: true);
         }
 
         [Fact]
@@ -157,6 +173,14 @@ namespace DockerfileModel.Tests
         }
 
         [Fact]
+        public void StartPeriodWithVariables()
+        {
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command", startPeriod: "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => instruction.StartPeriodToken, token => instruction.StartPeriodToken = token, val => instruction.StartPeriod = val, "var", canContainVariables: true);
+        }
+
+        [Fact]
         public void Retries()
         {
             HealthCheckInstruction instruction = new HealthCheckInstruction("command", retries: "10s");
@@ -188,6 +212,14 @@ namespace DockerfileModel.Tests
             Assert.Null(instruction.Retries);
             Assert.Null(instruction.RetriesToken);
             Assert.Equal("HEALTHCHECK CMD command", instruction.ToString());
+        }
+
+        [Fact]
+        public void RetriesWithVariables()
+        {
+            HealthCheckInstruction instruction = new HealthCheckInstruction("command", retries: "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => instruction.RetriesToken, token => instruction.RetriesToken = token, val => instruction.Retries = val, "var", canContainVariables: true);
         }
 
         [Fact]

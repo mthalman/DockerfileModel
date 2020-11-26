@@ -10,14 +10,17 @@ namespace DockerfileModel
 {
     public class ChangeOwner : AggregateToken
     {
+        private readonly char escapeChar;
+
         public ChangeOwner(string user, string? group = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(user, group, escapeChar))
+            : this(GetTokens(user, group, escapeChar), escapeChar)
         {
         }
 
-        internal ChangeOwner(IEnumerable<Token> tokens)
+        internal ChangeOwner(IEnumerable<Token> tokens, char escapeChar)
             : base(tokens)
         {
+            this.escapeChar = escapeChar;
         }
 
         public string User
@@ -43,18 +46,7 @@ namespace DockerfileModel
         public string? Group
         {
             get => GroupToken?.Value;
-            set
-            {
-                LiteralToken? groupToken = GroupToken;
-                if (groupToken is not null && value is not null)
-                {
-                    groupToken.Value = value;
-                }
-                else
-                {
-                    GroupToken = String.IsNullOrEmpty(value) ? null : new LiteralToken(value!);
-                }
-            }
+            set => SetOptionalLiteralTokenValue(GroupToken, value, token => GroupToken = token, canContainVariables: true, escapeChar);
         }
 
         public LiteralToken? GroupToken
@@ -78,11 +70,11 @@ namespace DockerfileModel
         }
 
         public static ChangeOwner Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ChangeOwner(GetTokens(text, GetInnerParser(escapeChar)));
+            new ChangeOwner(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
         public static Parser<ChangeOwner> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new ChangeOwner(tokens);
+            select new ChangeOwner(tokens, escapeChar);
 
         private static IEnumerable<Token> GetTokens(string user, string? group, char escapeChar)
         {
@@ -99,12 +91,12 @@ namespace DockerfileModel
             select ConcatTokens(user, groupSegment);
 
         private static Parser<IEnumerable<Token>> UserParser(char escapeChar) =>
-            LiteralAggregate(escapeChar, new char[] { ':' }).AsEnumerable();
+            LiteralWithVariables(escapeChar, new char[] { ':' }).AsEnumerable();
 
         private static Parser<IEnumerable<Token>> GroupSegment(char escapeChar) =>
             from colon in ArgTokens(Symbol(':').AsEnumerable(), escapeChar)
             from @group in ArgTokens(
-                LiteralAggregate(escapeChar, Enumerable.Empty<char>()).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
+                LiteralWithVariables(escapeChar, Enumerable.Empty<char>()).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true)
             select ConcatTokens(colon, @group);
     }
 }

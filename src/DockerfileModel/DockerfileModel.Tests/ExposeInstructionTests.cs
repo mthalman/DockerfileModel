@@ -40,6 +40,83 @@ namespace DockerfileModel.Tests
             scenario.Validate?.Invoke(result);
         }
 
+        [Fact]
+        public void Port()
+        {
+            ExposeInstruction result = new ExposeInstruction("23", "protocol");
+            Assert.Equal("23", result.Port);
+            Assert.Equal("23", result.PortToken.Value);
+            Assert.Equal("EXPOSE 23/protocol", result.ToString());
+
+            result.Port = "45";
+            Assert.Equal("45", result.Port);
+            Assert.Equal("45", result.PortToken.Value);
+            Assert.Equal("EXPOSE 45/protocol", result.ToString());
+
+            result.PortToken.Value = "67";
+            Assert.Equal("67", result.Port);
+            Assert.Equal("67", result.PortToken.Value);
+            Assert.Equal("EXPOSE 67/protocol", result.ToString());
+
+            result.PortToken = new LiteralToken("78");
+            Assert.Equal("78", result.Port);
+            Assert.Equal("78", result.PortToken.Value);
+            Assert.Equal("EXPOSE 78/protocol", result.ToString());
+
+            Assert.Throws<ArgumentNullException>(() => result.Port = null);
+            Assert.Throws<ArgumentException>(() => result.Port = "");
+            Assert.Throws<ArgumentNullException>(() => result.PortToken = null);
+        }
+
+        [Fact]
+        public void Protocol()
+        {
+            ExposeInstruction result = new ExposeInstruction("23", "test");
+            Assert.Equal("test", result.Protocol);
+            Assert.Equal("test", result.ProtocolToken.Value);
+            Assert.Equal("EXPOSE 23/test", result.ToString());
+
+            result.Protocol = "test2";
+            Assert.Equal("test2", result.Protocol);
+            Assert.Equal("test2", result.ProtocolToken.Value);
+            Assert.Equal("EXPOSE 23/test2", result.ToString());
+
+            result.Protocol = null;
+            Assert.Null(result.Protocol);
+            Assert.Null(result.ProtocolToken);
+            Assert.Equal("EXPOSE 23", result.ToString());
+
+            result.ProtocolToken = new LiteralToken("test3");
+            Assert.Equal("test3", result.Protocol);
+            Assert.Equal("test3", result.ProtocolToken.Value);
+            Assert.Equal("EXPOSE 23/test3", result.ToString());
+
+            result.ProtocolToken.Value = "test4";
+            Assert.Equal("test4", result.Protocol);
+            Assert.Equal("test4", result.ProtocolToken.Value);
+            Assert.Equal("EXPOSE 23/test4", result.ToString());
+
+            result.ProtocolToken = null;
+            Assert.Null(result.Protocol);
+            Assert.Null(result.ProtocolToken);
+            Assert.Equal("EXPOSE 23", result.ToString());
+        }
+
+        [Fact]
+        public void PortWithVariables()
+        {
+            ExposeInstruction result = new ExposeInstruction("$var", "test");
+            TestHelper.TestVariablesWithLiteral(() => result.PortToken, "var", canContainVariables: true);
+        }
+
+        [Fact]
+        public void ProtocolWithVariables()
+        {
+            ExposeInstruction result = new ExposeInstruction("23", "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => result.ProtocolToken, token => result.ProtocolToken = token, val => result.Protocol = val, "var", canContainVariables: true);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             ExposeInstructionParseTestScenario[] testInputs = new ExposeInstructionParseTestScenario[]
@@ -118,7 +195,7 @@ namespace DockerfileModel.Tests
             {
                 new CreateTestScenario
                 {
-                    Port = 8080,
+                    Port = "8080",
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, "EXPOSE"),
@@ -128,7 +205,7 @@ namespace DockerfileModel.Tests
                 },
                 new CreateTestScenario
                 {
-                    Port = 80,
+                    Port = "80",
                     Protocol = "udp",
                     TokenValidators = new Action<Token>[]
                     {
@@ -151,7 +228,7 @@ namespace DockerfileModel.Tests
 
         public class CreateTestScenario : TestScenario<ExposeInstruction>
         {
-            public int Port { get; set; }
+            public string Port { get; set; }
             public string Protocol { get; set; }
         }
     }

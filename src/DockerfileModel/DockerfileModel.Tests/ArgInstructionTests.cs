@@ -101,6 +101,14 @@ namespace DockerfileModel.Tests
             Assert.False(arg.HasAssignmentOperator);
         }
 
+        [Fact]
+        public void ArgValueWithVariables()
+        {
+            ArgInstruction arg = new ArgInstruction("test", "$var");
+            TestHelper.TestVariablesWithNullableLiteral(
+                () => arg.ArgValueToken, token => arg.ArgValueToken = token, val => arg.ArgValue = val, "var", canContainVariables: true);
+        }
+
         public static IEnumerable<object[]> ParseTestInput()
         {
             ArgInstructionParseTestScenario[] testInputs = new ArgInstructionParseTestScenario[]
