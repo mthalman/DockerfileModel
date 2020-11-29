@@ -42,6 +42,6 @@ namespace DockerfileModel
         public override CommandType CommandType => CommandType.ExecForm;
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-            JsonArray(escapeChar, canContainVariables: false);
+            ArgTokens(JsonArray(escapeChar, canContainVariables: false), escapeChar);
     }
 }

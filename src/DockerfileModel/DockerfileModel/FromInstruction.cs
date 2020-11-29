@@ -147,14 +147,8 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
            from asKeyword in ArgTokens(Keyword("AS", escapeChar).AsEnumerable(), escapeChar)
-           from stageName in ArgTokens(StageNameIdentifier().AsEnumerable(), escapeChar)
+           from stageName in ArgTokens(StageNameIdentifier(escapeChar).AsEnumerable(), escapeChar)
            select ConcatTokens(asKeyword, stageName);
-
-        private static Parser<IdentifierToken> StageNameIdentifier() =>
-            from stageName in Sprache.Parse.Identifier(
-                Sprache.Parse.Letter,
-                Sprache.Parse.LetterOrDigit.Or(Sprache.Parse.Char('_')).Or(Sprache.Parse.Char('-')).Or(Sprache.Parse.Char('.')))
-            select new IdentifierToken(stageName);
 
         private static Parser<IEnumerable<Token>> GetPlatformParser(char escapeChar) =>
             ArgTokens(PlatformFlag.GetParser(escapeChar).AsEnumerable(), escapeChar);

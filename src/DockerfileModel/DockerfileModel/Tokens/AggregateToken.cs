@@ -126,9 +126,10 @@ namespace DockerfileModel.Tokens
             Action<LiteralToken?> setToken, bool canContainVariables, char escapeChar) =>
             SetOptionalTokenValue(currentToken, value, val => new LiteralToken(val, canContainVariables, escapeChar), setToken);
 
-        protected static void SetOptionalKeyValueTokenValue<TKeyValueToken>(TKeyValueToken? currentToken, LiteralToken? value,
+        protected static void SetOptionalKeyValueTokenValue<TKeyValueToken, TValue>(TKeyValueToken? currentToken, TValue? value,
             Func<string, TKeyValueToken> createToken, Action<TKeyValueToken?> setToken)
-            where TKeyValueToken : KeyValueToken<KeywordToken, LiteralToken> =>
+            where TKeyValueToken : KeyValueToken<KeywordToken, TValue>
+            where TValue : Token, IValueToken =>
             SetOptionalTokenValue(currentToken, value, token => createToken(token.Value), (token, val) => token.ValueToken = val, setToken);
 
         protected static void SetOptionalTokenValue<TToken>(TToken? currentToken, string? value, Func<string, TToken> createToken,

@@ -389,6 +389,24 @@ namespace DockerfileModel.Tests
                 },
                 new FromInstructionParseTestScenario
                 {
+                    Text = "FROM alpine AS bui`\nld",
+                    EscapeChar = '`',
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "FROM"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "alpine"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateKeyword(token, "AS"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<IdentifierToken>(token, "bui`\nld",
+                            token => ValidateString(token, "bui"),
+                            token => ValidateLineContinuation(token, '`', "\n"),
+                            token => ValidateString(token, "ld"))
+                    }
+                },
+                new FromInstructionParseTestScenario
+                {
                     Text = "FROM \"al\\\npine\"",
                     EscapeChar = '\\',
                     TokenValidators = new Action<Token>[]

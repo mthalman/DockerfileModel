@@ -118,7 +118,7 @@ namespace DockerfileModel.Tests
             {
                 new ExecFormCommandParseTestScenario
                 {
-                    Text = "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                    Text = "[\"/bin/bash\", \"-c\", \"echo hello\"]\n",
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateSymbol(token, '['),
@@ -129,12 +129,13 @@ namespace DockerfileModel.Tests
                         token => ValidateSymbol(token, ','),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
-                        token => ValidateSymbol(token, ']')
+                        token => ValidateSymbol(token, ']'),
+                        token => ValidateNewLine(token, "\n")
                     },
                     Validate = result =>
                     {
                         Assert.Equal(CommandType.ExecForm, result.CommandType);
-                        Assert.Equal("[\"/bin/bash\", \"-c\", \"echo hello\"]", result.ToString());
+                        Assert.Equal("[\"/bin/bash\", \"-c\", \"echo hello\"]\n", result.ToString());
                         Assert.Equal(
                             new string[]
                             {

@@ -337,7 +337,16 @@ namespace DockerfileModel
         /// </summary>
         public static Parser<NewLineToken> NewLine() =>
             from lineEnd in Parse.LineEnd
-            select new NewLineToken(lineEnd);       
+            select new NewLineToken(lineEnd);
+
+        public static Parser<IdentifierToken> StageNameIdentifier(char escapeChar) =>
+            from stageName in IdentifierString(escapeChar, StageNameFirstCharParser(), StageNameTailCharParser())
+            select new IdentifierToken(stageName);
+
+        private static Parser<char> StageNameFirstCharParser() => Parse.Letter;
+
+        private static Parser<char> StageNameTailCharParser() =>
+            Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')).Or(Parse.Char('.'));
 
         /// <summary>
         /// Parses a variable identifier reference.
@@ -588,7 +597,7 @@ namespace DockerfileModel
         /// <param name="firstCharacterParser">Parser of the first character of the identifier.</param>
         /// <param name="tailCharacterParser">Parser of the rest of the characters of the identifier.</param>
         /// <returns>Parser for an identifier string.</returns>
-        private static Parser<IEnumerable<Token>> IdentifierString(char escapeChar, Parser<char> firstCharacterParser,
+        public static Parser<IEnumerable<Token>> IdentifierString(char escapeChar, Parser<char> firstCharacterParser,
             Parser<char> tailCharacterParser) =>
             from first in ToStringTokens(firstCharacterParser)
             from rest in OrConcat(
