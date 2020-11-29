@@ -95,12 +95,19 @@ namespace DockerfileModel
             }
         }
 
-        protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName) =>
-            Instruction(instructionName, escapeChar,
-                GetArgsParser(escapeChar));
+        protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
+            Parser<IEnumerable<Token>>? optionalFlagParser = null) =>
+            Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser));
 
         private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
            ChangeOwner? changeOwner, char escapeChar, string instructionName)
+        {
+            string text = CreateInstructionString(sources, destination, changeOwner, escapeChar, instructionName, null);
+            return GetTokens(text, GetInnerParser(escapeChar, instructionName));
+        }
+
+        protected static string CreateInstructionString(IEnumerable<string> sources, string destination,
+           ChangeOwner? changeOwner, char escapeChar, string instructionName, string? optionalFlag)
         {
             Requires.NotNullEmptyOrNullElements(sources, nameof(sources));
             Requires.NotNullOrEmpty(destination, nameof(destination));
@@ -110,6 +117,8 @@ namespace DockerfileModel
             string changeOwnerFlagStr = changeOwner is null ?
                 string.Empty :
                 $"{new ChangeOwnerFlag(changeOwner)} ";
+
+            string flags = $"{optionalFlag}{changeOwnerFlagStr}";
 
             TokenBuilder builder = new TokenBuilder();
             builder
@@ -122,30 +131,31 @@ namespace DockerfileModel
                 builder.Whitespace(" ");
             }
 
-
             bool useJsonForm = locations.Any(loc => loc.Contains(" "));
-            string text;
             if (useJsonForm)
             {
-                text = $"{instructionName} {changeOwnerFlagStr}{StringHelper.FormatAsJson(locations)}";
+                return $"{instructionName} {flags}{StringHelper.FormatAsJson(locations)}";
             }
             else
             {
-                text = $"{instructionName} {changeOwnerFlagStr}{String.Join(" ", locations.ToArray())}";
+                return $"{instructionName} {flags}{String.Join(" ", locations.ToArray())}";
             }
-
-            return GetTokens(text, GetInnerParser(escapeChar, instructionName));
         }
 
-        private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-            from changeOwner in ArgTokens(
-                ChangeOwnerFlag.GetParser(escapeChar: escapeChar).AsEnumerable(), escapeChar).Optional()
+        private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
+            from flags in ArgTokens(
+                from flag in FlagOption(escapeChar, optionalFlagParser).Optional()
+                select flag.GetOrDefault(), escapeChar).Many().Flatten()
             from whitespace in Whitespace()
-            from files in JsonArray(escapeChar, canContainVariables: true).Or(
+            from files in ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar).Or(
                 from literals in ArgTokens(
                     LiteralWithVariables(escapeChar).AsEnumerable(),
                     escapeChar).Many()
                 select literals.Flatten())
-            select ConcatTokens(changeOwner.GetOrDefault(), whitespace, files);
+            select ConcatTokens(flags, whitespace, files);
+
+        private static Parser<IEnumerable<Token>?> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
+            ChangeOwnerFlag.GetParser(escapeChar: escapeChar).AsEnumerable()
+                .Or(optionalFlagParser ?? Parse.Return<IEnumerable<Token>?>(null));
     }
 }

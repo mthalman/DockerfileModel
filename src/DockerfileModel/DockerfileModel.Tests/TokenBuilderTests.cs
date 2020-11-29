@@ -17,6 +17,7 @@ namespace DockerfileModel.Tests
                 .Comment("comment")
                 .Digest("digest")
                 .ExecFormCommand("cmd1", "cmd2")
+                .FromFlag("stage")
                 .Identifier("id")
                 .ImageName("repo")
                 .IntervalFlag("3m")
@@ -55,16 +56,17 @@ namespace DockerfileModel.Tests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "cmd2", ParseHelper.DoubleQuote),
                     token => ValidateSymbol(token, ']')),
+                token => ValidateAggregate<FromFlag>(token, $"--from=stage",
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "from"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateIdentifier(token, "stage")),
                 token => ValidateIdentifier(token, "id"),
                 token => ValidateAggregate<ImageName>(token, "repo",
                     token => ValidateAggregate<RepositoryToken>(token, "repo",
                         token => ValidateString(token, "repo"))),
-                token => ValidateAggregate<IntervalFlag>(token, "--interval=3m",
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateKeyword(token, "interval"),
-                    token => ValidateSymbol(token, '='),
-                    token => ValidateLiteral(token, "3m")),
+                token => ValidateKeyValueFlag<IntervalFlag>(token, "interval", "3m"),
                 token => ValidateKeyValue(token, "key", "value"),
                 token => ValidateKeyword(token, "key"),
                 token => ValidateLineContinuation(token, '\\', Environment.NewLine),
@@ -89,33 +91,18 @@ namespace DockerfileModel.Tests
                     token => ValidateString(token, "registry")),
                 token => ValidateAggregate<RepositoryToken>(token, "repo",
                     token => ValidateString(token, "repo")),
-                token => ValidateAggregate<RetriesFlag>(token, "--retries=2",
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateKeyword(token, "retries"),
-                    token => ValidateSymbol(token, '='),
-                    token => ValidateLiteral(token, "2")),
+                token => ValidateKeyValueFlag<RetriesFlag>(token, "retries", "2"),
                 token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
                     token => ValidateKeyValue(token, "type", "secret"),
                     token => ValidateSymbol(token, ','),
                     token => ValidateKeyValue(token, "id", "id")),
                 token => ValidateAggregate<ShellFormCommand>(token, "cmd",
                     token => ValidateLiteral(token, "cmd")),
-                token => ValidateAggregate<StartPeriodFlag>(token, "--start-period=1s",
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateKeyword(token, "start-period"),
-                    token => ValidateSymbol(token, '='),
-                    token => ValidateLiteral(token, "1s")),
+                token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "1s"),
                 token => ValidateSymbol(token, '-'),
                 token => ValidateAggregate<TagToken>(token, "tag",
                     token => ValidateString(token, "tag")),
-                token => ValidateAggregate<TimeoutFlag>(token, "--timeout=2h",
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateKeyword(token, "timeout"),
-                    token => ValidateSymbol(token, '='),
-                    token => ValidateLiteral(token, "2h")),
+                token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "2h"),
                 token => ValidateAggregate<VariableRefToken>(token, "$var",
                     token => ValidateString(token, "var")),
                 token => ValidateWhitespace(token, " ")
@@ -126,6 +113,7 @@ namespace DockerfileModel.Tests
                 "#comment" +
                 "digest" +
                 "[\"cmd1\", \"cmd2\"]" +
+                "--from=stage" +
                 "id" +
                 "repo" +
                 "--interval=3m" +

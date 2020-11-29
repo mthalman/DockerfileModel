@@ -67,8 +67,9 @@ namespace DockerfileModel
         public DockerfileBuilder Comment(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
-        public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination, ChangeOwner? changeOwner = null) =>
-            AddConstruct(new CopyInstruction(sources, destination, changeOwner, EscapeChar));
+        public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination,
+            string? fromStageName = null, ChangeOwner? changeOwner = null) =>
+            AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, EscapeChar));
 
         public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.CopyInstruction.Parse);

@@ -127,7 +127,7 @@ namespace DockerfileModel.Tests
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => AddInstruction.Parse(scenario.Text, scenario.EscapeChar));
+                    () => this.parse(scenario.Text, scenario.EscapeChar));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
@@ -242,6 +242,42 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "dst", ParseHelper.DoubleQuote),
                         token => ValidateSymbol(token, ']')
+                    }
+                },
+                new FileTransferInstructionParseTestScenario
+                {
+                    Text = $"{instructionName} [\"$src\", \"dst\"]\n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, instructionName),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "\"$src\"", ParseHelper.DoubleQuote,
+                            token => ValidateAggregate<VariableRefToken>(token, "$src",
+                                token => ValidateString(token, "src"))),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "dst", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ']'),
+                        token => ValidateNewLine(token, "\n")
+                    }
+                },
+                new FileTransferInstructionParseTestScenario
+                {
+                    Text = $"{instructionName} [\"$src\", \"dst loc\"]\r\n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, instructionName),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "\"$src\"", ParseHelper.DoubleQuote,
+                            token => ValidateAggregate<VariableRefToken>(token, "$src",
+                                token => ValidateString(token, "src"))),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "dst loc", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ']'),
+                        token => ValidateNewLine(token, "\r\n")
                     }
                 },
                 new FileTransferInstructionParseTestScenario

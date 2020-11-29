@@ -33,6 +33,12 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ExecFormCommand(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ExecFormCommand(GetTokens(configureBuilder)));
 
+        public TokenBuilder FromFlag(string fromStageName) =>
+            AddToken(new FromFlag(fromStageName, EscapeChar));
+
+        public TokenBuilder FromFlag(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new FromFlag(GetTokens(configureBuilder)));
+
         public TokenBuilder Identifier(string value) =>
             AddToken(new IdentifierToken(value));
 
