@@ -173,7 +173,7 @@ namespace DockerfileModel.Tests
             Assert.Equal(6, repoArgTokens.Length);
             Assert.IsType<KeywordToken>(repoArgTokens[0]);
             Assert.IsType<WhitespaceToken>(repoArgTokens[1]);
-            Assert.IsType<IdentifierToken>(repoArgTokens[2]);
+            Assert.IsType<Variable>(repoArgTokens[2]);
             Assert.IsType<SymbolToken>(repoArgTokens[3]);
             Assert.IsType<LiteralToken>(repoArgTokens[4]);
             Assert.IsType<NewLineToken>(repoArgTokens[5]);
@@ -197,7 +197,7 @@ namespace DockerfileModel.Tests
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[5]);
             Assert.IsType<KeywordToken>(fromInstructionTokens[6]);
             Assert.IsType<WhitespaceToken>(fromInstructionTokens[7]);
-            Assert.IsType<IdentifierToken>(fromInstructionTokens[8]);
+            Assert.IsType<StageName>(fromInstructionTokens[8]);
         }
 
         /// <summary>

@@ -152,7 +152,7 @@ namespace DockerfileModel.Tests
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, key),
                 token => ValidateSymbol(token, '='),
-                token => ValidateIdentifier(token, value));
+                token => ValidateIdentifier<StageName>(token, value));
         }
 
         public class CopyInstructionParseTestScenario : ParseTestScenario<CopyInstruction>

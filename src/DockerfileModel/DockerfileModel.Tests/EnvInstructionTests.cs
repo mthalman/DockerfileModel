@@ -55,10 +55,10 @@ namespace DockerfileModel.Tests
                 }
             });
 
-                Assert.Collection(instruction.VariableTokens, new Action<KeyValueToken<IdentifierToken, LiteralToken>>[]
+                Assert.Collection(instruction.VariableTokens, new Action<KeyValueToken<Variable, LiteralToken>>[]
                 {
-                    token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, $"{expectedKey}={expectedValue}",
-                        token => ValidateIdentifier(token, expectedKey),
+                    token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, $"{expectedKey}={expectedValue}",
+                        token => ValidateIdentifier<Variable>(token, expectedKey),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, expectedValue))
                 });
@@ -107,8 +107,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME=",
-                            token => ValidateIdentifier(token, "MY_NAME"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME=",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, ""))
                     },
@@ -133,8 +133,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME=\"\"",
-                            token => ValidateIdentifier(token, "MY_NAME"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME=\"\"",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "", '\"'))
                     },
@@ -159,8 +159,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME John",
-                            token => ValidateIdentifier(token, "MY_NAME"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME John",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "John")),
                         token => ValidateNewLine(token, "\r\n")
@@ -173,8 +173,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME=John",
-                            token => ValidateIdentifier(token, "MY_NAME"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME=John",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "John"))
                     },
@@ -199,8 +199,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME=\"John Doe\"",
-                            token => ValidateIdentifier(token, "MY_NAME"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME=\"John Doe\"",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "John Doe", '\"'))
                     },
@@ -226,8 +226,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME=John` Doe",
-                            token => ValidateIdentifier(token, "MY_NAME"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME=John` Doe",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "John` Doe"))
                     },
@@ -253,13 +253,13 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME=\"John Doe\"",
-                            token => ValidateIdentifier(token, "MY_NAME"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME=\"John Doe\"",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "John Doe", '\"')),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_DOG=Rex` The` Dog",
-                            token => ValidateIdentifier(token, "MY_DOG"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_DOG=Rex` The` Dog",
+                            token => ValidateIdentifier<Variable>(token, "MY_DOG"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "Rex` The` Dog")),
                         token => ValidateWhitespace(token, " "),
@@ -268,8 +268,8 @@ namespace DockerfileModel.Tests
                             token => ValidateWhitespace(token, " "),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_CAT=fluffy",
-                            token => ValidateIdentifier(token, "MY_CAT"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_CAT=fluffy",
+                            token => ValidateIdentifier<Variable>(token, "MY_CAT"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "fluffy"))
                     },
@@ -304,8 +304,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_NAME John",
-                            token => ValidateIdentifier(token, "MY_NAME"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME John",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                             token => ValidateWhitespace(token, " "),
                             token => ValidateLiteral(token, "John"))
                     },
@@ -331,8 +331,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "MY_`\nNAME `\nJo`\nhn",
-                            token => ValidateAggregate<IdentifierToken>(token, "MY_`\nNAME",
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_`\nNAME `\nJo`\nhn",
+                            token => ValidateAggregate<Variable>(token, "MY_`\nNAME",
                                 token => ValidateString(token, "MY_"),
                                 token => ValidateLineContinuation(token, '`', "\n"),
                                 token => ValidateString(token, "NAME")),
@@ -376,8 +376,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "VAR1=test",
-                            token => ValidateIdentifier(token, "VAR1"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR1=test",
+                            token => ValidateIdentifier<Variable>(token, "VAR1"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "test"))
                     }
@@ -392,8 +392,8 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "VAR1=test\\ 123",
-                            token => ValidateIdentifier(token, "VAR1"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR1=test\\ 123",
+                            token => ValidateIdentifier<Variable>(token, "VAR1"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "test\\ 123"))
                     }
@@ -409,13 +409,13 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ENV"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "VAR1=test",
-                            token => ValidateIdentifier(token, "VAR1"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR1=test",
+                            token => ValidateIdentifier<Variable>(token, "VAR1"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "test")),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "VAR2=\"testing 1 2 3\"",
-                            token => ValidateIdentifier(token, "VAR2"),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR2=\"testing 1 2 3\"",
+                            token => ValidateIdentifier<Variable>(token, "VAR2"),
                             token => ValidateSymbol(token, '='),
                             token => ValidateLiteral(token, "testing 1 2 3", '\"'))
                     }

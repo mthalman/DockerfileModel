@@ -12,48 +12,43 @@ namespace DockerfileModel
 {
     public class ImageName : AggregateToken
     {
-        private RegistryToken? registryToken;
-        private RepositoryToken repositoryToken;
-        private TagToken? tagToken;
-        private DigestToken? digestToken;
+        private InnerTokens.Registry? registryToken;
+        private InnerTokens.Repository repositoryToken;
+        private InnerTokens.Tag? tagToken;
+        private InnerTokens.Digest? digestToken;
 
-        public ImageName(string repository, string? registry = null, string? tag = null, string? digest = null)
-            : this(GetTokens(repository, registry, tag, digest))
+        public ImageName(string repository, string? registry = null, string? tag = null, string? digest = null,
+            char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(repository, registry, tag, digest, escapeChar))
         {
         }
 
         internal ImageName(IEnumerable<Token> tokens) : base(tokens)
         {
-            registryToken = Tokens.OfType<RegistryToken>().FirstOrDefault();
-            repositoryToken = Tokens.OfType<RepositoryToken>().First();
-            tagToken = Tokens.OfType<TagToken>().FirstOrDefault();
-            digestToken = Tokens.OfType<DigestToken>().FirstOrDefault();
+            registryToken = Tokens.OfType<InnerTokens.Registry>().FirstOrDefault();
+            repositoryToken = Tokens.OfType<InnerTokens.Repository>().First();
+            tagToken = Tokens.OfType<InnerTokens.Tag>().FirstOrDefault();
+            digestToken = Tokens.OfType<InnerTokens.Digest>().FirstOrDefault();
         }
-
-        public static ImageName Parse(string imageName) =>
-            new ImageName(GetTokens(imageName, ImageNameParser.GetParser()));
-
-        public static Parser<IEnumerable<Token>> GetParser() =>
-            ImageNameParser.GetParser();
 
         public string? Registry
         {
             get => this.registryToken?.Value;
             set
             {
-                RegistryToken? registryToken = RegistryToken;
-                if (registryToken != null && value is not null)
+                InnerTokens.Registry? registryToken = RegistryToken;
+                if (registryToken is not null && value is not null)
                 {
                     registryToken.Value = value;
                 }
                 else
                 {
-                    RegistryToken = String.IsNullOrEmpty(value) ? null : new RegistryToken(value!);
+                    RegistryToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Registry(value!);
                 }
             }
         }
 
-        public RegistryToken? RegistryToken
+        private InnerTokens.Registry? RegistryToken
         {
             get => this.registryToken;
             set
@@ -87,7 +82,7 @@ namespace DockerfileModel
             }
         }
 
-        public RepositoryToken RepositoryToken
+        private InnerTokens.Repository RepositoryToken
         {
             get => repositoryToken;
             set
@@ -107,19 +102,19 @@ namespace DockerfileModel
                     value is null || Digest is null,
                     $"{nameof(Tag)} cannot be set when {nameof(Digest)} is already set.");
 
-                TagToken? tagToken = TagToken;
-                if (tagToken != null && value is not null)
+                InnerTokens.Tag? tagToken = TagToken;
+                if (tagToken is not null && value is not null)
                 {
                     tagToken.Value = value;
                 }
                 else
                 {
-                    TagToken = String.IsNullOrEmpty(value) ? null : new TagToken(value!);
+                    TagToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Tag(value!);
                 }
             }
         }
 
-        public TagToken? TagToken
+        private InnerTokens.Tag? TagToken
         {
             get => tagToken;
             set
@@ -156,19 +151,19 @@ namespace DockerfileModel
                     value is null || Tag is null,
                     $"{nameof(Digest)} cannot be set when {nameof(Tag)} is already set.");
 
-                DigestToken? digestToken = DigestToken;
-                if (digestToken != null && value is not null)
+                InnerTokens.Digest? digestToken = DigestToken;
+                if (digestToken is not null && value is not null)
                 {
                     digestToken.Value = value;
                 }
                 else
                 {
-                    DigestToken = String.IsNullOrEmpty(value) ? null : new DigestToken(value!);
+                    DigestToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Digest(value!);
                 }
             }
         }
 
-        public DigestToken? DigestToken
+        private InnerTokens.Digest? DigestToken
         {
             get => digestToken;
             set
@@ -196,7 +191,7 @@ namespace DockerfileModel
             }
         }
 
-        private static IEnumerable<Token> GetTokens(string repository, string? registry, string? tag, string? digest)
+        public static string FormatImageName(string repository, string? registry, string? tag, string? digest)
         {
             Requires.NotNullOrWhiteSpace(repository, nameof(repository));
             Requires.ValidState(
@@ -204,7 +199,7 @@ namespace DockerfileModel
                 $"Either {nameof(tag)} may be set or {nameof(digest)} may be set but not both.");
 
             StringBuilder builder = new StringBuilder();
-            if (registry != null)
+            if (registry is not null)
             {
                 builder.Append(registry);
                 builder.Append('/');
@@ -212,123 +207,215 @@ namespace DockerfileModel
 
             builder.Append(repository);
 
-            if (tag != null)
+            if (tag is not null)
             {
                 builder.Append(':');
                 builder.Append(tag);
             }
-            else if (digest != null)
+            else if (digest is not null)
             {
                 builder.Append('@');
                 builder.Append(digest);
             }
 
-            return GetTokens(builder.ToString(), GetParser());
+            return builder.ToString();
         }
 
-        private static class ImageNameParser
-        {
-            public static Parser<IEnumerable<Token>> GetParser() =>
-                from registryRepository in RegistryRepository()
-                from tagDigest in TagDigest().Optional()
+        public static ImageName Parse(string imageName, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new ImageName(GetTokens(imageName, GetParser(escapeChar)));
+
+        public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
+                from registryRepository in ParseRegistryRepository(escapeChar)
+                from tagDigest in ParseTagDigest(escapeChar).Optional()
                 select ConcatTokens(
                     registryRepository, tagDigest.IsDefined ? tagDigest.GetOrDefault() : Enumerable.Empty<Token?>());
 
-            private static Parser<Token> Registry() =>
-                from identifier in DelimitedIdentifier(
-                    Sprache.Parse.LetterOrDigit,
-                    NameComponentChar().Except(Sprache.Parse.Char('.')),
-                    '.',
-                    minimumDelimiters: 1)
-                select new RegistryToken(identifier);
+        private static IEnumerable<Token> GetTokens(string repository, string? registry, string? tag, string? digest, char escapeChar) =>
+            GetTokens(FormatImageName(repository, registry, tag, digest), GetParser(escapeChar));
 
-            private static Parser<Token> Repository() =>
-                from identifier in DelimitedIdentifier(Sprache.Parse.LetterOrDigit, NameComponentChar(), '/')
-                select new RepositoryToken(identifier);
+        private static Parser<IEnumerable<Token>> ParseRegistryRepository(char escapeChar) =>
+            (from registry in InnerTokens.Registry.GetParser(escapeChar)
+             from separator in Symbol('/')
+             from repository in InnerTokens.Repository.GetParser(escapeChar)
+             select ConcatTokens(
+                 registry,
+                 separator,
+                 repository)).Or<IEnumerable<Token>>(
+            from repository in InnerTokens.Repository.GetParser(escapeChar)
+            select new Token[] { repository });
 
-            private static Parser<IEnumerable<Token>> RegistryRepository() =>
-                (from registry in Registry()
-                 from separator in Symbol('/')
-                 from repository in Repository()
-                 select ConcatTokens(
-                     registry,
-                     separator,
-                     repository)).Or(
-                from repository in Repository()
-                select new Token[] { repository });
+        private static Parser<IEnumerable<Token>> ParseTag(char escapeChar) =>
+            from separator in Symbol(':')
+            from tag in InnerTokens.Tag.GetParser(escapeChar)
+            select ConcatTokens(separator, tag);
 
-            private static Parser<IEnumerable<Token>> Tag() =>
-                from separator in Symbol(':')
-                from tag in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, NameComponentChar())
-                select ConcatTokens(
-                    separator,
-                    new TagToken(tag));
+        private static Parser<IEnumerable<Token>> ParseDigest(char escapeChar) =>
+            from digestSeparator in Symbol('@')
+            from digest in InnerTokens.Digest.GetParser(escapeChar)
+            select ConcatTokens(digestSeparator, digest);
 
-            private static Parser<IEnumerable<Token>> Digest() =>
-                from digestSeparator in Symbol('@')
-                from prefix in Sprache.Parse.String("sha")
-                from digits in Sprache.Parse.Digit.Many().Text()
-                from shaSeparator in Sprache.Parse.Char(':')
-                from digest in Sprache.Parse.Identifier(Sprache.Parse.LetterOrDigit, Sprache.Parse.LetterOrDigit)
-                select ConcatTokens(
-                    digestSeparator,
-                    new DigestToken($"sha{digits}:{digest}"));
+        private static Parser<IEnumerable<Token>> ParseTagDigest(char escapeChar) =>
+            (from tag in ParseTag(escapeChar)
+             select tag).Or(
+                from digest in ParseDigest(escapeChar)
+                select digest);
 
-            private static Parser<IEnumerable<Token>> TagDigest() =>
-                (from tag in Tag()
-                 select tag).Or(
-                    from digest in Digest()
-                    select digest);
-
-            private static Parser<char> NameComponentChar() =>
-                Sprache.Parse.LetterOrDigit
-                    .Or(Sprache.Parse.Char('.'))
-                    .Or(Sprache.Parse.Char('_'))
-                    .Or(Sprache.Parse.Char('-'));
-        }
-    }
-
-    public class RegistryToken : IdentifierToken
-    {
-        public RegistryToken(string value) : base(value)
+        private static class InnerTokens
         {
-        }
+            public class Digest : LiteralToken
+            {
+                private readonly char escapeChar;
 
-        internal RegistryToken(IEnumerable<Token> tokens) : base(tokens)
-        {
-        }
-    }
+                public Digest(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+                    : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
+                {
+                }
 
-    public class RepositoryToken : IdentifierToken
-    {
-        public RepositoryToken(string value) : base(value)
-        {
-        }
+                internal Digest(IEnumerable<Token> tokens, char escapeChar)
+                    : base(tokens, canContainVariables: true, escapeChar)
+                {
+                    this.escapeChar = escapeChar;
+                }
 
-        internal RepositoryToken(IEnumerable<Token> tokens) : base(tokens)
-        {
-        }
-    }
+                public static Digest Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                    new Digest(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public class TagToken : IdentifierToken
-    {
-        public TagToken(string value) : base(value)
-        {
-        }
+                public static Parser<Digest> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                    from tokens in GetInnerParser(escapeChar)
+                    select new Digest(tokens, escapeChar);
 
-        internal TagToken(IEnumerable<Token> tokens) : base(tokens)
-        {
-        }
-    }
+                protected override IEnumerable<Token> GetInnerTokens(string value) =>
+                    GetTokens(value, GetInnerParser(escapeChar));
 
-    public class DigestToken : IdentifierToken
-    {
-        public DigestToken(string value) : base(value)
-        {
-        }
+                private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+                    from prefix in ArgTokens(
+                        StringToken("sha", escapeChar), escapeChar)
+                    from digits in ArgTokens(
+                        StringTokenCharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Digit), escapeChar).Many()
+                    from shaSeparator in ArgTokens(
+                        StringTokenCharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char(':')), escapeChar)
+                    from digest in ArgTokens(
+                        IdentifierString(escapeChar, Sprache.Parse.LetterOrDigit, Sprache.Parse.LetterOrDigit), escapeChar, excludeTrailingWhitespace: true)
+                    select TokenHelper.CollapseStringTokens(ConcatTokens(
+                        prefix,
+                        TokenHelper.CollapseStringTokens(digits.Flatten()),
+                        shaSeparator,
+                        digest));
+            }
 
-        internal DigestToken(IEnumerable<Token> tokens) : base(tokens)
-        {
+            public class Tag : LiteralToken
+            {
+                private readonly char escapeChar;
+
+                public Tag(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+                    : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
+                {
+                }
+
+                internal Tag(IEnumerable<Token> tokens, char escapeChar)
+                    : base(tokens, canContainVariables: true, escapeChar)
+                {
+                    this.escapeChar = escapeChar;
+                }
+
+                public static Tag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                    new Tag(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+
+                public static Parser<Tag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                    from tokens in GetInnerParser(escapeChar)
+                    select new Tag(tokens, escapeChar);
+
+                protected override IEnumerable<Token> GetInnerTokens(string value) =>
+                    GetTokens(value, GetInnerParser(escapeChar));
+
+                private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+                    DelimitedIdentifier(escapeChar, FirstCharParser(), TailCharParser(), '/');
+
+                private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
+
+                private static Parser<char> TailCharParser() =>
+                    Sprache.Parse.LetterOrDigit
+                        .Or(Sprache.Parse.Char('.'))
+                        .Or(Sprache.Parse.Char('_'))
+                        .Or(Sprache.Parse.Char('-'));
+            }
+
+            public class Repository : LiteralToken
+            {
+                private readonly char escapeChar;
+
+                public Repository(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+                    : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
+                {
+                }
+
+                internal Repository(IEnumerable<Token> tokens, char escapeChar)
+                    : base(tokens, canContainVariables: true, escapeChar)
+                {
+                    this.escapeChar = escapeChar;
+                }
+
+                public static Repository Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                    new Repository(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+
+                public static Parser<Repository> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                    from tokens in GetInnerParser(escapeChar)
+                    select new Repository(tokens, escapeChar);
+
+                protected override IEnumerable<Token> GetInnerTokens(string value) =>
+                    GetTokens(value, GetInnerParser(escapeChar));
+
+                private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+                    DelimitedIdentifier(escapeChar, FirstCharParser(), TailCharParser(), '/');
+
+                private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
+
+                private static Parser<char> TailCharParser() =>
+                    Sprache.Parse.LetterOrDigit
+                        .Or(Sprache.Parse.Char('_'))
+                        .Or(Sprache.Parse.Char('-'));
+            }
+
+            public class Registry : LiteralToken
+            {
+                private readonly char escapeChar;
+
+                public Registry(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+                    : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
+                {
+                }
+
+                internal Registry(IEnumerable<Token> tokens, char escapeChar)
+                    : base(tokens, canContainVariables: true, escapeChar)
+                {
+                    this.escapeChar = escapeChar;
+                }
+
+                public static Registry Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                    new Registry(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+
+                public static Parser<Registry> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                    from tokens in GetInnerParser(escapeChar)
+                    select new Registry(tokens, escapeChar);
+
+                protected override IEnumerable<Token> GetInnerTokens(string value) =>
+                    GetTokens(value, GetInnerParser(escapeChar));
+
+                private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+                    DelimitedIdentifier(
+                        escapeChar,
+                        FirstCharParser(),
+                        TailCharParser(),
+                        '.',
+                        minimumDelimiters: 1);
+
+                private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
+
+                private static Parser<char> TailCharParser() =>
+                    Sprache.Parse.LetterOrDigit
+                        .Or(Sprache.Parse.Char('_'))
+                        .Or(Sprache.Parse.Char('-'));
+            }
         }
     }
 }

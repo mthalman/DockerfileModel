@@ -664,8 +664,8 @@ namespace DockerfileModel.Tests
                                     token => ValidateWhitespace(token, "\t "),
                                     token => ValidateNewLine(token, "\n")),
                                 token => ValidateWhitespace(token, " "),
-                                token => ValidateAggregate<KeyValueToken<IdentifierToken, LiteralToken>>(token, "VAR=VAL",
-                                    token => ValidateIdentifier(token, "VAR"),
+                                token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR=VAL",
+                                    token => ValidateIdentifier<Variable>(token, "VAR"),
                                     token => ValidateSymbol(token, '='),
                                     token => ValidateLiteral(token, "VAL"))
                             })

@@ -66,7 +66,7 @@ namespace DockerfileModel
         {
             get => PlatformFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                PlatformFlag, value, val => new PlatformFlag(val), token => PlatformFlag = token);
+                PlatformFlag, value, val => new PlatformFlag(val, escapeChar), token => PlatformFlag = token);
         }
 
         private PlatformFlag? PlatformFlag
@@ -78,12 +78,12 @@ namespace DockerfileModel
         public string? StageName
         {
             get => StageNameToken?.Value;
-            set => SetOptionalTokenValue(StageNameToken, value, val => new IdentifierToken(val), token => StageNameToken = token);
+            set => SetOptionalTokenValue(StageNameToken, value, val => new StageName(val, escapeChar), token => StageNameToken = token);
         }
 
-        public IdentifierToken? StageNameToken
+        public StageName? StageNameToken
         {
-            get => this.Tokens.OfType<IdentifierToken>().FirstOrDefault();
+            get => this.Tokens.OfType<StageName>().FirstOrDefault();
             set
             {
                 SetToken(StageNameToken, value,
@@ -147,7 +147,7 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
            from asKeyword in ArgTokens(Keyword("AS", escapeChar).AsEnumerable(), escapeChar)
-           from stageName in ArgTokens(StageNameIdentifier(escapeChar).AsEnumerable(), escapeChar)
+           from stageName in ArgTokens(DockerfileModel.StageName.GetParser(escapeChar).AsEnumerable(), escapeChar)
            select ConcatTokens(asKeyword, stageName);
 
         private static Parser<IEnumerable<Token>> GetPlatformParser(char escapeChar) =>

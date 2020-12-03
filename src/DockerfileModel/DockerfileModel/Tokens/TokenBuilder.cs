@@ -21,12 +21,6 @@ namespace DockerfileModel.Tokens
         public TokenBuilder Comment(Action<TokenBuilder> configureBuilder) =>
             AddToken(new CommentToken(GetTokens(configureBuilder)));
 
-        public TokenBuilder Digest(string digest) =>
-            AddToken(new DigestToken(digest));
-
-        public TokenBuilder Digest(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new DigestToken(GetTokens(configureBuilder)));
-
         public TokenBuilder ExecFormCommand(params string[] commands) =>
             AddToken(new ExecFormCommand(commands, EscapeChar));
 
@@ -38,12 +32,6 @@ namespace DockerfileModel.Tokens
 
         public TokenBuilder FromFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new FromFlag(GetTokens(configureBuilder)));
-
-        public TokenBuilder Identifier(string value) =>
-            AddToken(new IdentifierToken(value));
-
-        public TokenBuilder Identifier(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new IdentifierToken(GetTokens(configureBuilder)));
 
         public TokenBuilder ImageName(string repository, string? registry = null, string? tag = null, string? digest = null) =>
             AddToken(new ImageName(repository, registry, tag, digest));
@@ -98,18 +86,6 @@ namespace DockerfileModel.Tokens
         public TokenBuilder PlatformFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new PlatformFlag(GetTokens(configureBuilder)));
 
-        public TokenBuilder Registry(string registry) =>
-            AddToken(new RegistryToken(registry));
-
-        public TokenBuilder Registry(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new RegistryToken(GetTokens(configureBuilder)));
-
-        public TokenBuilder Repository(string repository) =>
-            AddToken(new RepositoryToken(repository));
-
-        public TokenBuilder Repository(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new RepositoryToken(GetTokens(configureBuilder)));
-
         public TokenBuilder RetriesFlag(string retries) =>
             AddToken(new RetriesFlag(retries, EscapeChar));
 
@@ -131,6 +107,12 @@ namespace DockerfileModel.Tokens
         public TokenBuilder ShellFormCommand(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ShellFormCommand(GetTokens(configureBuilder)));
 
+        public TokenBuilder StageName(string stageName) =>
+            AddToken(new StageName(stageName, EscapeChar));
+
+        public TokenBuilder StageName(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new StageName(GetTokens(configureBuilder), EscapeChar));
+
         public TokenBuilder StartPeriodFlag(string startPeriod) =>
             AddToken(new StartPeriodFlag(startPeriod, EscapeChar));
 
@@ -143,17 +125,17 @@ namespace DockerfileModel.Tokens
         public TokenBuilder Symbol(char EscapeChar) =>
             AddToken(new SymbolToken(EscapeChar));
 
-        public TokenBuilder Tag(string tag) =>
-            AddToken(new TagToken(tag));
-
-        public TokenBuilder Tag(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new TagToken(GetTokens(configureBuilder)));
-
         public TokenBuilder TimeoutFlag(string timeout) =>
             AddToken(new TimeoutFlag(timeout, EscapeChar));
 
         public TokenBuilder TimeoutFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new TimeoutFlag(GetTokens(configureBuilder)));
+
+        public TokenBuilder Variable(string name) =>
+            AddToken(new Variable(name, EscapeChar));
+
+        public TokenBuilder Variable(Action<TokenBuilder> configureBuilder) =>
+            AddToken(new Variable(GetTokens(configureBuilder), EscapeChar));
 
         public TokenBuilder VariableRef(string variableName, bool includeBraces = false) =>
             AddToken(new VariableRefToken(variableName, includeBraces, EscapeChar));

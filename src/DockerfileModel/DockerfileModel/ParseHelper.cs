@@ -91,11 +91,15 @@ namespace DockerfileModel
         /// <param name="delimiter">Character which delimits segments of the string.</param>
         /// <param name="minimumDelimiters">Minimum number of delimiter characters that must exist in the string.</param>
         /// <returns>Delimited identifiers.</returns>
-        public static Parser<string> DelimitedIdentifier(
+        public static Parser<IEnumerable<Token>> DelimitedIdentifier(char escapeChar,
             Parser<char> firstCharParser, Parser<char> tailCharParser, char delimiter, int minimumDelimiters = 0) =>
-            from segments in Parse.Identifier(firstCharParser, tailCharParser).Many().DelimitedBy(Parse.Char(delimiter))
+            from segments in IdentifierString(escapeChar, firstCharParser, tailCharParser).Many().DelimitedBy(Parse.Char(delimiter))
             where (segments.Count() > minimumDelimiters)
-            select String.Join(delimiter.ToString(), segments.SelectMany(segment => segment).ToArray());
+            select
+                segments
+                    .Flatten()
+                    .Aggregate((tokens1, tokens2) =>
+                        TokenHelper.CollapseStringTokens(ConcatTokens(tokens1, new Token[] { new StringToken(delimiter.ToString()) }, tokens2)));
 
         /// <summary>
         /// Parses a new line that is optional.
@@ -179,7 +183,6 @@ namespace DockerfileModel
                         trailingWhitespace.GetOrDefault()));
             }
         }
-            
 
         /// <summary>
         /// Parses a keyword.
@@ -187,26 +190,35 @@ namespace DockerfileModel
         /// <param name="keyword">Name of the keyword.</param>
         /// <param name="escapeChar">Escape character.</param>
         /// <returns>Token for the keyword.</returns>
-        public static Parser<KeywordToken> Keyword(string keyword, char escapeChar)
+        public static Parser<KeywordToken> Keyword(string keyword, char escapeChar) =>
+            from tokens in StringToken(keyword, escapeChar)
+            select new KeywordToken(tokens);
+
+        /// <summary>
+        /// Parses a string.
+        /// </summary>
+        /// <param name="value">Value of the string.</param>
+        /// <param name="escapeChar">Escape character.</param>
+        public static Parser<IEnumerable<Token>> StringToken(string value, char escapeChar)
         {
             Parser<IEnumerable<Token>>? parser = null;
-            for (int i = 0; i < keyword.Length; i++)
+            for (int i = 0; i < value.Length; i++)
             {
                 int currentIndex = i;
                 if (parser is null)
                 {
-                    parser = ToStringTokens(Parse.IgnoreCase(keyword[currentIndex]));
+                    parser = ToStringTokens(Parse.IgnoreCase(value[currentIndex]));
                 }
                 else
                 {
                     parser = from previousTokens in parser
-                             from nextTokens in StringTokenCharWithOptionalLineContinuation(escapeChar, Parse.IgnoreCase(keyword[currentIndex]))
+                             from nextTokens in StringTokenCharWithOptionalLineContinuation(escapeChar, Parse.IgnoreCase(value[currentIndex]))
                              select ConcatTokens(previousTokens, nextTokens);
                 }
             }
 
             return from tokens in parser
-                select new KeywordToken(TokenHelper.CollapseStringTokens(tokens));
+                   select TokenHelper.CollapseStringTokens(tokens);
         }
 
         /// <summary>
@@ -228,7 +240,7 @@ namespace DockerfileModel
         /// <param name="escapeChar">Escape character.</param>
         /// <param name="charParser">Character parser.</param>
         /// <returns>Parsed tokens.</returns>
-        private static Parser<IEnumerable<Token>> StringTokenCharWithOptionalLineContinuation(char escapeChar, Parser<char> charParser) =>
+        public static Parser<IEnumerable<Token>> StringTokenCharWithOptionalLineContinuation(char escapeChar, Parser<char> charParser) =>
             CharWithOptionalLineContinuation(escapeChar, charParser, ch => new StringToken(ch.ToString()));
 
         /// <summary>
@@ -272,24 +284,19 @@ namespace DockerfileModel
         public static Parser<char> VariableRefTailParser => Parse.LetterOrDigit.Or(Parse.Char('_'));
 
         /// <summary>
-        /// Parses an identifier token.
+        /// Parses the tokens within an identifier.
         /// </summary>
         /// <param name="firstCharacterParser">Parser of the first character of the identifier.</param>
         /// <param name="tailCharacterParser">Parser of the rest of the characters of the identifier.</param>
         /// <param name="escapeChar">Escape character.</param>
-        /// <returns>Parser for an identifier token.</returns>
-        public static Parser<IdentifierToken> IdentifierToken(Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar) =>
-            from result in WrappedInOptionalQuotes(
+        public static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> IdentifierTokens(Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar) =>
+            WrappedInOptionalQuotes(
                 (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
                     WrappedInQuotesIdentifier(escapeChar, firstCharacterParser, tailCharacterParser),
                 (char escapeChar, IEnumerable<char> excludedChars) =>
                     IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser),
                 escapeChar,
-                Enumerable.Empty<char>())
-            select new IdentifierToken(result.Tokens)
-            {
-                QuoteChar = result.QuoteChar
-            };
+                Enumerable.Empty<char>());
 
         /// <summary>
         /// Parses a literal string that is not wrapped in quotes.
@@ -338,15 +345,6 @@ namespace DockerfileModel
         public static Parser<NewLineToken> NewLine() =>
             from lineEnd in Parse.LineEnd
             select new NewLineToken(lineEnd);
-
-        public static Parser<IdentifierToken> StageNameIdentifier(char escapeChar) =>
-            from stageName in IdentifierString(escapeChar, StageNameFirstCharParser(), StageNameTailCharParser())
-            select new IdentifierToken(stageName);
-
-        private static Parser<char> StageNameFirstCharParser() => Parse.Letter;
-
-        private static Parser<char> StageNameTailCharParser() =>
-            Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')).Or(Parse.Char('.'));
 
         /// <summary>
         /// Parses a variable identifier reference.
@@ -654,24 +652,6 @@ namespace DockerfileModel
                     .Many()
                     .Flatten()
                 select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
-        }
-
-        /// <summary>
-        /// Creates an aggregate token.
-        /// </summary>
-        /// <typeparam name="TAggregateToken">Type of the aggregate token.</typeparam>
-        /// <param name="createToken">A delegate to create the aggregate token.</param>
-        /// <param name="childTokens">The child tokens to be contained in the aggregate token.</param>
-        /// <param name="tokenWrapper">The token wrapper describing the characters wrapping the token.</param>
-        private static TAggregateToken CreateAggregateToken<TAggregateToken>(
-            Func<IEnumerable<Token>, TAggregateToken> createToken,
-            IEnumerable<Token> childTokens,
-            TokenWrapper tokenWrapper)
-            where TAggregateToken : AggregateToken, IQuotableToken
-        {
-            TAggregateToken container = createToken(TokenHelper.CollapseStringTokens(childTokens));
-            container.QuoteChar = tokenWrapper.OpeningString[0];
-            return container;
         }
 
         /// <summary>
