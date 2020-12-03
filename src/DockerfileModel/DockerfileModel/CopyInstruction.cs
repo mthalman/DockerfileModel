@@ -26,10 +26,10 @@ namespace DockerfileModel
         {
             get => FromStageNameToken?.Value;
             set => SetOptionalTokenValue(
-                FromStageNameToken, value, val => new IdentifierToken(val), token => FromStageNameToken = token);
+                FromStageNameToken, value, val => new StageName(val), token => FromStageNameToken = token);
         }
 
-        public IdentifierToken? FromStageNameToken
+        public StageName? FromStageNameToken
         {
             get => FromFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(

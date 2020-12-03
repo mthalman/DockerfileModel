@@ -16,8 +16,8 @@ namespace DockerfileModel
 
         private EnvInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
-            VariableTokens = new TokenList<KeyValueToken<IdentifierToken, LiteralToken>>(TokenList);
-            Variables = new ProjectedItemList<KeyValueToken<IdentifierToken, LiteralToken>, IKeyValuePair>(
+            VariableTokens = new TokenList<KeyValueToken<Variable, LiteralToken>>(TokenList);
+            Variables = new ProjectedItemList<KeyValueToken<Variable, LiteralToken>, IKeyValuePair>(
                 VariableTokens,
                 token => token,
                 (token, keyValuePair) =>
@@ -30,7 +30,7 @@ namespace DockerfileModel
 
         public IList<IKeyValuePair> Variables { get; }
 
-        public IList<KeyValueToken<IdentifierToken, LiteralToken>> VariableTokens { get; }
+        public IList<KeyValueToken<Variable, LiteralToken>> VariableTokens { get; }
 
         public static EnvInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new EnvInstruction(GetTokens(text, GetInnerParser(escapeChar)));
@@ -71,8 +71,8 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> MultiVariableFormat(char escapeChar) =>
             ArgTokens(
                 from whitespace in Whitespace().Optional()
-                from variable in KeyValueToken<IdentifierToken, LiteralToken>.GetParser(
-                    IdentifierToken(VariableRefFirstLetterParser, VariableRefTailParser, escapeChar),
+                from variable in KeyValueToken<Variable, LiteralToken>.GetParser(
+                    Variable.GetParser(escapeChar),
                     MultiVariableFormatValueParser(escapeChar),
                     escapeChar: escapeChar).AsEnumerable()
                 select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
@@ -84,8 +84,8 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> SingleVariableFormat(char escapeChar) =>
             ArgTokens(
-                KeyValueToken<IdentifierToken, LiteralToken>.GetParser(
-                    IdentifierToken(VariableRefFirstLetterParser, VariableRefTailParser, escapeChar: escapeChar),
+                KeyValueToken<Variable, LiteralToken>.GetParser(
+                    Variable.GetParser(escapeChar),
                     LiteralWithVariables(escapeChar),
                     separator: ' ',
                     escapeChar: escapeChar).AsEnumerable(), escapeChar);

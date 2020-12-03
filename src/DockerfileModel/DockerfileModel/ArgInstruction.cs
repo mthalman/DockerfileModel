@@ -128,14 +128,11 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             ArgTokens(
-                from argName in ArgTokens(GetArgNameParser(escapeChar).AsEnumerable(), escapeChar)
+                from argName in ArgTokens(DockerfileModel.Variable.GetParser(escapeChar).AsEnumerable(), escapeChar)
                 from argAssignment in GetArgAssignmentParser(escapeChar).Optional()
                 select ConcatTokens(
                     argName,
                     argAssignment.GetOrDefault()), escapeChar).End();
-
-        private static Parser<IdentifierToken> GetArgNameParser(char escapeChar) =>
-            IdentifierToken(VariableRefFirstLetterParser, VariableRefTailParser, escapeChar);
 
         private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
             from assignment in ArgTokens(Symbol(AssignmentOperator).AsEnumerable(), escapeChar)

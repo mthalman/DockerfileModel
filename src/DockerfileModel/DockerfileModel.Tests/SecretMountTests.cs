@@ -25,7 +25,7 @@ namespace DockerfileModel.Tests
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => ArgInstruction.Parse(scenario.Text, scenario.EscapeChar));
+                    () => SecretMount.Parse(scenario.Text, scenario.EscapeChar));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
@@ -202,12 +202,12 @@ namespace DockerfileModel.Tests
                 new SecretMountParseTestScenario
                 {
                     Text = "type=foo",
-                    ParseExceptionPosition = new Position(1, 1, 1)
+                    ParseExceptionPosition = new Position(1, 1, 9)
                 },
                 new SecretMountParseTestScenario
                 {
                     Text = "type=secret",
-                    ParseExceptionPosition = new Position(1, 1, 1)
+                    ParseExceptionPosition = new Position(1, 1, 12)
                 }
             };
 

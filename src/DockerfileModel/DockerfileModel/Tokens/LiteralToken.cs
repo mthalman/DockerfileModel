@@ -34,11 +34,14 @@ namespace DockerfileModel.Tokens
             set
             {
                 Requires.NotNull(value, nameof(value));
-                ReplaceWithTokens(GetTokens(value, canContainVariables, escapeChar).Tokens);
+                ReplaceWithTokens(GetInnerTokens(value));
             }
         }
 
         public char? QuoteChar { get; set; }
+
+        protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
+            GetTokens(value, canContainVariables, escapeChar).Tokens;
 
         private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)
         {

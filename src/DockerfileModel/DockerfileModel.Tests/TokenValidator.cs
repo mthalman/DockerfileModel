@@ -62,8 +62,9 @@ namespace DockerfileModel.Tests
             ValidateQuotableAggregate<LiteralToken>(token, $"{quoteChar}{literal}{quoteChar}", quoteChar, validators);
         }
             
-        public static void ValidateIdentifier(Token token, string identifier, char? quoteChar = null) =>
-            ValidateQuotableAggregate<IdentifierToken>(token, $"{quoteChar}{identifier}{quoteChar}", quoteChar,
+        public static void ValidateIdentifier<T>(Token token, string identifier, char? quoteChar = null)
+            where T : IdentifierToken =>
+            ValidateQuotableAggregate<T>(token, $"{quoteChar}{identifier}{quoteChar}", quoteChar,
                 token => ValidateString(token, identifier));
 
         public static void ValidateNewLine(Token token, string text)

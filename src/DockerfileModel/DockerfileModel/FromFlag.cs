@@ -5,10 +5,10 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class FromFlag : KeyValueToken<KeywordToken, IdentifierToken>
+    public class FromFlag : KeyValueToken<KeywordToken, StageName>
     {
         public FromFlag(string stageName, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : base(new KeywordToken("from"), StageNameIdentifier(escapeChar).Parse(stageName), isFlag: true)
+            : base(new KeywordToken("from"), new StageName(stageName, escapeChar), isFlag: true)
         {
         }
 
@@ -18,9 +18,9 @@ namespace DockerfileModel
         }
 
         public static FromFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("from", escapeChar), StageNameIdentifier(escapeChar), tokens => new FromFlag(tokens), escapeChar: escapeChar);
+            Parse(text, Keyword("from", escapeChar), StageName.GetParser(escapeChar), tokens => new FromFlag(tokens), escapeChar: escapeChar);
 
         public static Parser<FromFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("from", escapeChar), StageNameIdentifier(escapeChar), tokens => new FromFlag(tokens), escapeChar: escapeChar);
+            GetParser(Keyword("from", escapeChar), StageName.GetParser(escapeChar), tokens => new FromFlag(tokens), escapeChar: escapeChar);
     }
 }

@@ -142,7 +142,7 @@ namespace DockerfileModel.Tests
             Assert.Null(instruction.StageName);
             Assert.Null(instruction.StageNameToken);
 
-            instruction.StageNameToken = new IdentifierToken("foo3");
+            instruction.StageNameToken = new StageName("foo3");
             Assert.Equal("foo3", instruction.StageName);
             Assert.Equal("foo3", instruction.StageNameToken.Value);
 
@@ -206,7 +206,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "as"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier(token, "build")
+                        token => ValidateIdentifier<StageName>(token, "build")
                     },
                     Validate = result =>
                     {
@@ -230,7 +230,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "as"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier(token, "build")
+                        token => ValidateIdentifier<StageName>(token, "build")
                     },
                     Validate = result =>
                     {
@@ -266,7 +266,7 @@ namespace DockerfileModel.Tests
                             token => ValidateSymbol(token, '#'),
                             token => ValidateString(token, "comment"),
                             token => ValidateNewLine(token, "\n")),
-                        token => ValidateIdentifier(token, "build")
+                        token => ValidateIdentifier<StageName>(token, "build")
                     },
                     Validate = result =>
                     {
@@ -302,7 +302,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "as"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier(token, "build")
+                        token => ValidateIdentifier<StageName>(token, "build")
                     },
                     Validate = result =>
                     {
@@ -399,7 +399,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "AS"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<IdentifierToken>(token, "bui`\nld",
+                        token => ValidateAggregate<StageName>(token, "bui`\nld",
                             token => ValidateString(token, "bui"),
                             token => ValidateLineContinuation(token, '`', "\n"),
                             token => ValidateString(token, "ld"))
@@ -522,7 +522,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "AS"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier(token, "test")
+                        token => ValidateIdentifier<StageName>(token, "test")
                     }
                 },
                 new CreateTestScenario
@@ -546,7 +546,7 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyword(token, "AS"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier(token, "test")
+                        token => ValidateIdentifier<StageName>(token, "test")
                     }
                 }
             };

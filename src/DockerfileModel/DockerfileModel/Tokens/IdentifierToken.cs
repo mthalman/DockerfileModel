@@ -1,16 +1,12 @@
 ﻿using System.Collections.Generic;
+using Sprache;
 using Validation;
 
 namespace DockerfileModel.Tokens
 {
-    public class IdentifierToken : AggregateToken, IQuotableValueToken
+    public abstract class IdentifierToken : AggregateToken, IQuotableValueToken
     {
-        public IdentifierToken(string value)
-             : base(new Token[] { new StringToken(value) })
-        {
-        }
-
-        internal IdentifierToken(IEnumerable<Token> tokens) : base(tokens)
+        protected IdentifierToken(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
@@ -20,10 +16,19 @@ namespace DockerfileModel.Tokens
             set
             {
                 Requires.NotNullOrEmpty(value, nameof(value));
-                ReplaceWithToken(new StringToken(value));
+                ReplaceWithTokens(GetInnerTokens(value));
             }
         }
 
         public char? QuoteChar { get; set; }
+
+        protected abstract IEnumerable<Token> GetInnerTokens(string value);
+
+        protected static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, char escapeChar,
+            Parser<(IEnumerable<Token> Token, char? QuoteChar)> parser)
+        {
+            Requires.NotNull(value, nameof(value));
+            return parser.Parse(value);
+        }
     }
 }
