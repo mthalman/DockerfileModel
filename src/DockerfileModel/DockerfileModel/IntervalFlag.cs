@@ -18,9 +18,18 @@ namespace DockerfileModel
 
         public static IntervalFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("interval", escapeChar), LiteralWithVariables(escapeChar), tokens => new IntervalFlag(tokens), escapeChar: escapeChar);
+            Parse(
+                text,
+                KeywordToken.GetParser("interval", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new IntervalFlag(tokens),
+                escapeChar: escapeChar);
 
         public static Parser<IntervalFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("interval", escapeChar), LiteralWithVariables(escapeChar), tokens => new IntervalFlag(tokens), escapeChar: escapeChar);
+            GetParser(
+                KeywordToken.GetParser("interval", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new IntervalFlag(tokens),
+                escapeChar: escapeChar);
     }
 }

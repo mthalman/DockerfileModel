@@ -185,16 +185,6 @@ namespace DockerfileModel
         }
 
         /// <summary>
-        /// Parses a keyword.
-        /// </summary>
-        /// <param name="keyword">Name of the keyword.</param>
-        /// <param name="escapeChar">Escape character.</param>
-        /// <returns>Token for the keyword.</returns>
-        public static Parser<KeywordToken> Keyword(string keyword, char escapeChar) =>
-            from tokens in StringToken(keyword, escapeChar)
-            select new KeywordToken(tokens);
-
-        /// <summary>
         /// Parses a string.
         /// </summary>
         /// <param name="value">Value of the string.</param>
@@ -766,7 +756,7 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
             WithTrailingComments(
                 from leading in Whitespace()
-                from instruction in TokenWithTrailingWhitespace(Keyword(instructionName, escapeChar))
+                from instruction in TokenWithTrailingWhitespace(KeywordToken.GetParser(instructionName, escapeChar))
                 from lineContinuation in LineContinuations(escapeChar).Optional()
                 select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault()));
 

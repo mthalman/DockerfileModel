@@ -18,9 +18,18 @@ namespace DockerfileModel
 
         public static TimeoutFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("timeout", escapeChar), LiteralWithVariables(escapeChar), tokens => new TimeoutFlag(tokens), escapeChar: escapeChar);
+            Parse(
+                text,
+                KeywordToken.GetParser("timeout", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new TimeoutFlag(tokens),
+                escapeChar: escapeChar);
 
         public static Parser<TimeoutFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("timeout", escapeChar), LiteralWithVariables(escapeChar), tokens => new TimeoutFlag(tokens), escapeChar: escapeChar);
+            GetParser(
+                KeywordToken.GetParser("timeout", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new TimeoutFlag(tokens),
+                escapeChar: escapeChar);
     }
 }

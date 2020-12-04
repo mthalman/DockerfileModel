@@ -18,9 +18,18 @@ namespace DockerfileModel
 
         public static StartPeriodFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("start-period", escapeChar), LiteralWithVariables(escapeChar), tokens => new StartPeriodFlag(tokens), escapeChar: escapeChar);
+            Parse(
+                text,
+                KeywordToken.GetParser("start-period", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new StartPeriodFlag(tokens),
+                escapeChar: escapeChar);
 
         public static Parser<StartPeriodFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("start-period", escapeChar), LiteralWithVariables(escapeChar), tokens => new StartPeriodFlag(tokens), escapeChar: escapeChar);
+            GetParser(
+                KeywordToken.GetParser("start-period", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new StartPeriodFlag(tokens),
+                escapeChar: escapeChar);
     }
 }

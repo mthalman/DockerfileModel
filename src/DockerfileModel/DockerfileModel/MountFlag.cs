@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using DockerfileModel.Tokens;
 using Sprache;
-using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
@@ -18,10 +17,19 @@ namespace DockerfileModel
 
         public static MountFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("mount", escapeChar), MountParser(escapeChar), tokens => new MountFlag(tokens), escapeChar: escapeChar);
+            Parse(
+                text,
+                KeywordToken.GetParser("mount", escapeChar),
+                MountParser(escapeChar),
+                tokens => new MountFlag(tokens),
+                escapeChar: escapeChar);
 
         public static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("mount", escapeChar), MountParser(escapeChar), tokens => new MountFlag(tokens), escapeChar: escapeChar);
+            GetParser(
+                KeywordToken.GetParser("mount", escapeChar),
+                MountParser(escapeChar),
+                tokens => new MountFlag(tokens),
+                escapeChar: escapeChar);
 
         private static Parser<Mount> MountParser(char escapeChar) =>
             SecretMount.GetParser(escapeChar);

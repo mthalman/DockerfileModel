@@ -112,7 +112,7 @@ namespace DockerfileModel
             return
                 from type in ArgTokens(
                     KeyValueToken<KeywordToken, LiteralToken>.GetParser(
-                        Keyword("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
+                        KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
                 from comma in ArgTokens(Symbol(',').AsEnumerable(), escapeChar)
                 from idDest in IdAndDestinationParser(valueParser, escapeChar).Or(IdParser(valueParser, escapeChar))
                 select ConcatTokens(type, comma, idDest);
@@ -121,18 +121,18 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> IdAndDestinationParser(Parser<LiteralToken> valueParser, char escapeChar) =>
             from id in ArgTokens(
                 KeyValueToken<KeywordToken, LiteralToken>.GetParser(
-                    Keyword("id", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
+                    KeywordToken.GetParser("id", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
             from dest in ArgTokens(DestinationParser(escapeChar), escapeChar, excludeTrailingWhitespace: true)
             select ConcatTokens(id, dest);
 
         private static Parser<IEnumerable<Token>> IdParser(Parser<LiteralToken> valueParser, char escapeChar) =>
             KeyValueToken<KeywordToken, LiteralToken>.GetParser(
-                Keyword("id", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable();
+                KeywordToken.GetParser("id", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable();
 
         private static Parser<IEnumerable<Token>> DestinationParser(char escapeChar) =>
             from comma in Symbol(',')
             from dst in KeyValueToken<KeywordToken, LiteralToken>.GetParser(
-                Keyword("dst", escapeChar), LiteralWithVariables(escapeChar), escapeChar: escapeChar)
+                KeywordToken.GetParser("dst", escapeChar), LiteralWithVariables(escapeChar), escapeChar: escapeChar)
             select ConcatTokens(comma, dst);
     }
 }

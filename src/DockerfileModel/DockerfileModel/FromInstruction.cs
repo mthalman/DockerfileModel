@@ -146,7 +146,7 @@ namespace DockerfileModel
                 stageName.GetOrDefault())).End();
 
         private static Parser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
-           from asKeyword in ArgTokens(Keyword("AS", escapeChar).AsEnumerable(), escapeChar)
+           from asKeyword in ArgTokens(KeywordToken.GetParser("AS", escapeChar).AsEnumerable(), escapeChar)
            from stageName in ArgTokens(DockerfileModel.StageName.GetParser(escapeChar).AsEnumerable(), escapeChar)
            select ConcatTokens(asKeyword, stageName);
 
