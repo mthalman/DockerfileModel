@@ -57,7 +57,7 @@ namespace DockerfileModel.Tokens
             AddToken(new KeyValueToken<TKey, TValue>(GetTokens(configureBuilder)));
 
         public TokenBuilder Keyword(string value) =>
-            AddToken(new KeywordToken(value));
+            AddToken(new KeywordToken(value, EscapeChar));
 
         public TokenBuilder Keyword(Action<TokenBuilder> configureBuilder) =>
             AddToken(new KeywordToken(GetTokens(configureBuilder)));
