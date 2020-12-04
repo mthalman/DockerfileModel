@@ -8,7 +8,7 @@ namespace DockerfileModel
     public class RetriesFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
         public RetriesFlag(string retryCount, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : base(new KeywordToken("retries"), new LiteralToken(retryCount, canContainVariables: true, escapeChar), isFlag: true)
+            : base(new KeywordToken("retries", escapeChar), new LiteralToken(retryCount, canContainVariables: true, escapeChar), isFlag: true)
         {
         }
 
@@ -16,8 +16,7 @@ namespace DockerfileModel
         {
         }
 
-        public static RetriesFlag Parse(string text,
-            char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static RetriesFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(
                 text,
                 KeywordToken.GetParser("retries", escapeChar),

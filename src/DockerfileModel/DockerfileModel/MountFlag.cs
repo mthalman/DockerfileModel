@@ -6,8 +6,8 @@ namespace DockerfileModel
 {
     public class MountFlag : KeyValueToken<KeywordToken, Mount>
     {
-        public MountFlag(Mount mount)
-            : base(new KeywordToken("mount"), mount, isFlag: true)
+        public MountFlag(Mount mount, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : base(new KeywordToken("mount", escapeChar), mount, isFlag: true)
         {
         }
 
@@ -15,8 +15,7 @@ namespace DockerfileModel
         {
         }
 
-        public static MountFlag Parse(string text,
-            char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static MountFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(
                 text,
                 KeywordToken.GetParser("mount", escapeChar),

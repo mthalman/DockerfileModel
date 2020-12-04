@@ -59,7 +59,7 @@ namespace DockerfileModel
             return GetTokens($"ENV {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));
         }
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("ENV", escapeChar,
                 GetArgsParser(escapeChar));
 

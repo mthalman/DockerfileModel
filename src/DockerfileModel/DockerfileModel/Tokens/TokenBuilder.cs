@@ -34,10 +34,10 @@ namespace DockerfileModel.Tokens
             AddToken(new FromFlag(GetTokens(configureBuilder)));
 
         public TokenBuilder ImageName(string repository, string? registry = null, string? tag = null, string? digest = null) =>
-            AddToken(new ImageName(repository, registry, tag, digest));
+            AddToken(new ImageName(repository, registry, tag, digest, EscapeChar));
 
         public TokenBuilder ImageName(Action<TokenBuilder> configureBuilder) =>
-            AddToken(new ImageName(GetTokens(configureBuilder)));
+            AddToken(new ImageName(GetTokens(configureBuilder), EscapeChar));
 
         public TokenBuilder IntervalFlag(string interval) =>
             AddToken(new IntervalFlag(interval, EscapeChar));
@@ -75,7 +75,7 @@ namespace DockerfileModel.Tokens
             AddToken(new LiteralToken(GetTokens(configureBuilder), canContainVariables, EscapeChar));
 
         public TokenBuilder MountFlag(Mount mount) =>
-            AddToken(new MountFlag(mount));
+            AddToken(new MountFlag(mount, EscapeChar));
 
         public TokenBuilder MountFlag(Action<TokenBuilder> configureBuilder) =>
             AddToken(new MountFlag(GetTokens(configureBuilder)));

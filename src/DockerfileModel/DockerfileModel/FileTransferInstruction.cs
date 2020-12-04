@@ -15,15 +15,18 @@ namespace DockerfileModel
 
         protected FileTransferInstruction(IEnumerable<string> sources, string destination,
            ChangeOwner? changeOwner, char escapeChar, string instructionName)
-            : this(GetTokens(sources, destination, changeOwner, escapeChar, instructionName))
+            : this(GetTokens(sources, destination, changeOwner, escapeChar, instructionName), escapeChar)
         {
         }
 
-        protected FileTransferInstruction(IEnumerable<Token> tokens) : base(tokens)
+        protected FileTransferInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
         {
             this.sourceTokens = new TokenList<LiteralToken>(TokenList,
                 literals => literals.Take(literals.Count() - 1));
+            EscapeChar = escapeChar;
         }
+
+        protected char EscapeChar { get; }
 
         public IList<string> Sources =>
             new ProjectedItemList<LiteralToken, string>(
@@ -67,7 +70,7 @@ namespace DockerfileModel
                 {
                     ChangeOwnerFlagToken = value is null ?
                         null :
-                        new ChangeOwnerFlag(value);
+                        new ChangeOwnerFlag(value, EscapeChar);
                 }
             }
         }
@@ -116,7 +119,7 @@ namespace DockerfileModel
 
             string changeOwnerFlagStr = changeOwner is null ?
                 string.Empty :
-                $"{new ChangeOwnerFlag(changeOwner)} ";
+                $"{new ChangeOwnerFlag(changeOwner, escapeChar)} ";
 
             string flags = $"{optionalFlag}{changeOwnerFlagStr}";
 

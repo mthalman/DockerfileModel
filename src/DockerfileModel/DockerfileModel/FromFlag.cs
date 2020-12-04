@@ -7,7 +7,7 @@ namespace DockerfileModel
     public class FromFlag : KeyValueToken<KeywordToken, StageName>
     {
         public FromFlag(string stageName, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : base(new KeywordToken("from"), new StageName(stageName, escapeChar), isFlag: true)
+            : base(new KeywordToken("from", escapeChar), new StageName(stageName, escapeChar), isFlag: true)
         {
         }
 

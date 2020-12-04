@@ -70,7 +70,7 @@ namespace DockerfileModel
             Requires.NotNullOrEmpty(command, nameof(command));
             Requires.NotNull(mounts, nameof(mounts));
 
-            return GetTokens($"RUN {CreateMountFlagArgs(mounts)}{command}", GetInnerParser(escapeChar));
+            return GetTokens($"RUN {CreateMountFlagArgs(mounts, escapeChar)}{command}", GetInnerParser(escapeChar));
         }
 
         private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, IEnumerable<Mount> mounts, char escapeChar)
@@ -78,21 +78,21 @@ namespace DockerfileModel
             Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
             Requires.NotNull(mounts, nameof(mounts));
 
-            return GetTokens($"RUN {CreateMountFlagArgs(mounts)}{StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
+            return GetTokens($"RUN {CreateMountFlagArgs(mounts, escapeChar)}{StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
         }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("RUN", escapeChar,
                 GetArgsParser(escapeChar));
 
-        private static string CreateMountFlagArgs(IEnumerable<Mount> mounts)
+        private static string CreateMountFlagArgs(IEnumerable<Mount> mounts, char escapeChar)
         {
             if (!mounts.Any())
             {
                 return String.Empty;
             }
 
-            return $"{String.Join(" ", mounts.Select(mount => new MountFlag(mount).ToString()).ToArray())} ";
+            return $"{String.Join(" ", mounts.Select(mount => new MountFlag(mount, escapeChar).ToString()).ToArray())} ";
         }
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>

@@ -81,7 +81,7 @@ namespace DockerfileModel
             return GetTokens($"EXPOSE {port}{protocolSegment}", GetInnerParser(escapeChar));
         }
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("EXPOSE", escapeChar,
                 GetArgsParser(escapeChar));
 

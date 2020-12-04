@@ -9,16 +9,14 @@ namespace DockerfileModel
     public class CopyInstruction : FileTransferInstruction
     {
         private const string Name = "COPY";
-        private readonly char escapeChar;
 
         public CopyInstruction(IEnumerable<string> sources, string destination,
             string? fromStageName = null, ChangeOwner? changeOwner = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : base(GetTokens(sources, destination, fromStageName, changeOwner, escapeChar))
+            : base(GetTokens(sources, destination, fromStageName, changeOwner, escapeChar), escapeChar)
         {
-            this.escapeChar = escapeChar;
         }
 
-        private CopyInstruction(IEnumerable<Token> tokens) : base(tokens)
+        private CopyInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
         {
         }
 
@@ -26,14 +24,14 @@ namespace DockerfileModel
         {
             get => FromStageNameToken?.Value;
             set => SetOptionalTokenValue(
-                FromStageNameToken, value, val => new StageName(val), token => FromStageNameToken = token);
+                FromStageNameToken, value, val => new StageName(val, EscapeChar), token => FromStageNameToken = token);
         }
 
         public StageName? FromStageNameToken
         {
             get => FromFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                FromFlag, value, val => new FromFlag(val, escapeChar), token => FromFlag = token);
+                FromFlag, value, val => new FromFlag(val, EscapeChar), token => FromFlag = token);
         }
 
         private FromFlag? FromFlag
@@ -43,11 +41,11 @@ namespace DockerfileModel
         }
 
         public static CopyInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new CopyInstruction(GetTokens(text, GetInnerParser(escapeChar)));
+            new CopyInstruction(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
         public static Parser<CopyInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new CopyInstruction(tokens);
+            select new CopyInstruction(tokens, escapeChar);
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             GetInnerParser(escapeChar, Name,

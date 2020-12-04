@@ -8,7 +8,7 @@ namespace DockerfileModel
     public class StartPeriodFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
         public StartPeriodFlag(string startPeriod, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : base(new KeywordToken("start-period"), new LiteralToken(startPeriod, canContainVariables: true, escapeChar), isFlag: true)
+            : base(new KeywordToken("start-period", escapeChar), new LiteralToken(startPeriod, canContainVariables: true, escapeChar), isFlag: true)
         {
         }
 
@@ -16,8 +16,7 @@ namespace DockerfileModel
         {
         }
 
-        public static StartPeriodFlag Parse(string text,
-            char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static StartPeriodFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(
                 text,
                 KeywordToken.GetParser("start-period", escapeChar),

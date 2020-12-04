@@ -8,7 +8,7 @@ namespace DockerfileModel
     public class TimeoutFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
         public TimeoutFlag(string timeout, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : base(new KeywordToken("timeout"), new LiteralToken(timeout, canContainVariables: true, escapeChar), isFlag: true)
+            : base(new KeywordToken("timeout", escapeChar), new LiteralToken(timeout, canContainVariables: true, escapeChar), isFlag: true)
         {
         }
 
@@ -16,8 +16,7 @@ namespace DockerfileModel
         {
         }
 
-        public static TimeoutFlag Parse(string text,
-            char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static TimeoutFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(
                 text,
                 KeywordToken.GetParser("timeout", escapeChar),

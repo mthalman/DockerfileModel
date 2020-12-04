@@ -16,15 +16,17 @@ namespace DockerfileModel
         private InnerTokens.Repository repositoryToken;
         private InnerTokens.Tag? tagToken;
         private InnerTokens.Digest? digestToken;
+        private readonly char escapeChar;
 
         public ImageName(string repository, string? registry = null, string? tag = null, string? digest = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(repository, registry, tag, digest, escapeChar))
+            : this(GetTokens(repository, registry, tag, digest, escapeChar), escapeChar)
         {
         }
 
-        internal ImageName(IEnumerable<Token> tokens) : base(tokens)
+        internal ImageName(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
         {
+            this.escapeChar = escapeChar;
             registryToken = Tokens.OfType<InnerTokens.Registry>().FirstOrDefault();
             repositoryToken = Tokens.OfType<InnerTokens.Repository>().First();
             tagToken = Tokens.OfType<InnerTokens.Tag>().FirstOrDefault();
@@ -43,7 +45,7 @@ namespace DockerfileModel
                 }
                 else
                 {
-                    RegistryToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Registry(value!);
+                    RegistryToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Registry(value!, escapeChar);
                 }
             }
         }
@@ -109,7 +111,7 @@ namespace DockerfileModel
                 }
                 else
                 {
-                    TagToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Tag(value!);
+                    TagToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Tag(value!, escapeChar);
                 }
             }
         }
@@ -158,7 +160,7 @@ namespace DockerfileModel
                 }
                 else
                 {
-                    DigestToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Digest(value!);
+                    DigestToken = String.IsNullOrEmpty(value) ? null : new InnerTokens.Digest(value!, escapeChar);
                 }
             }
         }
@@ -222,9 +224,9 @@ namespace DockerfileModel
         }
 
         public static ImageName Parse(string imageName, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ImageName(GetTokens(imageName, GetParser(escapeChar)));
+            new ImageName(GetTokens(imageName, GetParser(escapeChar)), escapeChar);
 
-        public static Parser<IEnumerable<Token>> GetParser(char escapeChar) =>
+        public static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
                 from registryRepository in ParseRegistryRepository(escapeChar)
                 from tagDigest in ParseTagDigest(escapeChar).Optional()
                 select ConcatTokens(
@@ -266,7 +268,7 @@ namespace DockerfileModel
             {
                 private readonly char escapeChar;
 
-                public Digest(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+                public Digest(string value, char escapeChar)
                     : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
                 {
                 }
@@ -277,10 +279,10 @@ namespace DockerfileModel
                     this.escapeChar = escapeChar;
                 }
 
-                public static Digest Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                public static Digest Parse(string text, char escapeChar) =>
                     new Digest(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-                public static Parser<Digest> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                public static Parser<Digest> GetParser(char escapeChar) =>
                     from tokens in GetInnerParser(escapeChar)
                     select new Digest(tokens, escapeChar);
 
@@ -307,7 +309,7 @@ namespace DockerfileModel
             {
                 private readonly char escapeChar;
 
-                public Tag(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+                public Tag(string value, char escapeChar)
                     : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
                 {
                 }
@@ -318,10 +320,10 @@ namespace DockerfileModel
                     this.escapeChar = escapeChar;
                 }
 
-                public static Tag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                public static Tag Parse(string text, char escapeChar) =>
                     new Tag(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-                public static Parser<Tag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                public static Parser<Tag> GetParser(char escapeChar) =>
                     from tokens in GetInnerParser(escapeChar)
                     select new Tag(tokens, escapeChar);
 
@@ -344,7 +346,7 @@ namespace DockerfileModel
             {
                 private readonly char escapeChar;
 
-                public Repository(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+                public Repository(string value, char escapeChar)
                     : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
                 {
                 }
@@ -355,10 +357,10 @@ namespace DockerfileModel
                     this.escapeChar = escapeChar;
                 }
 
-                public static Repository Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                public static Repository Parse(string text, char escapeChar) =>
                     new Repository(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-                public static Parser<Repository> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                public static Parser<Repository> GetParser(char escapeChar) =>
                     from tokens in GetInnerParser(escapeChar)
                     select new Repository(tokens, escapeChar);
 
@@ -380,7 +382,7 @@ namespace DockerfileModel
             {
                 private readonly char escapeChar;
 
-                public Registry(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+                public Registry(string value, char escapeChar)
                     : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
                 {
                 }
@@ -391,10 +393,10 @@ namespace DockerfileModel
                     this.escapeChar = escapeChar;
                 }
 
-                public static Registry Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                public static Registry Parse(string text, char escapeChar) =>
                     new Registry(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-                public static Parser<Registry> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+                public static Parser<Registry> GetParser(char escapeChar) =>
                     from tokens in GetInnerParser(escapeChar)
                     select new Registry(tokens, escapeChar);
 

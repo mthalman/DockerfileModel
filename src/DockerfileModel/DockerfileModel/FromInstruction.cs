@@ -92,7 +92,7 @@ namespace DockerfileModel
                         this.TokenList.AddRange(new Token[]
                         {
                             new WhitespaceToken(" "),
-                            new KeywordToken("AS"),
+                            new KeywordToken("AS", escapeChar),
                             new WhitespaceToken(" "),
                             token,
                         });
@@ -120,7 +120,7 @@ namespace DockerfileModel
             StringBuilder builder = new StringBuilder("FROM ");
             if (platform is not null)
             {
-                builder.Append($"{new PlatformFlag(platform)} ");
+                builder.Append($"{new PlatformFlag(platform, escapeChar)} ");
             }
 
             builder.Append(imageName);

@@ -8,7 +8,7 @@ namespace DockerfileModel
     public class PlatformFlag : KeyValueToken<KeywordToken, LiteralToken>
     {
         public PlatformFlag(string platform, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : base(new KeywordToken("platform"), new LiteralToken(platform, canContainVariables: true, escapeChar), isFlag: true)
+            : base(new KeywordToken("platform", escapeChar), new LiteralToken(platform, canContainVariables: true, escapeChar), isFlag: true)
         {
         }
 
