@@ -18,9 +18,18 @@ namespace DockerfileModel
 
         public static RetriesFlag Parse(string text,
             char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("retries", escapeChar), LiteralWithVariables(escapeChar), tokens => new RetriesFlag(tokens), escapeChar: escapeChar);
+            Parse(
+                text,
+                KeywordToken.GetParser("retries", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new RetriesFlag(tokens),
+                escapeChar: escapeChar);
 
         public static Parser<RetriesFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("retries", escapeChar), LiteralWithVariables(escapeChar), tokens => new RetriesFlag(tokens), escapeChar: escapeChar);
+            GetParser(
+                KeywordToken.GetParser("retries", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new RetriesFlag(tokens),
+                escapeChar: escapeChar);
     }
 }

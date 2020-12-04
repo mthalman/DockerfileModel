@@ -138,7 +138,7 @@ namespace DockerfileModel
 
         public static Parser<KeywordToken> InstructionIdentifier(char escapeChar) =>
             instructionParsers.Keys
-                .Select(instructionName => ParseHelper.Keyword(instructionName, escapeChar))
+                .Select(instructionName => KeywordToken.GetParser(instructionName, escapeChar))
                 .Aggregate((current, next) => current.Or(next));
     }
 }

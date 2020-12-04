@@ -18,9 +18,18 @@ namespace DockerfileModel
         }
 
         public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("platform", escapeChar), LiteralWithVariables(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);
+            Parse(
+                text,
+                KeywordToken.GetParser("platform", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new PlatformFlag(tokens),
+                escapeChar: escapeChar);
 
         public static Parser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("platform", escapeChar), LiteralWithVariables(escapeChar), tokens => new PlatformFlag(tokens), escapeChar: escapeChar);
+            GetParser(
+                KeywordToken.GetParser("platform", escapeChar),
+                LiteralWithVariables(escapeChar),
+                tokens => new PlatformFlag(tokens),
+                escapeChar: escapeChar);
     }
 }

@@ -198,7 +198,7 @@ namespace DockerfileModel
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             from options in Options(escapeChar)
             from command in CommandInstruction.GetInnerParser(escapeChar)
-                .XOr(ArgTokens(Keyword("NONE", escapeChar).AsEnumerable(), escapeChar))
+                .XOr(ArgTokens(KeywordToken.GetParser("NONE", escapeChar).AsEnumerable(), escapeChar))
             select ConcatTokens(options, command);
 
         private static Parser<IEnumerable<Token>> Options(char escapeChar) =>

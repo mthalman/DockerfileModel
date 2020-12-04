@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using DockerfileModel.Tokens;
 using Sprache;
-using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
@@ -18,9 +17,17 @@ namespace DockerfileModel
         }
 
         public static FromFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Parse(text, Keyword("from", escapeChar), StageName.GetParser(escapeChar), tokens => new FromFlag(tokens), escapeChar: escapeChar);
+            Parse(text,
+                KeywordToken.GetParser("from", escapeChar),
+                StageName.GetParser(escapeChar),
+                tokens => new FromFlag(tokens),
+                escapeChar: escapeChar);
 
         public static Parser<FromFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            GetParser(Keyword("from", escapeChar), StageName.GetParser(escapeChar), tokens => new FromFlag(tokens), escapeChar: escapeChar);
+            GetParser(
+                KeywordToken.GetParser("from", escapeChar),
+                StageName.GetParser(escapeChar),
+                tokens => new FromFlag(tokens),
+                escapeChar: escapeChar);
     }
 }
