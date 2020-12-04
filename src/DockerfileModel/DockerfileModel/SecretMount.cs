@@ -58,7 +58,7 @@ namespace DockerfileModel
                     DestinationPathToken = String.IsNullOrEmpty(value) ?
                         null :
                         new KeyValueToken<KeywordToken, LiteralToken>(
-                            new KeywordToken("dst"),
+                            new KeywordToken("dst", escapeChar),
                             new LiteralToken(value!, canContainVariables: true, escapeChar));
                 }
             }
@@ -84,8 +84,8 @@ namespace DockerfileModel
             }
         }
 
-        private static IEnumerable<Token> GetTokens(string id, string? destinationPath = null,
-            char escapeChar = Dockerfile.DefaultEscapeChar)
+        private static IEnumerable<Token> GetTokens(string id, string? destinationPath,
+            char escapeChar)
         {
             Requires.NotNullOrEmpty(id, nameof(id));
             string? destinationSegment = null;

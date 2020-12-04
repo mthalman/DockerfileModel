@@ -15,15 +15,15 @@ namespace DockerfileModel
         {
         }
 
-        private AddInstruction(IEnumerable<Token> tokens) : base(tokens)
+        private AddInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
         {
         }
 
         public static AddInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new AddInstruction(GetTokens(text, GetInnerParser(escapeChar, Name)));
+            new AddInstruction(GetTokens(text, GetInnerParser(escapeChar, Name)), escapeChar);
 
         public static Parser<AddInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar, Name)
-            select new AddInstruction(tokens);
+            select new AddInstruction(tokens, escapeChar);
     }
 }

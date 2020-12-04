@@ -28,9 +28,9 @@ namespace DockerfileModel
             : this(
                 new Token[]
                 {
-                    new KeywordToken("HEALTHCHECK"),
+                    new KeywordToken("HEALTHCHECK", escapeChar),
                     new WhitespaceToken(" "),
-                    new KeywordToken("NONE")
+                    new KeywordToken("NONE", escapeChar)
                 }, escapeChar)
         {
         }
@@ -50,7 +50,7 @@ namespace DockerfileModel
         {
             get => IntervalFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                IntervalFlag, value, val => new IntervalFlag(val), token => IntervalFlag = token);
+                IntervalFlag, value, val => new IntervalFlag(val, escapeChar), token => IntervalFlag = token);
         }
 
         private IntervalFlag? IntervalFlag
@@ -69,7 +69,7 @@ namespace DockerfileModel
         {
             get => TimeoutFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                TimeoutFlag, value, val => new TimeoutFlag(val), token => TimeoutFlag = token);
+                TimeoutFlag, value, val => new TimeoutFlag(val, escapeChar), token => TimeoutFlag = token);
         }
 
         private TimeoutFlag? TimeoutFlag
@@ -88,7 +88,7 @@ namespace DockerfileModel
         {
             get => StartPeriodFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                StartPeriodFlag, value, val => new StartPeriodFlag(val), token => StartPeriodFlag = token);
+                StartPeriodFlag, value, val => new StartPeriodFlag(val, escapeChar), token => StartPeriodFlag = token);
         }
 
         private StartPeriodFlag? StartPeriodFlag
@@ -107,7 +107,7 @@ namespace DockerfileModel
         {
             get => RetriesFlag?.ValueToken;
             set => SetOptionalKeyValueTokenValue(
-                RetriesFlag, value, val => new RetriesFlag(val), token => RetriesFlag = token);
+                RetriesFlag, value, val => new RetriesFlag(val, escapeChar), token => RetriesFlag = token);
         }
 
         private RetriesFlag? RetriesFlag
@@ -126,7 +126,7 @@ namespace DockerfileModel
                     {
                         // Replace the existing NONE keyword
                         int index = TokenList.IndexOf(Tokens.OfType<KeywordToken>().Last());
-                        TokenList[index] = new KeywordToken("CMD");
+                        TokenList[index] = new KeywordToken("CMD", escapeChar);
                         TokenList.InsertRange(index + 1, new Token[]
                         {
                             new WhitespaceToken(" "),
@@ -140,7 +140,7 @@ namespace DockerfileModel
                             token);
                         // Replace the CMD keyword
                         int index = TokenList.IndexOf(Tokens.OfType<KeywordToken>().Last());
-                        TokenList[index] = new KeywordToken("NONE");
+                        TokenList[index] = new KeywordToken("NONE", escapeChar);
                     });
             }
         }
@@ -157,7 +157,7 @@ namespace DockerfileModel
         {
             Requires.NotNullOrEmpty(command, nameof(command));
             return GetTokens(
-                $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries)}CMD {command}", GetInnerParser(escapeChar));
+                $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries, escapeChar)}CMD {command}", GetInnerParser(escapeChar));
         }
 
         private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, string? interval, string? timeout,
@@ -165,33 +165,33 @@ namespace DockerfileModel
         {
             Requires.NotNullOrEmpty(commands, nameof(commands));
             return GetTokens(
-                $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries)}CMD {StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
+                $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries, escapeChar)}CMD {StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
         }
 
-        private static string GetOptionArgs(string? interval, string? timeout, string? startPeriod, string? retries)
+        private static string GetOptionArgs(string? interval, string? timeout, string? startPeriod, string? retries, char escapeChar)
         {
             StringBuilder builder = new StringBuilder();
             if (interval is not null)
             {
-                builder.Append($"{new IntervalFlag(interval)} ");
+                builder.Append($"{new IntervalFlag(interval, escapeChar)} ");
             }
             if (timeout is not null)
             {
-                builder.Append($"{new TimeoutFlag(timeout)} ");
+                builder.Append($"{new TimeoutFlag(timeout, escapeChar)} ");
             }
             if (startPeriod is not null)
             {
-                builder.Append($"{new StartPeriodFlag(startPeriod)} ");
+                builder.Append($"{new StartPeriodFlag(startPeriod, escapeChar)} ");
             }
             if (retries is not null)
             {
-                builder.Append($"{new RetriesFlag(retries)} ");
+                builder.Append($"{new RetriesFlag(retries, escapeChar)} ");
             }
 
             return builder.ToString();
         }
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("HEALTHCHECK", escapeChar,
                 GetArgsParser(escapeChar));
 

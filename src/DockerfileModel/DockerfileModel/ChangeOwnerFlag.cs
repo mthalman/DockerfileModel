@@ -6,8 +6,8 @@ namespace DockerfileModel
 {
     public class ChangeOwnerFlag : KeyValueToken<KeywordToken, ChangeOwner>
     {
-        public ChangeOwnerFlag(ChangeOwner changeOwner)
-            : base(new KeywordToken("chown"), changeOwner, isFlag: true)
+        public ChangeOwnerFlag(ChangeOwner changeOwner, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : base(new KeywordToken("chown", escapeChar), changeOwner, isFlag: true)
         {
         }
 
@@ -15,8 +15,7 @@ namespace DockerfileModel
         {
         }
 
-        public static ChangeOwnerFlag Parse(string text,
-            char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static ChangeOwnerFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             Parse(text,
                 KeywordToken.GetParser("chown", escapeChar),
                 ChangeOwnerParser(escapeChar),
