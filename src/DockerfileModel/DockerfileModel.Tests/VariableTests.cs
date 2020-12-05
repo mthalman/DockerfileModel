@@ -87,8 +87,15 @@ namespace DockerfileModel.Tests
                 new VariableParseTestScenario
                 {
                     Text = "_test",
-                    ParseExceptionPosition = new Position(1, 1, 1)
-                }
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateString(token, "_test"),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Equal("_test", result.Value);
+                    }
+                },
             };
 
             return testInputs.Select(input => new object[] { input });

@@ -34,6 +34,6 @@ namespace DockerfileModel
             GetTokens(value, escapeChar, GetInnerParser(escapeChar)).Tokens;
 
         private static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> GetInnerParser(char escapeChar) =>
-            IdentifierTokens(VariableRefFirstLetterParser, VariableRefTailParser, escapeChar);
+            IdentifierTokens(VariableRefCharParser, VariableRefCharParser, escapeChar);
     }
 }

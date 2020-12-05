@@ -27,12 +27,6 @@ namespace DockerfileModel
                 token => token.Value,
                 (token, value) => token.Value = value);
 
-        internal static bool IsInstruction(string text, char escapeChar)
-        {
-            Requires.NotNull(text, nameof(text));
-            return GetInnerParser(escapeChar).TryParse(text).WasSuccessful;
-        }
-
         public static GenericInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new GenericInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
