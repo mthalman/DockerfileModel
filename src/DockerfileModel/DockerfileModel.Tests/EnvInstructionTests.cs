@@ -325,6 +325,32 @@ namespace DockerfileModel.Tests
                 },
                 new EnvInstructionParseTestScenario
                 {
+                    Text = "ENV MY_NAME \"John Doe\"",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ENV"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME \"John Doe\"",
+                            token => ValidateIdentifier<Variable>(token, "MY_NAME"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "John Doe", '\"'))
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ENV", result.InstructionName);
+                        Assert.Collection(result.Variables, new Action<IKeyValuePair>[]
+                        {
+                            pair =>
+                            {
+                                Assert.Equal("MY_NAME", pair.Key);
+                                Assert.Equal("John Doe", pair.Value);
+                            }
+                        });
+                    }
+                },
+                new EnvInstructionParseTestScenario
+                {
                     Text = "ENV MY_`\nNAME `\nJo`\nhn",
                     EscapeChar = '`',
                     TokenValidators = new Action<Token>[]

@@ -86,7 +86,7 @@ namespace DockerfileModel
             ArgTokens(
                 KeyValueToken<Variable, LiteralToken>.GetParser(
                     Variable.GetParser(escapeChar),
-                    LiteralWithVariables(escapeChar),
+                    LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes),
                     separator: ' ',
                     escapeChar: escapeChar).AsEnumerable(), escapeChar);
     }
