@@ -105,6 +105,6 @@ namespace DockerfileModel
         private static Parser<Command> GetCommandParser(char escapeChar) =>
             ExecFormCommand.GetParser(escapeChar)
                 .Cast<ExecFormCommand, Command>()
-                .XOr(ShellFormCommand.GetParser(escapeChar));
+                .Or(ShellFormCommand.GetParser(escapeChar));
     }
 }

@@ -127,6 +127,17 @@ namespace DockerfileModel.Tests
                 },
                 new RunInstructionParseTestScenario
                 {
+                    Text = "RUN [PowerShellType]::Type.Method",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormCommand>(token, "[PowerShellType]::Type.Method",
+                            token => ValidateLiteral(token, "[PowerShellType]::Type.Method"))
+                    }
+                },
+                new RunInstructionParseTestScenario
+                {
                     Text = "RUN T\\$EST",
                     TokenValidators = new Action<Token>[]
                     {
