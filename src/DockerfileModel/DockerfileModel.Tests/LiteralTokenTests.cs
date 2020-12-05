@@ -109,6 +109,19 @@ namespace DockerfileModel.Tests
                 },
                 new LiteralTokenParseTestScenario
                 {
+                    Text = "\"test this\" \"and this\"",
+                    ParseVariableRefs = false,
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateString(token, "\"test this\" \"and this\"")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Null(result.QuoteChar);
+                    }
+                },
+                new LiteralTokenParseTestScenario
+                {
                     Text = "test this $var",
                     ParseVariableRefs = false,
                     TokenValidators = new Action<Token>[]

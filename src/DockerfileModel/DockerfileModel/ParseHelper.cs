@@ -402,6 +402,16 @@ namespace DockerfileModel
         /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
         public static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> WrappedInOptionalQuotesLiteralStringWithSpaces(
             char escapeChar, bool excludeVariableRefChars = true) =>
+            from tokenSets in WrappedInOptionalQuotesLiteralStringWithSpacesCore(escapeChar, excludeVariableRefChars).AtLeastOnce()
+            select CollapseOptionalQuotesLiteralStringTokenSets(tokenSets);
+
+        /// <summary>
+        /// Parses a literal string, including spaces, that is optionally wrapped in quotes.
+        /// </summary>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
+        private static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> WrappedInOptionalQuotesLiteralStringWithSpacesCore(
+            char escapeChar, bool excludeVariableRefChars) =>
             WrappedInOptionalQuotes(
                 (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
                     WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true, excludeVariableRefChars: excludeVariableRefChars),
@@ -414,6 +424,22 @@ namespace DockerfileModel
                         val => new StringToken(val)),
                 escapeChar,
                 Enumerable.Empty<char>());
+
+        private static (IEnumerable<Token> Tokens, char? QuoteChar) CollapseOptionalQuotesLiteralStringTokenSets(
+            IEnumerable<(IEnumerable<Token> Tokens, char? QuoteChar)> tokenSets)
+        {
+            if (!tokenSets.Skip(1).Any())
+            {
+                return tokenSets.First();
+            }
+
+            IEnumerable<Token> tokens = tokenSets
+                .SelectMany(tokenSet => ConcatTokens(
+                    new Token?[] { tokenSet.QuoteChar is null ? null : new StringToken(tokenSet.QuoteChar.ToString()) },
+                    tokenSet.Tokens,
+                    new Token?[] { tokenSet.QuoteChar is null ? null : new StringToken(tokenSet.QuoteChar.ToString()) }));
+            return (TokenHelper.CollapseStringTokens(tokens), null);
+        }
 
         /// <summary>
         /// Parses a token for either a value or a variable reference.
