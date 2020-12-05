@@ -264,14 +264,9 @@ namespace DockerfileModel
             select String.Concat(vals);
 
         /// <summary>
-        /// Parses the first letter of a variable reference.
+        /// Parses the characters of a variable reference.
         /// </summary>
-        public static Parser<char> VariableRefFirstLetterParser => Parse.Letter;
-
-        /// <summary>
-        /// Parses the tail characters of a variable reference.
-        /// </summary>
-        public static Parser<char> VariableRefTailParser => Parse.LetterOrDigit.Or(Parse.Char('_'));
+        public static Parser<char> VariableRefCharParser => Parse.LetterOrDigit.Or(Parse.Char('_'));
 
         /// <summary>
         /// Parses the tokens within an identifier.
@@ -341,7 +336,7 @@ namespace DockerfileModel
         /// </summary>
         /// <returns>Parser for a variable identifier.</returns>
         public static Parser<string> VariableIdentifier() =>
-            Parse.Identifier(VariableRefFirstLetterParser, VariableRefTailParser);
+            VariableRefCharParser.AtLeastOnce().Text();
 
         /// <summary>
         /// Parses an aggregate containing literals. This handles any variable references.

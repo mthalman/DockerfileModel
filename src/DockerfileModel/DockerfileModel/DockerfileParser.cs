@@ -107,13 +107,9 @@ namespace DockerfileModel
                 {
                     dockerfileConstructs.Add(Comment.Parse(line));
                 }
-                else if (GenericInstruction.IsInstruction(line, escapeChar))
-                {
-                    dockerfileConstructs.Add(CreateInstruction(line, escapeChar));
-                }
                 else
                 {
-                    throw new ParseException($"Unexpected line content: {line}", new Position(1, i, 1));
+                    dockerfileConstructs.Add(CreateInstruction(line, escapeChar));
                 }
             }
 
