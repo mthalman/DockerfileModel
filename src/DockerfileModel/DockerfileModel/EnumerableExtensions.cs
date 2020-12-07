@@ -24,7 +24,7 @@ namespace DockerfileModel
         /// <param name="item">The item upon which the range of searched items is based.</param>
         public static IEnumerable<T> After<T>(this IEnumerable<T> enumerable, T item)
             where T : class =>
-            enumerable.SkipWhile(cur => cur != item);
+            enumerable.SkipWhile(cur => cur != item).Skip(1);
 
         /// <summary>
         /// Returns the first possible item of the specified type that precedes <paramref name="item"/>.

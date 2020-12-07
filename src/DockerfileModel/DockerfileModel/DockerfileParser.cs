@@ -23,7 +23,7 @@ namespace DockerfileModel
                 { "ENV", EnvInstruction.Parse },
                 { "FROM", FromInstruction.Parse },
                 { "HEALTHCHECK", HealthCheckInstruction.Parse },
-                { "LABEL", GenericInstruction.Parse },
+                { "LABEL", LabelInstruction.Parse },
                 { "MAINTAINER", GenericInstruction.Parse },
                 { "ONBUILD", GenericInstruction.Parse },
                 { "RUN", RunInstruction.Parse },

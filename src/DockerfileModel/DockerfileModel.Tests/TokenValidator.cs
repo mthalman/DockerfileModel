@@ -59,12 +59,12 @@ namespace DockerfileModel.Tests
             Action<Token>[] validators = !String.IsNullOrEmpty(literal) ?
                 new Action<Token>[] { token => ValidateString(token, literal) } :
                 Array.Empty<Action<Token>>();
-            ValidateQuotableAggregate<LiteralToken>(token, $"{quoteChar}{literal}{quoteChar}", quoteChar, validators);
+            ValidateQuotableAggregate<LiteralToken>(token, literal, quoteChar, validators);
         }
             
         public static void ValidateIdentifier<T>(Token token, string identifier, char? quoteChar = null)
             where T : IdentifierToken =>
-            ValidateQuotableAggregate<T>(token, $"{quoteChar}{identifier}{quoteChar}", quoteChar,
+            ValidateQuotableAggregate<T>(token, identifier, quoteChar,
                 token => ValidateString(token, identifier));
 
         public static void ValidateNewLine(Token token, string text)
@@ -85,12 +85,12 @@ namespace DockerfileModel.Tests
             }
         }
 
-        public static void ValidateQuotableAggregate<T>(Token token, string text, char? quoteChar, params Action<Token>[] tokenValidators)
+        public static void ValidateQuotableAggregate<T>(Token token, string text, char? quoteChar = null, params Action<Token>[] tokenValidators)
             where T : AggregateToken, IQuotableToken
         {
             Assert.IsType<T>(token);
             Assert.Equal(quoteChar, ((T)token).QuoteChar);
-            ValidateAggregate<T>(token, text, tokenValidators);
+            ValidateAggregate<T>(token, $"{quoteChar}{text}{quoteChar}", tokenValidators);
         }
     }
 }

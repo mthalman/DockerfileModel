@@ -243,7 +243,7 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<ExecFormCommand>(token, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
                             token => ValidateSymbol(token, '['),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateQuotableAggregate<LiteralToken>(token, "\"/bi`\nn/bash\"", ParseHelper.DoubleQuote,
+                            token => ValidateQuotableAggregate<LiteralToken>(token, "/bi`\nn/bash", ParseHelper.DoubleQuote,
                                 token => ValidateString(token, "/bi"),
                                 token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                                     token => ValidateSymbol(token, '`'),

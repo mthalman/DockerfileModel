@@ -154,7 +154,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateSymbol(token, '['),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<LiteralToken>(token, "\"/bi`\nn/bash\"", ParseHelper.DoubleQuote,
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "/bi`\nn/bash", ParseHelper.DoubleQuote,
                             token => ValidateString(token, "/bi"),
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                                 token => ValidateSymbol(token, '`'),
