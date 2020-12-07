@@ -71,7 +71,7 @@ namespace DockerfileModel.Tokens
 
         public TValue ValueToken
         {
-            get => Tokens.OfType<TValue>().First();
+            get => Tokens.After(KeyToken).OfType<TValue>().First();
             set
             {
                 Requires.NotNull(value, nameof(value));

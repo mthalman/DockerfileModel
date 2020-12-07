@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
@@ -32,7 +31,6 @@ namespace DockerfileModel
         public IList<IKeyValuePair> Labels { get; }
 
         public IList<KeyValueToken<LiteralToken, LiteralToken>> LabelTokens { get; }
-
    
         public static LabelInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new LabelInstruction(GetTokens(text, GetInnerParser(escapeChar)));
@@ -62,21 +60,20 @@ namespace DockerfileModel
         }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Instruction("LABEL", escapeChar,
-                GetArgsParser(escapeChar));
+            Instruction("LABEL", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             ArgTokens(
                 from whitespace in Whitespace().Optional()
                 from variable in KeyValueToken<LiteralToken, LiteralToken>.GetParser(
-                    LiteralAggregate(escapeChar, excludedChars: new char[] { '=' }, whitespaceMode: WhitespaceMode.AllowedInQuotes),
+                    LiteralWithVariables(escapeChar, excludedChars: new char[] { '=' }, whitespaceMode: WhitespaceMode.AllowedInQuotes),
                     ValueParser(escapeChar),
                     escapeChar: escapeChar).AsEnumerable()
                 select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
             ).AtLeastOnce().Flatten();
 
         private static Parser<LiteralToken> ValueParser(char escapeChar) =>
-            from literal in LiteralAggregate(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).Optional()
+            from literal in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).Optional()
             select literal.GetOrElse(new LiteralToken(""));
     }
 }

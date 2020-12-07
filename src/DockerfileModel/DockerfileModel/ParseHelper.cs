@@ -435,9 +435,9 @@ namespace DockerfileModel
 
             IEnumerable<Token> tokens = tokenSets
                 .SelectMany(tokenSet => ConcatTokens(
-                    new Token?[] { tokenSet.QuoteChar is null ? null : new StringToken(tokenSet.QuoteChar.ToString()) },
+                    new Token?[] { tokenSet.QuoteChar is null ? null : new StringToken(((char)tokenSet.QuoteChar).ToString()) },
                     tokenSet.Tokens,
-                    new Token?[] { tokenSet.QuoteChar is null ? null : new StringToken(tokenSet.QuoteChar.ToString()) }));
+                    new Token?[] { tokenSet.QuoteChar is null ? null : new StringToken(((char)tokenSet.QuoteChar).ToString()) }));
             return (TokenHelper.CollapseStringTokens(tokens), null);
         }
 

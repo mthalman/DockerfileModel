@@ -413,7 +413,7 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateQuotableAggregate<LiteralToken>(token, "\"al\\\npine\"", '\"',
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "al\\\npine", '\"',
                             token => ValidateString(token, "al"),
                             token => ValidateAggregate<LineContinuationToken>(token, "\\\n",
                                 token => ValidateSymbol(token, '\\'),
