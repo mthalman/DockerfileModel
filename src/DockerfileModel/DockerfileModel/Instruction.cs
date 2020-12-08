@@ -25,7 +25,7 @@ namespace DockerfileModel
                 { "MAINTAINER", MaintainerInstruction.Parse },
                 { "ONBUILD", OnBuildInstruction.Parse },
                 { "RUN", RunInstruction.Parse },
-                { "SHELL", GenericInstruction.Parse },
+                { "SHELL", ShellInstruction.Parse },
                 { "STOPSIGNAL", GenericInstruction.Parse },
                 { "USER", GenericInstruction.Parse },
                 { "VOLUME", GenericInstruction.Parse },
