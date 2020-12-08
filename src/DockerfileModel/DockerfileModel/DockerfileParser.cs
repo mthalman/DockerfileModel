@@ -11,29 +11,6 @@ namespace DockerfileModel
 {
     internal static class DockerfileParser
     {
-        private static readonly Dictionary<string, Func<string, char, Instruction>> instructionParsers =
-            new Dictionary<string, Func<string, char, Instruction>>
-            {
-                { "ADD", AddInstruction.Parse },
-                { "ARG", ArgInstruction.Parse },
-                { "CMD", CommandInstruction.Parse },
-                { "COPY", CopyInstruction.Parse },
-                { "ENTRYPOINT", EntrypointInstruction.Parse },
-                { "EXPOSE", ExposeInstruction.Parse },
-                { "ENV", EnvInstruction.Parse },
-                { "FROM", FromInstruction.Parse },
-                { "HEALTHCHECK", HealthCheckInstruction.Parse },
-                { "LABEL", LabelInstruction.Parse },
-                { "MAINTAINER", MaintainerInstruction.Parse },
-                { "ONBUILD", GenericInstruction.Parse },
-                { "RUN", RunInstruction.Parse },
-                { "SHELL", GenericInstruction.Parse },
-                { "STOPSIGNAL", GenericInstruction.Parse },
-                { "USER", GenericInstruction.Parse },
-                { "VOLUME", GenericInstruction.Parse },
-                { "WORKDIR", GenericInstruction.Parse },
-            };
-
         public static Dockerfile ParseContent(string text)
         {
             bool parserDirectivesComplete = false;
@@ -109,32 +86,16 @@ namespace DockerfileModel
                 }
                 else
                 {
-                    dockerfileConstructs.Add(CreateInstruction(line, escapeChar));
+                    dockerfileConstructs.Add(Instruction.CreateInstruction(line, escapeChar));
                 }
             }
 
             return new Dockerfile(dockerfileConstructs);
         }
 
-        private static Instruction CreateInstruction(string text, char escapeChar)
-        {
-            string instructionName = InstructionName(escapeChar).Parse(text);
-            return instructionParsers[instructionName](text, escapeChar);
-        }
-
-        private static Parser<string> InstructionName(char escapeChar) =>
-            from leading in Whitespace()
-            from instruction in InstructionIdentifier(escapeChar)
-            select instruction.Value;
-
         private static Parser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
             from text in Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Many().Text()
             from lineCont in LineContinuationToken.GetParser(escapeChar)
             select lineCont;
-
-        public static Parser<KeywordToken> InstructionIdentifier(char escapeChar) =>
-            instructionParsers.Keys
-                .Select(instructionName => KeywordToken.GetParser(instructionName, escapeChar))
-                .Aggregate((current, next) => current.Or(next));
     }
 }
