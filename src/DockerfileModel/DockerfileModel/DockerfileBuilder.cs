@@ -133,6 +133,12 @@ namespace DockerfileModel
         public DockerfileBuilder MaintainerInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.MaintainerInstruction.Parse);
 
+        public DockerfileBuilder OnBuildInstruction(Instruction instruction) =>
+            AddConstruct(new OnBuildInstruction(instruction, EscapeChar));
+
+        public DockerfileBuilder OnBuildInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.OnBuildInstruction.Parse);
+
         public DockerfileBuilder ParserDirective(string directive, string value) =>
             AddConstruct(new ParserDirective(CommentSeparator + directive, value));
 
