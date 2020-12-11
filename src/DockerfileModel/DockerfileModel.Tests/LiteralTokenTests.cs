@@ -34,8 +34,10 @@ namespace DockerfileModel.Tests
         [Fact]
         public void ValueVariable()
         {
-            LiteralToken token = new LiteralToken("tag", canContainVariables: true);
-            token.Value = "$REPO:tag";
+            LiteralToken token = new LiteralToken("tag", canContainVariables: true)
+            {
+                Value = "$REPO:tag"
+            };
             token.ResolveVariables(Dockerfile.DefaultEscapeChar, new Dictionary<string, string>
             {
                 { "REPO", "test" }

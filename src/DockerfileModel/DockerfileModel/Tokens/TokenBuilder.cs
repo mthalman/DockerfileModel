@@ -21,8 +21,8 @@ namespace DockerfileModel.Tokens
         public TokenBuilder Comment(Action<TokenBuilder> configureBuilder) =>
             AddToken(new CommentToken(GetTokens(configureBuilder)));
 
-        public TokenBuilder ExecFormCommand(params string[] commands) =>
-            AddToken(new ExecFormCommand(commands, EscapeChar));
+        public TokenBuilder ExecFormCommand(params string[] values) =>
+            AddToken(new ExecFormCommand(values, EscapeChar));
 
         public TokenBuilder ExecFormCommand(Action<TokenBuilder> configureBuilder) =>
             AddToken(new ExecFormCommand(GetTokens(configureBuilder)));

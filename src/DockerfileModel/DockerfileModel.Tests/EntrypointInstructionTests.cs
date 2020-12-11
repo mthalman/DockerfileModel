@@ -36,13 +36,13 @@ namespace DockerfileModel.Tests
         public void Create(CreateTestScenario scenario)
         {
             EntrypointInstruction result;
-            if (scenario.Command != null)
+            if (scenario.Args is null)
             {
                 result = new EntrypointInstruction(scenario.Command);
             }
             else
             {
-                result = new EntrypointInstruction(scenario.Commands);
+                result = new EntrypointInstruction(scenario.Command, scenario.Args);
             }
 
             Assert.Collection(result.Tokens, scenario.TokenValidators);
@@ -172,7 +172,7 @@ namespace DockerfileModel.Tests
                                 "-c",
                                 "echo hello"
                             },
-                            cmd.CommandArgs.ToArray());
+                            cmd.Values.ToArray());
                     }
                 }
             };
@@ -197,9 +197,9 @@ namespace DockerfileModel.Tests
                 },
                 new CreateTestScenario
                 {
-                    Commands = new string[]
+                    Command = "/bin/bash",
+                    Args = new string[]
                     {
-                        "/bin/bash",
                         "-c",
                         "echo hello"
                     },
@@ -232,7 +232,7 @@ namespace DockerfileModel.Tests
         public class CreateTestScenario : TestScenario<EntrypointInstruction>
         {
             public string Command { get; set; }
-            public IEnumerable<string> Commands { get; set; }
+            public IEnumerable<string> Args { get; set; }
         }
     }
 }

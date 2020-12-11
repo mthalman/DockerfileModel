@@ -49,7 +49,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void FromStageName()
         {
-            void Validate(CopyInstruction instruction, string stage)
+            static void Validate(CopyInstruction instruction, string stage)
             {
                 Assert.Equal(stage, instruction.FromStageName);
                 Assert.Equal(stage, instruction.FromStageNameToken.Value);

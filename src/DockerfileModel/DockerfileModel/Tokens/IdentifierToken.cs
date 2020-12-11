@@ -24,7 +24,7 @@ namespace DockerfileModel.Tokens
 
         protected abstract IEnumerable<Token> GetInnerTokens(string value);
 
-        protected static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, char escapeChar,
+        protected static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value,
             Parser<(IEnumerable<Token> Token, char? QuoteChar)> parser)
         {
             Requires.NotNull(value, nameof(value));

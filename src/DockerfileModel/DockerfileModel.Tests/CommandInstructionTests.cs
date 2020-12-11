@@ -172,7 +172,7 @@ namespace DockerfileModel.Tests
                                 "-c",
                                 "echo hello"
                             },
-                            cmd.CommandArgs.ToArray());
+                            cmd.Values.ToArray());
                     }
                 }
             };

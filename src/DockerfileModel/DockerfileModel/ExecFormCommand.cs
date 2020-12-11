@@ -9,8 +9,8 @@ namespace DockerfileModel
 {
     public class ExecFormCommand : Command
     {
-        public ExecFormCommand(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(commands, escapeChar))
+        public ExecFormCommand(IEnumerable<string> values, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(values, escapeChar))
         {
         }
 
@@ -18,10 +18,10 @@ namespace DockerfileModel
         {
         }
 
-        private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, char escapeChar)
+        private static IEnumerable<Token> GetTokens(IEnumerable<string> values, char escapeChar)
         {
-            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
-            return GetTokens(StringHelper.FormatAsJson(commands), GetInnerParser(escapeChar));
+            Requires.NotNullEmptyOrNullElements(values, nameof(values));
+            return GetTokens(StringHelper.FormatAsJson(values), GetInnerParser(escapeChar));
         }
 
         public static ExecFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
@@ -31,13 +31,13 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new ExecFormCommand(tokens);
 
-        public IList<string> CommandArgs =>
+        public IList<string> Values =>
             new ProjectedItemList<LiteralToken, string>(
-                CommandArgTokens,
+                ValueTokens,
                 token => token.Value,
                 (token, value) => token.Value = value);
 
-        public IEnumerable<LiteralToken> CommandArgTokens => Tokens.OfType<LiteralToken>();
+        public IEnumerable<LiteralToken> ValueTokens => Tokens.OfType<LiteralToken>();
 
         public override CommandType CommandType => CommandType.ExecForm;
 

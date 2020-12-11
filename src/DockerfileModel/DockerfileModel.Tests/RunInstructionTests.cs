@@ -36,7 +36,7 @@ namespace DockerfileModel.Tests
         public void Create(CreateTestScenario scenario)
         {
             RunInstruction result;
-            if (scenario.Command != null)
+            if (scenario.Args is null)
             {
                 if (scenario.Mounts is null)
                 {
@@ -51,11 +51,25 @@ namespace DockerfileModel.Tests
             {
                 if (scenario.Mounts is null)
                 {
-                    result = new RunInstruction(scenario.Commands);
+                    if (scenario.Args is null)
+                    {
+                        result = new RunInstruction(scenario.Command);
+                    }
+                    else
+                    {
+                        result = new RunInstruction(scenario.Command, scenario.Args);
+                    }
                 }
                 else
                 {
-                    result = new RunInstruction(scenario.Commands, scenario.Mounts);
+                    if (scenario.Args is null)
+                    {
+                        result = new RunInstruction(scenario.Command, scenario.Mounts);
+                    }
+                    else
+                    {
+                        result = new RunInstruction(scenario.Command, scenario.Args, scenario.Mounts);
+                    }
                 }
             }
 
@@ -226,7 +240,7 @@ namespace DockerfileModel.Tests
                                 "-c",
                                 "echo hello"
                             },
-                            cmd.CommandArgs.ToArray());
+                            cmd.Values.ToArray());
                     }
                 },
                 new RunInstructionParseTestScenario
@@ -277,7 +291,7 @@ namespace DockerfileModel.Tests
                                 "-c",
                                 "echo he`\"llo"
                             },
-                            cmd.CommandArgs.ToArray());
+                            cmd.Values.ToArray());
                     }
                 },
                 new RunInstructionParseTestScenario
@@ -411,9 +425,9 @@ namespace DockerfileModel.Tests
                 },
                 new CreateTestScenario
                 {
-                    Commands = new string[]
+                    Command = "/bin/bash",
+                    Args = new string[]
                     {
-                        "/bin/bash",
                         "-c",
                         "echo hello"
                     },
@@ -507,7 +521,7 @@ namespace DockerfileModel.Tests
         public class CreateTestScenario : TestScenario<RunInstruction>
         {
             public string Command { get; set; }
-            public IEnumerable<string> Commands { get; set; }
+            public IEnumerable<string> Args { get; set; }
             public IEnumerable<Mount> Mounts { get; set; }
         }
     }
