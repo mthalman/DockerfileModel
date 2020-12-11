@@ -39,11 +39,14 @@ namespace DockerfileModel.Tests
             
             if (scenario.Command is not null)
             {
-                result = new HealthCheckInstruction(scenario.Command, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
-            }
-            else if (scenario.Commands is not null)
-            {
-                result = new HealthCheckInstruction(scenario.Commands, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
+                if (scenario.Args is not null)
+                {
+                    result = new HealthCheckInstruction(scenario.Command, scenario.Args, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
+                }
+                else
+                {
+                    result = new HealthCheckInstruction(scenario.Command, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
+                }
             }
             else
             {
@@ -228,13 +231,13 @@ namespace DockerfileModel.Tests
             HealthCheckInstruction instruction = new HealthCheckInstruction("command1");
             Assert.Equal("HEALTHCHECK CMD command1", instruction.ToString());
 
-            instruction.Command = new ExecFormCommand(new string[] { "command", "arg" });
+            instruction.CommandInstruction = new CommandInstruction(new string[] { "command", "arg" });
             Assert.Equal("HEALTHCHECK CMD [\"command\", \"arg\"]", instruction.ToString());
 
-            instruction.Command = null;
+            instruction.CommandInstruction = null;
             Assert.Equal("HEALTHCHECK NONE", instruction.ToString());
 
-            instruction.Command = new ShellFormCommand("cmd");
+            instruction.CommandInstruction = new CommandInstruction("cmd");
             Assert.Equal("HEALTHCHECK CMD cmd", instruction.ToString());
         }
 
@@ -255,7 +258,7 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("HEALTHCHECK", result.InstructionName);
-                        Assert.Null(result.Command);
+                        Assert.Null(result.CommandInstruction);
                     }
                 },
                 new HealthCheckInstructionParseTestScenario
@@ -265,17 +268,18 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "HEALTHCHECK"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running"))
+                        token => ValidateAggregate<CommandInstruction>(token, "CMD /bin/check-running",
+                            token => ValidateKeyword(token, "CMD"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                                token => ValidateLiteral(token, "/bin/check-running")))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("HEALTHCHECK", result.InstructionName);
-                        Assert.IsType<ShellFormCommand>(result.Command);
-                        Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
+                        Assert.IsType<ShellFormCommand>(result.CommandInstruction.Command);
+                        Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CommandInstruction.Command).Value);
                     }
                 },
                 new HealthCheckInstructionParseTestScenario
@@ -287,17 +291,18 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "10s"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running"))
+                        token => ValidateAggregate<CommandInstruction>(token, "CMD /bin/check-running",
+                            token => ValidateKeyword(token, "CMD"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                                token => ValidateLiteral(token, "/bin/check-running")))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("HEALTHCHECK", result.InstructionName);
-                        Assert.IsType<ShellFormCommand>(result.Command);
-                        Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
+                        Assert.IsType<ShellFormCommand>(result.CommandInstruction.Command);
+                        Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CommandInstruction.Command).Value);
                         Assert.Equal("10s", result.StartPeriod);
                     }
                 },
@@ -316,17 +321,18 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "1h"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running"))
+                        token => ValidateAggregate<CommandInstruction>(token, "CMD /bin/check-running",
+                            token => ValidateKeyword(token, "CMD"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                                token => ValidateLiteral(token, "/bin/check-running")))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("HEALTHCHECK", result.InstructionName);
-                        Assert.IsType<ShellFormCommand>(result.Command);
-                        Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
+                        Assert.IsType<ShellFormCommand>(result.CommandInstruction.Command);
+                        Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CommandInstruction.Command).Value);
                         Assert.Equal("10s", result.StartPeriod);
                         Assert.Equal("5", result.Retries);
                         Assert.Equal("1m", result.Interval);
@@ -345,17 +351,18 @@ namespace DockerfileModel.Tests
                         token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "10s"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLineContinuation(token, '`', "\n"),
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running"))
+                        token => ValidateAggregate<CommandInstruction>(token, "CMD /bin/check-running",
+                            token => ValidateKeyword(token, "CMD"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                                token => ValidateLiteral(token, "/bin/check-running")))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("HEALTHCHECK", result.InstructionName);
-                        Assert.IsType<ShellFormCommand>(result.Command);
-                        Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
+                        Assert.IsType<ShellFormCommand>(result.CommandInstruction.Command);
+                        Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CommandInstruction.Command).Value);
                         Assert.Equal("10s", result.StartPeriod);
                     }
                 },
@@ -384,32 +391,34 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "HEALTHCHECK"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running"))
+                        token => ValidateAggregate<CommandInstruction>(token, "CMD /bin/check-running",
+                            token => ValidateKeyword(token, "CMD"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                                token => ValidateLiteral(token, "/bin/check-running")))
                     }
                 },
                 new CreateTestScenario
                 {
-                    Commands = new string[]
+                    Command = "/bin/check-running",
+                    Args = new string[]
                     {
-                        "/bin/check-running",
                         "-f"
                     },
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, "HEALTHCHECK"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/check-running\", \"-f\"]",
-                            token => ValidateSymbol(token, '['),
-                            token => ValidateLiteral(token, "/bin/check-running", '\"'),
-                            token => ValidateSymbol(token, ','),
+                        token => ValidateAggregate<CommandInstruction>(token, "CMD [\"/bin/check-running\", \"-f\"]",
+                            token => ValidateKeyword(token, "CMD"),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateLiteral(token, "-f", '\"'),
-                            token => ValidateSymbol(token, ']'))
+                            token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/check-running\", \"-f\"]",
+                                token => ValidateSymbol(token, '['),
+                                token => ValidateLiteral(token, "/bin/check-running", '\"'),
+                                token => ValidateSymbol(token, ','),
+                                token => ValidateWhitespace(token, " "),
+                                token => ValidateLiteral(token, "-f", '\"'),
+                                token => ValidateSymbol(token, ']')))
                     }
                 },
                 new CreateTestScenario
@@ -431,10 +440,11 @@ namespace DockerfileModel.Tests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateKeyValueFlag<RetriesFlag>(token, "retries", "10"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running"))
+                        token => ValidateAggregate<CommandInstruction>(token, "CMD /bin/check-running",
+                            token => ValidateKeyword(token, "CMD"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                                token => ValidateLiteral(token, "/bin/check-running")))
                     }
                 },
             };
@@ -450,7 +460,7 @@ namespace DockerfileModel.Tests
         public class CreateTestScenario : TestScenario<HealthCheckInstruction>
         {
             public string Command { get; set; }
-            public IEnumerable<string> Commands { get; set; }
+            public IEnumerable<string> Args { get; set; }
             public string Interval { get; set; }
             public string Timeout { get; set; }
             public string StartPeriod { get; set; }

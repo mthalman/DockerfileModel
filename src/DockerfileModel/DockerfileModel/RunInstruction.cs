@@ -12,23 +12,23 @@ namespace DockerfileModel
     {
         private readonly ProjectedItemList<MountFlag, Mount> mounts;
 
-        public RunInstruction(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(command, Enumerable.Empty<Mount>(), escapeChar)
+        public RunInstruction(string commandWithArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(commandWithArgs, Enumerable.Empty<Mount>(), escapeChar)
         {
         }
 
-        public RunInstruction(string command, IEnumerable<Mount> mounts, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(command, mounts, escapeChar))
+        public RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(commandWithArgs, mounts, escapeChar))
         {
         }
 
-        public RunInstruction(IEnumerable<string> commands, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(commands, Enumerable.Empty<Mount>(), escapeChar)
+        public RunInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(command, args, Enumerable.Empty<Mount>(), escapeChar)
         {
         }
 
-        public RunInstruction(IEnumerable<string> commands, IEnumerable<Mount> mounts, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(commands, mounts, escapeChar))
+        public RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(command, args, mounts, escapeChar))
         {
         }
 
@@ -65,20 +65,22 @@ namespace DockerfileModel
             return ToString();
         }
 
-        private static IEnumerable<Token> GetTokens(string command, IEnumerable<Mount> mounts, char escapeChar)
+        private static IEnumerable<Token> GetTokens(string commandWithArgs, IEnumerable<Mount> mounts, char escapeChar)
         {
-            Requires.NotNullOrEmpty(command, nameof(command));
+            Requires.NotNullOrEmpty(commandWithArgs, nameof(commandWithArgs));
             Requires.NotNull(mounts, nameof(mounts));
 
-            return GetTokens($"RUN {CreateMountFlagArgs(mounts, escapeChar)}{command}", GetInnerParser(escapeChar));
+            return GetTokens($"RUN {CreateMountFlagArgs(mounts, escapeChar)}{commandWithArgs}", GetInnerParser(escapeChar));
         }
 
-        private static IEnumerable<Token> GetTokens(IEnumerable<string> commands, IEnumerable<Mount> mounts, char escapeChar)
+        private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, IEnumerable<Mount> mounts, char escapeChar)
         {
-            Requires.NotNullEmptyOrNullElements(commands, nameof(commands));
+            Requires.NotNullOrEmpty(command, nameof(command));
+            Requires.NotNull(args, nameof(args));
             Requires.NotNull(mounts, nameof(mounts));
 
-            return GetTokens($"RUN {CreateMountFlagArgs(mounts, escapeChar)}{StringHelper.FormatAsJson(commands)}", GetInnerParser(escapeChar));
+            return GetTokens(
+                $"RUN {CreateMountFlagArgs(mounts, escapeChar)}{StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
         }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>

@@ -10,7 +10,7 @@ namespace DockerfileModel
         private readonly char escapeChar;
 
         public Variable(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(value, escapeChar, GetInnerParser(escapeChar)), escapeChar)
+            : this(GetTokens(value, GetInnerParser(escapeChar)), escapeChar)
         {
         }
 
@@ -31,7 +31,7 @@ namespace DockerfileModel
             select new Variable(tokens, escapeChar);
 
         protected override IEnumerable<Token> GetInnerTokens(string value) =>
-            GetTokens(value, escapeChar, GetInnerParser(escapeChar)).Tokens;
+            GetTokens(value, GetInnerParser(escapeChar)).Tokens;
 
         private static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> GetInnerParser(char escapeChar) =>
             IdentifierTokens(VariableRefCharParser, VariableRefCharParser, escapeChar);

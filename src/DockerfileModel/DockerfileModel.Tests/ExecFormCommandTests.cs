@@ -57,16 +57,16 @@ namespace DockerfileModel.Tests
                     "-c",
                     "echo hello"
                 },
-                result.CommandArgs);
+                result.Values);
 
-            Assert.Collection(result.CommandArgTokens, new Action<LiteralToken>[]
+            Assert.Collection(result.ValueTokens, new Action<LiteralToken>[]
             {
                 token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                 token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
                 token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
             });
 
-            result.CommandArgs[2] = "echo bye";
+            result.Values[2] = "echo bye";
             Assert.Equal(
                 new string[]
                 {
@@ -74,16 +74,16 @@ namespace DockerfileModel.Tests
                     "-c",
                     "echo bye"
                 },
-                result.CommandArgs);
+                result.Values);
 
-            Assert.Collection(result.CommandArgTokens, new Action<LiteralToken>[]
+            Assert.Collection(result.ValueTokens, new Action<LiteralToken>[]
             {
                 token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                 token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
                 token => ValidateLiteral(token, "echo bye", ParseHelper.DoubleQuote),
             });
 
-            result.CommandArgTokens.Last().Value = "echo hola";
+            result.ValueTokens.Last().Value = "echo hola";
             Assert.Equal(
                 new string[]
                 {
@@ -91,9 +91,9 @@ namespace DockerfileModel.Tests
                     "-c",
                     "echo hola"
                 },
-                result.CommandArgs.ToArray());
+                result.Values.ToArray());
 
-            Assert.Collection(result.CommandArgTokens, new Action<LiteralToken>[]
+            Assert.Collection(result.ValueTokens, new Action<LiteralToken>[]
             {
                 token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
                 token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
@@ -109,7 +109,7 @@ namespace DockerfileModel.Tests
             {
                 "$var"
             });
-            TestHelper.TestVariablesWithLiteral(() => result.CommandArgTokens.First(), "$var", canContainVariables: false);
+            TestHelper.TestVariablesWithLiteral(() => result.ValueTokens.First(), "$var", canContainVariables: false);
         }
 
         public static IEnumerable<object[]> ParseTestInput()
@@ -143,7 +143,7 @@ namespace DockerfileModel.Tests
                                 "-c",
                                 "echo hello"
                             },
-                            result.CommandArgs.ToArray());
+                            result.Values.ToArray());
                     }
                 },
                 new ExecFormCommandParseTestScenario
@@ -184,7 +184,7 @@ namespace DockerfileModel.Tests
                                 "-c",
                                 "echo he`\"llo"
                             },
-                            result.CommandArgs.ToArray());
+                            result.Values.ToArray());
                     }
                 },
                 new ExecFormCommandParseTestScenario

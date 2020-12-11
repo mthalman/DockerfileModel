@@ -55,8 +55,11 @@ namespace DockerfileModel
         public DockerfileBuilder CommandInstruction(string command) =>
             AddConstruct(new CommandInstruction(command, EscapeChar));
 
-        public DockerfileBuilder CommandInstruction(IEnumerable<string> commands) =>
-            AddConstruct(new CommandInstruction(commands, EscapeChar));
+        public DockerfileBuilder CommandInstruction(IEnumerable<string> defaultArgs) =>
+            AddConstruct(new CommandInstruction(defaultArgs, EscapeChar));
+
+        public DockerfileBuilder CommandInstruction(string command, IEnumerable<string> args) =>
+            AddConstruct(new CommandInstruction(command, args, EscapeChar));
 
         public DockerfileBuilder CommandInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.CommandInstruction.Parse);
@@ -74,11 +77,11 @@ namespace DockerfileModel
         public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.CopyInstruction.Parse);
 
-        public DockerfileBuilder EntrypointInstruction(string command) =>
-            AddConstruct(new EntrypointInstruction(command, EscapeChar));
+        public DockerfileBuilder EntrypointInstruction(string commandWithArgs) =>
+            AddConstruct(new EntrypointInstruction(commandWithArgs, EscapeChar));
 
-        public DockerfileBuilder EntrypointInstruction(IEnumerable<string> commands) =>
-            AddConstruct(new EntrypointInstruction(commands, EscapeChar));
+        public DockerfileBuilder EntrypointInstruction(string command, IEnumerable<string> args) =>
+            AddConstruct(new EntrypointInstruction(command, args, EscapeChar));
 
         public DockerfileBuilder EntrypointInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.EntrypointInstruction.Parse);
@@ -107,13 +110,17 @@ namespace DockerfileModel
         public DockerfileBuilder GenericInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.GenericInstruction.Parse);
 
-        public DockerfileBuilder HealthCheckInstruction(string command, string? interval = null, string? timeout = null,
+        public DockerfileBuilder HealthCheckInstruction(string commandWithArgs, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null) =>
-            AddConstruct(new HealthCheckInstruction(command, interval, timeout, startPeriod, retries, EscapeChar));
+            AddConstruct(new HealthCheckInstruction(commandWithArgs, interval, timeout, startPeriod, retries, EscapeChar));
 
-        public DockerfileBuilder HealthCheckInstruction(IEnumerable<string> commands, string? interval = null, string? timeout = null,
+        public DockerfileBuilder HealthCheckInstruction(IEnumerable<string> defaultArgs, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null) =>
-            AddConstruct(new HealthCheckInstruction(commands, interval, timeout, startPeriod, retries, EscapeChar));
+            AddConstruct(new HealthCheckInstruction(defaultArgs, interval, timeout, startPeriod, retries, EscapeChar));
+
+        public DockerfileBuilder HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
+            string? startPeriod = null, string? retries = null) =>
+            AddConstruct(new HealthCheckInstruction(command, args, interval, timeout, startPeriod, retries, EscapeChar));
 
         public DockerfileBuilder HealthCheckDisabledInstruction() =>
             AddConstruct(new HealthCheckInstruction(EscapeChar));
@@ -148,14 +155,14 @@ namespace DockerfileModel
         public DockerfileBuilder RunInstruction(string command) =>
             RunInstruction(command, Enumerable.Empty<Mount>());
 
-        public DockerfileBuilder RunInstruction(string command, IEnumerable<Mount> mounts) =>
-            AddConstruct(new RunInstruction(command, mounts, EscapeChar));
+        public DockerfileBuilder RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts) =>
+            AddConstruct(new RunInstruction(commandWithArgs, mounts, EscapeChar));
 
-        public DockerfileBuilder RunInstruction(IEnumerable<string> commands) =>
-            RunInstruction(commands, Enumerable.Empty<Mount>());
+        public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args) =>
+            RunInstruction(command, args, Enumerable.Empty<Mount>());
 
-        public DockerfileBuilder RunInstruction(IEnumerable<string> commands, IEnumerable<Mount> mounts) =>
-            AddConstruct(new RunInstruction(commands, mounts, EscapeChar));
+        public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts) =>
+            AddConstruct(new RunInstruction(command, args, mounts, EscapeChar));
 
         public DockerfileBuilder RunInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.RunInstruction.Parse);
