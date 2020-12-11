@@ -505,6 +505,17 @@ namespace DockerfileModel.Tests
             {
                 new ParseTestScenario<Dockerfile>
                 {
+                    Text = "from scratch",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        line => ValidateAggregate<FromInstruction>(line, "from scratch",
+                            token => ValidateKeyword(token, "from"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "scratch"))
+                    }
+                },
+                new ParseTestScenario<Dockerfile>
+                {
                     Text = "F\\\nRO\\\nM \\\nscratch",
                     TokenValidators = new Action<Token>[]
                     {
