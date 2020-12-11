@@ -10,7 +10,7 @@ namespace DockerfileModel
     public abstract class Instruction : DockerfileConstruct, ICommentable
     {
         private static readonly Dictionary<string, Func<string, char, Instruction>> instructionParsers =
-            new Dictionary<string, Func<string, char, Instruction>>
+            new Dictionary<string, Func<string, char, Instruction>>(StringComparer.OrdinalIgnoreCase)
             {
                 { "ADD", AddInstruction.Parse },
                 { "ARG", ArgInstruction.Parse },
