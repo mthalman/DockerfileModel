@@ -167,6 +167,15 @@ namespace DockerfileModel
         public DockerfileBuilder RunInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.RunInstruction.Parse);
 
+        public DockerfileBuilder ShellInstruction(string command) =>
+            AddConstruct(new ShellInstruction(command, EscapeChar));
+
+        public DockerfileBuilder ShellInstruction(string command, IEnumerable<string> args) =>
+            AddConstruct(new ShellInstruction(command, args, EscapeChar));
+
+        public DockerfileBuilder ShellInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.ShellInstruction.Parse);
+
         private DockerfileBuilder ParseTokens(Action<TokenBuilder> configureBuilder, Func<string, DockerfileConstruct> parseConstruct)
         {
             TokenBuilder builder = new TokenBuilder
@@ -250,7 +259,6 @@ namespace DockerfileModel
             return true;
         }
             
-
         private bool IsConflictingEscapeDirective(DockerfileConstruct construct, out string? escapeDirectiveValue)
         {
             escapeDirectiveValue = null;
