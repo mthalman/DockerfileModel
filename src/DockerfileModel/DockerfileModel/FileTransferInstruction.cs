@@ -14,8 +14,8 @@ namespace DockerfileModel
         private readonly TokenList<LiteralToken> sourceTokens;
 
         protected FileTransferInstruction(IEnumerable<string> sources, string destination,
-           ChangeOwner? changeOwner, char escapeChar, string instructionName)
-            : this(GetTokens(sources, destination, changeOwner, escapeChar, instructionName), escapeChar)
+           ChangeOwner? changeOwner, string? permissions, char escapeChar, string instructionName)
+            : this(GetTokens(sources, destination, changeOwner, permissions, escapeChar, instructionName), escapeChar)
         {
         }
 
@@ -78,24 +78,26 @@ namespace DockerfileModel
         private ChangeOwnerFlag? ChangeOwnerFlagToken
         {
             get => Tokens.OfType<ChangeOwnerFlag>().FirstOrDefault();
-            set
-            {
-                SetToken(ChangeOwnerFlagToken, value,
-                    addToken: token =>
-                    {
-                        TokenList.InsertRange(1, new Token[]
-                        {
-                            new WhitespaceToken(" "),
-                            token
-                        });
-                    },
-                    removeToken: token =>
-                    {
-                        TokenList.RemoveRange(
-                            TokenList.FirstPreviousOfType<Token, WhitespaceToken>(token),
-                            token);
-                    });
-            }
+            set => SetOptionalFlagToken(ChangeOwnerFlagToken, value);
+        }
+
+        public string? Permissions
+        {
+            get => this.ChangeModeFlagToken?.Value;
+            set => SetOptionalLiteralTokenValue(PermissionsToken, value, token => PermissionsToken = token, canContainVariables: true, EscapeChar);
+        }
+
+        public LiteralToken? PermissionsToken
+        {
+            get => ChangeModeFlagToken?.ValueToken;
+            set => SetOptionalKeyValueTokenValue(
+                ChangeModeFlagToken, value, val => new ChangeModeFlag(val, EscapeChar), token => ChangeModeFlagToken = token);
+        }
+
+        private ChangeModeFlag? ChangeModeFlagToken
+        {
+            get => Tokens.OfType<ChangeModeFlag>().FirstOrDefault();
+            set => SetOptionalFlagToken(ChangeModeFlagToken, value);
         }
 
         protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
@@ -103,14 +105,14 @@ namespace DockerfileModel
             Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser));
 
         private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-           ChangeOwner? changeOwner, char escapeChar, string instructionName)
+           ChangeOwner? changeOwner, string? permissions, char escapeChar, string instructionName)
         {
-            string text = CreateInstructionString(sources, destination, changeOwner, escapeChar, instructionName, null);
+            string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, instructionName, null);
             return GetTokens(text, GetInnerParser(escapeChar, instructionName));
         }
 
         protected static string CreateInstructionString(IEnumerable<string> sources, string destination,
-           ChangeOwner? changeOwner, char escapeChar, string instructionName, string? optionalFlag)
+           ChangeOwner? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag)
         {
             Requires.NotNullEmptyOrNullElements(sources, nameof(sources));
             Requires.NotNullOrEmpty(destination, nameof(destination));
@@ -121,7 +123,11 @@ namespace DockerfileModel
                 string.Empty :
                 $"{new ChangeOwnerFlag(changeOwner, escapeChar)} ";
 
-            string flags = $"{optionalFlag}{changeOwnerFlagStr}";
+            string changeModeFlagStr = permissions is null ?
+                string.Empty :
+                $"{new ChangeModeFlag(permissions, escapeChar)} ";
+
+            string flags = $"{optionalFlag}{changeOwnerFlagStr}{changeModeFlagStr}";
 
             TokenBuilder builder = new TokenBuilder();
             builder
@@ -158,7 +164,10 @@ namespace DockerfileModel
             select ConcatTokens(flags, whitespace, files);
 
         private static Parser<IEnumerable<Token>?> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
-            ChangeOwnerFlag.GetParser(escapeChar: escapeChar).AsEnumerable()
+            ChangeOwnerFlag.GetParser(escapeChar)
+                .Cast<ChangeOwnerFlag, Token>()
+                .AsEnumerable()
+                .Or(ChangeModeFlag.GetParser(escapeChar).AsEnumerable())
                 .Or(optionalFlagParser ?? Parse.Return<IEnumerable<Token>?>(null));
     }
 }

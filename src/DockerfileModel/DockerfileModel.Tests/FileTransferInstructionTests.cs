@@ -14,12 +14,12 @@ namespace DockerfileModel.Tests
     {
         private readonly string instructionName;
         private readonly Func<string, char, TInstruction> parse;
-        private readonly Func<IEnumerable<string>, string, ChangeOwner, char, TInstruction> create;
+        private readonly Func<IEnumerable<string>, string, ChangeOwner, string, char, TInstruction> create;
 
         public FileTransferInstructionTests(
             string instructionName,
             Func<string, char, TInstruction> parse,
-            Func<IEnumerable<string>, string, ChangeOwner, char, TInstruction> create)
+            Func<IEnumerable<string>, string, ChangeOwner, string, char, TInstruction> create)
         {
             this.instructionName = instructionName;
             this.parse = parse;
@@ -29,7 +29,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Sources()
         {
-            TInstruction instruction = this.create(new string[] { "src1", "src2" }, "dst", null, Dockerfile.DefaultEscapeChar);
+            TInstruction instruction = this.create(new string[] { "src1", "src2" }, "dst", null, null, Dockerfile.DefaultEscapeChar);
             Assert.Equal(new string[] { "src1", "src2" }, instruction.Sources);
             Assert.Equal(new string[] { "src1", "src2" }, instruction.SourceTokens.Select(token => token.Value).ToArray());
 
@@ -49,14 +49,14 @@ namespace DockerfileModel.Tests
         [Fact]
         public void SourcesWithVariables()
         {
-            TInstruction instruction = this.create(new string[] { "$var", "src2" }, "dst", null, Dockerfile.DefaultEscapeChar);
+            TInstruction instruction = this.create(new string[] { "$var", "src2" }, "dst", null, null, Dockerfile.DefaultEscapeChar);
             TestHelper.TestVariablesWithLiteral(() => instruction.SourceTokens[0], "var", canContainVariables: true);
         }
 
         [Fact]
         public void Destination()
         {
-            TInstruction instruction = this.create(new string[] { "src1", "src2" }, "dst", null, Dockerfile.DefaultEscapeChar);
+            TInstruction instruction = this.create(new string[] { "src1", "src2" }, "dst", null, null, Dockerfile.DefaultEscapeChar);
             Assert.Equal("dst", instruction.Destination);
             Assert.Equal("dst", instruction.DestinationToken.Value);
 
@@ -80,7 +80,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void DestinationWithVariables()
         {
-            TInstruction instruction = this.create(new string[] { "src1", "src2" }, "$var", null, Dockerfile.DefaultEscapeChar);
+            TInstruction instruction = this.create(new string[] { "src1", "src2" }, "$var", null, null, Dockerfile.DefaultEscapeChar);
             TestHelper.TestVariablesWithLiteral(() => instruction.DestinationToken, "var", canContainVariables: true);
         }
 
@@ -94,7 +94,7 @@ namespace DockerfileModel.Tests
             }
 
             ChangeOwner changeOwner = new ChangeOwner("user");
-            TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, Dockerfile.DefaultEscapeChar);
+            TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, null, Dockerfile.DefaultEscapeChar);
             Validate(instruction, "user");
 
             instruction.ChangeOwner = new ChangeOwner("user2");
@@ -112,6 +112,38 @@ namespace DockerfileModel.Tests
             instruction = this.parse($"{instructionName}`\n --chown=user`\n src dst", '`');
             instruction.ChangeOwner = null;
             Assert.Null(instruction.ChangeOwner);
+            Assert.Equal($"{instructionName}`\n`\n src dst", instruction.ToString());
+        }
+
+        [Fact]
+        public void Permissions()
+        {
+            void Validate(TInstruction instruction, string permissions)
+            {
+                Assert.Equal(permissions, instruction.Permissions);
+                Assert.Equal(permissions, instruction.PermissionsToken.Value);
+                Assert.Equal($"{instructionName} --chmod={permissions} src dst", instruction.ToString());
+            }
+
+            TInstruction instruction = this.create(new string[] { "src" }, "dst", null, "755", Dockerfile.DefaultEscapeChar);
+            Validate(instruction, "755");
+
+            instruction.Permissions = "777";
+            Validate(instruction, "777");
+
+            instruction.Permissions = null;
+            Assert.Null(instruction.Permissions);
+            Assert.Null(instruction.PermissionsToken);
+            Assert.Equal($"{instructionName} src dst", instruction.ToString());
+
+            instruction = this.parse($"{instructionName}`\n src dst", '`');
+            instruction.Permissions = "755";
+            Assert.Equal("755", instruction.Permissions);
+            Assert.Equal($"{instructionName} --chmod=755`\n src dst", instruction.ToString());
+
+            instruction = this.parse($"{instructionName}`\n --chmod=777`\n src dst", '`');
+            instruction.Permissions = null;
+            Assert.Null(instruction.Permissions);
             Assert.Equal($"{instructionName}`\n`\n src dst", instruction.ToString());
         }
 
@@ -135,7 +167,7 @@ namespace DockerfileModel.Tests
 
         protected void RunCreateTest(CreateTestScenario scenario)
         {
-            TInstruction result = this.create(scenario.Sources, scenario.Destination, scenario.ChangeOwner, scenario.EscapeChar);
+            TInstruction result = this.create(scenario.Sources, scenario.Destination, scenario.ChangeOwner, scenario.Permissions, scenario.EscapeChar);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -188,6 +220,111 @@ namespace DockerfileModel.Tests
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal(instructionName, result.InstructionName);
+                        Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                        Assert.Equal("dst", result.Destination);
+                    }
+                },
+                new FileTransferInstructionParseTestScenario
+                {
+                    Text = $"{instructionName} --chmod=755 src dst",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, instructionName),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateKeyword(token, "chmod"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "755")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "src"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "dst")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal(instructionName, result.InstructionName);
+                        Assert.Equal("755", result.Permissions);
+                        Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                        Assert.Equal("dst", result.Destination);
+                    }
+                },
+                new FileTransferInstructionParseTestScenario
+                {
+                    Text = $"{instructionName} --chown=1:2 --chmod=755 src dst",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, instructionName),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=1:2",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateKeyword(token, "chown"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<ChangeOwner>(token, "1:2",
+                                token => ValidateLiteral(token, "1"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateLiteral(token, "2"))),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateKeyword(token, "chmod"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "755")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "src"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "dst")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal(instructionName, result.InstructionName);
+                        Assert.Equal("755", result.Permissions);
+                        Assert.Equal("1", result.ChangeOwner.User);
+                        Assert.Equal("2", result.ChangeOwner.Group);
+                        Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                        Assert.Equal("dst", result.Destination);
+                    }
+                },
+                new FileTransferInstructionParseTestScenario
+                {
+                    Text = $"{instructionName} --chmod=755 --chown=1:2 src dst",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, instructionName),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateKeyword(token, "chmod"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "755")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=1:2",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateKeyword(token, "chown"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<ChangeOwner>(token, "1:2",
+                                token => ValidateLiteral(token, "1"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateLiteral(token, "2"))),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "src"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "dst")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal(instructionName, result.InstructionName);
+                        Assert.Equal("755", result.Permissions);
+                        Assert.Equal("1", result.ChangeOwner.User);
+                        Assert.Equal("2", result.ChangeOwner.Group);
                         Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
                         Assert.Equal("dst", result.Destination);
                     }
@@ -395,7 +532,6 @@ namespace DockerfileModel.Tests
                         token => ValidateSymbol(token, ']')
                     }
                 },
-
                 new CreateTestScenario
                 {
                     Sources = new string[]
@@ -426,6 +562,71 @@ namespace DockerfileModel.Tests
                         token => ValidateLiteral(token, "dst")
                     }
                 },
+                new CreateTestScenario
+                {
+                    Sources = new string[]
+                    {
+                        "src1",
+                        "src2"
+                    },
+                    Destination = "dst",
+                    Permissions = "777",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, instructionName),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=777",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateKeyword(token, "chmod"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "777")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "src1"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "src2"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "dst")
+                    }
+                },
+                new CreateTestScenario
+                {
+                    Sources = new string[]
+                    {
+                        "src1",
+                        "src2"
+                    },
+                    Destination = "dst",
+                    Permissions = "777",
+                    ChangeOwner = new ChangeOwner("user", "group"),
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, instructionName),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user:group",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateKeyword(token, "chown"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateAggregate<ChangeOwner>(token, "user:group",
+                                token => ValidateLiteral(token, "user"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateLiteral(token, "group"))),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=777",
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateKeyword(token, "chmod"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "777")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "src1"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "src2"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "dst")
+                    }
+                },
             };
 
             return testInputs.Select(input => new object[] { input });
@@ -441,6 +642,7 @@ namespace DockerfileModel.Tests
             public string Destination { get; set; }
             public IEnumerable<string> Sources { get; set; }
             public ChangeOwner ChangeOwner { get; set; }
+            public string Permissions { get; set; }
             public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
         }
     }

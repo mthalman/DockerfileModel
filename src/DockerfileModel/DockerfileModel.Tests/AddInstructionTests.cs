@@ -7,7 +7,8 @@ namespace DockerfileModel.Tests
     {
         public AddInstructionTests()
             : base("ADD", AddInstruction.Parse,
-                  (sources, destination, changeOwner, escapeChar) => new AddInstruction(sources, destination, changeOwner, escapeChar))
+                (sources, destination, changeOwner, permissions, escapeChar) =>
+                    new AddInstruction(sources, destination, changeOwner, permissions, escapeChar))
         {
         }
 
