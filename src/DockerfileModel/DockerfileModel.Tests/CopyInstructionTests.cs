@@ -13,8 +13,8 @@ namespace DockerfileModel.Tests
     {
         public CopyInstructionTests()
             : base("COPY", CopyInstruction.Parse,
-                  (sources, destination, changeOwner, escapeChar) =>
-                    new CopyInstruction(sources, destination, changeOwner: changeOwner, escapeChar: escapeChar))
+                  (sources, destination, changeOwner, permissions, escapeChar) =>
+                    new CopyInstruction(sources, destination, changeOwner: changeOwner, permissions: permissions, escapeChar: escapeChar))
         {
         }
 

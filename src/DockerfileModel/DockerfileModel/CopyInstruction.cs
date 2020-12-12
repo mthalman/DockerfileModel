@@ -11,8 +11,8 @@ namespace DockerfileModel
         private const string Name = "COPY";
 
         public CopyInstruction(IEnumerable<string> sources, string destination,
-            string? fromStageName = null, ChangeOwner? changeOwner = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : base(GetTokens(sources, destination, fromStageName, changeOwner, escapeChar), escapeChar)
+            string? fromStageName = null, ChangeOwner? changeOwner = null, string? permissions = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : base(GetTokens(sources, destination, fromStageName, changeOwner, permissions, escapeChar), escapeChar)
         {
         }
 
@@ -52,10 +52,10 @@ namespace DockerfileModel
                 ArgTokens(FromFlag.GetParser(escapeChar).AsEnumerable(), escapeChar));
 
         private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-           string? fromStageName, ChangeOwner? changeOwner, char escapeChar)
+           string? fromStageName, ChangeOwner? changeOwner, string? permissions, char escapeChar)
         {
             string fromFlag = fromStageName is null ? "" : new FromFlag(fromStageName, escapeChar).ToString() + " ";
-            string text = CreateInstructionString(sources, destination, changeOwner, escapeChar, Name, fromFlag);
+            string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, fromFlag);
             return GetTokens(text, GetInnerParser(escapeChar));
         }
     }
