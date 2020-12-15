@@ -69,7 +69,8 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<ArgInstruction>(token, "ARG name",
                             token => ValidateKeyword(token, "ARG"),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateIdentifier<Variable>(token, "name"))
+                            token => ValidateAggregate<ArgDeclaration>(token, "name",
+                                token => ValidateIdentifier<Variable>(token, "name")))
                     },
                     Validate = result =>
                     {
@@ -91,7 +92,8 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<ArgInstruction>(token, "ARG name",
                             token => ValidateKeyword(token, "ARG"),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateIdentifier<Variable>(token, "name"))
+                            token => ValidateAggregate<ArgDeclaration>(token, "name",
+                                token => ValidateIdentifier<Variable>(token, "name")))
                     },
                     Validate = result =>
                     {
