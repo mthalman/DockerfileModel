@@ -24,7 +24,7 @@ namespace DockerfileModel
                 {
                     Requires.NotNull(keyValuePair, "value");
                     token.Key = keyValuePair.Key;
-                    token.Value = keyValuePair.Value;
+                    token.Value = keyValuePair.Value!;
                 });
         }
 

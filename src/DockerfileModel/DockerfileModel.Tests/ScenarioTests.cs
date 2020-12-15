@@ -170,13 +170,11 @@ namespace DockerfileModel.Tests
             
             // Verify the individual tokens that are contained in the ARG instruction
             Token[] repoArgTokens = dockerfileConstructs[0].Tokens.ToArray();
-            Assert.Equal(6, repoArgTokens.Length);
+            Assert.Equal(4, repoArgTokens.Length);
             Assert.IsType<KeywordToken>(repoArgTokens[0]);
             Assert.IsType<WhitespaceToken>(repoArgTokens[1]);
-            Assert.IsType<Variable>(repoArgTokens[2]);
-            Assert.IsType<SymbolToken>(repoArgTokens[3]);
-            Assert.IsType<LiteralToken>(repoArgTokens[4]);
-            Assert.IsType<NewLineToken>(repoArgTokens[5]);
+            Assert.IsType<ArgDeclaration>(repoArgTokens[2]);
+            Assert.IsType<NewLineToken>(repoArgTokens[3]);
 
             // Verify the individual tokens that are contained in the FROM instruction
             Token[] fromInstructionTokens = dockerfileConstructs[1].Tokens.ToArray();

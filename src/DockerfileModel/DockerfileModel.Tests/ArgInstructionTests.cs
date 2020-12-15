@@ -35,80 +35,53 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ArgInstruction result = new ArgInstruction(scenario.ArgName, scenario.ArgValue);
+            ArgInstruction result = new ArgInstruction(scenario.Args);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
 
         [Fact]
-        public void ArgName()
+        public void Args()
         {
-            ArgInstruction arg = new ArgInstruction("test");
-            Assert.Equal("test", arg.ArgName);
-            Assert.Equal("test", arg.ArgNameToken.Value);
+            void Validate(ArgInstruction instruction, string expectedKey, string expectedValue)
+            {
+                Assert.Collection(instruction.Args, new Action<IKeyValuePair>[]
+                {
+                    pair =>
+                    {
+                        Assert.Equal(expectedKey, pair.Key);
+                        Assert.Equal(expectedValue, pair.Value);
+                    }
+                });
 
-            arg.ArgName = "test2";
-            Assert.Equal("test2", arg.ArgName);
-            Assert.Equal("test2", arg.ArgNameToken.Value);
+                Assert.Collection(instruction.ArgTokens, new Action<ArgDeclaration>[]
+                {
+                    token => ValidateAggregate<ArgDeclaration>(token, $"{expectedKey}={expectedValue}",
+                        token => ValidateIdentifier<Variable>(token, expectedKey),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, expectedValue))
+                });
+            }
 
-            arg.ArgNameToken.Value = "test3";
-            Assert.Equal("test3", arg.ArgName);
-            Assert.Equal("test3", arg.ArgNameToken.Value);
+            ArgInstruction result = new ArgInstruction(
+                new Dictionary<string, string>
+                {
+                    { "VAR1", "test" }
+                });
+            Validate(result, "VAR1", "test");
 
-            Assert.Throws<ArgumentNullException>(() => arg.ArgName = null);
-            Assert.Throws<ArgumentException>(() => arg.ArgName = "");
-            Assert.Throws<ArgumentNullException>(() => arg.ArgNameToken= null);
+            result.Args[0].Key = "VAR2";
+            Validate(result, "VAR2", "test");
+
+            result.Args[0].Value = "foo";
+            Validate(result, "VAR2", "foo");
+
+            result.ArgTokens[0].Name = "VAR3";
+            Validate(result, "VAR3", "foo");
+
+            result.ArgTokens[0].Value = "bar";
+            Validate(result, "VAR3", "bar");
         }
-
-        [Fact]
-        public void ArgValue()
-        {
-            ArgInstruction arg = new ArgInstruction("test");
-            Assert.Null(arg.ArgValue);
-            Assert.Null(arg.ArgValueToken);
-            Assert.False(arg.HasAssignmentOperator);
-
-            arg.ArgValue = "foo";
-            Assert.Equal("foo", arg.ArgValue);
-            Assert.Equal("foo", arg.ArgValueToken.Value);
-            Assert.True(arg.HasAssignmentOperator);
-
-            arg.ArgValue = "";
-            Assert.Equal("", arg.ArgValue);
-            Assert.Equal("", arg.ArgValueToken.Value);
-            Assert.True(arg.HasAssignmentOperator);
-
-            arg.ArgValue = "foo";
-
-            arg.ArgValue = null;
-            Assert.Null(arg.ArgValue);
-            Assert.Null(arg.ArgValueToken);
-            Assert.False(arg.HasAssignmentOperator);
-
-            arg.ArgValueToken = new LiteralToken("foo2");
-            Assert.Equal("foo2", arg.ArgValue);
-            Assert.Equal("foo2", arg.ArgValueToken.Value);
-            Assert.True(arg.HasAssignmentOperator);
-
-            arg.ArgValueToken = new LiteralToken("foo3");
-            Assert.Equal("foo3", arg.ArgValue);
-            Assert.Equal("foo3", arg.ArgValueToken.Value);
-            Assert.True(arg.HasAssignmentOperator);
-
-            arg.ArgValueToken = null;
-            Assert.Null(arg.ArgValue);
-            Assert.Null(arg.ArgValueToken);
-            Assert.False(arg.HasAssignmentOperator);
-        }
-
-        [Fact]
-        public void ArgValueWithVariables()
-        {
-            ArgInstruction arg = new ArgInstruction("test", "$var");
-            TestHelper.TestVariablesWithNullableLiteral(
-                () => arg.ArgValueToken, token => arg.ArgValueToken = token, val => arg.ArgValue = val, "var", canContainVariables: true);
-        }
-
         public static IEnumerable<object[]> ParseTestInput()
         {
             ArgInstructionParseTestScenario[] testInputs = new ArgInstructionParseTestScenario[]
@@ -120,32 +93,42 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MYARG")
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG",
+                            token => ValidateIdentifier<Variable>(token, "MYARG"))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MYARG", result.ArgName);
-                        Assert.Null(result.ArgValue);
+                        Assert.Single(result.Args);
+                        Assert.Single(result.ArgTokens);
+                        Assert.Equal("MYARG", result.Args[0].Key);
+                        Assert.Null(result.Args[0].Value);
                     }
                 },
                 new ArgInstructionParseTestScenario
                 {
-                    Text = "ARG MYARG\r\n",
+                    Text = "ARG MYARG1 MYARG2",
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MYARG"),
-                        token => ValidateNewLine(token, "\r\n")
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG1",
+                            token => ValidateIdentifier<Variable>(token, "MYARG1")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG2",
+                            token => ValidateIdentifier<Variable>(token, "MYARG2"))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MYARG", result.ArgName);
-                        Assert.Null(result.ArgValue);
+                        Assert.Equal(2, result.Args.Count);
+                        Assert.Equal(2, result.ArgTokens.Count);
+                        Assert.Equal("MYARG1", result.Args[0].Key);
+                        Assert.Null(result.Args[0].Value);
+                        Assert.Equal("MYARG2", result.Args[1].Key);
+                        Assert.Null(result.Args[1].Value);
                     }
                 },
                 new ArgInstructionParseTestScenario
@@ -159,14 +142,17 @@ namespace DockerfileModel.Tests
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
-                        token => ValidateIdentifier<Variable>(token, "MYARG")
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG",
+                            token => ValidateIdentifier<Variable>(token, "MYARG"))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MYARG", result.ArgName);
-                        Assert.Null(result.ArgValue);
+                        Assert.Single(result.Args);
+                        Assert.Single(result.ArgTokens);
+                        Assert.Equal("MYARG", result.Args[0].Key);
+                        Assert.Null(result.Args[0].Value);
                     }
                 },
                 new ArgInstructionParseTestScenario
@@ -176,15 +162,45 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MYARG"),
-                        token => ValidateSymbol(token, '=')
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG=",
+                            token => ValidateIdentifier<Variable>(token, "MYARG"),
+                            token => ValidateSymbol(token, '='))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MYARG", result.ArgName);
-                        Assert.Equal("", result.ArgValue);
+                        Assert.Single(result.Args);
+                        Assert.Single(result.ArgTokens);
+                        Assert.Equal("MYARG", result.Args[0].Key);
+                        Assert.Equal("", result.Args[0].Value);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG MYARG1= MYARG2=",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG1=",
+                            token => ValidateIdentifier<Variable>(token, "MYARG1"),
+                            token => ValidateSymbol(token, '=')),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG2=",
+                            token => ValidateIdentifier<Variable>(token, "MYARG2"),
+                            token => ValidateSymbol(token, '=')),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal(2, result.Args.Count);
+                        Assert.Equal(2, result.ArgTokens.Count);
+                        Assert.Equal("MYARG1", result.Args[0].Key);
+                        Assert.Equal("", result.Args[0].Value);
+                        Assert.Equal("MYARG2", result.Args[1].Key);
+                        Assert.Equal("", result.Args[1].Value);
                     }
                 },
                 new ArgInstructionParseTestScenario
@@ -194,16 +210,48 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MYARG"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "", '\"')
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG=\"\"",
+                            token => ValidateIdentifier<Variable>(token, "MYARG"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "", '\"'))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MYARG", result.ArgName);
-                        Assert.Equal("", result.ArgValue);
+                        Assert.Single(result.Args);
+                        Assert.Single(result.ArgTokens);
+                        Assert.Equal("MYARG", result.Args[0].Key);
+                        Assert.Equal("", result.Args[0].Value);
+                    }
+                },
+                new ArgInstructionParseTestScenario
+                {
+                    Text = "ARG MYARG1=\"\" MYARG2=\"\"",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG1=\"\"",
+                            token => ValidateIdentifier<Variable>(token, "MYARG1"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "", '\"')),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG2=\"\"",
+                            token => ValidateIdentifier<Variable>(token, "MYARG2"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "", '\"')),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("ARG", result.InstructionName);
+                        Assert.Equal(2, result.Args.Count);
+                        Assert.Equal(2, result.ArgTokens.Count);
+                        Assert.Equal("MYARG1", result.Args[0].Key);
+                        Assert.Equal("", result.Args[0].Value);
+                        Assert.Equal("MYARG2", result.Args[1].Key);
+                        Assert.Equal("", result.Args[1].Value);
                     }
                 },
                 new ArgInstructionParseTestScenario
@@ -223,16 +271,19 @@ namespace DockerfileModel.Tests
                             token => ValidateString(token, "my comment"),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateWhitespace(token, "  "),
-                        token => ValidateIdentifier<Variable>(token, "MYARG"),
-                        token => ValidateSymbol(token, '=')
+                        token => ValidateAggregate<ArgDeclaration>(token, "MYARG=",
+                            token => ValidateIdentifier<Variable>(token, "MYARG"),
+                            token => ValidateSymbol(token, '='))
                     },
                     Validate = result =>
                     {
                         Assert.Collection(result.Comments,
                             comment => Assert.Equal("my comment", comment));
                         Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MYARG", result.ArgName);
-                        Assert.Equal("", result.ArgValue);
+                        Assert.Single(result.Args);
+                        Assert.Single(result.ArgTokens);
+                        Assert.Equal("MYARG", result.Args[0].Key);
+                        Assert.Equal("", result.Args[0].Value);
                     }
                 },
                 new ArgInstructionParseTestScenario
@@ -242,158 +293,48 @@ namespace DockerfileModel.Tests
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "myarg"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "1")
+                        token => ValidateAggregate<ArgDeclaration>(token, "myarg=1",
+                            token => ValidateIdentifier<Variable>(token, "myarg"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "1"))
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("myarg", result.ArgName);
-                        Assert.Equal("1", result.ArgValue);
+                        Assert.Single(result.Args);
+                        Assert.Single(result.ArgTokens);
+                        Assert.Equal("myarg", result.Args[0].Key);
+                        Assert.Equal("1", result.Args[0].Value);
                     }
                 },
                 new ArgInstructionParseTestScenario
                 {
-                    Text = "ARG myarg`\n=`\n1",
-                    EscapeChar = '`',
+                    Text = "ARG myarg1=1 myarg2=2",
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "myarg"),
-                        token => ValidateLineContinuation(token, '`', "\n"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLineContinuation(token, '`', "\n"),
-                        token => ValidateLiteral(token, "1")
+                        token => ValidateAggregate<ArgDeclaration>(token, "myarg1=1",
+                            token => ValidateIdentifier<Variable>(token, "myarg1"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "1")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "myarg2=2",
+                            token => ValidateIdentifier<Variable>(token, "myarg2"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "2")),
                     },
                     Validate = result =>
                     {
                         Assert.Empty(result.Comments);
                         Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("myarg", result.ArgName);
-                        Assert.Equal("1", result.ArgValue);
-                    }
-                },
-                new ArgInstructionParseTestScenario
-                {
-                    Text = "ARG `\nMYARG=\"test\"",
-                    EscapeChar = '`',
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "ARG"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<LineContinuationToken>(token, "`\n",
-                            token => ValidateSymbol(token, '`'),
-                            token => ValidateNewLine(token, "\n")),
-                        token => ValidateIdentifier<Variable>(token, "MYARG"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "test", '\"')
-                    },
-                    Validate = result =>
-                    {
-                        Assert.Empty(result.Comments);
-                        Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MYARG", result.ArgName);
-                        Assert.Equal("test", result.ArgValue);
-                    }
-                },
-                new ArgInstructionParseTestScenario
-                {
-                    Text = "ARG MY_ARG",
-                    EscapeChar = '`',
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "ARG"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MY_ARG"),
-                    },
-                    Validate = result =>
-                    {
-                        Assert.Empty(result.Comments);
-                        Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MY_ARG", result.ArgName);
-                        Assert.Null(result.ArgValue);
-                    }
-                },
-                new ArgInstructionParseTestScenario
-                {
-                    Text = "ARG \"MY_ARG\"='value'",
-                    EscapeChar = '`',
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "ARG"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MY_ARG", '\"'),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "value", '\''),
-                    },
-                    Validate = result =>
-                    {
-                        Assert.Empty(result.Comments);
-                        Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MY_ARG", result.ArgName);
-                        Assert.Equal("value", result.ArgValue);
-                    }
-                },
-                new ArgInstructionParseTestScenario
-                {
-                    Text = "ARG \"MY`\"_ARG\"='va`'lue'",
-                    EscapeChar = '`',
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "ARG"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MY`\"_ARG", '\"'),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "va`'lue", '\''),
-                    },
-                    Validate = result =>
-                    {
-                        Assert.Empty(result.Comments);
-                        Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MY`\"_ARG", result.ArgName);
-                        Assert.Equal("va`'lue", result.ArgValue);
-                    }
-                },
-                new ArgInstructionParseTestScenario
-                {
-                    Text = "ARG MY_ARG=va`'lue",
-                    EscapeChar = '`',
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "ARG"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MY_ARG"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "va`'lue"),
-                    },
-                    Validate = result =>
-                    {
-                        Assert.Empty(result.Comments);
-                        Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MY_ARG", result.ArgName);
-                        Assert.Equal("va`'lue", result.ArgValue);
-                    }
-                },
-                new ArgInstructionParseTestScenario
-                {
-                    Text = "ARG MY_ARG=\'\'",
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "ARG"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "MY_ARG"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "", '\'')
-                    },
-                    Validate = result =>
-                    {
-                        Assert.Empty(result.Comments);
-                        Assert.Equal("ARG", result.InstructionName);
-                        Assert.Equal("MY_ARG", result.ArgName);
-                        Assert.Empty(result.ArgValue);
+                        Assert.Equal(2, result.Args.Count);
+                        Assert.Equal(2, result.ArgTokens.Count);
+                        Assert.Equal("myarg1", result.Args[0].Key);
+                        Assert.Equal("1", result.Args[0].Value);
+                        Assert.Equal("myarg2", result.Args[1].Key);
+                        Assert.Equal("2", result.Args[1].Value);
                     }
                 },
                 new ArgInstructionParseTestScenario
@@ -422,58 +363,107 @@ namespace DockerfileModel.Tests
             {
                 new CreateTestScenario
                 {
-                    ArgName = "TEST1",
-                    TokenValidators = new Action<Token>[]
+                    Args = new Dictionary<string, string>
                     {
-                        token => ValidateKeyword(token, "ARG"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "TEST1")
+                        { "TEST1", null }
                     },
-                    Validate = result =>
-                    {
-                        Assert.Equal("TEST1", result.ArgName);
-                        Assert.Null(result.ArgValue);
-
-                        result.ArgName = "TEST2";
-                        Assert.Equal("TEST2", result.ArgName);
-                        Assert.Equal("ARG TEST2", result.ToString());
-
-                        result.ArgValue = "a";
-                        Assert.Equal("a", result.ArgValue);
-                        Assert.Equal("ARG TEST2=a", result.ToString());
-
-                        result.ArgValue = null;
-                        Assert.Null(result.ArgValue);
-                        Assert.Equal("ARG TEST2", result.ToString());
-
-                        result.ArgValue = "";
-                        Assert.Equal("", result.ArgValue);
-                        Assert.Equal("ARG TEST2=", result.ToString());
-                    }
-                },
-                new CreateTestScenario
-                {
-                    ArgName = "TEST1",
-                    ArgValue = "b",
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "TEST1"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "b")
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST1",
+                            token => ValidateIdentifier<Variable>(token, "TEST1"))
                     }
                 },
                 new CreateTestScenario
                 {
-                    ArgName = "TEST1",
-                    ArgValue = "",
+                    Args = new Dictionary<string, string>
+                    {
+                        { "TEST1", null },
+                        { "TEST2", null }
+                    },
                     TokenValidators = new Action<Token>[]
                     {
                         token => ValidateKeyword(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateIdentifier<Variable>(token, "TEST1"),
-                        token => ValidateSymbol(token, '=')
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST1",
+                            token => ValidateIdentifier<Variable>(token, "TEST1")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST2",
+                            token => ValidateIdentifier<Variable>(token, "TEST2"))
+                    }
+                },
+                new CreateTestScenario
+                {
+                    Args = new Dictionary<string, string>
+                    {
+                        { "TEST1", "b" }
+                    },
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST1=b",
+                            token => ValidateIdentifier<Variable>(token, "TEST1"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "b"))
+                    }
+                },
+                new CreateTestScenario
+                {
+                    Args = new Dictionary<string, string>
+                    {
+                        { "TEST1", "b" },
+                        { "TEST2", "c" }
+                    },
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST1=b",
+                            token => ValidateIdentifier<Variable>(token, "TEST1"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "b")),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST2=c",
+                            token => ValidateIdentifier<Variable>(token, "TEST2"),
+                            token => ValidateSymbol(token, '='),
+                            token => ValidateLiteral(token, "c"))
+                    }
+                },
+                new CreateTestScenario
+                {
+                    Args = new Dictionary<string, string>
+                    {
+                        { "TEST1", "" }
+                    },
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST1=",
+                            token => ValidateIdentifier<Variable>(token, "TEST1"),
+                            token => ValidateSymbol(token, '='))
+                    }
+                },
+                new CreateTestScenario
+                {
+                    Args = new Dictionary<string, string>
+                    {
+                        { "TEST1", "" },
+                        { "TEST2", "" }
+                    },
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST1=",
+                            token => ValidateIdentifier<Variable>(token, "TEST1"),
+                            token => ValidateSymbol(token, '=')),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ArgDeclaration>(token, "TEST2=",
+                            token => ValidateIdentifier<Variable>(token, "TEST2"),
+                            token => ValidateSymbol(token, '='))
                     }
                 }
             };
@@ -488,8 +478,7 @@ namespace DockerfileModel.Tests
 
         public class CreateTestScenario : TestScenario<ArgInstruction>
         {
-            public string ArgName { get; set; }
-            public string ArgValue { get; set; }
+            public Dictionary<string, string> Args { get; set; }
         }
     }
 }

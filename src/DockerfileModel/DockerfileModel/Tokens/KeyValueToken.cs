@@ -51,6 +51,12 @@ namespace DockerfileModel.Tokens
             }
         }
 
+        string? IKeyValuePair.Value
+        {
+            get => Value;
+            set => Value = value!;
+        }
+
         public string Value
         {
             get => ValueToken.ToString(TokenStringOptions.CreateOptionsForValueString());

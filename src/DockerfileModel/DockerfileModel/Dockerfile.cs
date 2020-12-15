@@ -140,21 +140,24 @@ namespace DockerfileModel
                 {
                     if (instruction is ArgInstruction argInstruction)
                     {
-                        // If this is just an arg declaration and a value has been provided from a global arg or arg override
-                        if (argInstruction.ArgValue is null && globalArgs.TryGetValue(argInstruction.ArgName, out string? globalArg))
+                        foreach (ArgDeclaration arg in argInstruction.Args)
                         {
-                            stageArgs.Add(argInstruction.ArgName, globalArg);
-                        }
-                        // If an arg override exists for this arg
-                        else if (variableOverrides.TryGetValue(argInstruction.ArgName, out string? overrideArgValue))
-                        {
-                            stageArgs.Add(argInstruction.ArgName, overrideArgValue);
-                        }
-                        else
-                        {
-                            string? resolvedArgValue = argInstruction.ArgValueToken?.ResolveVariables(escapeChar, stageArgs, options);
-                            stageArgs[argInstruction.ArgName] = resolvedArgValue;
-                            resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
+                            // If this is just an arg declaration and a value has been provided from a global arg or arg override
+                            if (arg.Value is null && globalArgs.TryGetValue(arg.Name, out string? globalArg))
+                            {
+                                stageArgs.Add(arg.Name, globalArg);
+                            }
+                            // If an arg override exists for this arg
+                            else if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
+                            {
+                                stageArgs.Add(arg.Name, overrideArgValue);
+                            }
+                            else
+                            {
+                                string? resolvedArgValue = arg.ValueToken?.ResolveVariables(escapeChar, stageArgs, options);
+                                stageArgs[arg.Name] = resolvedArgValue;
+                                resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
+                            }
                         }
                     }
                     else
@@ -171,16 +174,16 @@ namespace DockerfileModel
             ResolutionOptions options)
         {
             Dictionary<string, string?> globalArgs = new Dictionary<string, string?>();
-            foreach (ArgInstruction arg in stagesView.GlobalArgs)
+            foreach (ArgDeclaration arg in stagesView.GlobalArgs.SelectMany(inst => inst.Args))
             {
-                if (variables.TryGetValue(arg.ArgName, out string? overridenValue))
+                if (variables.TryGetValue(arg.Name, out string? overridenValue))
                 {
-                    globalArgs.Add(arg.ArgName, overridenValue);
+                    globalArgs.Add(arg.Name, overridenValue);
                 }
                 else
                 {
-                    string? resolvedValue = arg.ArgValueToken?.ResolveVariables(escapeChar, globalArgs, options);
-                    globalArgs.Add(arg.ArgName, resolvedValue);
+                    string? resolvedValue = arg.ValueToken?.ResolveVariables(escapeChar, globalArgs, options);
+                    globalArgs.Add(arg.Name, resolvedValue);
                 }
             }
 

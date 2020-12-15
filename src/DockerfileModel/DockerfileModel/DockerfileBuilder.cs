@@ -50,6 +50,9 @@ namespace DockerfileModel
         public DockerfileBuilder ArgInstruction(string argName, string? argValue = null) =>
             AddConstruct(new ArgInstruction(argName, argValue, EscapeChar));
 
+        public DockerfileBuilder ArgInstruction(IDictionary<string, string?> args) =>
+            AddConstruct(new ArgInstruction(args, EscapeChar));
+
         public DockerfileBuilder ArgInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.ArgInstruction.Parse);
 

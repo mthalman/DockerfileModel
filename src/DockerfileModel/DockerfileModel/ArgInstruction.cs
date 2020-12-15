@@ -10,135 +10,101 @@ namespace DockerfileModel
 {
     public class ArgInstruction : Instruction
     {
-        private const char AssignmentOperator = '=';
-        private readonly char escapeChar;
-
         public ArgInstruction(string argName, string? argValue = null,
             char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(argName, argValue, escapeChar), escapeChar)
-        {
-        }
-
-        private ArgInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
-        {
-            this.escapeChar = escapeChar;
-        }
-
-        public string ArgName
-        {
-            get => this.ArgNameToken.Value;
-            set
-            {
-                Requires.NotNullOrEmpty(value, nameof(value));
-                ArgNameToken.Value = value;
-            }
-        }
-
-        public IdentifierToken ArgNameToken
-        {
-            get => this.Tokens.OfType<IdentifierToken>().First();
-            set
-            {
-                Requires.NotNull(value, nameof(value));
-                SetToken(ArgNameToken, value);
-            }
-        }
-
-        public bool HasAssignmentOperator =>
-            Tokens.OfType<SymbolToken>().Where(token => token.Value == AssignmentOperator.ToString()).Any();
-
-        public string? ArgValue
-        {
-            get
-            {
-                string? argValue = ArgValueToken?.Value;
-                if (argValue is null)
+            : this(
+                new Dictionary<string, string?>
                 {
-                    return HasAssignmentOperator ? string.Empty : null;
-                }
-
-                return argValue;
-            }
-            set
-            {
-                LiteralToken? argValue = ArgValueToken;
-                if (argValue != null && value is not null)
-                {
-                    argValue.Value = value;
-                }
-                else
-                {
-                    ArgValueToken = value is null ? null : new LiteralToken(value, canContainVariables: true, escapeChar);
-                }
-            }
-        }
-
-        public LiteralToken? ArgValueToken
+                    { argName, argValue }
+                },
+                escapeChar)
         {
-            get => this.Tokens.OfType<LiteralToken>().FirstOrDefault();
-            set
-            {
-                this.SetToken(ArgValueToken, value,
-                    addToken: token =>
-                    {
-                        if (HasAssignmentOperator)
-                        {
-                            this.TokenList.Add(token);
-                        }
-                        else
-                        {
-                            this.TokenList.AddRange(new Token[]
-                            {
-                                new SymbolToken(AssignmentOperator),
-                                token
-                            });
-                        }
-                    },
-                    removeToken: token =>
-                    {
-                        TokenList.RemoveRange(
-                            TokenList.FirstPreviousOfType<Token, SymbolToken>(token),
-                            token);
-                    });
-            }
         }
+
+        public ArgInstruction(IDictionary<string, string?> args, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(args, escapeChar))
+        {
+        }
+
+        private ArgInstruction(IEnumerable<Token> tokens) : base(tokens)
+        {
+            ArgTokens = new TokenList<ArgDeclaration>(TokenList);
+            Args = new ProjectedItemList<ArgDeclaration, IKeyValuePair>(
+                ArgTokens,
+                token => token,
+                (token, keyValuePair) =>
+                {
+                    Requires.NotNull(keyValuePair, "value");
+                    token.Name = keyValuePair.Key;
+                    token.Value = keyValuePair.Value;
+                });
+        }
+
+        public IList<IKeyValuePair> Args { get; }
+
+        public IList<ArgDeclaration> ArgTokens { get; }
 
         public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ArgInstruction(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+            new ArgInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
         public static Parser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new ArgInstruction(tokens, escapeChar);
+            select new ArgInstruction(tokens);
 
-        private static IEnumerable<Token> GetTokens(string argName, string? argValue, char escapeChar)
+        private static IEnumerable<Token> GetTokens(IDictionary<string, string?> args, char escapeChar)
         {
-            Requires.NotNullOrEmpty(argName, nameof(argName));
+            Requires.NotNullOrEmpty(args, nameof(args));
 
-            StringBuilder builder = new StringBuilder($"ARG {argName}");
-            if (argValue != null)
-            {
-                builder.Append($"{AssignmentOperator}{argValue}");
-            }
+            string[] keyValueAssignments = args
+                .Select(kvp =>
+                {
+                    StringBuilder builder = new StringBuilder(kvp.Key);
 
-            return GetTokens(builder.ToString(), GetInnerParser(escapeChar));
+                    string value = kvp.Value;
+                    if (value is not null)
+                    {
+                        builder.Append('=');
+
+                        bool requiresQuotes =
+                            value.Length > 0 &&
+                            value[0] != '\"' &&
+                            value.Last() != '\"' &&
+                            value.Contains(' ') &&
+                            !value.Contains("\\ ");
+
+                        if (requiresQuotes)
+                        {
+                            builder.Append('\"');
+                        }
+
+                        builder.Append(value);
+
+                        if (requiresQuotes)
+                        {
+                            builder.Append('\"');
+                        }
+                    }
+
+                    return builder.ToString();
+                })
+                .ToArray();
+
+            return GetTokens($"ARG {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));
         }
 
         private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("ARG", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-            ArgTokens(
-                from argName in ArgTokens(DockerfileModel.Variable.GetParser(escapeChar).AsEnumerable(), escapeChar)
-                from argAssignment in GetArgAssignmentParser(escapeChar).Optional()
-                select ConcatTokens(
-                    argName,
-                    argAssignment.GetOrDefault()), escapeChar).End();
+            from whitespace in Whitespace().Optional()
+            from variables in VariablesParser(escapeChar)
+            select ConcatTokens(whitespace.GetOrDefault(), variables);
 
-        private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
-            from assignment in ArgTokens(Symbol(AssignmentOperator).AsEnumerable(), escapeChar)
-            from value in LiteralWithVariables(escapeChar).AsEnumerable().Optional()
-            select ConcatTokens(
-                assignment,
-                value.GetOrDefault());
+        internal static Parser<IEnumerable<Token>> VariablesParser(char escapeChar) =>
+            ArgTokens(
+                from whitespace in Whitespace().Optional()
+                from variable in ArgDeclaration.GetParser(escapeChar).AsEnumerable()
+                select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
+            ).AtLeastOnce().Flatten();
     }
 }
