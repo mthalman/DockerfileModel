@@ -180,6 +180,12 @@ namespace DockerfileModel
         public DockerfileBuilder ShellInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.ShellInstruction.Parse);
 
+        public DockerfileBuilder StopSignalInstruction(string signal) =>
+           AddConstruct(new StopSignalInstruction(signal, EscapeChar));
+
+        public DockerfileBuilder StopSignalInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.StopSignalInstruction.Parse);
+
         private DockerfileBuilder ParseTokens(Action<TokenBuilder> configureBuilder, Func<string, DockerfileConstruct> parseConstruct)
         {
             TokenBuilder builder = new TokenBuilder

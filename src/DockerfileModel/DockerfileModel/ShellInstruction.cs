@@ -46,12 +46,6 @@ namespace DockerfileModel
             return ToString();
         }
 
-        private static IEnumerable<Token> GetTokens(string command, char escapeChar)
-        {
-            Requires.NotNullOrEmpty(command, nameof(command));
-            return GetTokens($"SHELL {command}", GetInnerParser(escapeChar));
-        }
-
         private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)
         {
             Requires.NotNull(command, nameof(command));
