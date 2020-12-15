@@ -116,6 +116,57 @@ namespace DockerfileModel.Tests
         }
 
         [Fact]
+        public void ChangeOwner_ResolveVariable()
+        {
+            ChangeOwner changeOwner = new ChangeOwner("$var");
+            TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, null, Dockerfile.DefaultEscapeChar);
+
+            Assert.Collection(instruction.Tokens, new Action<Token>[]
+            {
+                token => ValidateKeyword(token, instructionName),
+                token => ValidateWhitespace(token, " "),
+                token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=$var",
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "chown"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateAggregate<ChangeOwner>(token, "$var",
+                        token => ValidateAggregate<LiteralToken>(token, "$var",
+                            token => ValidateAggregate<VariableRefToken>(token, "$var",
+                                token => ValidateString(token, "var"))))),
+                token => ValidateWhitespace(token, " "),
+                token => ValidateLiteral(token, "src"),
+                token => ValidateWhitespace(token, " "),
+                token => ValidateLiteral(token, "dst")
+            });
+
+            string result = instruction.ResolveVariables(Dockerfile.DefaultEscapeChar, new Dictionary<string, string>
+            {
+                { "var", "user" }
+            },
+            new ResolutionOptions { UpdateInline = true });
+            Assert.Equal($"{instructionName} --chown=user src dst", result);
+            Assert.Equal($"{instructionName} --chown=user src dst", instruction.ToString());
+
+            Assert.Collection(instruction.Tokens, new Action<Token>[]
+            {
+                token => ValidateKeyword(token, instructionName),
+                token => ValidateWhitespace(token, " "),
+                token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user",
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "chown"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateAggregate<ChangeOwner>(token, "user",
+                        token => ValidateLiteral(token, "user"))),
+                token => ValidateWhitespace(token, " "),
+                token => ValidateLiteral(token, "src"),
+                token => ValidateWhitespace(token, " "),
+                token => ValidateLiteral(token, "dst")
+            });
+        }
+
+        [Fact]
         public void Permissions()
         {
             void Validate(TInstruction instruction, string permissions)
