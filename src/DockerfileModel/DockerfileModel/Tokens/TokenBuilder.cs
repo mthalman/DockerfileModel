@@ -95,8 +95,8 @@ namespace DockerfileModel.Tokens
         public TokenBuilder NewLine() =>
             AddToken(new NewLineToken(DefaultNewLine));
 
-        public TokenBuilder SecretMount(string id, string? destinationPath = null) =>
-            AddToken(new SecretMount(id, destinationPath, EscapeChar));
+        public TokenBuilder SecretMount(string id, string? destinationPath = null, string? environmentVariable = null) =>
+            AddToken(new SecretMount(id, destinationPath, environmentVariable, EscapeChar));
 
         public TokenBuilder SecretMount(Action<TokenBuilder> configureBuilder) =>
             AddToken(new SecretMount(GetTokens(configureBuilder), EscapeChar));
