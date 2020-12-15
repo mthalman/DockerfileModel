@@ -173,10 +173,10 @@ namespace DockerfileModel.Tokens
             {
                 Token token = TokenList[i];
                 string? value;
-                if (token is AggregateToken aggregate)
+                if (token is AggregateToken aggregateToken)
                 {
-                    value = aggregate.ResolveVariables(escapeChar, variables, options);
-                    if (options.UpdateInline)
+                    value = aggregateToken.ResolveVariables(escapeChar, variables, options);
+                    if (token is VariableRefToken && options.UpdateInline)
                     {
                         if (value is null)
                         {
