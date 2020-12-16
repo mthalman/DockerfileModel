@@ -40,7 +40,7 @@ namespace DockerfileModel
         public DockerfileBuilder NewLine() =>
             AddConstruct(new Whitespace(DefaultNewLine));
 
-        public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, ChangeOwner? changeOwnerFlag = null,
+        public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, UserAccount? changeOwnerFlag = null,
             string? permissions = null) =>
             AddConstruct(new AddInstruction(sources, destination, changeOwnerFlag, permissions, EscapeChar));
 
@@ -75,7 +75,7 @@ namespace DockerfileModel
             ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
         public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination,
-            string? fromStageName = null, ChangeOwner? changeOwner = null, string? permissions = null) =>
+            string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null) =>
             AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, permissions, EscapeChar));
 
         public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>

@@ -123,7 +123,7 @@ namespace DockerfileModel.Tests
                             token => ValidateSymbol(token, '-'),
                             token => ValidateKeyword(token, "chown"),
                             token => ValidateSymbol(token, '='),
-                            token => ValidateAggregate<ChangeOwner>(token, "id",
+                            token => ValidateAggregate<UserAccount>(token, "id",
                                 token => ValidateLiteral(token, "id"))),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateLiteral(token, "src"),

@@ -4,9 +4,9 @@ using Sprache;
 
 namespace DockerfileModel
 {
-    public class ChangeOwnerFlag : KeyValueToken<KeywordToken, ChangeOwner>
+    public class ChangeOwnerFlag : KeyValueToken<KeywordToken, UserAccount>
     {
-        public ChangeOwnerFlag(ChangeOwner changeOwner, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public ChangeOwnerFlag(UserAccount changeOwner, char escapeChar = Dockerfile.DefaultEscapeChar)
             : base(new KeywordToken("chown", escapeChar), changeOwner, isFlag: true)
         {
         }
@@ -29,7 +29,7 @@ namespace DockerfileModel
                 tokens => new ChangeOwnerFlag(tokens),
                 escapeChar: escapeChar);
 
-        private static Parser<ChangeOwner> ChangeOwnerParser(char escapeChar) =>
-            ChangeOwner.GetParser(escapeChar);
+        private static Parser<UserAccount> ChangeOwnerParser(char escapeChar) =>
+            UserAccount.GetParser(escapeChar);
     }
 }

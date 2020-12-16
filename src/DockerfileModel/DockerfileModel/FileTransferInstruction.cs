@@ -14,7 +14,7 @@ namespace DockerfileModel
         private readonly TokenList<LiteralToken> sourceTokens;
 
         protected FileTransferInstruction(IEnumerable<string> sources, string destination,
-           ChangeOwner? changeOwner, string? permissions, char escapeChar, string instructionName)
+           UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName)
             : this(GetTokens(sources, destination, changeOwner, permissions, escapeChar, instructionName), escapeChar)
         {
         }
@@ -56,7 +56,7 @@ namespace DockerfileModel
             }
         }
 
-        public ChangeOwner? ChangeOwner
+        public UserAccount? ChangeOwner
         {
             get => ChangeOwnerFlagToken?.ValueToken;
             set
@@ -105,14 +105,14 @@ namespace DockerfileModel
             Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser));
 
         private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-           ChangeOwner? changeOwner, string? permissions, char escapeChar, string instructionName)
+           UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName)
         {
             string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, instructionName, null);
             return GetTokens(text, GetInnerParser(escapeChar, instructionName));
         }
 
         protected static string CreateInstructionString(IEnumerable<string> sources, string destination,
-           ChangeOwner? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag)
+           UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag)
         {
             Requires.NotNullEmptyOrNullElements(sources, nameof(sources));
             Requires.NotNullOrEmpty(destination, nameof(destination));

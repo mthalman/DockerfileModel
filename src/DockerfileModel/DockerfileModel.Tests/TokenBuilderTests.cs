@@ -39,7 +39,7 @@ namespace DockerfileModel.Tests
 
             Assert.Collection(builder.Tokens, new Action<Token>[]
             {
-                token => ValidateAggregate<ChangeOwner>(token, "user",
+                token => ValidateAggregate<UserAccount>(token, "user",
                     token => ValidateLiteral(token, "user")),
                 token => ValidateAggregate<CommentToken>(token, "#comment",
                     token => ValidateSymbol(token, '#'),
