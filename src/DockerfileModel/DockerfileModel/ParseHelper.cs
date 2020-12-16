@@ -467,6 +467,16 @@ namespace DockerfileModel
             LineContinuationToken.GetParser(escapeChar).Many();
 
         /// <summary>
+        /// Parses a literal token.
+        /// </summary>
+        /// <param name="escapeChar">Escape character.</param>
+        /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
+        public static Parser<LiteralToken> LiteralToken(char escapeChar, IEnumerable<char> excludedChars) =>
+            from literal in LiteralString(escapeChar, excludedChars, excludeVariableRefChars: false).Many().Flatten()
+            where literal.Any()
+            select new LiteralToken(TokenHelper.CollapseStringTokens(literal), canContainVariables: false, escapeChar);
+
+        /// <summary>
         /// Parses all whitespace except a new line.
         /// </summary>
         private static Parser<WhitespaceToken?> WhitespaceWithoutNewLine() =>
@@ -492,16 +502,6 @@ namespace DockerfileModel
             chars
                 .Select(ch => Parse.Char(ch))
                 .Aggregate(parser, (current, next) => current.Except(next));
-
-        /// <summary>
-        /// Parses a literal token.
-        /// </summary>
-        /// <param name="escapeChar">Escape character.</param>
-        /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
-        private static Parser<LiteralToken> LiteralToken(char escapeChar, IEnumerable<char> excludedChars) =>
-            from literal in LiteralString(escapeChar, excludedChars, excludeVariableRefChars: false).Many().Flatten()
-            where literal.Any()
-            select new LiteralToken(TokenHelper.CollapseStringTokens(literal), canContainVariables: false, escapeChar);
 
         /// <summary>
         /// Collapses any sequential string or whitespace tokens and wraps them in a literal token.

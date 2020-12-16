@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Xunit;
 
 namespace DockerfileModel.Tests
@@ -22,20 +23,48 @@ namespace DockerfileModel.Tests
                 .ArgInstruction("ARG", "value")
                 .CommandInstruction("echo hello")
                 .Comment("my comment")
+                .CopyInstruction(new string[] { "src" }, "dst")
+                .EntrypointInstruction("cmd")
+                .EnvInstruction(new Dictionary<string, string>
+                {
+                    { "var1", "val" }
+                })
+                .ExposeInstruction("80")
                 .FromInstruction("scratch")
+                .HealthCheckDisabledInstruction()
+                .HealthCheckInstruction("cmd")
+                .LabelInstruction(new Dictionary<string, string>
+                {
+                    { "label", "val" }
+                })
+                .MaintainerInstruction("name")
                 .NewLine()
+                .OnBuildInstruction(new ExposeInstruction("333"))
                 .ParserDirective("escape", "\\")
-                .RunInstruction("echo hi");
+                .RunInstruction("echo hi")
+                .ShellInstruction("cmd")
+                .StopSignalInstruction("1");
 
             string expectedOutput =
                 "ADD src dst" + Environment.NewLine +
                 "ARG ARG=value" + Environment.NewLine +
                 "CMD echo hello" + Environment.NewLine +
                 "# my comment" + Environment.NewLine +
+                "COPY src dst" + Environment.NewLine +
+                "ENTRYPOINT cmd" + Environment.NewLine +
+                "ENV var1=val" + Environment.NewLine +
+                "EXPOSE 80" + Environment.NewLine +
                 "FROM scratch" + Environment.NewLine +
+                "HEALTHCHECK NONE" + Environment.NewLine +
+                "HEALTHCHECK CMD cmd" + Environment.NewLine +
+                "LABEL label=val" + Environment.NewLine +
+                "MAINTAINER name" + Environment.NewLine +
                 Environment.NewLine +
+                "ONBUILD EXPOSE 333" + Environment.NewLine +
                 "# escape=\\" + Environment.NewLine +
-                "RUN echo hi" + Environment.NewLine;
+                "RUN echo hi" + Environment.NewLine +
+                "SHELL [\"cmd\"]" + Environment.NewLine +
+                "STOPSIGNAL 1" + Environment.NewLine;
 
             Assert.Equal(expectedOutput, builder.Dockerfile.ToString());
             Assert.Equal(expectedOutput, builder.ToString());
