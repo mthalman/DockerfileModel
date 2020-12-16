@@ -13,7 +13,7 @@ namespace DockerfileModel.Tests
         {
             TokenBuilder builder = new TokenBuilder();
             builder
-                .ChangeOwner("user")
+                .UserAccount("user")
                 .Comment("comment")
                 .ExecFormCommand("cmd1", "cmd2")
                 .FromFlag("stage")

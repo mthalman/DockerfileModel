@@ -12,7 +12,7 @@ namespace DockerfileModel.Tokens
 
         public IList<Token> Tokens { get; } = new List<Token>();
 
-        public TokenBuilder ChangeOwner(string user, string? group = null) =>
+        public TokenBuilder UserAccount(string user, string? group = null) =>
             AddToken(new UserAccount(user, group, EscapeChar));
 
         public TokenBuilder Comment(string comment) =>

@@ -52,7 +52,7 @@ namespace DockerfileModel
             return GetTokens($"MAINTAINER {(String.IsNullOrEmpty(maintainer) ? "\"\"" : maintainer)}", GetInnerParser(escapeChar));
         }
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("MAINTAINER", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>

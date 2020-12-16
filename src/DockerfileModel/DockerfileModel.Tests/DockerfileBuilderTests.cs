@@ -43,7 +43,8 @@ namespace DockerfileModel.Tests
                 .ParserDirective("escape", "\\")
                 .RunInstruction("echo hi")
                 .ShellInstruction("cmd")
-                .StopSignalInstruction("1");
+                .StopSignalInstruction("1")
+                .UserInstruction("test");
 
             string expectedOutput =
                 "ADD src dst" + Environment.NewLine +
@@ -64,7 +65,8 @@ namespace DockerfileModel.Tests
                 "# escape=\\" + Environment.NewLine +
                 "RUN echo hi" + Environment.NewLine +
                 "SHELL [\"cmd\"]" + Environment.NewLine +
-                "STOPSIGNAL 1" + Environment.NewLine;
+                "STOPSIGNAL 1" + Environment.NewLine +
+                "USER test" + Environment.NewLine;
 
             Assert.Equal(expectedOutput, builder.Dockerfile.ToString());
             Assert.Equal(expectedOutput, builder.ToString());

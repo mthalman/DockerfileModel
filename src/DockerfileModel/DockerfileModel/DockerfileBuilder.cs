@@ -186,6 +186,15 @@ namespace DockerfileModel
         public DockerfileBuilder StopSignalInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.StopSignalInstruction.Parse);
 
+        public DockerfileBuilder UserInstruction(string user, string? group = null) =>
+           AddConstruct(new UserInstruction(user, group, EscapeChar));
+
+        public DockerfileBuilder UserInstruction(UserAccount userAccount) =>
+           AddConstruct(new UserInstruction(userAccount, EscapeChar));
+
+        public DockerfileBuilder UserInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.UserInstruction.Parse);
+
         private DockerfileBuilder ParseTokens(Action<TokenBuilder> configureBuilder, Func<string, DockerfileConstruct> parseConstruct)
         {
             TokenBuilder builder = new TokenBuilder
