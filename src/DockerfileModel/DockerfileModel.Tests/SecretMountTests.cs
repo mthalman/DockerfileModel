@@ -35,9 +35,15 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            SecretMount result = new SecretMount(scenario.Id, scenario.DestinationPath);
+            SecretMount result = new SecretMount(scenario.Id, scenario.DestinationPath, scenario.EnvironmentVariable);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
+        }
+
+        [Fact]
+        public void CreateInvalid()
+        {
+            Assert.Throws<InvalidOperationException>(() => new SecretMount("id", "dst", "var"));
         }
 
         [Fact]
@@ -99,6 +105,10 @@ namespace DockerfileModel.Tests
 
             secretMount.DestinationPath = "test5";
 
+            Assert.Throws<InvalidOperationException>(() => secretMount.EnvironmentVariable = "foo");
+            Assert.Throws<InvalidOperationException>(() => secretMount.EnvironmentVariableToken =
+                new KeyValueToken<KeywordToken, LiteralToken>(new KeywordToken("env"), new LiteralToken("foo")));
+
             secretMount.DestinationPathToken = null;
             Assert.Equal("type=secret,id=foo", secretMount.ToString());
             Assert.Null(secretMount.DestinationPath);
@@ -106,11 +116,57 @@ namespace DockerfileModel.Tests
         }
 
         [Fact]
-        public void DestinationWithVariables()
+        public void DestinationPathWithVariables()
         {
             SecretMount secretMount = new SecretMount("id", "$var");
             TestHelper.TestVariablesWithLiteral(
                 () => secretMount.DestinationPathToken.ValueToken, "var", canContainVariables: true);
+        }
+
+        [Fact]
+        public void EnvironmentVariable()
+        {
+            SecretMount secretMount = new SecretMount("foo", environmentVariable: "test");
+            Assert.Equal("test", secretMount.EnvironmentVariable);
+            Assert.Equal("test", secretMount.EnvironmentVariableToken.Value);
+
+            secretMount.EnvironmentVariable = "test2";
+            Assert.Equal("test2", secretMount.EnvironmentVariable);
+            Assert.Equal("test2", secretMount.EnvironmentVariableToken.Value);
+
+            secretMount.EnvironmentVariableToken.ValueToken.Value = "test3";
+            Assert.Equal("test3", secretMount.EnvironmentVariable);
+            Assert.Equal("test3", secretMount.EnvironmentVariableToken.Value);
+
+            secretMount.EnvironmentVariableToken = new KeyValueToken<KeywordToken, LiteralToken>(
+                new KeywordToken("env"), new LiteralToken("test4"));
+            Assert.Equal("test4", secretMount.EnvironmentVariable);
+            Assert.Equal("test4", secretMount.EnvironmentVariableToken.Value);
+            Assert.Equal("type=secret,id=foo,env=test4", secretMount.ToString());
+
+            secretMount.EnvironmentVariable = null;
+            Assert.Equal("type=secret,id=foo", secretMount.ToString());
+            Assert.Null(secretMount.EnvironmentVariable);
+            Assert.Null(secretMount.EnvironmentVariableToken);
+
+            secretMount.EnvironmentVariable = "test5";
+
+            Assert.Throws<InvalidOperationException>(() => secretMount.DestinationPath = "foo");
+            Assert.Throws<InvalidOperationException>(() => secretMount.DestinationPathToken =
+                new KeyValueToken<KeywordToken, LiteralToken>(new KeywordToken("dst"), new LiteralToken("foo")));
+
+            secretMount.EnvironmentVariableToken = null;
+            Assert.Equal("type=secret,id=foo", secretMount.ToString());
+            Assert.Null(secretMount.EnvironmentVariable);
+            Assert.Null(secretMount.EnvironmentVariableToken);
+        }
+
+        [Fact]
+        public void EnvironmentVariableWithVariables()
+        {
+            SecretMount secretMount = new SecretMount("id", environmentVariable: "$var");
+            TestHelper.TestVariablesWithLiteral(
+                () => secretMount.EnvironmentVariableToken.ValueToken, "var", canContainVariables: true);
         }
 
         public static IEnumerable<object[]> ParseTestInput()
@@ -149,6 +205,24 @@ namespace DockerfileModel.Tests
                         Assert.Equal("secret", result.Type);
                         Assert.Equal("foo", result.Id);
                         Assert.Equal("test", result.DestinationPath);
+                    }
+                },
+                new SecretMountParseTestScenario
+                {
+                    Text = "type=secret,id=foo,env=test",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyValue(token, "type", "secret"),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateKeyValue(token, "id", "foo"),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateKeyValue(token, "env", "test"),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Equal("secret", result.Type);
+                        Assert.Equal("foo", result.Id);
+                        Assert.Equal("test", result.EnvironmentVariable);
                     }
                 },
                 new SecretMountParseTestScenario
@@ -252,6 +326,25 @@ namespace DockerfileModel.Tests
                         Assert.Equal("foo", result.Id);
                         Assert.Equal("test", result.DestinationPath);
                     }
+                },
+                new CreateTestScenario
+                {
+                    Id = "foo",
+                    EnvironmentVariable = "test",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyValue(token, "type", "secret"),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateKeyValue(token, "id", "foo"),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateKeyValue(token, "env", "test"),
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Equal("secret", result.Type);
+                        Assert.Equal("foo", result.Id);
+                        Assert.Equal("test", result.EnvironmentVariable);
+                    }
                 }
             };
 
@@ -267,6 +360,7 @@ namespace DockerfileModel.Tests
         {
             public string Id { get; set; }
             public string DestinationPath { get; set; }
+            public string EnvironmentVariable { get; set; }
         }
     }
 }
