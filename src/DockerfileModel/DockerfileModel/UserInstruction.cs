@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using DockerfileModel.Tokens;
 using Sprache;
@@ -10,8 +9,13 @@ namespace DockerfileModel
 {
     public class UserInstruction : Instruction
     {
-        public UserInstruction(string maintainer, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(maintainer, escapeChar))
+        public UserInstruction(string user, string? group = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(new UserAccount(user, group, escapeChar))
+        {
+        }
+
+        public UserInstruction(UserAccount userAccount, char escapeChar = Dockerfile.DefaultEscapeChar)
+            : this(GetTokens(userAccount, escapeChar))
         {
         }
 
@@ -19,23 +23,13 @@ namespace DockerfileModel
         {
         }
 
-        public string Maintainer
+        public UserAccount UserAccount
         {
-            get => MaintainerToken.Value;
+            get => Tokens.OfType<UserAccount>().First();
             set
             {
                 Requires.NotNull(value, nameof(value));
-                MaintainerToken.Value = value;
-            }
-        }
-
-        public LiteralToken MaintainerToken
-        {
-            get => Tokens.OfType<LiteralToken>().First();
-            set
-            {
-                Requires.NotNull(value, nameof(value));
-                SetToken(MaintainerToken, value);
+                SetToken(UserAccount, value);
             }
         }
    
@@ -46,18 +40,16 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new UserInstruction(tokens);
 
-        private static IEnumerable<Token> GetTokens(string maintainer, char escapeChar)
+        private static IEnumerable<Token> GetTokens(UserAccount userAccount, char escapeChar)
         {
-            Requires.NotNull(maintainer, nameof(maintainer));
-            return GetTokens($"MAINTAINER {(String.IsNullOrEmpty(maintainer) ? "\"\"" : maintainer)}", GetInnerParser(escapeChar));
+            Requires.NotNull(userAccount, nameof(userAccount));
+            return GetTokens($"USER {userAccount}", GetInnerParser(escapeChar));
         }
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            Instruction("MAINTAINER", escapeChar, GetArgsParser(escapeChar));
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+            Instruction("USER", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-            ArgTokens(
-                LiteralWithVariables(
-                    escapeChar, whitespaceMode: WhitespaceMode.Allowed).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true);
+            ArgTokens(UserAccount.GetParser(escapeChar).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true);
     }
 }

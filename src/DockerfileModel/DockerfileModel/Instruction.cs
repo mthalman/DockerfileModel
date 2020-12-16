@@ -27,7 +27,7 @@ namespace DockerfileModel
                 { "RUN", RunInstruction.Parse },
                 { "SHELL", ShellInstruction.Parse },
                 { "STOPSIGNAL", StopSignalInstruction.Parse },
-                { "USER", GenericInstruction.Parse },
+                { "USER", UserInstruction.Parse },
                 { "VOLUME", GenericInstruction.Parse },
                 { "WORKDIR", GenericInstruction.Parse },
             };

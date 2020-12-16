@@ -51,7 +51,7 @@ namespace DockerfileModel
             return GetTokens($"STOPSIGNAL {signal}", GetInnerParser(escapeChar));
         }
 
-        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
             Instruction("STOPSIGNAL", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
