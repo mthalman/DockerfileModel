@@ -10,7 +10,7 @@ namespace DockerfileModel
         private const string Name = "ADD";
 
         public AddInstruction(IEnumerable<string> sources, string destination,
-            ChangeOwner? changeOwner = null, string? permissions = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+            UserAccount? changeOwner = null, string? permissions = null, char escapeChar = Dockerfile.DefaultEscapeChar)
             : base(sources, destination, changeOwner, permissions, escapeChar, Name)
         {
         }

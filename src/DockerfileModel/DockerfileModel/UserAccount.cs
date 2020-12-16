@@ -8,16 +8,16 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class ChangeOwner : AggregateToken
+    public class UserAccount : AggregateToken
     {
         private readonly char escapeChar;
 
-        public ChangeOwner(string user, string? group = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public UserAccount(string user, string? group = null, char escapeChar = Dockerfile.DefaultEscapeChar)
             : this(GetTokens(user, group, escapeChar), escapeChar)
         {
         }
 
-        internal ChangeOwner(IEnumerable<Token> tokens, char escapeChar)
+        internal UserAccount(IEnumerable<Token> tokens, char escapeChar)
             : base(tokens)
         {
             this.escapeChar = escapeChar;
@@ -69,12 +69,12 @@ namespace DockerfileModel
             }
         }
 
-        public static ChangeOwner Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new ChangeOwner(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+        public static UserAccount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new UserAccount(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-        public static Parser<ChangeOwner> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static Parser<UserAccount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new ChangeOwner(tokens, escapeChar);
+            select new UserAccount(tokens, escapeChar);
 
         private static IEnumerable<Token> GetTokens(string user, string? group, char escapeChar)
         {

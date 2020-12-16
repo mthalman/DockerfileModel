@@ -9,15 +9,15 @@ using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
 {
-    public class ChangeOwnerTests
+    public class UserAccountTests
     {
         [Theory]
         [MemberData(nameof(ParseTestInput))]
-        public void Parse(ChangeOwnerParseTestScenario scenario)
+        public void Parse(UserAccountParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                ChangeOwner result = ChangeOwner.Parse(scenario.Text, scenario.EscapeChar);
+                UserAccount result = UserAccount.Parse(scenario.Text, scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
@@ -35,7 +35,7 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            ChangeOwner result = new ChangeOwner(scenario.User, scenario.Group);
+            UserAccount result = new UserAccount(scenario.User, scenario.Group);
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
@@ -43,85 +43,85 @@ namespace DockerfileModel.Tests
         [Fact]
         public void User()
         {
-            ChangeOwner changeOwner = new ChangeOwner("test", "group");
-            Assert.Equal("test", changeOwner.User);
-            Assert.Equal("test", changeOwner.UserToken.Value);
+            UserAccount UserAccount = new UserAccount("test", "group");
+            Assert.Equal("test", UserAccount.User);
+            Assert.Equal("test", UserAccount.UserToken.Value);
 
-            changeOwner.User = "test2";
-            Assert.Equal("test2", changeOwner.User);
-            Assert.Equal("test2", changeOwner.UserToken.Value);
+            UserAccount.User = "test2";
+            Assert.Equal("test2", UserAccount.User);
+            Assert.Equal("test2", UserAccount.UserToken.Value);
 
-            changeOwner.UserToken.Value = "test3";
-            Assert.Equal("test3", changeOwner.User);
-            Assert.Equal("test3", changeOwner.UserToken.Value);
+            UserAccount.UserToken.Value = "test3";
+            Assert.Equal("test3", UserAccount.User);
+            Assert.Equal("test3", UserAccount.UserToken.Value);
 
-            changeOwner.UserToken = new LiteralToken("test4");
-            Assert.Equal("test4", changeOwner.User);
-            Assert.Equal("test4", changeOwner.UserToken.Value);
-            Assert.Equal("test4:group", changeOwner.ToString());
+            UserAccount.UserToken = new LiteralToken("test4");
+            Assert.Equal("test4", UserAccount.User);
+            Assert.Equal("test4", UserAccount.UserToken.Value);
+            Assert.Equal("test4:group", UserAccount.ToString());
 
-            Assert.Throws<ArgumentException>(() => changeOwner.User = "");
-            Assert.Throws<ArgumentNullException>(() => changeOwner.User = null);
-            Assert.Throws<ArgumentNullException>(() => changeOwner.UserToken = null);
+            Assert.Throws<ArgumentException>(() => UserAccount.User = "");
+            Assert.Throws<ArgumentNullException>(() => UserAccount.User = null);
+            Assert.Throws<ArgumentNullException>(() => UserAccount.UserToken = null);
         }
 
         [Fact]
         public void Group()
         {
-            ChangeOwner changeOwner = new ChangeOwner("user", "test");
-            Assert.Equal("test", changeOwner.Group);
-            Assert.Equal("test", changeOwner.GroupToken.Value);
+            UserAccount UserAccount = new UserAccount("user", "test");
+            Assert.Equal("test", UserAccount.Group);
+            Assert.Equal("test", UserAccount.GroupToken.Value);
 
-            changeOwner.Group = "test2";
-            Assert.Equal("test2", changeOwner.Group);
-            Assert.Equal("test2", changeOwner.GroupToken.Value);
+            UserAccount.Group = "test2";
+            Assert.Equal("test2", UserAccount.Group);
+            Assert.Equal("test2", UserAccount.GroupToken.Value);
 
-            changeOwner.GroupToken.Value = "test3";
-            Assert.Equal("test3", changeOwner.Group);
-            Assert.Equal("test3", changeOwner.GroupToken.Value);
+            UserAccount.GroupToken.Value = "test3";
+            Assert.Equal("test3", UserAccount.Group);
+            Assert.Equal("test3", UserAccount.GroupToken.Value);
 
-            changeOwner.Group = null;
-            Assert.Null(changeOwner.Group);
-            Assert.Null(changeOwner.GroupToken);
-            Assert.Equal("user", changeOwner.ToString());
+            UserAccount.Group = null;
+            Assert.Null(UserAccount.Group);
+            Assert.Null(UserAccount.GroupToken);
+            Assert.Equal("user", UserAccount.ToString());
 
-            changeOwner.GroupToken = new LiteralToken("test4");
-            Assert.Equal("test4", changeOwner.Group);
-            Assert.Equal("test4", changeOwner.GroupToken.Value);
-            Assert.Equal("user:test4", changeOwner.ToString());
+            UserAccount.GroupToken = new LiteralToken("test4");
+            Assert.Equal("test4", UserAccount.Group);
+            Assert.Equal("test4", UserAccount.GroupToken.Value);
+            Assert.Equal("user:test4", UserAccount.ToString());
 
-            changeOwner.GroupToken = null;
-            Assert.Null(changeOwner.Group);
-            Assert.Null(changeOwner.GroupToken);
-            Assert.Equal("user", changeOwner.ToString());
+            UserAccount.GroupToken = null;
+            Assert.Null(UserAccount.Group);
+            Assert.Null(UserAccount.GroupToken);
+            Assert.Equal("user", UserAccount.ToString());
 
-            changeOwner.Group = "";
-            Assert.Null(changeOwner.Group);
-            Assert.Null(changeOwner.GroupToken);
-            Assert.Equal("user", changeOwner.ToString());
+            UserAccount.Group = "";
+            Assert.Null(UserAccount.Group);
+            Assert.Null(UserAccount.GroupToken);
+            Assert.Equal("user", UserAccount.ToString());
         }
 
         [Fact]
         public void UserWithVariables()
         {
-            ChangeOwner changeOwner = new ChangeOwner("$var", "group");
+            UserAccount UserAccount = new UserAccount("$var", "group");
             TestHelper.TestVariablesWithLiteral(
-                () => changeOwner.UserToken, "var", canContainVariables: true);
+                () => UserAccount.UserToken, "var", canContainVariables: true);
         }
 
         [Fact]
         public void GroupWithVariables()
         {
-            ChangeOwner changeOwner = new ChangeOwner("user", "$var");
+            UserAccount UserAccount = new UserAccount("user", "$var");
             TestHelper.TestVariablesWithNullableLiteral(
-                () => changeOwner.GroupToken, token => changeOwner.GroupToken = token, val => changeOwner.Group = val, "var", canContainVariables: true);
+                () => UserAccount.GroupToken, token => UserAccount.GroupToken = token, val => UserAccount.Group = val, "var", canContainVariables: true);
         }
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            ChangeOwnerParseTestScenario[] testInputs = new ChangeOwnerParseTestScenario[]
+            UserAccountParseTestScenario[] testInputs = new UserAccountParseTestScenario[]
             {
-                new ChangeOwnerParseTestScenario
+                new UserAccountParseTestScenario
                 {
                     Text = "55:mygroup",
                     TokenValidators = new Action<Token>[]
@@ -136,7 +136,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("mygroup", result.Group);
                     }
                 },
-                new ChangeOwnerParseTestScenario
+                new UserAccountParseTestScenario
                 {
                     Text = "bin",
                     TokenValidators = new Action<Token>[]
@@ -149,7 +149,7 @@ namespace DockerfileModel.Tests
                         Assert.Null(result.Group);
                     }
                 },
-                new ChangeOwnerParseTestScenario
+                new UserAccountParseTestScenario
                 {
                     EscapeChar = '`',
                     Text = "us`\ner`\n:`\ngr`\noup",
@@ -176,7 +176,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("us`\ner`\n", result.ToString());
                     }
                 },
-                new ChangeOwnerParseTestScenario
+                new UserAccountParseTestScenario
                 {
                     Text = "$user:group$var",
                     TokenValidators = new Action<Token>[]
@@ -191,12 +191,12 @@ namespace DockerfileModel.Tests
                                 token => ValidateString(token, "var")))
                     }
                 },
-                new ChangeOwnerParseTestScenario
+                new UserAccountParseTestScenario
                 {
                     Text = "user:",
                     ParseExceptionPosition = new Position(1, 1, 1)
                 },
-                new ChangeOwnerParseTestScenario
+                new UserAccountParseTestScenario
                 {
                     Text = ":group",
                     ParseExceptionPosition = new Position(1, 1, 1)
@@ -245,12 +245,12 @@ namespace DockerfileModel.Tests
             return testInputs.Select(input => new object[] { input });
         }
 
-        public class ChangeOwnerParseTestScenario : ParseTestScenario<ChangeOwner>
+        public class UserAccountParseTestScenario : ParseTestScenario<UserAccount>
         {
             public char EscapeChar { get; set; }
         }
 
-        public class CreateTestScenario : TestScenario<ChangeOwner>
+        public class CreateTestScenario : TestScenario<UserAccount>
         {
             public string User { get; set; }
             public string Group { get; set; }
