@@ -19,13 +19,13 @@ namespace DockerfileModel
         private GenericInstruction(IEnumerable<Token> tokens)
             : base(tokens)
         {
-        }
-
-        public IList<string> ArgLines =>
-            new ProjectedItemList<LiteralToken, string>(
+            ArgLines = new ProjectedItemList<LiteralToken, string>(
                 Tokens.OfType<LiteralToken>(),
                 token => token.Value,
                 (token, value) => token.Value = value);
+        }
+
+        public IList<string> ArgLines { get; }
 
         public static GenericInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new GenericInstruction(GetTokens(text, GetInnerParser(escapeChar)));

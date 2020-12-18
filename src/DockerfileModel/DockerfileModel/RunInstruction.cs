@@ -10,8 +10,6 @@ namespace DockerfileModel
 {
     public class RunInstruction : Instruction
     {
-        private readonly ProjectedItemList<MountFlag, Mount> mounts;
-
         public RunInstruction(string commandWithArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
             : this(commandWithArgs, Enumerable.Empty<Mount>(), escapeChar)
         {
@@ -34,7 +32,7 @@ namespace DockerfileModel
 
         private RunInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
-            this.mounts = new ProjectedItemList<MountFlag, Mount>(
+            Mounts = new ProjectedItemList<MountFlag, Mount>(
                 new TokenList<MountFlag>(TokenList),
                 flag => flag.ValueToken,
                 (flag, mount) => flag.ValueToken = mount);
@@ -50,7 +48,7 @@ namespace DockerfileModel
             }
         }
 
-        public IList<Mount> Mounts => this.mounts;
+        public IList<Mount> Mounts { get; }
 
         public static RunInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
             new RunInstruction(GetTokens(text, GetInnerParser(escapeChar)));
