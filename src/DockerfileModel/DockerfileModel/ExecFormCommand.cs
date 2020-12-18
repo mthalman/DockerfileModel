@@ -16,6 +16,11 @@ namespace DockerfileModel
 
         internal ExecFormCommand(IEnumerable<Token> tokens) : base(tokens)
         {
+            ValueTokens = new TokenList<LiteralToken>(TokenList);
+            Values = new ProjectedItemList<LiteralToken, string>(
+                ValueTokens,
+                token => token.Value,
+                (token, value) => token.Value = value);
         }
 
         private static IEnumerable<Token> GetTokens(IEnumerable<string> values, char escapeChar)
@@ -31,13 +36,9 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new ExecFormCommand(tokens);
 
-        public IList<string> Values =>
-            new ProjectedItemList<LiteralToken, string>(
-                ValueTokens,
-                token => token.Value,
-                (token, value) => token.Value = value);
+        public IList<string> Values { get; }
 
-        public IEnumerable<LiteralToken> ValueTokens => Tokens.OfType<LiteralToken>();
+        public IList<LiteralToken> ValueTokens { get; }
 
         public override CommandType CommandType => CommandType.ExecForm;
 

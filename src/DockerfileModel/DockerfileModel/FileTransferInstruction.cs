@@ -11,8 +11,6 @@ namespace DockerfileModel
 {
     public abstract class FileTransferInstruction : Instruction
     {
-        private readonly TokenList<LiteralToken> sourceTokens;
-
         protected FileTransferInstruction(IEnumerable<string> sources, string destination,
            UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName)
             : this(GetTokens(sources, destination, changeOwner, permissions, escapeChar, instructionName), escapeChar)
@@ -21,20 +19,20 @@ namespace DockerfileModel
 
         protected FileTransferInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
         {
-            this.sourceTokens = new TokenList<LiteralToken>(TokenList,
+            SourceTokens = new TokenList<LiteralToken>(TokenList,
                 literals => literals.Take(literals.Count() - 1));
+            Sources = new ProjectedItemList<LiteralToken, string>(
+                SourceTokens,
+                token => token.Value,
+                (token, value) => token.Value = value);
             EscapeChar = escapeChar;
         }
 
         protected char EscapeChar { get; }
 
-        public IList<string> Sources =>
-            new ProjectedItemList<LiteralToken, string>(
-                SourceTokens,
-                token => token.Value,
-                (token, value) => token.Value = value);
+        public IList<string> Sources { get; }
 
-        public IList<LiteralToken> SourceTokens => sourceTokens;
+        public IList<LiteralToken> SourceTokens { get; }
 
         public string Destination
         {
