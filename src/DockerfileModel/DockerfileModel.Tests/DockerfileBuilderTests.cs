@@ -21,7 +21,7 @@ namespace DockerfileModel.Tests
             builder
                 .AddInstruction(new string[] { "src" }, "dst")
                 .ArgInstruction("ARG", "value")
-                .CommandInstruction("echo hello")
+                .CmdInstruction("echo hello")
                 .Comment("my comment")
                 .CopyInstruction(new string[] { "src" }, "dst")
                 .EntrypointInstruction("cmd")

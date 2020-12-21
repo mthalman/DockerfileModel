@@ -7,24 +7,24 @@ using static DockerfileModel.ParseHelper;
 
 namespace DockerfileModel
 {
-    public class CommandInstruction : Instruction
+    public class CmdInstruction : Instruction
     {
-        public CommandInstruction(string commandWithArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public CmdInstruction(string commandWithArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
             : this(GetTokens(commandWithArgs, escapeChar))
         {
         }
 
-        public CommandInstruction(IEnumerable<string> defaultArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public CmdInstruction(IEnumerable<string> defaultArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
             : this(GetTokens(defaultArgs, escapeChar))
         {
         }
 
-        public CommandInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
+        public CmdInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
             : this(GetTokens(command, args, escapeChar))
         {
         }
 
-        private CommandInstruction(IEnumerable<Token> tokens) : base(tokens)
+        private CmdInstruction(IEnumerable<Token> tokens) : base(tokens)
         {
         }
 
@@ -38,12 +38,12 @@ namespace DockerfileModel
             }
         }
 
-        public static CommandInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-            new CommandInstruction(GetTokens(text, GetInnerParser(escapeChar)));
+        public static CmdInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+            new CmdInstruction(GetTokens(text, GetInnerParser(escapeChar)));
 
-        public static Parser<CommandInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        public static Parser<CmdInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from tokens in GetInnerParser(escapeChar)
-            select new CommandInstruction(tokens);
+            select new CmdInstruction(tokens);
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
         {
