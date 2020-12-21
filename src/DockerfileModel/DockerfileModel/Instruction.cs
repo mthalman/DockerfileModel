@@ -14,7 +14,7 @@ namespace DockerfileModel
             {
                 { "ADD", AddInstruction.Parse },
                 { "ARG", ArgInstruction.Parse },
-                { "CMD", CommandInstruction.Parse },
+                { "CMD", CmdInstruction.Parse },
                 { "COPY", CopyInstruction.Parse },
                 { "ENTRYPOINT", EntrypointInstruction.Parse },
                 { "EXPOSE", ExposeInstruction.Parse },

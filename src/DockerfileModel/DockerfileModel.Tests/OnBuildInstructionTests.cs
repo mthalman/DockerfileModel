@@ -44,7 +44,7 @@ namespace DockerfileModel.Tests
         [Fact]
         public void Instruction()
         {
-            OnBuildInstruction result = new OnBuildInstruction(new CommandInstruction("test"));
+            OnBuildInstruction result = new OnBuildInstruction(new CmdInstruction("test"));
             Assert.Equal("CMD test", result.Instruction.ToString());
             Assert.Equal("ONBUILD CMD test", result.ToString());
 

@@ -14,19 +14,19 @@ namespace DockerfileModel
 
         public HealthCheckInstruction(string commandWithArgs, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(new CommandInstruction(commandWithArgs), interval, timeout, startPeriod, retries, escapeChar), escapeChar)
+            : this(GetTokens(new CmdInstruction(commandWithArgs), interval, timeout, startPeriod, retries, escapeChar), escapeChar)
         {
         }
 
         public HealthCheckInstruction(IEnumerable<string> defaultArgs, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(new CommandInstruction(defaultArgs), interval, timeout, startPeriod, retries, escapeChar), escapeChar)
+            : this(GetTokens(new CmdInstruction(defaultArgs), interval, timeout, startPeriod, retries, escapeChar), escapeChar)
         {
         }
 
         public HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
             string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-            : this(GetTokens(new CommandInstruction(command, args), interval, timeout, startPeriod, retries, escapeChar), escapeChar)
+            : this(GetTokens(new CmdInstruction(command, args), interval, timeout, startPeriod, retries, escapeChar), escapeChar)
         {
         }
 
@@ -122,12 +122,12 @@ namespace DockerfileModel
             set => SetOptionalFlagToken(RetriesFlag, value);
         }
 
-        public CommandInstruction? CommandInstruction
+        public CmdInstruction? CmdInstruction
         {
-            get => Tokens.OfType<CommandInstruction>().FirstOrDefault();
+            get => Tokens.OfType<CmdInstruction>().FirstOrDefault();
             set
             {
-                SetToken(CommandInstruction, value,
+                SetToken(CmdInstruction, value,
                     addToken: token =>
                     {
                         // Replace the existing NONE keyword
@@ -150,7 +150,7 @@ namespace DockerfileModel
             from tokens in GetInnerParser(escapeChar)
             select new HealthCheckInstruction(tokens, escapeChar);
 
-        private static IEnumerable<Token> GetTokens(CommandInstruction commandInstruction, string? interval, string? timeout,
+        private static IEnumerable<Token> GetTokens(CmdInstruction commandInstruction, string? interval, string? timeout,
             string? startPeriod, string? retries, char escapeChar)
         {
             Requires.NotNull(commandInstruction, nameof(commandInstruction));
@@ -187,7 +187,7 @@ namespace DockerfileModel
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
             from options in Options(escapeChar)
-            from command in ArgTokens(CommandInstruction.GetParser(escapeChar).AsEnumerable(), escapeChar)
+            from command in ArgTokens(CmdInstruction.GetParser(escapeChar).AsEnumerable(), escapeChar)
                 .Or(ArgTokens(KeywordToken.GetParser("NONE", escapeChar).AsEnumerable(), escapeChar))
             select ConcatTokens(options, command);
 

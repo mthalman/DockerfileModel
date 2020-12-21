@@ -687,7 +687,7 @@ namespace DockerfileModel.Tests
                     Text = $"CMD echo hello",
                     TokenValidators = new Action<Token>[]
                     {
-                        line => ValidateAggregate<CommandInstruction>(line, "CMD echo hello", new Action<Token>[]
+                        line => ValidateAggregate<CmdInstruction>(line, "CMD echo hello", new Action<Token>[]
                         {
                             token => ValidateKeyword(token, "CMD"),
                             token => ValidateWhitespace(token, " "),

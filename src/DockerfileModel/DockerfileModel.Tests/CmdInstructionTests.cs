@@ -9,15 +9,15 @@ using static DockerfileModel.Tests.TokenValidator;
 
 namespace DockerfileModel.Tests
 {
-    public class CommandInstructionTests
+    public class CmdInstructionTests
     {
         [Theory]
         [MemberData(nameof(ParseTestInput))]
-        public void Parse(CommandInstructionParseTestScenario scenario)
+        public void Parse(CmdInstructionParseTestScenario scenario)
         {
             if (scenario.ParseExceptionPosition is null)
             {
-                CommandInstruction result = CommandInstruction.Parse(scenario.Text, scenario.EscapeChar);
+                CmdInstruction result = CmdInstruction.Parse(scenario.Text, scenario.EscapeChar);
                 Assert.Equal(scenario.Text, result.ToString());
                 Assert.Collection(result.Tokens, scenario.TokenValidators);
                 scenario.Validate?.Invoke(result);
@@ -25,7 +25,7 @@ namespace DockerfileModel.Tests
             else
             {
                 ParseException exception = Assert.Throws<ParseException>(
-                    () => CommandInstruction.Parse(scenario.Text, scenario.EscapeChar));
+                    () => CmdInstruction.Parse(scenario.Text, scenario.EscapeChar));
                 Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
                 Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
             }
@@ -35,14 +35,14 @@ namespace DockerfileModel.Tests
         [MemberData(nameof(CreateTestInput))]
         public void Create(CreateTestScenario scenario)
         {
-            CommandInstruction result;
+            CmdInstruction result;
             if (scenario.Command != null)
             {
-                result = new CommandInstruction(scenario.Command);
+                result = new CmdInstruction(scenario.Command);
             }
             else
             {
-                result = new CommandInstruction(scenario.Commands);
+                result = new CmdInstruction(scenario.Commands);
             }
 
             Assert.Collection(result.Tokens, scenario.TokenValidators);
@@ -51,9 +51,9 @@ namespace DockerfileModel.Tests
 
         public static IEnumerable<object[]> ParseTestInput()
         {
-            CommandInstructionParseTestScenario[] testInputs = new CommandInstructionParseTestScenario[]
+            CmdInstructionParseTestScenario[] testInputs = new CmdInstructionParseTestScenario[]
             {
-                new CommandInstructionParseTestScenario
+                new CmdInstructionParseTestScenario
                 {
                     Text = "CMD echo hello",
                     TokenValidators = new Action<Token>[]
@@ -74,7 +74,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("echo hello", cmd.Value);
                     }
                 },
-                new CommandInstructionParseTestScenario
+                new CmdInstructionParseTestScenario
                 {
                     Text = "CMD $TEST",
                     TokenValidators = new Action<Token>[]
@@ -85,7 +85,7 @@ namespace DockerfileModel.Tests
                             token => ValidateLiteral(token, "$TEST"))
                     }
                 },
-                new CommandInstructionParseTestScenario
+                new CmdInstructionParseTestScenario
                 {
                     Text = "CMD echo $TEST",
                     TokenValidators = new Action<Token>[]
@@ -96,7 +96,7 @@ namespace DockerfileModel.Tests
                             token => ValidateLiteral(token, "echo $TEST"))
                     }
                 },
-                new CommandInstructionParseTestScenario
+                new CmdInstructionParseTestScenario
                 {
                     Text = "CMD T\\$EST",
                     TokenValidators = new Action<Token>[]
@@ -107,7 +107,7 @@ namespace DockerfileModel.Tests
                             token => ValidateLiteral(token, "T\\$EST"))
                     }
                 },
-                new CommandInstructionParseTestScenario
+                new CmdInstructionParseTestScenario
                 {
                     Text = "CMD echo `\n#test comment\nhello",
                     EscapeChar = '`',
@@ -139,7 +139,7 @@ namespace DockerfileModel.Tests
                         Assert.Equal("echo hello", cmd.Value);
                     }
                 },
-                new CommandInstructionParseTestScenario
+                new CmdInstructionParseTestScenario
                 {
                     Text = "CMD [\"/bin/bash\", \"-c\", \"echo hello\"]",
                     TokenValidators = new Action<Token>[]
@@ -224,12 +224,12 @@ namespace DockerfileModel.Tests
             return testInputs.Select(input => new object[] { input });
         }
 
-        public class CommandInstructionParseTestScenario : ParseTestScenario<CommandInstruction>
+        public class CmdInstructionParseTestScenario : ParseTestScenario<CmdInstruction>
         {
             public char EscapeChar { get; set; }
         }
 
-        public class CreateTestScenario : TestScenario<CommandInstruction>
+        public class CreateTestScenario : TestScenario<CmdInstruction>
         {
             public string Command { get; set; }
             public IEnumerable<string> Commands { get; set; }

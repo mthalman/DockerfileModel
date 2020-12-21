@@ -56,17 +56,17 @@ namespace DockerfileModel
         public DockerfileBuilder ArgInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.ArgInstruction.Parse);
 
-        public DockerfileBuilder CommandInstruction(string command) =>
-            AddConstruct(new CommandInstruction(command, EscapeChar));
+        public DockerfileBuilder CmdInstruction(string command) =>
+            AddConstruct(new CmdInstruction(command, EscapeChar));
 
-        public DockerfileBuilder CommandInstruction(IEnumerable<string> defaultArgs) =>
-            AddConstruct(new CommandInstruction(defaultArgs, EscapeChar));
+        public DockerfileBuilder CmdInstruction(IEnumerable<string> defaultArgs) =>
+            AddConstruct(new CmdInstruction(defaultArgs, EscapeChar));
 
-        public DockerfileBuilder CommandInstruction(string command, IEnumerable<string> args) =>
-            AddConstruct(new CommandInstruction(command, args, EscapeChar));
+        public DockerfileBuilder CmdInstruction(string command, IEnumerable<string> args) =>
+            AddConstruct(new CmdInstruction(command, args, EscapeChar));
 
-        public DockerfileBuilder CommandInstruction(Action<TokenBuilder> configureBuilder) =>
-            ParseTokens(configureBuilder, DockerfileModel.CommandInstruction.Parse);
+        public DockerfileBuilder CmdInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.CmdInstruction.Parse);
 
         public DockerfileBuilder Comment(string comment) =>
             AddConstruct(new Comment(CommentSeparator + comment));
