@@ -29,7 +29,7 @@ namespace DockerfileModel
                 { "STOPSIGNAL", StopSignalInstruction.Parse },
                 { "USER", UserInstruction.Parse },
                 { "VOLUME", VolumeInstruction.Parse },
-                { "WORKDIR", GenericInstruction.Parse },
+                { "WORKDIR", WorkdirInstruction.Parse },
             };
 
         protected Instruction(IEnumerable<Token> tokens) : base(tokens)

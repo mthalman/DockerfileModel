@@ -204,6 +204,12 @@ namespace DockerfileModel
         public DockerfileBuilder VolumeInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.VolumeInstruction.Parse);
 
+        public DockerfileBuilder WorkdirInstruction(string path) =>
+           AddConstruct(new WorkdirInstruction(path, EscapeChar));
+
+        public DockerfileBuilder WorkdirInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.WorkdirInstruction.Parse);
+
         private DockerfileBuilder ParseTokens(Action<TokenBuilder> configureBuilder, Func<string, DockerfileConstruct> parseConstruct)
         {
             TokenBuilder builder = new TokenBuilder
