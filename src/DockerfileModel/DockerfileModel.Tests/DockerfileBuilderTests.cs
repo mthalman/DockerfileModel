@@ -44,7 +44,8 @@ namespace DockerfileModel.Tests
                 .RunInstruction("echo hi")
                 .ShellInstruction("cmd")
                 .StopSignalInstruction("1")
-                .UserInstruction("test");
+                .UserInstruction("test")
+                .VolumeInstruction("path");
 
             string expectedOutput =
                 "ADD src dst" + Environment.NewLine +
@@ -66,7 +67,8 @@ namespace DockerfileModel.Tests
                 "RUN echo hi" + Environment.NewLine +
                 "SHELL [\"cmd\"]" + Environment.NewLine +
                 "STOPSIGNAL 1" + Environment.NewLine +
-                "USER test" + Environment.NewLine;
+                "USER test" + Environment.NewLine +
+                "VOLUME [\"path\"]" + Environment.NewLine;
 
             Assert.Equal(expectedOutput, builder.Dockerfile.ToString());
             Assert.Equal(expectedOutput, builder.ToString());

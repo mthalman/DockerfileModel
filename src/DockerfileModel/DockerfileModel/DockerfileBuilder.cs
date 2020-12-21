@@ -195,6 +195,15 @@ namespace DockerfileModel
         public DockerfileBuilder UserInstruction(Action<TokenBuilder> configureBuilder) =>
             ParseTokens(configureBuilder, DockerfileModel.UserInstruction.Parse);
 
+        public DockerfileBuilder VolumeInstruction(string path) =>
+           AddConstruct(new VolumeInstruction(path, EscapeChar));
+
+        public DockerfileBuilder VolumeInstruction(IEnumerable<string> paths) =>
+           AddConstruct(new VolumeInstruction(paths, EscapeChar));
+
+        public DockerfileBuilder VolumeInstruction(Action<TokenBuilder> configureBuilder) =>
+            ParseTokens(configureBuilder, DockerfileModel.VolumeInstruction.Parse);
+
         private DockerfileBuilder ParseTokens(Action<TokenBuilder> configureBuilder, Func<string, DockerfileConstruct> parseConstruct)
         {
             TokenBuilder builder = new TokenBuilder
