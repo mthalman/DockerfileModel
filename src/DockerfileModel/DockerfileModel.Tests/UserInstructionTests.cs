@@ -78,6 +78,24 @@ namespace DockerfileModel.Tests
                 },
                 new UserInstructionParseTestScenario
                 {
+                    Text = "USER name\n",
+                    TokenValidators = new Action<Token>[]
+                    {
+                        token => ValidateKeyword(token, "USER"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<UserAccount>(token, "name",
+                            token => ValidateLiteral(token, "name")),
+                        token => ValidateNewLine(token, "\n")
+                    },
+                    Validate = result =>
+                    {
+                        Assert.Empty(result.Comments);
+                        Assert.Equal("USER", result.InstructionName);
+                        Assert.Equal("name", result.UserAccount.ToString());
+                    }
+                },
+                new UserInstructionParseTestScenario
+                {
                     Text = "USER user:group",
                     TokenValidators = new Action<Token>[]
                     {

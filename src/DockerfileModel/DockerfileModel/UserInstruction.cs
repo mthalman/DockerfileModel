@@ -50,6 +50,6 @@ namespace DockerfileModel
             Instruction("USER", escapeChar, GetArgsParser(escapeChar));
 
         private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-            ArgTokens(UserAccount.GetParser(escapeChar).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true);
+            ArgTokens(UserAccount.GetParser(escapeChar).AsEnumerable(), escapeChar);
     }
 }
