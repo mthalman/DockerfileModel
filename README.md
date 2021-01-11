@@ -4,6 +4,6 @@ This .NET library provides a structured model of the Dockerfile syntax for the p
 
 ## Usage
 
-The library is available as a NuGet package: [DockerfileModel](https://www.nuget.org/packages/DockerfileModel/).
+The library is available as a NuGet package: [Valleysoft.DockerfileModel](https://www.nuget.org/packages/Valleysoft.DockerfileModel/).
 
-For code examples, check out the [scenario tests](https://github.com/mthalman/DockerfileModel/blob/main/src/DockerfileModel/DockerfileModel.Tests/ScenarioTests.cs) which demonstrate how the API can be used for various scenarios.
+For code examples, check out the [scenario tests](https://github.com/mthalman/DockerfileModel/blob/main/src/Valleysoft.DockerfileModel.Tests/ScenarioTests.cs) which demonstrate how the API can be used for various scenarios.
