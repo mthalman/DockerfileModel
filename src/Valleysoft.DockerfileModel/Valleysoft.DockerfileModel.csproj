@@ -7,9 +7,9 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <PackageId>DockerfileModel</PackageId>
+    <PackageId>Valleysoft.DockerfileModel</PackageId>
     <PackageDescription>Structured model for parsing and generating Dockerfiles.</PackageDescription>
-    <PackageTags>docker dockerfile dockerfile-parsing dockerfile-generation</PackageTags>
+    <PackageTags>docker dockerfile</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
