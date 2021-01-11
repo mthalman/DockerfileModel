@@ -9,7 +9,7 @@ on:
 
 defaults:
   run:
-    working-directory: src/DockerfileModel
+    working-directory: src
 
 jobs:
   build:
@@ -37,12 +37,12 @@ jobs:
         if: always()
         with:
           name: test-results
-          path: src/DockerfileModel/test-results/*
+          path: src/test-results/*
 
       - name: Pack
         env:
           PACKAGE_VERSION: ${{ github.event.inputs.packageVersion }}
-        run: dotnet pack -c Release -p:Version=$PACKAGE_VERSION DockerfileModel
+        run: dotnet pack -c Release -p:Version=$PACKAGE_VERSION Valleysoft.DockerfileModel
       
       - name: Publish Package
-        run: dotnet nuget push "DockerfileModel/bin/Release/*.nupkg" -k ${{secrets.NUGET_ORG_API_KEY}} -s https://nuget.org
+        run: dotnet nuget push "Valleysoft.DockerfileModel/bin/Release/*.nupkg" -k ${{secrets.NUGET_ORG_API_KEY}} -s https://nuget.org
