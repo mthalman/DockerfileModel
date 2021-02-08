@@ -407,9 +407,16 @@ namespace Valleysoft.DockerfileModel
                     DelimitedIdentifier(
                         escapeChar,
                         FirstCharParser(),
-                        TailCharParser(),
+                        TailCharParser().Or(Sprache.Parse.Char(':')),
                         '.',
-                        minimumDelimiters: 1);
+                        minimumDelimiters: 1)
+                    .Or(
+                        DelimitedIdentifier(
+                            escapeChar,
+                            FirstCharParser(),
+                            TailCharParser().Or(Sprache.Parse.Char('.')),
+                            ':',
+                            minimumDelimiters: 1));
 
                 private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
 
