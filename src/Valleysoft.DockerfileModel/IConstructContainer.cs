@@ -1,9 +1,6 @@
-﻿using System.Collections.Generic;
-
-namespace Valleysoft.DockerfileModel
+﻿namespace Valleysoft.DockerfileModel;
+ 
+public interface IConstructContainer
 {
-    public interface IConstructContainer
-    {
-        IEnumerable<DockerfileConstruct> Items { get; }
-    }
+    IEnumerable<DockerfileConstruct> Items { get; }
 }

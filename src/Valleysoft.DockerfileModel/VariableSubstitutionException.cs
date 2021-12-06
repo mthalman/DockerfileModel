@@ -1,11 +1,8 @@
-﻿using System;
+﻿namespace Valleysoft.DockerfileModel;
 
-namespace Valleysoft.DockerfileModel
+public class VariableSubstitutionException : Exception
 {
-    public class VariableSubstitutionException : Exception
+    public VariableSubstitutionException(string message) : base(message)
     {
-        public VariableSubstitutionException(string message) : base(message)
-        {
-        }
     }
 }

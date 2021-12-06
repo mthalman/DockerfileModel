@@ -1,156 +1,150 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Valleysoft.DockerfileModel.Tokens;
-using Sprache;
-using Xunit;
+﻿using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
-namespace Valleysoft.DockerfileModel.Tests
-{
-    public class WorkdirInstructionTests
-    {
-        [Theory]
-        [MemberData(nameof(ParseTestInput))]
-        public void Parse(WorkdirInstructionParseTestScenario scenario)
-        {
-            if (scenario.ParseExceptionPosition is null)
-            {
-                WorkdirInstruction result = WorkdirInstruction.Parse(scenario.Text, scenario.EscapeChar);
-                Assert.Equal(scenario.Text, result.ToString());
-                Assert.Collection(result.Tokens, scenario.TokenValidators);
-                scenario.Validate?.Invoke(result);
-            }
-            else
-            {
-                ParseException exception = Assert.Throws<ParseException>(
-                    () => WorkdirInstruction.Parse(scenario.Text, scenario.EscapeChar));
-                Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-                Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-            }
-        }
+namespace Valleysoft.DockerfileModel.Tests;
 
-        [Theory]
-        [MemberData(nameof(CreateTestInput))]
-        public void Create(CreateTestScenario scenario)
+public class WorkdirInstructionTests
+{
+    [Theory]
+    [MemberData(nameof(ParseTestInput))]
+    public void Parse(WorkdirInstructionParseTestScenario scenario)
+    {
+        if (scenario.ParseExceptionPosition is null)
         {
-            WorkdirInstruction result = new WorkdirInstruction(scenario.Path);
+            WorkdirInstruction result = WorkdirInstruction.Parse(scenario.Text, scenario.EscapeChar);
+            Assert.Equal(scenario.Text, result.ToString());
             Assert.Collection(result.Tokens, scenario.TokenValidators);
             scenario.Validate?.Invoke(result);
         }
-
-        [Fact]
-        public void Path()
+        else
         {
-            WorkdirInstruction result = new WorkdirInstruction("/test");
-            Assert.Equal("/test", result.Path);
-            Assert.Equal("/test", result.PathToken.Value);
-            Assert.Equal("WORKDIR /test", result.ToString());
-
-            result.Path = "/test2";
-            Assert.Equal("/test2", result.Path);
-            Assert.Equal("/test2", result.PathToken.Value);
-            Assert.Equal("WORKDIR /test2", result.ToString());
-
-            result.PathToken.Value = "/test3";
-            Assert.Equal("/test3", result.Path);
-            Assert.Equal("/test3", result.PathToken.Value);
-            Assert.Equal("WORKDIR /test3", result.ToString());
-
-            result.PathToken = new LiteralToken("/test4");
-            Assert.Equal("/test4", result.Path);
-            Assert.Equal("/test4", result.PathToken.Value);
-            Assert.Equal("WORKDIR /test4", result.ToString());
-
-            Assert.Throws<ArgumentNullException>(() => result.Path = null);
-            Assert.Throws<ArgumentException>(() => result.Path = "");
-            Assert.Throws<ArgumentNullException>(() => result.PathToken = null);
+            ParseException exception = Assert.Throws<ParseException>(
+                () => WorkdirInstruction.Parse(scenario.Text, scenario.EscapeChar));
+            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
+            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
         }
+    }
 
-        [Fact]
-        public void PathWithVariables()
-        {
-            WorkdirInstruction result = new WorkdirInstruction("$var");
-            TestHelper.TestVariablesWithLiteral(() => result.PathToken, "var", canContainVariables: true);
-        }
+    [Theory]
+    [MemberData(nameof(CreateTestInput))]
+    public void Create(CreateTestScenario scenario)
+    {
+        WorkdirInstruction result = new(scenario.Path);
+        Assert.Collection(result.Tokens, scenario.TokenValidators);
+        scenario.Validate?.Invoke(result);
+    }
 
-        public static IEnumerable<object[]> ParseTestInput()
+    [Fact]
+    public void Path()
+    {
+        WorkdirInstruction result = new("/test");
+        Assert.Equal("/test", result.Path);
+        Assert.Equal("/test", result.PathToken.Value);
+        Assert.Equal("WORKDIR /test", result.ToString());
+
+        result.Path = "/test2";
+        Assert.Equal("/test2", result.Path);
+        Assert.Equal("/test2", result.PathToken.Value);
+        Assert.Equal("WORKDIR /test2", result.ToString());
+
+        result.PathToken.Value = "/test3";
+        Assert.Equal("/test3", result.Path);
+        Assert.Equal("/test3", result.PathToken.Value);
+        Assert.Equal("WORKDIR /test3", result.ToString());
+
+        result.PathToken = new LiteralToken("/test4");
+        Assert.Equal("/test4", result.Path);
+        Assert.Equal("/test4", result.PathToken.Value);
+        Assert.Equal("WORKDIR /test4", result.ToString());
+
+        Assert.Throws<ArgumentNullException>(() => result.Path = null);
+        Assert.Throws<ArgumentException>(() => result.Path = "");
+        Assert.Throws<ArgumentNullException>(() => result.PathToken = null);
+    }
+
+    [Fact]
+    public void PathWithVariables()
+    {
+        WorkdirInstruction result = new("$var");
+        TestHelper.TestVariablesWithLiteral(() => result.PathToken, "var", canContainVariables: true);
+    }
+
+    public static IEnumerable<object[]> ParseTestInput()
+    {
+        WorkdirInstructionParseTestScenario[] testInputs = new WorkdirInstructionParseTestScenario[]
         {
-            WorkdirInstructionParseTestScenario[] testInputs = new WorkdirInstructionParseTestScenario[]
+            new WorkdirInstructionParseTestScenario
             {
-                new WorkdirInstructionParseTestScenario
+                Text = "WORKDIR /test",
+                TokenValidators = new Action<Token>[]
                 {
-                    Text = "WORKDIR /test",
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "WORKDIR"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "/test")
-                    },
-                    Validate = result =>
-                    {
-                        Assert.Empty(result.Comments);
-                        Assert.Equal("WORKDIR", result.InstructionName);
-                        Assert.Equal("/test", result.Path);
-                    }
+                    token => ValidateKeyword(token, "WORKDIR"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/test")
                 },
-                new WorkdirInstructionParseTestScenario
+                Validate = result =>
                 {
-                    Text = "WORKDIR $TEST",
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "WORKDIR"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<LiteralToken>(token, "$TEST",
-                            token => ValidateAggregate<VariableRefToken>(token, "$TEST",
-                                token => ValidateString(token, "TEST")))
-                    }
-                },
-                new WorkdirInstructionParseTestScenario
-                {
-                    Text = "WORKDIR`\n /test",
-                    EscapeChar = '`',
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "WORKDIR"),
-                        token => ValidateLineContinuation(token, '`', "\n"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "/test")
-                    }
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("WORKDIR", result.InstructionName);
+                    Assert.Equal("/test", result.Path);
                 }
-            };
-
-            return testInputs.Select(input => new object[] { input });
-        }
-
-        public static IEnumerable<object[]> CreateTestInput()
-        {
-            CreateTestScenario[] testInputs = new CreateTestScenario[]
+            },
+            new WorkdirInstructionParseTestScenario
             {
-                new CreateTestScenario
+                Text = "WORKDIR $TEST",
+                TokenValidators = new Action<Token>[]
                 {
-                    Path = "/test",
-                    TokenValidators = new Action<Token>[]
-                    {
-                        token => ValidateKeyword(token, "WORKDIR"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "/test")
-                    }
+                    token => ValidateKeyword(token, "WORKDIR"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "$TEST",
+                        token => ValidateAggregate<VariableRefToken>(token, "$TEST",
+                            token => ValidateString(token, "TEST")))
                 }
-            };
+            },
+            new WorkdirInstructionParseTestScenario
+            {
+                Text = "WORKDIR`\n /test",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "WORKDIR"),
+                    token => ValidateLineContinuation(token, '`', "\n"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/test")
+                }
+            }
+        };
 
-            return testInputs.Select(input => new object[] { input });
-        }
+        return testInputs.Select(input => new object[] { input });
+    }
 
-        public class WorkdirInstructionParseTestScenario : ParseTestScenario<WorkdirInstruction>
+    public static IEnumerable<object[]> CreateTestInput()
+    {
+        CreateTestScenario[] testInputs = new CreateTestScenario[]
         {
-            public char EscapeChar { get; set; }
-        }
+            new CreateTestScenario
+            {
+                Path = "/test",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "WORKDIR"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/test")
+                }
+            }
+        };
 
-        public class CreateTestScenario : TestScenario<WorkdirInstruction>
-        {
-            public string Path { get; set; }
-        }
+        return testInputs.Select(input => new object[] { input });
+    }
+
+    public class WorkdirInstructionParseTestScenario : ParseTestScenario<WorkdirInstruction>
+    {
+        public char EscapeChar { get; set; }
+    }
+
+    public class CreateTestScenario : TestScenario<WorkdirInstruction>
+    {
+        public string Path { get; set; }
     }
 }

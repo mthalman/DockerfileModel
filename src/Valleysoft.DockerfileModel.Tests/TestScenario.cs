@@ -1,18 +1,15 @@
-﻿using System;
-using Valleysoft.DockerfileModel.Tokens;
-using Sprache;
+﻿using Valleysoft.DockerfileModel.Tokens;
 
-namespace Valleysoft.DockerfileModel.Tests
+namespace Valleysoft.DockerfileModel.Tests;
+
+public abstract class TestScenario<T>
 {
-    public abstract class TestScenario<T>
-    {
-        public Action<T> Validate { get; set; }
-        public Action<Token>[] TokenValidators { get; set; }
-    }
+    public Action<T> Validate { get; set; }
+    public Action<Token>[] TokenValidators { get; set; }
+}
 
-    public class ParseTestScenario<T> : TestScenario<T>
-    {
-        public string Text { get; set; }
-        public Position ParseExceptionPosition { get; set; }
-    }
+public class ParseTestScenario<T> : TestScenario<T>
+{
+    public string Text { get; set; }
+    public Position ParseExceptionPosition { get; set; }
 }

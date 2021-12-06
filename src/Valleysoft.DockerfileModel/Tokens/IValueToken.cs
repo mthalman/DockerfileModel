@@ -1,7 +1,6 @@
-﻿namespace Valleysoft.DockerfileModel.Tokens
+﻿namespace Valleysoft.DockerfileModel.Tokens;
+
+public interface IValueToken
 {
-    public interface IValueToken
-    {
-        string Value { get; set; }
-    }
+    string Value { get; set; }
 }

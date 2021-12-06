@@ -1,8 +1,7 @@
-﻿namespace Valleysoft.DockerfileModel
+﻿namespace Valleysoft.DockerfileModel;
+
+public interface IKeyValuePair
 {
-    public interface IKeyValuePair
-    {
-        string Key { get; set; }
-        string? Value { get; set; }
-    }
+    string Key { get; set; }
+    string? Value { get; set; }
 }

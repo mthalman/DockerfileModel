@@ -1,10 +1,9 @@
-﻿namespace Valleysoft.DockerfileModel
+﻿namespace Valleysoft.DockerfileModel;
+
+public enum ConstructType
 {
-    public enum ConstructType
-    {
-        Instruction,
-        Comment,
-        ParserDirective,
-        Whitespace
-    }
+    Instruction,
+    Comment,
+    ParserDirective,
+    Whitespace
 }
