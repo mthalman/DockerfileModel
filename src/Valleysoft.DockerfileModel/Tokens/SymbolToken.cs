@@ -1,9 +1,8 @@
-﻿namespace Valleysoft.DockerfileModel.Tokens
+﻿namespace Valleysoft.DockerfileModel.Tokens;
+
+public class SymbolToken : PrimitiveToken
 {
-    public class SymbolToken : PrimitiveToken
+    public SymbolToken(char value) : base(value.ToString())
     {
-        public SymbolToken(char value) : base(value.ToString())
-        {
-        }
     }
 }

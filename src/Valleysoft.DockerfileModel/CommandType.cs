@@ -1,8 +1,7 @@
-﻿namespace Valleysoft.DockerfileModel
+﻿namespace Valleysoft.DockerfileModel;
+
+public enum CommandType
 {
-    public enum CommandType
-    {
-        ShellForm,
-        ExecForm
-    }
+    ShellForm,
+    ExecForm
 }

@@ -1,73 +1,69 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections;
 
-namespace Valleysoft.DockerfileModel.Tokens
+namespace Valleysoft.DockerfileModel.Tokens;
+
+public class TokenList<TToken> : IList<TToken>
+    where TToken : Token
 {
-    public class TokenList<TToken> : IList<TToken>
-        where TToken : Token
+    private readonly IList<Token> innerTokens;
+    private readonly Func<IEnumerable<TToken>, IEnumerable<TToken>>? filterTokens;
+
+    internal TokenList(IList<Token> innerTokens, Func<IEnumerable<TToken>, IEnumerable<TToken>>? filterTokens = null)
     {
-        private readonly IList<Token> innerTokens;
-        private readonly Func<IEnumerable<TToken>, IEnumerable<TToken>>? filterTokens;
+        this.innerTokens = innerTokens;
+        this.filterTokens = filterTokens;
+    }
 
-        internal TokenList(IList<Token> innerTokens, Func<IEnumerable<TToken>, IEnumerable<TToken>>? filterTokens = null)
+    private IEnumerable<TToken> GetFilteredTokens()
+    {
+        IEnumerable<TToken> tokensOfType = innerTokens.OfType<TToken>();
+        return filterTokens is null ? tokensOfType : filterTokens(tokensOfType);
+    }
+
+    public TToken this[int index]
+    {
+        get => GetFilteredTokens().ElementAt(index);
+        set
         {
-            this.innerTokens = innerTokens;
-            this.filterTokens = filterTokens;
+            index = innerTokens.IndexOf(this[index]);
+            innerTokens[index] = value;
         }
+    }
 
-        private IEnumerable<TToken> GetFilteredTokens()
-        {
-            IEnumerable<TToken> tokensOfType = innerTokens.OfType<TToken>();
-            return filterTokens is null ? tokensOfType : filterTokens(tokensOfType);
-        }
+    public int Count => GetFilteredTokens().Count();
 
-        public TToken this[int index]
-        {
-            get => GetFilteredTokens().ElementAt(index);
-            set
-            {
-                index = innerTokens.IndexOf(this[index]);
-                innerTokens[index] = value;
-            }
-        }
+    public bool IsReadOnly => false;
 
-        public int Count => GetFilteredTokens().Count();
+    public void Add(TToken item) => ThrowAddRemoveNotSupported();
 
-        public bool IsReadOnly => false;
+    public void Clear() => ThrowAddRemoveNotSupported();
 
-        public void Add(TToken item) => ThrowAddRemoveNotSupported();
+    public bool Contains(TToken item) =>
+        GetFilteredTokens().Contains(item);
 
-        public void Clear() => ThrowAddRemoveNotSupported();
+    public void CopyTo(TToken[] array, int arrayIndex) =>
+        GetFilteredTokens()
+            .ToList()
+            .CopyTo(array, arrayIndex);
 
-        public bool Contains(TToken item) =>
-            GetFilteredTokens().Contains(item);
+    public IEnumerator<TToken> GetEnumerator() => GetFilteredTokens().GetEnumerator();
 
-        public void CopyTo(TToken[] array, int arrayIndex) =>
-            GetFilteredTokens()
-                .ToList()
-                .CopyTo(array, arrayIndex);
+    public int IndexOf(TToken item) => GetFilteredTokens().ToList().IndexOf(item);
 
-        public IEnumerator<TToken> GetEnumerator() => GetFilteredTokens().GetEnumerator();
+    public void Insert(int index, TToken item) => ThrowAddRemoveNotSupported();
 
-        public int IndexOf(TToken item) => GetFilteredTokens().ToList().IndexOf(item);
+    public bool Remove(TToken item)
+    {
+        ThrowAddRemoveNotSupported();
+        return false;
+    }
 
-        public void Insert(int index, TToken item) => ThrowAddRemoveNotSupported();
+    public void RemoveAt(int index) => ThrowAddRemoveNotSupported();
 
-        public bool Remove(TToken item)
-        {
-            ThrowAddRemoveNotSupported();
-            return false;
-        }
+    IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public void RemoveAt(int index) => ThrowAddRemoveNotSupported();
-
-        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
-
-        private void ThrowAddRemoveNotSupported()
-        {
-            throw new NotSupportedException("Items may not be added or removed from the list.");
-        }
+    private void ThrowAddRemoveNotSupported()
+    {
+        throw new NotSupportedException("Items may not be added or removed from the list.");
     }
 }

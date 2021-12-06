@@ -1,9 +1,8 @@
-﻿namespace Valleysoft.DockerfileModel.Tokens
+﻿namespace Valleysoft.DockerfileModel.Tokens;
+
+public class NewLineToken : WhitespaceToken
 {
-    public class NewLineToken : WhitespaceToken
+    public NewLineToken(string value) : base(value)
     {
-        public NewLineToken(string value) : base(value)
-        {
-        }
     }
 }

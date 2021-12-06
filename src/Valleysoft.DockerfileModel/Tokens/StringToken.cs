@@ -1,9 +1,8 @@
-﻿namespace Valleysoft.DockerfileModel.Tokens
+﻿namespace Valleysoft.DockerfileModel.Tokens;
+
+public class StringToken : PrimitiveToken
 {
-    public class StringToken : PrimitiveToken
+    public StringToken(string value) : base(value)
     {
-        public StringToken(string value) : base(value)
-        {
-        }
     }
 }

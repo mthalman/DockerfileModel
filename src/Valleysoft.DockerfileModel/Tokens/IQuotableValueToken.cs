@@ -1,6 +1,5 @@
-﻿namespace Valleysoft.DockerfileModel.Tokens
+﻿namespace Valleysoft.DockerfileModel.Tokens;
+
+public interface IQuotableValueToken : IQuotableToken, IValueToken
 {
-    public interface IQuotableValueToken : IQuotableToken, IValueToken
-    {
-    }
 }

@@ -1,15 +1,12 @@
-﻿using System.Collections.Generic;
-using Valleysoft.DockerfileModel.Tokens;
-using Sprache;
+﻿using Valleysoft.DockerfileModel.Tokens;
 
-namespace Valleysoft.DockerfileModel
+namespace Valleysoft.DockerfileModel;
+
+public abstract class Command : AggregateToken
 {
-    public abstract class Command : AggregateToken
+    protected Command(IEnumerable<Token> tokens) : base(tokens)
     {
-        protected Command(IEnumerable<Token> tokens) : base(tokens)
-        {
-        }
-
-        public abstract CommandType CommandType { get; }
     }
+
+    public abstract CommandType CommandType { get; }
 }
