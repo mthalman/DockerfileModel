@@ -123,6 +123,42 @@ public class EnvInstructionTests
             },
             new EnvInstructionParseTestScenario
             {
+                Text = "ENV VAR1= VAR2=foo",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENV"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR1=",
+                        token => ValidateIdentifier<Variable>(token, "VAR1"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "")),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR2=foo",
+                        token => ValidateIdentifier<Variable>(token, "VAR2"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "foo"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ENV", result.InstructionName);
+                    Assert.Collection(result.Variables, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("VAR1", pair.Key);
+                            Assert.Equal("", pair.Value);
+                        },
+                        pair =>
+                        {
+                            Assert.Equal("VAR2", pair.Key);
+                            Assert.Equal("foo", pair.Value);
+                        }
+                    });
+                }
+            },
+            new EnvInstructionParseTestScenario
+            {
                 Text = "ENV MY_NAME=\"\"",
                 TokenValidators = new Action<Token>[]
                 {
@@ -154,11 +190,12 @@ public class EnvInstructionTests
                 {
                     token => ValidateKeyword(token, "ENV"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME John",
+                    token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME John\r\n",
                         token => ValidateIdentifier<Variable>(token, "MY_NAME"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "John")),
-                    token => ValidateNewLine(token, "\r\n")
+                        token => ValidateAggregate<LiteralToken>(token, "John\r\n",
+                            token => ValidateString(token, "John"),
+                            token => ValidateNewLine(token, "\r\n")))
                 }
             },
             new EnvInstructionParseTestScenario
@@ -376,6 +413,25 @@ public class EnvInstructionTests
                             Assert.Equal("John", pair.Value);
                         }
                     });
+                }
+            },
+            new EnvInstructionParseTestScenario
+            {
+                Text = "ENV VAR1`\n  foo=`\n  bar",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENV"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR1`\n  foo=`\n  bar",
+                        token => ValidateAggregate<Variable>(token, "VAR1"),
+                        token => ValidateLineContinuation(token, '`', "\n"),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateAggregate<LiteralToken>(token, "foo=`\n  bar",
+                            token => ValidateString(token, "foo="),
+                            token => ValidateLineContinuation(token, '`', "\n"),
+                            token => ValidateWhitespace(token, "  "),
+                            token => ValidateString(token, "bar")))
                 }
             }
         };

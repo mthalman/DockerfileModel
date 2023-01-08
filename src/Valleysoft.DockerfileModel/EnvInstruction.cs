@@ -70,7 +70,9 @@ public class EnvInstruction : Instruction
             from variable in KeyValueToken<Variable, LiteralToken>.GetParser(
                 Variable.GetParser(escapeChar),
                 MultiVariableFormatValueParser(escapeChar),
-                escapeChar: escapeChar).AsEnumerable()
+                escapeChar: escapeChar,
+                excludeLeadingWhitespaceInValue: true,
+                excludeTrailingWhitespaceInSeparator: true).AsEnumerable()
             select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
         ).AtLeastOnce().Flatten();
 
@@ -82,7 +84,7 @@ public class EnvInstruction : Instruction
         ArgTokens(
             KeyValueToken<Variable, LiteralToken>.GetParser(
                 Variable.GetParser(escapeChar),
-                LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes),
+                LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.Allowed),
                 separator: ' ',
                 escapeChar: escapeChar).AsEnumerable(), escapeChar);
 }

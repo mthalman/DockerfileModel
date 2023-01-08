@@ -150,21 +150,42 @@ internal static class ParseHelper
     /// <param name="tokenParser">Parser for the argument.</param>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="excludeTrailingWhitespace">A value indicating whether trailing whitespace should not be parsed.</param>
+    /// <param name="excludeLeadingWhitespace">A value indicating whether leading whitespace should not be parsed.</param>
     /// <returns>Set of tokens.</returns>
-    public static Parser<IEnumerable<Token>> ArgTokens(Parser<IEnumerable<Token>> tokenParser, char escapeChar, bool excludeTrailingWhitespace = false)
+    public static Parser<IEnumerable<Token>> ArgTokens(Parser<IEnumerable<Token>> tokenParser, char escapeChar,
+        bool excludeTrailingWhitespace = false, bool excludeLeadingWhitespace = false)
     {
         if (excludeTrailingWhitespace)
         {
-            return
-                from leadingWhitespace in Whitespace()
-                from token in tokenParser
-                select ConcatTokens(leadingWhitespace, token);
+            if (excludeLeadingWhitespace)
+            {
+                return tokenParser;
+            }
+            else
+            {
+                return
+                    from leadingWhitespace in Whitespace()
+                    from token in tokenParser
+                    select ConcatTokens(leadingWhitespace, token);
+            }
         }
         else
         {
+            Parser<IEnumerable<Token>> primaryParser;
+            if (excludeLeadingWhitespace)
+            {
+                primaryParser = tokenParser;
+            }
+            else
+            {
+                primaryParser =
+                    from leadingWhitespace in Whitespace()
+                    from token in tokenParser
+                    select ConcatTokens(leadingWhitespace, token);
+            }
+
             return WithTrailingComments(
-                from leadingWhitespace in Whitespace()
-                from token in tokenParser
+                from tokens in primaryParser
                 from trailingWhitespace in
                     (from trailingWhitespace in Whitespace()
                         from lineContinuation in LineContinuations(escapeChar)
@@ -173,8 +194,7 @@ internal static class ParseHelper
                         from newLine in NewLine()
                         select ConcatTokens(whitespace, newLine)).Optional()
                 select ConcatTokens(
-                    leadingWhitespace,
-                    token,
+                    tokens,
                     trailingWhitespace.GetOrDefault()));
         }
     }
@@ -379,7 +399,7 @@ internal static class ParseHelper
                     escapeChar,
                     (char escapeChar, IEnumerable<char> additionalExcludedChars) =>
                         whitespaceMode == WhitespaceMode.Allowed ?
-                            LiteralString(escapeChar, excludedChars.Union(additionalExcludedChars)).Or(Whitespace()) :
+                            LiteralString(escapeChar, excludedChars.Union(additionalExcludedChars)).Or(Whitespace().Or(LineContinuations(escapeChar))).Many().Flatten() :
                             LiteralString(escapeChar, excludedChars.Union(additionalExcludedChars)),
                     excludedChars)
                     .Many()
