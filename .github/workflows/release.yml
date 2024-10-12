@@ -18,10 +18,8 @@ jobs:
     steps:
       - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
 
-      - name: Setup .NET Core SDK
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@51f68377c181a79065c61bd492bd49be4575c439 # v1.7.2
-        with:
-          dotnet-version: "6.0.x"
 
       - name: Install dependencies
         run: dotnet restore
