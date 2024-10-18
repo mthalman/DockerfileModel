@@ -547,11 +547,11 @@ internal static class ParseHelper
     /// <param name="escapeChar">Escape character.</param>
     private static Parser<IEnumerable<Token>> JsonArrayElementDelimiter(char escapeChar) =>
         from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
-        from comma in Symbol(',').AsEnumerable()
+        from comma in Symbol(',').AsEnumerable().Optional()
         from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
         select ConcatTokens(
             leading,
-            comma,
+            comma.GetOrDefault(),
             trailing);
 
     /// <summary>
