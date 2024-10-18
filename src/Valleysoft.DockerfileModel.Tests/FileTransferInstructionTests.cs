@@ -429,6 +429,22 @@ public abstract class FileTransferInstructionTests<TInstruction>
             },
             new FileTransferInstructionParseTestScenario
             {
+                Text = $"{instructionName} [\"$src\" \"dst\"]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", ParseHelper.DoubleQuote,
+                        token => ValidateAggregate<VariableRefToken>(token, "$src",
+                            token => ValidateString(token, "src"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst", ParseHelper.DoubleQuote),
+                    token => ValidateSymbol(token, ']')
+                }
+            },
+            new FileTransferInstructionParseTestScenario
+            {
                 Text = $"{instructionName} [\"$src\", \"dst\"]\n",
                 TokenValidators = new Action<Token>[]
                 {

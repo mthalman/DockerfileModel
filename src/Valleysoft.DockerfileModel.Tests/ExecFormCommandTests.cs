@@ -143,6 +143,34 @@ public class ExecFormCommandTests
             },
             new ExecFormCommandParseTestScenario
             {
+                Text = "[\"/bin/bash\" \"-c\" \"echo hello\"]\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                    token => ValidateSymbol(token, ']'),
+                    token => ValidateNewLine(token, "\n")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.CommandType);
+                    Assert.Equal("[\"/bin/bash\" \"-c\" \"echo hello\"]\n", result.ToString());
+                    Assert.Equal(
+                        new string[]
+                        {
+                            "/bin/bash",
+                            "-c",
+                            "echo hello"
+                        },
+                        result.Values.ToArray());
+                }
+            },
+            new ExecFormCommandParseTestScenario
+            {
                 Text = "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
                 EscapeChar = '`',
                 TokenValidators = new Action<Token>[]
