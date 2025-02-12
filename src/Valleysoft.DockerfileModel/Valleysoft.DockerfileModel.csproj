@@ -16,7 +16,7 @@
   <ItemGroup>
     <PackageReference Include="Sprache" Version="2.3.1" />
     <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
-    <PackageReference Include="Validation" Version="2.5.51" />
+    <PackageReference Include="Validation" Version="2.6.68" />
   </ItemGroup>
 
 </Project>
