@@ -76,3 +76,41 @@
 ### 2026-03-05 — RUN --network and --security tests complete (Issue #116)
 
 **Team update (2026-03-05T04:38:40Z)**: Lambert completed 25 comprehensive tests for NetworkFlag and SecurityFlag. NetworkFlagTests (7), SecurityFlagTests (5), RunInstructionTests updates (13). All 557 tests pass. Dallas completed implementation. Decisions documented in decisions.md. Ready for review.
+
+### 2026-03-05 — Baseline Test Run + Test Code Refactoring Analysis
+
+**Baseline established**: 599 tests, 0 failed, 0 skipped. Run time ~570 ms. Branch is `refactor`.
+
+**Key refactoring patterns discovered (analysis only — no code changed):**
+
+1. **Parse method body is copy-pasted verbatim across 39 test files.** Every `Parse(T scenario)` method has an identical if/else structure: parse on success path (assert round-trip + tokens + Validate), throw+assert on error path. This could be extracted as a static `RunParseTest<T>(ParseTestScenario<T> scenario, Func<string, char, T> parseFunc)` helper in `TestHelper.cs`. `FileTransferInstructionTests<T>` already does this correctly — the same approach can be applied universally.
+
+2. **Per-file ParseTestScenario subclasses are nearly identical across 37 files.** Every test file defines a local `class XxxParseTestScenario : ParseTestScenario<Xxx> { public char EscapeChar { get; set; } }`. This is the same class repeated 37 times, differing only in the generic type argument.
+
+3. **Boolean flag validator helpers duplicated.** `CopyInstructionTests.ValidateLinkFlag()` and `AddInstructionTests.ValidateLinkFlag()` are identical private static methods (3 tokens: symbol '-', symbol '-', keyword "link"). Similarly `AddInstructionTests.ValidateKeepGitDirFlag()` stands alone but the pattern is the same shape. These could be promoted to `TokenValidator.cs` as `ValidateBooleanFlag<T>(Token token, string keyword)`.
+
+4. **`--network=` and `--security=` flag validator patterns repeated.** `NetworkFlagTests`, `SecurityFlagTests`, and `RunInstructionTests` each expand the full 5-token `symbol '-', symbol '-', keyword, symbol '=', literal` chain inline rather than using the existing `ValidateKeyValueFlag<T>()` helper from `TokenValidator.cs`. The helper already exists and matches exactly — those parse scenarios can be shortened.
+
+5. **`KeepGitDirFlagTests` and `ChecksumFlagTests` each define their own `CreateTestScenario` inner class.** These are structurally identical to `TestScenario<T>` with one payload property added. No shared base.
+
+6. **Flag-level test files are thin (single parse case, single create case).** `KeepGitDirFlagTests` has only 1 parse scenario and 1 create scenario. Compare to `ChecksumFlagTests` (4 parse + 3 create) and `NetworkFlagTests` (4 parse + 3 create). The pattern for boolean flags (KeepGitDirFlag, LinkFlag) omits: error path (invalid input), line-continuation round-trip, variable reference tests (not applicable for boolean, but confirm it).
+
+7. **Missing instruction test files for `BooleanFlag` abstraction.** There is no `LinkFlagTests.cs` (the way `KeepGitDirFlagTests.cs` exists). LinkFlag is only tested through `CopyInstructionTests` and `AddInstructionTests`. A standalone `LinkFlagTests.cs` would be consistent.
+
+8. **`HealthCheckInstructionTests.Create` method has nested if/else branching** to select the right constructor overload, where `RunInstructionTests.Create` was already simplified to use `??` on `Mounts`. The HealthCheck version is more complex and could be simplified.
+
+**Coverage gaps identified:**
+- No negative/error path tests for boolean flags (KeepGitDirFlag, LinkFlag): what does parsing `--keep-git-dir=value` or `--link=true` do?
+- `ChecksumFlagTests` lacks a test for empty/null checksum value.
+- `AddInstructionTests` does not test `ChecksumWithVariables` for the token-level path (set via `ChecksumToken = null` then `Checksum = "$var"`) beyond what `TestVariablesWithNullableLiteral` covers.
+- No integration test in `ScenarioTests.cs` covering multi-flag ADD (checksum + keep-git-dir + link all together in a real Dockerfile parse).
+
+**Key file paths:**
+- `C:/repos/DockerfileModel/src/Valleysoft.DockerfileModel.Tests/TestHelper.cs` — ConcatLines, TestVariablesWithLiteral, TestVariablesWithNullableLiteral
+- `C:/repos/DockerfileModel/src/Valleysoft.DockerfileModel.Tests/TokenValidator.cs` — ValidateKeyValueFlag<T>, ValidateAggregate<T>, ValidateLiteral, etc.
+- `C:/repos/DockerfileModel/src/Valleysoft.DockerfileModel.Tests/TestScenario.cs` — base TestScenario<T> and ParseTestScenario<T>
+- `C:/repos/DockerfileModel/src/Valleysoft.DockerfileModel.Tests/FileTransferInstructionTests.cs` — best-in-class example: base class with RunParseTest/RunCreateTest helpers
+
+### 2026-03-05 — Refactor branch analysis session complete
+
+**Team update (2026-03-05T15:16:02Z)**: Ripley completed cross-file refactoring analysis of refactor branch. Verdict: production-ready. All 599 tests passing baseline confirmed. Lambert, Dallas, and Ripley performed parallel analyses. Ripley assessed architectural changes (3 base classes, 6 cross-file patterns). Dallas identified 5 implementation code smells (low-to-medium severity, P1-P5 prioritized). Lambert identified 6 test code refactoring opportunities (T1-T6 prioritized): consolidate 37 ParseTestScenario subclasses (highest value), extract 39 RunParseTest methods, consolidate validators, fill gaps. All findings documented in decisions.md with appropriateness gates and risk assessment.

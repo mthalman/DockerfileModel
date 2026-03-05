@@ -24,3 +24,43 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+### 2026-03-05: Refactor Branch Analysis
+
+**Flag class hierarchy (established pattern):**
+- `BooleanFlag` (new base in `BooleanFlag.cs`) — for valueless flags like `--link`, `--keep-git-dir`. Extends `AggregateToken` with `--keyword` token structure. Concrete subclasses are 23 lines each: one `const string Keyword`, two constructors, static `Parse`, static `GetParser`.
+- `KeywordLiteralFlag` (new base in `KeywordLiteralFlag.cs`) — for `--key=value` flags where value is a literal. Extends `KeyValueToken<KeywordToken, LiteralToken>`. Same thin-subclass pattern. Covers: `PlatformFlag`, `IntervalFlag`, `TimeoutFlag`, `StartPeriodFlag`, `RetriesFlag`, `ChangeModeFlag`, `NetworkFlag`, `SecurityFlag`, `ChecksumFlag`.
+- Flags NOT yet migrated to `KeywordLiteralFlag`: `ChangeOwnerFlag` (uses `KeyValueToken<KeywordToken, UserAccount>`, different value type — correct, should not migrate), `FromFlag` (uses `KeyValueToken<KeywordToken, StageName>`, same reason).
+
+**CommandInstruction base class (new in `CommandInstruction.cs`):**
+- `CmdInstruction`, `EntrypointInstruction`, `ShellInstruction`, `RunInstruction` all extend `CommandInstruction`.
+- Centralizes: `Command` property and `ResolveVariables` override (returns `ToString()` — no variable resolution).
+- `RunInstruction` still has `GetArgsParser` with mount parsing hardcoded; only the SHELL/CMD/ENTRYPOINT pattern is fully symmetric (no-mounts args, exec/shell form).
+
+**Key file paths for flag patterns:**
+- `src/Valleysoft.DockerfileModel/BooleanFlag.cs` — boolean flag base
+- `src/Valleysoft.DockerfileModel/KeywordLiteralFlag.cs` — key=value flag base
+- `src/Valleysoft.DockerfileModel/CommandInstruction.cs` — command instruction base
+- `src/Valleysoft.DockerfileModel/ParseHelper.cs` — all combinator infrastructure (GetLeadingWhitespaceToken moved here from GenericInstruction)
+
+**3-tier property pattern on optional-flag instructions:**
+- Private `XFlag?` property (token type, `Tokens.OfType<XFlag>().FirstOrDefault()` getter, `SetOptionalFlagToken` setter)
+- Public `XToken?` property (LiteralToken, routes through XFlag)
+- Public `string? X` property (string, routes through XToken)
+- Used in: `HealthCheckInstruction` (4 flags), `RunInstruction` (2 flags), `AddInstruction` (1 flag + 2 boolean flags), `CopyInstruction` (1 flag + 1 boolean flag).
+
+**Duplicate `SetOptionalFlagToken` self-reference bug in `AddInstruction`:**
+- `KeepGitDirFlagToken.set` calls `SetOptionalFlagToken(KeepGitDirFlag, value)`, but `KeepGitDirFlag` private property setter also calls `SetOptionalFlagToken(KeepGitDirFlag, value)`. This is correct by design — the public token property routes through the private property setter consistently.
+
+**Naming inconsistency in `AddInstruction`:**
+- Private property is `KeepGitDirFlag` / `LinkFlag` but public token property is `KeepGitDirFlagToken` / `LinkFlagToken`. In `CopyInstruction`, the private is `LinkFlag`, public is `LinkFlagToken` — same pattern. Consistent across both files.
+
+**StringHelper.FormatKeyValueAssignment:**
+- The inline quote-wrapping logic in ARG, ENV, LABEL was extracted to `StringHelper.FormatKeyValueAssignment`. Three callers consolidated.
+
+**`GetLeadingWhitespaceToken` moved from `GenericInstruction` to `ParseHelper`:**
+- Was a private static in `GenericInstruction`, moved to `internal static` in `ParseHelper`. Makes it available without duplication if needed elsewhere.
+
+### 2026-03-05: Refactor branch analysis session
+
+**Cross-file refactoring analysis completed (2026-03-05T15:16:02Z)**: Reviewed all 5 merged commits on refactor branch (d855eb7 through b06ba15). Confirmed 3 major architectural changes are production-ready: BooleanFlag base (2 subclasses), KeywordLiteralFlag base (9 subclasses), CommandInstruction base (4 subclasses). Analyzed 6 cross-file patterns; 3 are already optimal, 3 flagged for documentation/cleanup. Key finding: dead MountFlag parser in CmdInstruction/EntrypointInstruction should be removed pre-ship (low-medium risk). Token hierarchy stable, round-trip fidelity maintained, ParseHelper changes additive. FileTransferInstruction flag ordering design sufficient. Verdict: refactor branch ready to ship with minor cleanup. Dallas and Lambert performed parallel analyses: 5 implementation code smells identified (P1-P5), 6 test refactoring opportunities identified (T1-T6), 599 tests all passing. All findings documented with appropriateness gates in decisions.md.
