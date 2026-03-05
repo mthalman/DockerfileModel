@@ -323,10 +323,13 @@ def testTokenTreeConsistency : IO Unit := do
   verifyTokenTreeConsistency quotedWithVar
   IO.println "  PASS: Quoted literal with variable ref is consistent"
 
+end DockerfileModel.Tests
+
 -- ============================================================================
--- Main test runner
+-- Main test runner (outside namespace so Lake linker finds the entry point)
 -- ============================================================================
 
+open DockerfileModel.Tests in
 def main : IO Unit := do
   IO.println "=== DockerfileModel Lean Property Tests ==="
   IO.println ""
@@ -345,5 +348,3 @@ def main : IO Unit := do
   testTokenTreeConsistency
   IO.println ""
   IO.println "=== All property tests passed ==="
-
-end DockerfileModel.Tests
