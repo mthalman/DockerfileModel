@@ -49,4 +49,8 @@ jobs:
 
       - name: Build and check proofs
         working-directory: lean
-        run: ~/.elan/bin/lake build
+        run: lake build
+
+      - name: Run property tests
+        working-directory: lean
+        run: lake exe DockerfileModelTests
