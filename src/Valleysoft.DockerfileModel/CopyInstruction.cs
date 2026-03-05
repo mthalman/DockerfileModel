@@ -1,15 +1,16 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
- 
+
 public class CopyInstruction : FileTransferInstruction
 {
     private const string Name = "COPY";
 
     public CopyInstruction(IEnumerable<string> sources, string destination,
-        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(GetTokens(sources, destination, fromStageName, changeOwner, permissions, escapeChar), escapeChar)
+        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null,
+        bool link = false, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(GetTokens(sources, destination, fromStageName, changeOwner, permissions, link, escapeChar), escapeChar)
     {
     }
 
@@ -37,6 +38,34 @@ public class CopyInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(FromFlag, value);
     }
 
+    public bool Link
+    {
+        get => LinkFlag is not null;
+        set
+        {
+            if (value && LinkFlag is null)
+            {
+                LinkFlagToken = new LinkFlag(EscapeChar);
+            }
+            else if (!value && LinkFlag is not null)
+            {
+                LinkFlagToken = null;
+            }
+        }
+    }
+
+    public LinkFlag? LinkFlagToken
+    {
+        get => LinkFlag;
+        set => SetOptionalFlagToken(LinkFlag, value);
+    }
+
+    private LinkFlag? LinkFlag
+    {
+        get => Tokens.OfType<LinkFlag>().FirstOrDefault();
+        set => SetOptionalFlagToken(LinkFlag, value);
+    }
+
     public static CopyInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
@@ -46,13 +75,15 @@ public class CopyInstruction : FileTransferInstruction
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         GetInnerParser(escapeChar, Name,
-            ArgTokens(FromFlag.GetParser(escapeChar).AsEnumerable(), escapeChar));
+            ArgTokens(FromFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)
+                .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-        string? fromStageName, UserAccount? changeOwner, string? permissions, char escapeChar)
+        string? fromStageName, UserAccount? changeOwner, string? permissions, bool link, char escapeChar)
     {
         string fromFlag = fromStageName is null ? "" : new FromFlag(fromStageName, escapeChar).ToString() + " ";
-        string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, fromFlag);
+        string linkFlag = link ? new LinkFlag(escapeChar).ToString() + " " : "";
+        string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, fromFlag, linkFlag);
         return GetTokens(text, GetInnerParser(escapeChar));
     }
 }

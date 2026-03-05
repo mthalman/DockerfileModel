@@ -105,7 +105,8 @@ public abstract class FileTransferInstruction : Instruction
     }
 
     protected static string CreateInstructionString(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag)
+        UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag,
+        string? trailingOptionalFlag = null)
     {
         Requires.NotNullEmptyOrNullElements(sources, nameof(sources));
         Requires.NotNullOrEmpty(destination, nameof(destination));
@@ -120,7 +121,7 @@ public abstract class FileTransferInstruction : Instruction
             string.Empty :
             $"{new ChangeModeFlag(permissions, escapeChar)} ";
 
-        string flags = $"{optionalFlag}{changeOwnerFlagStr}{changeModeFlagStr}";
+        string flags = $"{optionalFlag}{changeOwnerFlagStr}{changeModeFlagStr}{trailingOptionalFlag}";
 
         TokenBuilder builder = new();
         builder
