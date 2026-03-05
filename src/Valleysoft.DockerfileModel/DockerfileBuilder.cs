@@ -71,8 +71,8 @@ public class DockerfileBuilder
         ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
     public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination,
-        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null) =>
-        AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, permissions, EscapeChar));
+        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null, bool link = false) =>
+        AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, permissions, link, EscapeChar));
 
     public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.CopyInstruction.Parse);

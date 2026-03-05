@@ -73,6 +73,55 @@ public class DockerfileBuilderTests
     }
 
     [Fact]
+    public void CopyInstruction_WithLink()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        // Build a COPY with --link flag
+        builder.CopyInstruction(new string[] { "src" }, "dst", link: true);
+        Assert.Equal("COPY --link src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithLink_AndFromStageName()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", fromStageName: "base", link: true);
+        Assert.Equal("COPY --from=base --link src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithLink_AndChown()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", changeOwner: new UserAccount("myuser"), link: true);
+        Assert.Equal("COPY --chown=myuser --link src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithLink_AndChmod()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", permissions: "644", link: true);
+        Assert.Equal("COPY --chmod=644 --link src dst", builder.ToString());
+    }
+
+    [Fact]
     public void AutoEscapeDirective_Enabled_Default()
     {
         DockerfileBuilder builder = new();
