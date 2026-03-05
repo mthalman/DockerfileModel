@@ -229,6 +229,136 @@ Full code smell scan of `src/Valleysoft.DockerfileModel/` identified 5 prioritiz
 4. Fill `LinkFlagTests.cs` gap (low effort, improves consistency)
 5. Add `ScenarioTests.cs` integration test for multi-flag ADD (medium effort, fills real coverage gap)
 
+### 2026-03-05: Library Cleanup L1+L2+L3
+**Author:** Dallas (Core Dev)
+**Date:** 2026-03-05
+**Branch:** refactor
+
+#### Summary
+
+Three low-risk cleanup changes made to the library. All 599 tests pass with zero build warnings.
+
+#### L1+L2 — Extract GetArgsParser/GetCommandParser to CommandInstruction; remove dead MountFlag parser
+
+**Context:**
+`CmdInstruction` and `EntrypointInstruction` both had character-for-character identical `private static GetArgsParser(char)` and `private static GetCommandParser(char)` methods. The `CommandInstruction` base class was introduced earlier on this branch specifically to hold shared CMD/ENTRYPOINT behavior, but the parser methods were not yet extracted.
+
+Additionally, `GetArgsParser` in both classes contained a dead combinator:
+```csharp
+from mounts in ArgTokens(MountFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Many()
+```
+CMD and ENTRYPOINT do not support `--mount`. This line was silently matching zero mounts on every parse — benign but misleading and inconsistent with the instruction's actual syntax.
+
+**Decision:**
+Extract both methods to `CommandInstruction` as `protected static`, removing them from `CmdInstruction` and `EntrypointInstruction`. The extracted `GetArgsParser` omits the dead mount combinator.
+
+`RunInstruction` and `ShellInstruction` are not changed (other than adding `private new static` to suppress CS0108 warnings). `RunInstruction.GetCommandParser` uses `.Or()` instead of `.XOr()`, and `RunInstruction.GetArgsParser` uses the `Options()` combinator pattern with mount/network/security flags. `ShellInstruction.GetArgsParser` parses exec-form only. Both are intentionally different from the base class implementation.
+
+**Files changed:** CommandInstruction.cs (2 new protected static methods), CmdInstruction.cs (removed duplicates), EntrypointInstruction.cs (removed duplicates), RunInstruction.cs (CS0108 annotations), ShellInstruction.cs (CS0108 annotations).
+
+#### L3 — Delete dead TokenBuilder in FileTransferInstruction.CreateInstructionString
+
+**Context:**
+`FileTransferInstruction.CreateInstructionString` constructed a `TokenBuilder` object, added items to it, then never used it. The actual return value was computed by string interpolation further down. The builder construction was vestigial code from an earlier implementation approach.
+
+**Decision:**
+Remove the dead block entirely. No behavior change.
+
+**Files changed:** FileTransferInstruction.cs (9-line removal).
+
+### 2026-03-05: Test Code Consolidation T1+T2
+**Author:** Lambert (Tester)
+**Date:** 2026-03-05
+**Branch:** refactor
+
+#### Context
+
+The test project contained 37 per-file `ParseTestScenario` subclasses that only added a single `EscapeChar` property, and 39 identical `Parse` method bodies duplicated across test files. Both were identified in the 2026-03-05 refactoring analysis (T1 and T2 from Lambert's findings). These were purely mechanical duplications with no semantic variation.
+
+#### T2 — Add EscapeChar to base ParseTestScenario<T>
+
+**Decision:** Added `public char EscapeChar { get; set; }` directly to `ParseTestScenario<T>` in `TestScenario.cs` and deleted 33 per-file subclasses that only added that one property.
+
+**Subclasses retained:**
+- `LiteralTokenParseTestScenario` — has `ParseVariableRefs` (CS0108 fix applied)
+- `KeyValueTokenParseTestScenario` — has `Key` (CS0108 fix applied)
+- `FileTransferInstructionTests<T>` — generic nested subclass replaced with direct `ParseTestScenario<TInstruction>`
+
+**Rationale:** 37 near-identical class definitions offer no value. The base class `ParseTestScenario<T>` already held `Text` and `ParseExceptionPosition`; `EscapeChar` is the same kind of parse-time configuration.
+
+#### T1 — Extract RunParseTest to TestHelper.cs
+
+**Decision:** Added a generic static `RunParseTest<T>(ParseTestScenario<T> scenario, Func<string, char, T> parseFunc) where T : AggregateToken` to `TestHelper.cs`. Updated all applicable `Parse` methods to one-liner delegation.
+
+**Constraint choice:** `AggregateToken` (not `DockerfileConstruct`) — many tested types (flag tokens, `UserAccount`, `StageName`, `Variable`, `VariableRefToken`, etc.) extend `AggregateToken` directly without going through `DockerfileConstruct`.
+
+**Files excluded from T1:** GenericInstructionTests, KeywordTokenTests, LiteralTokenTests, KeyValueTokenTests, CommentTests, WhitespaceTests, DockerfileTests, ParserDirectiveTests (documented in decision record).
+
+**Special constructor-based types:** `StageNameTests` and `VariableTests` use lambda form: `(text, escapeChar) => new StageName(text, escapeChar)`.
+
+#### Bug Fix: UserAccount.Parse does not reject "user:" (trailing colon with empty group)
+
+**Root cause:** `UserAccount.Parse("user:", '\0')` silently succeeded by parsing `"user"` and ignoring the trailing `":"`. This occurred because Sprache's `parser.Parse(string)` does NOT require the entire input to be consumed.
+
+**Why it was hidden:** The original test called `ArgInstruction.Parse("user:", ...)` in its error path (a pre-existing bug). `ArgInstruction.Parse` threw correctly, masking the `UserAccount.Parse` bug.
+
+**Fix applied:**
+1. `UserAccount.cs`: Added `.End()` to the standalone `Parse` method only. The `GetParser()` method (used inside `UserInstruction`) is left without `.End()`.
+2. `UserAccountTests.cs`: Updated the `"user:"` error scenario's `ParseExceptionPosition` from `(1, 1, 1)` to `(1, 1, 5)`.
+
+**Pattern established:** For standalone `Parse(string, char)` methods on `AggregateToken` types, add `.End()` to enforce full input consumption. Do NOT add `.End()` to `GetParser()` methods, which compose into larger instruction-level parsers. This matches the existing pattern in `FromInstruction.GetArgsParser`.
+
+#### Result
+
+All 599 tests pass. Build produces 0 warnings, 0 errors.
+
+### 2026-03-05: Review Verdict — Dallas L1+L2+L3 and Lambert T1+T2+BugFix
+**Author:** Ripley (Lead)
+**Date:** 2026-03-05
+**Branch:** refactor
+
+#### Verdict: APPROVE
+
+All changes reviewed. 599 tests pass, 0 build warnings, 0 build errors.
+
+#### Dallas — Library Cleanup (L1+L2+L3)
+
+**L1+L2: CommandInstruction parser extraction — APPROVED.**
+- `GetArgsParser` and `GetCommandParser` extracted to `CommandInstruction` as `protected static`.
+- Extracted `GetArgsParser` omits the dead `MountFlag.GetParser().Many()` combinator — CMD and ENTRYPOINT do not support `--mount`.
+- Extracted `GetCommandParser` uses `.XOr` — correct for CMD and ENTRYPOINT.
+- `RunInstruction.GetArgsParser` and `RunInstruction.GetCommandParser` annotated `private new static` (correct C# idiom for intentional hiding).
+- `RunInstruction.GetCommandParser` uses `.Or` instead of `.XOr` — pre-existing behavioral difference correctly preserved.
+- `ShellInstruction.GetArgsParser` annotated `private new static` — exec-form-only parse correctly preserved.
+- Zero compiler warnings confirm `new` annotations appropriate everywhere.
+
+**L3: FileTransferInstruction dead TokenBuilder — APPROVED.**
+- Removed block was genuine dead code — variable never read before method returned.
+- Zero behavior change.
+
+#### Lambert — Test Consolidation (T1+T2) and Bug Fix
+
+**T2: EscapeChar in ParseTestScenario base — APPROVED.**
+- `EscapeChar` added to `ParseTestScenario<T>` is the correct home for this property.
+- Three retained subclasses correctly identified with their additional properties.
+- Default `'\0'` harmless for existing tests.
+
+**T1: RunParseTest extracted to TestHelper — APPROVED.**
+- Signature correct: `RunParseTest<T>(ParseTestScenario<T> scenario, Func<string, char, T> parseFunc) where T : AggregateToken`.
+- Constraint `where T : AggregateToken` correct — all tested types satisfy it.
+- Five exclusion categories correctly identified and documented.
+- Lambda form for `StageName` and `Variable` correctly handles no-static-Parse pattern.
+
+**Bug Fix: UserAccount.Parse + UserAccountTests — APPROVED. This is the most important change in the batch.**
+- Root cause was dual bug: test calling wrong type, `UserAccount.Parse` not consuming input.
+- Fix correct: `.End()` added to standalone `Parse` only. `GetParser()` NOT modified — must remain composable.
+- Pattern matches existing codebase (`FromInstruction.GetArgsParser`).
+- Position change from `(1, 1, 1)` to `(1, 1, 5)` correct with `.End()`.
+
+#### Summary
+
+No issues requiring changes. These changes are ready to commit.
+
 ## Governance
 
 - All meaningful changes require team consensus

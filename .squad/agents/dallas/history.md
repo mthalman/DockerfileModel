@@ -123,3 +123,24 @@
 ### 2026-03-05 — Refactor branch analysis session complete
 
 **Team update (2026-03-05T15:16:02Z)**: Ripley completed cross-file refactoring analysis of refactor branch. Verdict: production-ready. Analyzed 6 architectural patterns; 3 already optimal, 3 flagged for documentation or cleanup. One low-medium risk actionable finding: remove dead MountFlag parser in CmdInstruction/EntrypointInstruction. Dallas and Lambert performed parallel code smell and test analysis. 5 implementation findings prioritized (P1-P5): extract Cmd/Entrypoint parsers, remove dead TokenBuilder, document flag patterns. 6 test findings prioritized (T1-T6): consolidate 37 ParseTestScenario subclasses, extract 39 RunParseTest methods, consolidate flag validators, fill LinkFlagTests gap. All decisions documented in decisions.md.
+
+### 2026-03-05 — Library cleanup L1+L2+L3 complete
+
+**What changed:**
+
+**L1+L2 (combined) — Extract shared parsers to CommandInstruction, remove dead mount code:**
+- Added `protected static GetArgsParser(char escapeChar)` and `protected static GetCommandParser(char escapeChar)` to `CommandInstruction.cs`. The new `GetArgsParser` is the cleaned version (no `MountFlag.GetParser().Many()` dead code). Added `using static Valleysoft.DockerfileModel.ParseHelper;` to `CommandInstruction.cs`.
+- Removed the now-duplicate `private static GetArgsParser` and `private static GetCommandParser` from both `CmdInstruction.cs` and `EntrypointInstruction.cs`. Both subclasses' `GetInnerParser` now resolve `GetArgsParser(escapeChar)` via inheritance to the base class.
+- `RunInstruction` and `ShellInstruction` have their own `GetArgsParser`/`GetCommandParser` with different behavior (`RunInstruction` uses `.Or()` not `.XOr()`; `ShellInstruction` parses exec-form only). Added `private new static` to both to explicitly suppress the CS0108 hiding warnings.
+- The dead code was: `MountFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Many()` — CMD and ENTRYPOINT never supported mounts. This was silently matching zero mounts on every parse without benefit.
+
+**L3 — Delete dead TokenBuilder in FileTransferInstruction.CreateInstructionString:**
+- Removed lines 126-135 of `FileTransferInstruction.cs`: the `TokenBuilder builder = new()` construction and population that was built but never referenced. The return value came from string interpolation below it. Zero behavior change.
+
+**Key invariant verified:** All 599 tests pass. Round-trip fidelity unchanged.
+
+**Lesson on `private new static`:** When a base class adds a `protected static` method with the same name as an existing `private static` in a derived class, C# emits CS0108. The fix is `private new static` on the derived class method. This is purely a compiler annotation — `private` methods are never virtually dispatched regardless. The `new` keyword here is purely to suppress the warning cleanly.
+
+### 2026-03-05 — Refactoring execution session complete
+
+Team update (2026-03-05T16:04:05Z): Dallas completed L1+L2+L3 library cleanup. Lambert completed T1+T2 test consolidation + UserAccount.Parse bugfix. Ripley completed full code review and approved all changes. All 599 tests passing. Changes documented in .squad/decisions.md. Session logs created in .squad/log/ and .squad/orchestration-log/. Production-ready to merge and ship.

@@ -64,3 +64,26 @@
 ### 2026-03-05: Refactor branch analysis session
 
 **Cross-file refactoring analysis completed (2026-03-05T15:16:02Z)**: Reviewed all 5 merged commits on refactor branch (d855eb7 through b06ba15). Confirmed 3 major architectural changes are production-ready: BooleanFlag base (2 subclasses), KeywordLiteralFlag base (9 subclasses), CommandInstruction base (4 subclasses). Analyzed 6 cross-file patterns; 3 are already optimal, 3 flagged for documentation/cleanup. Key finding: dead MountFlag parser in CmdInstruction/EntrypointInstruction should be removed pre-ship (low-medium risk). Token hierarchy stable, round-trip fidelity maintained, ParseHelper changes additive. FileTransferInstruction flag ordering design sufficient. Verdict: refactor branch ready to ship with minor cleanup. Dallas and Lambert performed parallel analyses: 5 implementation code smells identified (P1-P5), 6 test refactoring opportunities identified (T1-T6), 599 tests all passing. All findings documented with appropriateness gates in decisions.md.
+
+### 2026-03-05: Dallas L1+L2+L3 and Lambert T1+T2+BugFix Review — APPROVED
+
+**Review completed (2026-03-05)**: All working-tree changes reviewed against the last committed state (b06ba15). 599 tests pass, 0 build warnings.
+
+**Dallas L1+L2 (CommandInstruction parser extraction):** Confirmed correct. `GetArgsParser` and `GetCommandParser` extracted to `CommandInstruction` as `protected static`, using `.XOr` (matching original CMD/ENTRYPOINT behavior). Dead `MountFlag.GetParser().Many()` combinator removed from both CMD and ENTRYPOINT — this was the cleanup I had flagged earlier. `RunInstruction` annotated with `private new static` for both `GetArgsParser` and `GetCommandParser`; `ShellInstruction` annotated for `GetArgsParser` only. These annotations suppress CS0108 and correctly document intentional hiding — zero build warnings confirm this. RunInstruction's `.Or` vs `.XOr` difference is a pre-existing behavioral distinction, correctly preserved. ShellInstruction's exec-form-only parser is correctly preserved.
+
+**Dallas L3 (FileTransferInstruction dead code):** Confirmed correct. The `TokenBuilder builder = new(); builder.Keyword(...); builder.Whitespace(...); if (changeOwner) { builder.Tokens.Add(...); }` block was genuinely dead — the variable was never referenced in the return statements. Removal is zero risk.
+
+**Lambert T2 (EscapeChar to ParseTestScenario base):** Clean. Single property added to `ParseTestScenario<T>`. Three subclasses retained that had additional properties beyond `EscapeChar`: `LiteralTokenParseTestScenario`, `KeyValueTokenParseTestScenario`, `FileTransferInstructionTests<T>` internal class (replaced with direct `ParseTestScenario<TInstruction>`). All subclass removals and call-site updates verified.
+
+**Lambert T1 (RunParseTest in TestHelper):** Clean. `where T : AggregateToken` constraint is correct — all callers satisfy it through `Instruction > DockerfileConstruct > AggregateToken`, `IdentifierToken > AggregateToken`, and direct `AggregateToken` subclasses. The five exclusion cases (GenericInstruction, KeywordToken, LiteralToken, KeyValueToken, Comment/Whitespace/Dockerfile/ParserDirective tests) are correctly documented and left as-is.
+
+**Lambert bug fix (UserAccount.Parse + UserAccountTests):** Sound. Root cause: the original error-path test called `ArgInstruction.Parse` instead of `UserAccount.Parse` — masking the silent-success bug. Fix: `.End()` added to standalone `Parse` only, not to `GetParser()`. Position change from `(1,1,1)` to `(1,1,5)` is correct — with `.End()`, Sprache fails at column 5 (the `:` that cannot be consumed after `user` is matched by the user-only branch). `GetParser()` composability is unaffected.
+
+**Key Sprache patterns confirmed:**
+- `.XOr` vs `.Or` distinction: base uses `.XOr` (CMD/ENTRYPOINT); RunInstruction retains `.Or` (pre-existing). Both correct for their context.
+- `.End()` on standalone `Parse()` only — established as the project pattern for full-input enforcement without breaking composition.
+- `private new static` is the correct C# idiom for intentional member hiding without polymorphism.
+
+### 2026-03-05 — Refactoring execution session complete
+
+Team update (2026-03-05T16:04:05Z): Ripley completed review verdict approving Dallas L1+L2+L3 and Lambert T1+T2+BugFix. Dallas and Lambert completed assigned work tasks. All 599 tests passing, 0 warnings, 0 errors. Code review determined all changes production-ready. Changes documented in .squad/decisions.md. Session logs created in .squad/log/ and .squad/orchestration-log/. Ready to merge and ship.
