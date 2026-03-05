@@ -170,3 +170,18 @@ Created `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.c
 - `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` (new)
 - `src/Valleysoft.DockerfileModel.Tests/PropertyTests.cs` (new)
 - `src/Valleysoft.DockerfileModel.Tests/Valleysoft.DockerfileModel.Tests.csproj` (modified — FsCheck packages)
+
+### 2026-03-05 — Fix trailing newline loss in STOPSIGNAL, MAINTAINER, SHELL (Issue #176)
+
+**Root cause:** `StopSignalInstruction`, `MaintainerInstruction`, and `ShellInstruction` all passed `excludeTrailingWhitespace: true` to `ArgTokens()` in their `GetArgsParser` methods. This caused the trailing `\n` to be consumed and discarded during parsing. When these instructions appeared as intermediate lines in a multi-instruction Dockerfile, the newline between them and the next instruction was silently dropped, breaking round-trip fidelity.
+
+**Fix:** Removed the `excludeTrailingWhitespace: true` parameter from all three files, so they now use the default `excludeTrailingWhitespace: false` — matching the behavior of every other instruction type. This was a one-line change per file.
+
+**Key insight:** This bug was originally documented during P0-2 FsCheck work (see "Dockerfile-level round-trip limitation discovered" learning above). The Dockerfile body generator had to exclude these three instruction types as a workaround. With this fix, that workaround is no longer necessary.
+
+**Files changed:**
+- `src/Valleysoft.DockerfileModel/StopSignalInstruction.cs` (line 55)
+- `src/Valleysoft.DockerfileModel/MaintainerInstruction.cs` (line 56)
+- `src/Valleysoft.DockerfileModel/ShellInstruction.cs` (line 41)
+
+**Test count:** 649 tests pass. 0 build warnings, 0 errors.
