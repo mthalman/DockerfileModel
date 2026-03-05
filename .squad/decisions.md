@@ -497,6 +497,48 @@ Lean 4 formal proof scaffold with five preliminary work items for later executio
 #### Verdict
 Phase 0 architecture is sound. P0-1 and P0-2 complete and production-ready. P0-3 through P0-7 can proceed in parallel after P0-2 (Lambert starts with P0-3 for broadest coverage). P0-8 review gate before Phase 0 closure.
 
+### 2026-03-05T18:10:00Z: P0-4 through P0-7 Property-Based Tests
+**Author:** Lambert (Tester)
+**Date:** 2026-03-05
+**Branch:** formal-verification
+
+#### Summary
+Completed P0-4, P0-5, P0-6, P0-7 property-based tests covering four structural properties of the Dockerfile model. Added 28 comprehensive tests across four categories. All 649 tests pass with 0 warnings.
+
+#### Key Design Decisions
+
+**Token tree consistency accounts for VariableRefToken and IQuotableToken**
+
+The naive invariant `ToString() == concat(children.ToString())` does not hold universally. Two token types add content beyond their children:
+- `VariableRefToken` prepends `$` via `GetUnderlyingValue` override
+- `IQuotableToken` wraps in quote chars via `Token.ToString`
+
+The P0-4 tests account for both decorations. No other `AggregateToken` subclasses override `GetUnderlyingValue`.
+
+**Variable modifier "unset" vs "declared with null default"**
+
+For non-colon modifiers (`-`, `+`, `?`), "set" means "key exists in the dictionary" regardless of value. Declaring `ARG x` with no default puts `{x: null}` in stageArgs, so the variable is "set" for non-colon modifiers.
+
+For colon modifiers (`:-`, `:+`, `:?`), "set" means "key exists AND value is non-empty". So `{x: null}` counts as "unset".
+
+Tests use `declareArg: false` (no ARG declaration) to create truly unset variables for non-colon modifier tests.
+
+**Parse isolation uses trailing newline trimming**
+
+When parsed as part of a multi-instruction Dockerfile, non-final instructions include a trailing `\n` (the construct delimiter). Standalone parsing does not. The P0-7 tests trim the trailing `\n` for the first instruction comparison and compare the final instruction directly (no trailing `\n`).
+
+#### Files Changed
+- `src/Valleysoft.DockerfileModel.Tests/PropertyTests.cs` (28 new tests across P0-4, P0-5, P0-6, P0-7)
+- `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` (3 new generators for variable resolution)
+
+#### Result
+649 tests pass (621 existing + 28 new). 0 build warnings, 0 errors. All formal verification phase 0 subtasks complete.
+
+### 2026-03-05T18:00:00Z: User directive — Bug logging policy
+**By:** Matt Thalman (via Copilot)
+**What:** Any bugs identified during the formal verification process should be logged as GitHub issues.
+**Why:** User request — captured for team memory
+
 ## Governance
 
 - All meaningful changes require team consensus

@@ -159,3 +159,38 @@ Team update (2026-03-05T16:04:05Z): Lambert completed T1+T2 test consolidation (
 ### 2026-03-05 — FsCheck Property-Based Testing Infrastructure Ready (P0-1 + P0-2)
 
 Team update (2026-03-05T17:45:00Z): Dallas completed FsCheck Phase 0 infrastructure setup (P0-1 and P0-2). Added FsCheck 3.1.0 and FsCheck.Xunit 3.1.0 packages. Created comprehensive DockerfileArbitraries generator suite (609 lines) with generators for all 18 instruction types, variable references (all 6 modifiers), and Dockerfile-level composition. Identified and documented round-trip exclusion at Dockerfile level: STOPSIGNAL, MAINTAINER, SHELL use excludeTrailingWhitespace=true, causing trailing \n loss in multi-instruction context (pre-existing behavior). 621 tests passing (599 existing + 22 property-based). Zero warnings. Generators ready for P0-3 through P0-7 property test implementation. Lambert can now start P0-3 (round-trip fidelity) in parallel with other team members on P0-4 through P0-7. See .squad/decisions.md for full Formal Verification PRD and Phase 0 decomposition.
+
+### 2026-03-05 — P0-4 through P0-7 Property-Based Tests Complete
+
+**What was implemented:** 28 new property-based tests covering four categories:
+
+**P0-4: Token tree consistency (7 tests)**
+- Recursively walks the full token tree after parsing and verifies that every `AggregateToken` node satisfies `ToString() == string.Concat(children.Select(t => t.ToString()))`, after accounting for two known decorations: `VariableRefToken` prepends `$` to its children concatenation, and `IQuotableToken` wraps in quote characters. Tests at Dockerfile level, plus individual instruction types (FROM, RUN, COPY, ADD, HEALTHCHECK) and VariableRef.
+
+**P0-5: Variable resolution non-mutation (3 tests)**
+- Verifies that `Dockerfile.ResolveVariables()` with default options (UpdateInline=false) does NOT mutate the model's `ToString()` output. Tests with no overrides, with arbitrary overrides, and with explicit `UpdateInline = false`. Uses a new `DockerfileWithVariables()` generator that produces Dockerfiles with stage-level ARG declarations and $VAR references.
+
+**P0-6: Modifier semantics (16 tests)**
+- Tests all 6 variable modifier forms at the Dockerfile resolution level: `:-`, `-`, `:+`, `+`, `:?`, `?`.
+- Each modifier tested in multiple states: unset, set-to-empty, set-to-value (where applicable).
+- Verified correct exception throwing for `?` and `:?` modifiers on unset/empty variables.
+
+**P0-7: Parse isolation (2 tests)**
+- Verifies that parsing instruction X followed by instruction Y in a Dockerfile produces the same tokens for X as parsing X alone, and vice versa. Uses `Instruction.CreateInstruction()` (internal, accessed via `InternalsVisibleTo`) for standalone parsing. Tests both the first and second instruction in the combined Dockerfile.
+
+**Key patterns discovered:**
+- `VariableRefToken.GetUnderlyingValue()` overrides the base class to prepend `$` to the children concatenation. `IQuotableToken` wraps in quotes via `Token.ToString()`. These are the only two decorations that break the naive `ToString() == concat(children)` invariant.
+- For variable modifier testing, "unset" vs "set to null" is a critical distinction: `ARG x` (no default) adds `{x: null}` to stageArgs. Non-colon modifiers (`-`, `+`, `?`) check dictionary existence (`TryGetValue` returns true), so the variable is "set". Colon modifiers (`:-`, `:+`, `:?`) additionally check for non-empty value, so null counts as "unset". To test truly unset variables, omit the ARG declaration entirely.
+- ARG declarations must be stage-level (after FROM) for them to appear in stageArgs during instruction resolution. Global ARGs (before FROM) are only available to FROM instructions.
+- When an instruction is parsed as part of a Dockerfile, it includes the trailing `\n` (used as construct delimiter). Standalone parsing does not include trailing `\n`. Comparison requires `TrimEnd('\n')` for non-final instructions.
+
+**New generators added to DockerfileArbitraries.cs:**
+- `DockerfileWithVariables()` — complete Dockerfiles with stage-level ARG + $VAR references
+- `SingleBodyInstruction()` — public wrapper for the private `BodyInstruction()` generator
+- `VariableModifierComponents()` — generates (varName, modifier, modValue) tuples for modifier testing
+
+**Test counts:** 649 total (621 baseline + 28 new). 0 failures, 0 skipped, 0 warnings.
+
+**Files modified:**
+- `src/Valleysoft.DockerfileModel.Tests/PropertyTests.cs` — added 28 new tests across 4 categories
+- `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` — added 3 new public generators
