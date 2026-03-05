@@ -48,3 +48,31 @@
 ### 2026-03-05 — COPY --link tests complete (Issue #115)
 
 **Team update (2026-03-05T04:13:15Z)**: Lambert completed test coverage for LinkFlag. Added 4 Facts, 8 parse scenarios, 4 builder tests. All 532 tests pass. Dallas completed implementation. Ready for review.
+
+### 2026-03-04 — RUN --network and --security tests
+
+**What was implemented:** Full test coverage for `NetworkFlag`, `SecurityFlag`, and their integration in `RunInstruction`.
+
+**Key patterns discovered:**
+- `NetworkFlag` and `SecurityFlag` are `KeyValueToken<KeywordToken, LiteralToken>` — standard key-value flags identical in shape to `IntervalFlag`, `PlatformFlag`, etc. Use `ValidateKeyValueFlag<T>` from `TokenValidator.cs` for concise token validation in parse scenarios.
+- For variable-containing values (e.g., `--network=$NET`), the token structure nests: `LiteralToken` wraps `VariableRefToken` wraps `StringToken`. The validator pattern is: `ValidateAggregate<LiteralToken>(token, "$NET", token => ValidateAggregate<VariableRefToken>(token, "$NET", token => ValidateString(token, "NET")))`.
+- `RunInstruction` constructors only accept `network:` and `security:` named parameters on overloads that also take `IEnumerable<Mount>`. When creating without mounts, pass `Enumerable.Empty<Mount>()` explicitly (not `null`) to reach the right overload.
+- The `RunInstruction.Create` test method was simplified: always route through the mounts-accepting constructor using `scenario.Mounts ?? Enumerable.Empty<Mount>()`, avoiding the complex nested-if branching.
+- `Network` and `Security` properties follow the exact same nullable get/set pattern as `HealthCheckInstruction.Interval`/`Timeout`/etc.: set to a value inserts the flag token, set to null removes it, and `ToString()` updates accordingly. Use `TestHelper.TestVariablesWithNullableLiteral()` for variable resolution tests.
+
+**Test counts:**
+- `NetworkFlagTests.cs` (new): 7 tests — 4 parse (default, none, host, $NET variable), 3 create (host, none, default)
+- `SecurityFlagTests.cs` (new): 5 tests — 3 parse (insecure, sandbox, $SEC variable), 2 create (insecure, sandbox)
+- `RunInstructionTests.cs` (updated): 13 new tests — 6 parse scenarios (network alone, security alone, both together, mount+network, all three mixed order, network with exec form), 3 create scenarios (network only, security only, both), 4 Facts (Network, NetworkWithVariables, Security, SecurityWithVariables)
+- Total: 25 new tests. Full suite: 557 pass, 0 fail.
+
+**Files created:**
+- `src/Valleysoft.DockerfileModel.Tests/NetworkFlagTests.cs`
+- `src/Valleysoft.DockerfileModel.Tests/SecurityFlagTests.cs`
+
+**Files modified:**
+- `src/Valleysoft.DockerfileModel.Tests/RunInstructionTests.cs` — added parse/create scenarios, Network/Security Fact tests, updated CreateTestScenario class with Network/Security properties, simplified Create method routing
+
+### 2026-03-05 — RUN --network and --security tests complete (Issue #116)
+
+**Team update (2026-03-05T04:38:40Z)**: Lambert completed 25 comprehensive tests for NetworkFlag and SecurityFlag. NetworkFlagTests (7), SecurityFlagTests (5), RunInstructionTests updates (13). All 557 tests pass. Dallas completed implementation. Decisions documented in decisions.md. Ready for review.

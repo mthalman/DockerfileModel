@@ -7,6 +7,38 @@
 **What:** Never reference an issue number in a commit message. Issue references belong in PR descriptions only.
 **Why:** User request — captured for team memory
 
+### 2026-03-05T04:20:00Z: User directive
+**By:** Matt Thalman (via Copilot)
+**What:** Always target the `dev` branch when creating PRs — not `main`.
+**Why:** User request — captured for team memory
+
+### 2026-03-04: RUN --network and --security Implementation Approach
+**Author:** Dallas (Core Dev)
+**Issue:** #116 — Support for `--network` and `--security` options on the RUN instruction
+
+#### Context
+The Docker `RUN` instruction supports `--network=<value>` (e.g., `default`, `none`, `host`) and `--security=<value>` (e.g., `insecure`, `sandbox`) options that were not yet modeled. Both are simple key-value flags.
+
+#### Decision
+**Key-value flag tokens**: Implemented `NetworkFlag` and `SecurityFlag` as `KeyValueToken<KeywordToken, LiteralToken>` subclasses, matching the established pattern used by `PlatformFlag`, `IntervalFlag`, `TimeoutFlag`, etc. This is the correct base for flags that carry a value after `=`.
+
+**RunInstruction refactored to Options() pattern**: The parser was refactored from a mount-only combinator to an `Options()` method (matching `HealthCheckInstruction`) that accepts any of `MountFlag`, `NetworkFlag`, or `SecurityFlag` in any order via `.Many().Flatten()`. This maintains round-trip fidelity regardless of flag ordering in the source.
+
+**3-tier property pattern on RunInstruction**: Added `Network`/`Security` string properties, `NetworkToken`/`SecurityToken` literal token properties, and private `NetworkFlag`/`SecurityFlag` token properties following the exact HealthCheckInstruction pattern. This required adding a `private readonly char escapeChar` field to RunInstruction.
+
+**Constructor overload consolidation**: Removed the intermediate overloads that took `(string, IEnumerable<Mount>, char)` to avoid ambiguity with the new overloads adding optional `string? network` and `string? security` parameters. The new optional-parameter constructors fully subsume the old ones with no breaking change in behavior.
+
+#### Rationale
+- The Options() parser pattern is proven (HealthCheckInstruction uses it for 4 optional flags) and naturally handles any-order flag combinations.
+- Using `KeyValueToken<KeywordToken, LiteralToken>` is the established pattern for all value-carrying flags in the codebase.
+- The 3-tier property pattern enables both string-level and token-level access, with proper support for programmatic add/remove of flags after construction.
+
+#### Files Changed
+- `src/Valleysoft.DockerfileModel/NetworkFlag.cs` (new)
+- `src/Valleysoft.DockerfileModel/SecurityFlag.cs` (new)
+- `src/Valleysoft.DockerfileModel/RunInstruction.cs` (modified)
+- `src/Valleysoft.DockerfileModel/DockerfileBuilder.cs` (modified)
+
 ### 2026-03-04: COPY --link Implementation Approach
 **Author:** Dallas (Core Dev)
 **Issue:** #115 — Support for new COPY instruction options (`--link`)
