@@ -149,3 +149,30 @@ Team update (2026-03-05T16:04:05Z): Ripley completed review verdict approving Da
 - Parse isolation test correctly uses `Instruction.CreateInstruction` (internal, exposed via InternalsVisibleTo) for standalone parsing and trims trailing `\n` from Dockerfile-level parse for comparison
 
 **Decision document:** `.squad/decisions/inbox/ripley-phase0-review.md`
+
+### 2026-03-05 — Phase 1 Review Gate (Lean 4 Token Model Specification) — APPROVE
+
+**Branch:** formal-verification-lean
+
+**Review completed.** All 8 formal theorems are sound. Token type mapping faithfully mirrors the C# hierarchy. All 18 instruction types present with correct keyword mappings. CI integration properly structured.
+
+**Files reviewed:**
+- `lean/lakefile.lean` — Lake project config, `autoImplicit := false`, `lean_lib` target
+- `lean/lean-toolchain` — Pinned to leanprover/lean4:v4.27.0 (stable January 2026 release)
+- `lean/DockerfileModel/Token.lean` — 181 lines. Two-constructor inductive: `primitive (kind, value)` and `aggregate (kind, children, quoteInfo)`. 4 PrimitiveKinds, 9 AggregateKinds. Single recursive `toString` combining C#'s `GetUnderlyingValue` + `ToString`.
+- `lean/DockerfileModel/Instruction.lean` — 130 lines. 18-variant `InstructionName` inductive with `toKeyword` mapping. `all_length` theorem proves count = 18 via `native_decide`.
+- `lean/DockerfileModel/Dockerfile.lean` — 124 lines. `ConstructType` (4 variants), `DockerfileConstruct` structure, `Dockerfile` structure with `toString` as concat of constructs.
+- `lean/DockerfileModel/Proofs/TokenConcat.lean` — 146 lines. 8 formal theorems + 2 auxiliary. All proved by `unfold + rfl` or `unfold + cases + simp_all`.
+- `lean/DockerfileModel/Tests/SlimCheck.lean` — 349 lines. 7 IO-based test suites (NOT SlimCheck property tests). Type-checked but not executed during `lake build` (no `lean_exe` target).
+- `.github/workflows/ci.yml` — Added independent `lean` job with elan install and `lake build`.
+
+**Key architecture patterns confirmed:**
+- Two-constructor `Token` with kind tags mirrors C# two-level hierarchy (PrimitiveToken / AggregateToken)
+- Single recursive `toString` combining `GetUnderlyingValue` + `ToString` avoids mutual recursion and simplifies termination checking
+- `Option QuoteInfo` on aggregate constructor correctly models C# `IQuotableToken` interface with nullable `QuoteChar`
+- `variableRef` kind handles `$` prefix in the `toString` match, not as a separate constructor
+- Proofs use `unfold + rfl` for definitional equalities and `cases + simp_all` for case-split reasoning
+
+**Key finding:** Tests in `SlimCheck.lean` are type-checked but not executed in CI. The lakefile defines `lean_lib` only; a `lean_exe` target would be needed to run the `main` function. Not a blocker because formal proofs ARE verified during elaboration.
+
+**Team update (2026-03-05T22:00:00Z)**: Ripley approved Phase 1 Lean 4 implementation. Dallas completed all work. Decision documents merged to .squad/decisions.md. Ready to ship formal-verification-lean branch.

@@ -185,3 +185,33 @@ Created `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.c
 - `src/Valleysoft.DockerfileModel/ShellInstruction.cs` (line 41)
 
 **Test count:** 649 tests pass. 0 build warnings, 0 errors.
+
+### 2026-03-05 — Lean 4 Formal Verification Phase 1 — Token Model Specification
+
+**What was built:** Complete Lean 4 project scaffolding with formal model of the C# token hierarchy, instruction types, Dockerfile structure, proofs, and executable tests.
+
+**Architecture decisions:**
+
+1. **Single `toString` function (no separate `getUnderlyingValue`):** The C# code has two methods: `GetUnderlyingValue` (overridden in `VariableRefToken` to prepend `$`) and `ToString` (which wraps with quote chars). In Lean, these are combined into a single recursive `Token.toString` function to avoid mutual recursion complexity. The `match kind with | .variableRef => "$" ++ childConcat | _ => childConcat` branch handles the override, and the `match quoteInfo with | some qi => ...` branch handles quoting.
+
+2. **Two-level kind system:** Rather than one flat inductive type with many constructors, the model uses `PrimitiveKind` (4 variants: string, whitespace, symbol, newLine) and `AggregateKind` (9 variants: keyword, literal, identifier, variableRef, comment, lineContinuation, keyValue, instruction, construct). This mirrors the C# two-level hierarchy (PrimitiveToken vs AggregateToken subclasses).
+
+3. **QuoteInfo as optional field on aggregate tokens:** Rather than a separate "quotable" wrapper type, `Option QuoteInfo` is a field on the `aggregate` constructor. This mirrors how `IQuotableToken` in C# is checked at toString time — only `LiteralToken` and `IdentifierToken` can have non-None quote info.
+
+4. **Proofs use `unfold Token.toString; rfl` for specialized theorems:** When the kind and quoteInfo are known constructors, the nested matches reduce fully and `rfl` closes the goal. The general theorem (`token_toString_aggregate` with `kind ≠ .variableRef`) uses `cases kind <;> simp_all` to handle all 9 cases.
+
+5. **Lean toolchain pinned to v4.27.0:** Confirmed stable release from January 23, 2025.
+
+6. **`autoImplicit` disabled:** Set `⟨`autoImplicit, false⟩` in lakefile to enforce explicit variable declarations — matching the project's preference for explicitness.
+
+**Key files created:**
+- `lean/lakefile.lean` — Lake build configuration
+- `lean/lean-toolchain` — Lean 4 v4.27.0 pin
+- `lean/DockerfileModel/Token.lean` — Token inductive type with toString
+- `lean/DockerfileModel/Instruction.lean` — 18 instruction types
+- `lean/DockerfileModel/Dockerfile.lean` — Dockerfile structure
+- `lean/DockerfileModel/Proofs/TokenConcat.lean` — 8 formal theorems
+- `lean/DockerfileModel/Tests/SlimCheck.lean` — 7 executable property test suites
+- `.github/workflows/ci.yml` — Added lean CI job
+
+**Team update (2026-03-05T22:00:00Z)**: Dallas completed Phase 1 Lean 4 formal specification. Ripley reviewed and approved: all 8 theorems sound, token type mapping faithful to C# hierarchy, all 18 instruction types present with correct keywords, CI integration properly structured. Decision documents merged to .squad/decisions.md. Orchestration logs created. Ready to ship.

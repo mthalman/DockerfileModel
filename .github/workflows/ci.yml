@@ -35,3 +35,22 @@ jobs:
         with:
           name: test-results
           path: src/test-results/*
+
+  lean:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install elan
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
+      - name: Build and check proofs
+        working-directory: lean
+        run: lake build
+
+      - name: Run property tests
+        working-directory: lean
+        run: lake exe DockerfileModelTests
