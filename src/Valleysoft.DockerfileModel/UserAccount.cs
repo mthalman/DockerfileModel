@@ -65,7 +65,7 @@ public class UserAccount : AggregateToken
     }
 
     public static UserAccount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar).End()), escapeChar);
 
     public static Parser<UserAccount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)

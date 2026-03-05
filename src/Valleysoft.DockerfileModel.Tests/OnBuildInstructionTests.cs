@@ -8,23 +8,8 @@ public class OnBuildInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(OnBuildInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            OnBuildInstruction result = OnBuildInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => OnBuildInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<OnBuildInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, OnBuildInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -52,9 +37,9 @@ public class OnBuildInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        OnBuildInstructionParseTestScenario[] testInputs = new OnBuildInstructionParseTestScenario[]
+        ParseTestScenario<OnBuildInstruction>[] testInputs = new ParseTestScenario<OnBuildInstruction>[]
         {
-            new OnBuildInstructionParseTestScenario
+            new ParseTestScenario<OnBuildInstruction>
             {
                 Text = "ONBUILD ARG name",
                 TokenValidators = new Action<Token>[]
@@ -74,7 +59,7 @@ public class OnBuildInstructionTests
                     Assert.Equal("ARG name", result.Instruction.ToString());
                 }
             },
-            new OnBuildInstructionParseTestScenario
+            new ParseTestScenario<OnBuildInstruction>
             {
                 Text = "ONBUILD `\n ARG name",
                 EscapeChar = '`',
@@ -124,11 +109,6 @@ public class OnBuildInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class OnBuildInstructionParseTestScenario : ParseTestScenario<OnBuildInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<OnBuildInstruction>

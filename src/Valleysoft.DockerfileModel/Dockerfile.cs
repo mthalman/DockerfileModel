@@ -100,15 +100,8 @@ public class Dockerfile : IConstructContainer
         Func<Instruction, bool> processInstruction,
         ResolutionOptions? options)
     {
-        if (variableOverrides is null)
-        {
-            variableOverrides = new Dictionary<string, string?>();
-        }
-
-        if (options is null)
-        {
-            options = new ResolutionOptions();
-        }
+        variableOverrides ??= new Dictionary<string, string?>();
+        options ??= new ResolutionOptions();
 
         StagesView stagesView = new(this);
 

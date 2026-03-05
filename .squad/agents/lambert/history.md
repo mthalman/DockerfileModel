@@ -76,3 +76,82 @@
 ### 2026-03-05 — RUN --network and --security tests complete (Issue #116)
 
 **Team update (2026-03-05T04:38:40Z)**: Lambert completed 25 comprehensive tests for NetworkFlag and SecurityFlag. NetworkFlagTests (7), SecurityFlagTests (5), RunInstructionTests updates (13). All 557 tests pass. Dallas completed implementation. Decisions documented in decisions.md. Ready for review.
+
+### 2026-03-05 — Baseline Test Run + Test Code Refactoring Analysis
+
+**Baseline established**: 599 tests, 0 failed, 0 skipped. Run time ~570 ms. Branch is `refactor`.
+
+**Key refactoring patterns discovered (analysis only — no code changed):**
+
+1. **Parse method body is copy-pasted verbatim across 39 test files.** Every `Parse(T scenario)` method has an identical if/else structure: parse on success path (assert round-trip + tokens + Validate), throw+assert on error path. This could be extracted as a static `RunParseTest<T>(ParseTestScenario<T> scenario, Func<string, char, T> parseFunc)` helper in `TestHelper.cs`. `FileTransferInstructionTests<T>` already does this correctly — the same approach can be applied universally.
+
+2. **Per-file ParseTestScenario subclasses are nearly identical across 37 files.** Every test file defines a local `class XxxParseTestScenario : ParseTestScenario<Xxx> { public char EscapeChar { get; set; } }`. This is the same class repeated 37 times, differing only in the generic type argument.
+
+3. **Boolean flag validator helpers duplicated.** `CopyInstructionTests.ValidateLinkFlag()` and `AddInstructionTests.ValidateLinkFlag()` are identical private static methods (3 tokens: symbol '-', symbol '-', keyword "link"). Similarly `AddInstructionTests.ValidateKeepGitDirFlag()` stands alone but the pattern is the same shape. These could be promoted to `TokenValidator.cs` as `ValidateBooleanFlag<T>(Token token, string keyword)`.
+
+4. **`--network=` and `--security=` flag validator patterns repeated.** `NetworkFlagTests`, `SecurityFlagTests`, and `RunInstructionTests` each expand the full 5-token `symbol '-', symbol '-', keyword, symbol '=', literal` chain inline rather than using the existing `ValidateKeyValueFlag<T>()` helper from `TokenValidator.cs`. The helper already exists and matches exactly — those parse scenarios can be shortened.
+
+5. **`KeepGitDirFlagTests` and `ChecksumFlagTests` each define their own `CreateTestScenario` inner class.** These are structurally identical to `TestScenario<T>` with one payload property added. No shared base.
+
+6. **Flag-level test files are thin (single parse case, single create case).** `KeepGitDirFlagTests` has only 1 parse scenario and 1 create scenario. Compare to `ChecksumFlagTests` (4 parse + 3 create) and `NetworkFlagTests` (4 parse + 3 create). The pattern for boolean flags (KeepGitDirFlag, LinkFlag) omits: error path (invalid input), line-continuation round-trip, variable reference tests (not applicable for boolean, but confirm it).
+
+7. **Missing instruction test files for `BooleanFlag` abstraction.** There is no `LinkFlagTests.cs` (the way `KeepGitDirFlagTests.cs` exists). LinkFlag is only tested through `CopyInstructionTests` and `AddInstructionTests`. A standalone `LinkFlagTests.cs` would be consistent.
+
+8. **`HealthCheckInstructionTests.Create` method has nested if/else branching** to select the right constructor overload, where `RunInstructionTests.Create` was already simplified to use `??` on `Mounts`. The HealthCheck version is more complex and could be simplified.
+
+**Coverage gaps identified:**
+- No negative/error path tests for boolean flags (KeepGitDirFlag, LinkFlag): what does parsing `--keep-git-dir=value` or `--link=true` do?
+- `ChecksumFlagTests` lacks a test for empty/null checksum value.
+- `AddInstructionTests` does not test `ChecksumWithVariables` for the token-level path (set via `ChecksumToken = null` then `Checksum = "$var"`) beyond what `TestVariablesWithNullableLiteral` covers.
+- No integration test in `ScenarioTests.cs` covering multi-flag ADD (checksum + keep-git-dir + link all together in a real Dockerfile parse).
+
+**Key file paths:**
+- `C:/repos/DockerfileModel/src/Valleysoft.DockerfileModel.Tests/TestHelper.cs` — ConcatLines, TestVariablesWithLiteral, TestVariablesWithNullableLiteral
+- `C:/repos/DockerfileModel/src/Valleysoft.DockerfileModel.Tests/TokenValidator.cs` — ValidateKeyValueFlag<T>, ValidateAggregate<T>, ValidateLiteral, etc.
+- `C:/repos/DockerfileModel/src/Valleysoft.DockerfileModel.Tests/TestScenario.cs` — base TestScenario<T> and ParseTestScenario<T>
+- `C:/repos/DockerfileModel/src/Valleysoft.DockerfileModel.Tests/FileTransferInstructionTests.cs` — best-in-class example: base class with RunParseTest/RunCreateTest helpers
+
+### 2026-03-05 — Refactor branch analysis session complete
+
+**Team update (2026-03-05T15:16:02Z)**: Ripley completed cross-file refactoring analysis of refactor branch. Verdict: production-ready. All 599 tests passing baseline confirmed. Lambert, Dallas, and Ripley performed parallel analyses. Ripley assessed architectural changes (3 base classes, 6 cross-file patterns). Dallas identified 5 implementation code smells (low-to-medium severity, P1-P5 prioritized). Lambert identified 6 test code refactoring opportunities (T1-T6 prioritized): consolidate 37 ParseTestScenario subclasses (highest value), extract 39 RunParseTest methods, consolidate validators, fill gaps. All findings documented in decisions.md with appropriateness gates and risk assessment.
+
+### 2026-03-05 — T1 + T2 Test Code Consolidation
+
+**What was implemented:** Completed both test code consolidation tasks T2 (EscapeChar in base class, delete 37 per-file subclasses) and T1 (extract `RunParseTest<T>` to `TestHelper.cs`, update 39 Parse methods to one-liners). All 599 tests pass after the changes.
+
+**T2 — Consolidating ParseTestScenario subclasses:**
+- Added `public char EscapeChar { get; set; }` to `ParseTestScenario<T>` in `TestScenario.cs`.
+- Deleted 33 per-file subclasses that only added `EscapeChar` (e.g., `ArgDeclarationParseTestScenario`, `FromInstructionParseTestScenario`, etc.).
+- Left `LiteralTokenParseTestScenario` (has extra `ParseVariableRefs`) and `KeyValueTokenParseTestScenario` (has extra `Key`) intact; removed their now-duplicate `EscapeChar` property to fix CS0108 warnings.
+- `FileTransferInstructionTests<T>` had a nested generic `FileTransferInstructionParseTestScenario<TInstruction>` — replaced with `ParseTestScenario<TInstruction>` directly.
+- Used `replace_all` edit to swap type names globally in each file, then deleted the broken class definition with a targeted edit.
+
+**T1 — Extracting RunParseTest helper:**
+- Added `RunParseTest<T>(ParseTestScenario<T> scenario, Func<string, char, T> parseFunc) where T : AggregateToken` to `TestHelper.cs`. Constraint is `AggregateToken` (not `DockerfileConstruct`) because many tested types (flags, tokens, utility types) extend `AggregateToken` directly.
+- Updated all applicable `Parse` methods to one-liners: `TestHelper.RunParseTest(scenario, XxxType.Parse)`.
+- Special cases using constructor syntax (no static `Parse`): `StageNameTests` and `VariableTests` use lambda form: `(text, escapeChar) => new StageName(text, escapeChar)`.
+- Files NOT updated for T1: `GenericInstructionTests` (different assertion pattern), `KeywordTokenTests` (constructor form), `LiteralTokenTests` (3-arg constructor), `KeyValueTokenTests` (complex multi-arg parse), `CommentTests`/`WhitespaceTests`/`DockerfileTests` (no escapeChar), `ParserDirectiveTests` (internal ParseTestScenario class).
+- `FileTransferInstructionTests` protected `RunParseTest` instance method was refactored to delegate to `TestHelper.RunParseTest(scenario, this.parse)`.
+
+**Bug fix exposed during T1:**
+- The original `UserAccountTests.Parse` had a pre-existing bug in its error path: it called `ArgInstruction.Parse` instead of `UserAccount.Parse`. This was masked because `ArgInstruction.Parse("user:", ...)` threw correctly even though `UserAccount.Parse("user:", ...)` did not.
+- After T1 unified the parse paths, the bug surfaced: `UserAccount.Parse("user:", '\0')` silently accepted `"user:"` (user with empty group after colon) by parsing `"user"` and leaving `":"` unconsumed — Sprache's `Parse` method does NOT require all input to be consumed.
+- **Fix:** Added `.End()` to `UserAccount.Parse` (not to `GetInnerParser`, which is also used via `GetParser` in instruction-level parsing): `new(GetTokens(text, GetInnerParser(escapeChar).End()), escapeChar)`. This matches the pattern used in `FromInstruction.GetArgsParser`.
+- **Test fix:** Updated the `"user:"` scenario's `ParseExceptionPosition` from `new Position(1, 1, 1)` to `new Position(1, 1, 5)` since with `.End()` the exception is thrown at column 5 (after `"user"`).
+- `ExecFormCommandTests`, `ShellFormCommandTests` also had bugs in their error paths (wrong parse function). These were silently fixed by T1 unification.
+
+**Key patterns learned:**
+- Sprache `parser.Parse(string)` does NOT throw for unconsumed input — it only throws if the parser itself fails. Use `.End()` on the parser to enforce full consumption in standalone parse methods, but NOT on `GetParser()` methods used inside larger instruction parsers.
+- The Sprache `Position` constructor is `Position(pos, line, column)` — `TestHelper` only checks `.Line` and `.Column` (2nd and 3rd args). The `pos` first argument is not validated.
+- `FileTransferInstructionTests<T>.RunParseTest` is a protected instance method (not static), and it uses `this.parse` (a stored `Func<string, char, TInstruction>` field). It can delegate to `TestHelper.RunParseTest(scenario, this.parse)` cleanly.
+
+**Files modified:**
+- `src/Valleysoft.DockerfileModel.Tests/TestScenario.cs` — added `EscapeChar`
+- `src/Valleysoft.DockerfileModel.Tests/TestHelper.cs` — added `RunParseTest<T>`
+- `src/Valleysoft.DockerfileModel.Tests/UserAccountTests.cs` — updated parse test scenario position
+- `src/Valleysoft.DockerfileModel/UserAccount.cs` — added `.End()` to `Parse` method
+- 30+ test files — deleted per-file subclasses, updated Parse method bodies
+
+### 2026-03-05 — Refactoring execution session complete
+
+Team update (2026-03-05T16:04:05Z): Lambert completed T1+T2 test consolidation (added EscapeChar to base, deleted 37 subclasses, extracted RunParseTest helper, fixed UserAccount.Parse bugfix). Dallas completed L1+L2+L3 library cleanup. Ripley completed full code review and approved all changes. All 599 tests passing. Changes documented in .squad/decisions.md. Session logs created in .squad/log/ and .squad/orchestration-log/. Production-ready to merge and ship.

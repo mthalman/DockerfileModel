@@ -92,3 +92,55 @@
 - Test files: AddInstructionTests.cs, ChecksumFlagTests.cs, KeepGitDirFlagTests.cs, DockerfileBuilderTests.cs (pre-written by Lambert, constructor lambda updated)
 
 **Test count**: 557 → 599 (42 new tests). All pass.
+
+### 2026-03-05 — Code smell analysis of refactor branch
+
+**Scope**: Analyzed all files in `src/Valleysoft.DockerfileModel/` against 8 smell categories.
+
+**Key findings**:
+
+**Resolved by refactor branch (already fixed)**:
+- Flag classes (ChangeModeFlag, ChecksumFlag, IntervalFlag, LinkFlag, KeepGitDirFlag, NetworkFlag, PlatformFlag, RetriesFlag, SecurityFlag, StartPeriodFlag, TimeoutFlag) previously each had fully duplicated Parse/GetParser logic. The `BooleanFlag` and `KeywordLiteralFlag` base classes added on this branch eliminated all that duplication. Each concrete flag class is now 24 lines, clean, with no duplicated logic.
+- CMD/ENTRYPOINT previously had identical `GetArgsParser` + `GetCommandParser` methods. The `CommandInstruction` base class added on this branch pulls up the shared `Command` property and `ResolveVariables` override. However, the two private parser methods remain duplicated between CmdInstruction and EntrypointInstruction (not yet extracted to base).
+
+**Remaining smells**:
+
+1. **Near-duplicate GetArgsParser/GetCommandParser** in `CmdInstruction.cs` and `EntrypointInstruction.cs` — identical implementations, could be extracted to `CommandInstruction`.
+
+2. **Boolean flag property boilerplate** — The 3-property tier pattern for boolean flags (public `bool`, public `TFlag?`, private `TFlag?`) in `CopyInstruction` and `AddInstruction` is structurally identical for each flag (`Link`, `KeepGitDir`). No obvious extraction path without generics or source generators.
+
+3. **`CreateInstructionString` in `FileTransferInstruction`** builds a `TokenBuilder` object that is never used (lines 126-129) — the string formatting is done separately. Dead/vestigial code in lines 126-129.
+
+4. **`Dockerfile.ResolveVariables` private method** (lines 97-160) is 60+ lines and does multiple things: stage iteration, arg accumulation, instruction resolution, and inline update. Long method, medium extraction risk.
+
+5. **`GetTrailingWhitespaceToken` / `GetLeadingWhitespaceToken`** in `ParseHelper.cs` — structurally near-identical (one uses `.Reverse().TakeWhile().Reverse()`, the other just `.TakeWhile()`).
+
+**Key file paths for flag architecture**:
+- `src/Valleysoft.DockerfileModel/BooleanFlag.cs` — base for valueless flags
+- `src/Valleysoft.DockerfileModel/KeywordLiteralFlag.cs` — base for --key=value flags
+- `src/Valleysoft.DockerfileModel/CommandInstruction.cs` — shared base for CMD/ENTRYPOINT/SHELL/RUN
+
+### 2026-03-05 — Refactor branch analysis session complete
+
+**Team update (2026-03-05T15:16:02Z)**: Ripley completed cross-file refactoring analysis of refactor branch. Verdict: production-ready. Analyzed 6 architectural patterns; 3 already optimal, 3 flagged for documentation or cleanup. One low-medium risk actionable finding: remove dead MountFlag parser in CmdInstruction/EntrypointInstruction. Dallas and Lambert performed parallel code smell and test analysis. 5 implementation findings prioritized (P1-P5): extract Cmd/Entrypoint parsers, remove dead TokenBuilder, document flag patterns. 6 test findings prioritized (T1-T6): consolidate 37 ParseTestScenario subclasses, extract 39 RunParseTest methods, consolidate flag validators, fill LinkFlagTests gap. All decisions documented in decisions.md.
+
+### 2026-03-05 — Library cleanup L1+L2+L3 complete
+
+**What changed:**
+
+**L1+L2 (combined) — Extract shared parsers to CommandInstruction, remove dead mount code:**
+- Added `protected static GetArgsParser(char escapeChar)` and `protected static GetCommandParser(char escapeChar)` to `CommandInstruction.cs`. The new `GetArgsParser` is the cleaned version (no `MountFlag.GetParser().Many()` dead code). Added `using static Valleysoft.DockerfileModel.ParseHelper;` to `CommandInstruction.cs`.
+- Removed the now-duplicate `private static GetArgsParser` and `private static GetCommandParser` from both `CmdInstruction.cs` and `EntrypointInstruction.cs`. Both subclasses' `GetInnerParser` now resolve `GetArgsParser(escapeChar)` via inheritance to the base class.
+- `RunInstruction` and `ShellInstruction` have their own `GetArgsParser`/`GetCommandParser` with different behavior (`RunInstruction` uses `.Or()` not `.XOr()`; `ShellInstruction` parses exec-form only). Added `private new static` to both to explicitly suppress the CS0108 hiding warnings.
+- The dead code was: `MountFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Many()` — CMD and ENTRYPOINT never supported mounts. This was silently matching zero mounts on every parse without benefit.
+
+**L3 — Delete dead TokenBuilder in FileTransferInstruction.CreateInstructionString:**
+- Removed lines 126-135 of `FileTransferInstruction.cs`: the `TokenBuilder builder = new()` construction and population that was built but never referenced. The return value came from string interpolation below it. Zero behavior change.
+
+**Key invariant verified:** All 599 tests pass. Round-trip fidelity unchanged.
+
+**Lesson on `private new static`:** When a base class adds a `protected static` method with the same name as an existing `private static` in a derived class, C# emits CS0108. The fix is `private new static` on the derived class method. This is purely a compiler annotation — `private` methods are never virtually dispatched regardless. The `new` keyword here is purely to suppress the warning cleanly.
+
+### 2026-03-05 — Refactoring execution session complete
+
+Team update (2026-03-05T16:04:05Z): Dallas completed L1+L2+L3 library cleanup. Lambert completed T1+T2 test consolidation + UserAccount.Parse bugfix. Ripley completed full code review and approved all changes. All 599 tests passing. Changes documented in .squad/decisions.md. Session logs created in .squad/log/ and .squad/orchestration-log/. Production-ready to merge and ship.

@@ -8,7 +8,7 @@ public class KeywordTokenTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(KeywordTokenParseTestScenario scenario)
+    public void Parse(ParseTestScenario<KeywordToken> scenario)
     {
         if (scenario.ParseExceptionPosition is null)
         {
@@ -28,9 +28,9 @@ public class KeywordTokenTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        KeywordTokenParseTestScenario[] testInputs = new KeywordTokenParseTestScenario[]
+        ParseTestScenario<KeywordToken>[] testInputs = new ParseTestScenario<KeywordToken>[]
         {
-            new KeywordTokenParseTestScenario
+            new ParseTestScenario<KeywordToken>
             {
                 Text = "test",
                 TokenValidators = new Action<Token>[]
@@ -38,7 +38,7 @@ public class KeywordTokenTests
                     token => ValidateString(token, "test")
                 }
             },
-            new KeywordTokenParseTestScenario
+            new ParseTestScenario<KeywordToken>
             {
                 Text = "t`\nest",
                 EscapeChar = '`',
@@ -53,9 +53,4 @@ public class KeywordTokenTests
 
         return testInputs.Select(input => new object[] { input });
     }
-}
-
-public class KeywordTokenParseTestScenario : ParseTestScenario<KeywordToken>
-{
-    public char EscapeChar { get; set; }
 }

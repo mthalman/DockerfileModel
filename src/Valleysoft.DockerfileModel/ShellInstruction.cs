@@ -3,7 +3,7 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public class ShellInstruction : Instruction
+public class ShellInstruction : CommandInstruction
 {
     public ShellInstruction(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(command, Enumerable.Empty<string>(), escapeChar)
@@ -19,28 +19,12 @@ public class ShellInstruction : Instruction
     {
     }
 
-    public Command Command
-    {
-        get => this.Tokens.OfType<Command>().First();
-        set
-        {
-            Requires.NotNull(value, nameof(value));
-            SetToken(Command, value);
-        }
-    }
-
     public static ShellInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)));
 
     public static Parser<ShellInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ShellInstruction(tokens);
-
-    public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
-    {
-        // Do not resolve variables for the command of an ENTRYPOINT instruction. It is shell/runtime-specific.
-        return ToString();
-    }
 
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)
     {
@@ -53,6 +37,6 @@ public class ShellInstruction : Instruction
         Instruction("SHELL", escapeChar,
             GetArgsParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private new static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(ExecFormCommand.GetParser(escapeChar).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true);
 }

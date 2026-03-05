@@ -1,12 +1,13 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
-public class StartPeriodFlag : KeyValueToken<KeywordToken, LiteralToken>
+public class StartPeriodFlag : KeywordLiteralFlag
 {
+    private const string Keyword = "start-period";
+
     public StartPeriodFlag(string startPeriod, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("start-period", escapeChar), new LiteralToken(startPeriod, canContainVariables: true, escapeChar), isFlag: true)
+        : base(Keyword, startPeriod, escapeChar)
     {
     }
 
@@ -15,17 +16,8 @@ public class StartPeriodFlag : KeyValueToken<KeywordToken, LiteralToken>
     }
 
     public static StartPeriodFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Parse(
-            text,
-            KeywordToken.GetParser("start-period", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new StartPeriodFlag(tokens),
-            escapeChar: escapeChar);
+        ParseFlag(text, Keyword, tokens => new StartPeriodFlag(tokens), escapeChar);
 
     public static Parser<StartPeriodFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetParser(
-            KeywordToken.GetParser("start-period", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new StartPeriodFlag(tokens),
-            escapeChar: escapeChar);
+        GetFlagParser(Keyword, tokens => new StartPeriodFlag(tokens), escapeChar);
 }

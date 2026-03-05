@@ -69,19 +69,4 @@ public class GenericInstruction : Instruction
         yield return new LiteralToken(text.Trim(), canContainVariables: false, escapeChar);
         yield return GetTrailingWhitespaceToken(text);
     }
-
-    private static WhitespaceToken? GetLeadingWhitespaceToken(string text)
-    {
-        string? whitespace = new(
-            text
-                .TakeWhile(ch => Char.IsWhiteSpace(ch))
-                .ToArray());
-
-        if (whitespace == String.Empty)
-        {
-            return null;
-        }
-
-        return new WhitespaceToken(whitespace);
-    }
 }

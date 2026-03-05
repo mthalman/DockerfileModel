@@ -7,4 +7,17 @@ internal static class StringHelper
         Requires.NotNullEmptyOrNullElements(values, nameof(values));
         return $"[{String.Join(", ", values.Select(val => $"\"{val}\"").ToArray())}]";
     }
+
+    /// <summary>
+    /// Formats a key=value assignment, wrapping the value in quotes if it contains unescaped spaces.
+    /// </summary>
+    public static string FormatKeyValueAssignment(string key, string value)
+    {
+        if (value.Length > 0 && value[0] != '\"' && value.Last() != '\"' && value.Contains(' ') && !value.Contains("\\ "))
+        {
+            value = "\"" + value + "\"";
+        }
+
+        return $"{key}={value}";
+    }
 }

@@ -145,6 +145,25 @@ internal static class ParseHelper
     }
 
     /// <summary>
+    /// Returns a whitespace token for any leading whitespace in the given string.
+    /// </summary>
+    /// <param name="text">String to parse.</param>
+    public static WhitespaceToken? GetLeadingWhitespaceToken(string text)
+    {
+        string? whitespace = new(
+            text
+                .TakeWhile(ch => Char.IsWhiteSpace(ch))
+                .ToArray());
+
+        if (whitespace == String.Empty)
+        {
+            return null;
+        }
+
+        return new WhitespaceToken(whitespace);
+    }
+
+    /// <summary>
     /// Tokenizes an argument of an instruction. This handles the parsing of whitespace and line continuations.
     /// </summary>
     /// <param name="tokenParser">Parser for the argument.</param>
@@ -848,8 +867,8 @@ internal static class ParseHelper
     {
         public TokenWrapper(string openingString, string closingString)
         {
-            this.OpeningString = openingString;
-            this.ClosingString = closingString;
+            OpeningString = openingString;
+            ClosingString = closingString;
         }
 
         public string OpeningString { get; }

@@ -1,12 +1,13 @@
 using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public class KeepGitDirFlag : AggregateToken
+public class KeepGitDirFlag : BooleanFlag
 {
+    private const string Keyword = "keep-git-dir";
+
     public KeepGitDirFlag(char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(GetTokens($"--keep-git-dir", GetInnerParser(escapeChar)))
+        : base(Keyword, escapeChar)
     {
     }
 
@@ -15,15 +16,8 @@ public class KeepGitDirFlag : AggregateToken
     }
 
     public static KeepGitDirFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        ParseFlag(text, Keyword, tokens => new KeepGitDirFlag(tokens), escapeChar);
 
     public static Parser<KeepGitDirFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        from tokens in GetInnerParser(escapeChar)
-        select new KeepGitDirFlag(tokens);
-
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-        from dash1 in Symbol('-').AsEnumerable()
-        from dash2 in Symbol('-').AsEnumerable()
-        from keyword in KeywordToken.GetParser("keep-git-dir", escapeChar).AsEnumerable()
-        select ConcatTokens(dash1, dash2, keyword);
+        GetFlagParser(Keyword, tokens => new KeepGitDirFlag(tokens), escapeChar);
 }

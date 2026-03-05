@@ -8,23 +8,8 @@ public class RunInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(RunInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            RunInstruction result = RunInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => RunInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<RunInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, RunInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -146,9 +131,9 @@ public class RunInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        RunInstructionParseTestScenario[] testInputs = new RunInstructionParseTestScenario[]
+        ParseTestScenario<RunInstruction>[] testInputs = new ParseTestScenario<RunInstruction>[]
         {
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN echo hello",
                 TokenValidators = new Action<Token>[]
@@ -170,7 +155,7 @@ public class RunInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN $TEST",
                 TokenValidators = new Action<Token>[]
@@ -181,7 +166,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "$TEST"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN echo $TEST",
                 TokenValidators = new Action<Token>[]
@@ -192,7 +177,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "echo $TEST"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN [PowerShellType]::Type.Method",
                 TokenValidators = new Action<Token>[]
@@ -203,7 +188,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "[PowerShellType]::Type.Method"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN T\\$EST",
                 TokenValidators = new Action<Token>[]
@@ -214,7 +199,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "T\\$EST"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN `\n`\necho hello",
                 EscapeChar = '`',
@@ -228,7 +213,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "echo hello"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN echo `\n#test comment\nhello",
                 EscapeChar = '`',
@@ -260,7 +245,7 @@ public class RunInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
@@ -296,7 +281,7 @@ public class RunInstructionTests
                         cmd.Values.ToArray());
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN `\n[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
                 EscapeChar = '`',
@@ -347,7 +332,7 @@ public class RunInstructionTests
                         cmd.Values.ToArray());
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN ec`\nho `test",
                 EscapeChar = '`',
@@ -364,7 +349,7 @@ public class RunInstructionTests
                             token => ValidateString(token, "ho `test")))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN \"ec`\nh`\"o `test\"",
                 EscapeChar = '`',
@@ -381,7 +366,7 @@ public class RunInstructionTests
                             token => ValidateString(token, "h`\"o `test\"")))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN --mount=type=secret,id=id echo hello",
                 TokenValidators = new Action<Token>[]
@@ -416,7 +401,7 @@ public class RunInstructionTests
                     Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN `\n --mount=type=secret,id=id `\n echo hello",
                 EscapeChar = '`',
@@ -457,7 +442,7 @@ public class RunInstructionTests
                 }
             },
             // --network flag with shell form command
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN --network=host echo hello",
                 TokenValidators = new Action<Token>[]
@@ -481,7 +466,7 @@ public class RunInstructionTests
                 }
             },
             // --security flag with shell form command
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN --security=insecure echo hello",
                 TokenValidators = new Action<Token>[]
@@ -505,7 +490,7 @@ public class RunInstructionTests
                 }
             },
             // Both --network and --security flags
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN --network=host --security=insecure echo hello",
                 TokenValidators = new Action<Token>[]
@@ -527,7 +512,7 @@ public class RunInstructionTests
                 }
             },
             // --mount + --network flags together
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN --mount=type=secret,id=id --network=host echo hello",
                 TokenValidators = new Action<Token>[]
@@ -558,7 +543,7 @@ public class RunInstructionTests
                 }
             },
             // All flags in mixed order: --network, --mount, --security
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN --network=host --mount=type=secret,id=id --security=insecure echo hello",
                 TokenValidators = new Action<Token>[]
@@ -591,7 +576,7 @@ public class RunInstructionTests
                 }
             },
             // --network flag with exec form command
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN --network=host [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
@@ -800,11 +785,6 @@ public class RunInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class RunInstructionParseTestScenario : ParseTestScenario<RunInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<RunInstruction>

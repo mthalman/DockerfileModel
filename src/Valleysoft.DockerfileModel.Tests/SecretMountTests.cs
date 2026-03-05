@@ -8,23 +8,8 @@ public class SecretMountTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(SecretMountParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            SecretMount result = SecretMount.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => SecretMount.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<SecretMount> scenario) =>
+        TestHelper.RunParseTest(scenario, SecretMount.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -166,9 +151,9 @@ public class SecretMountTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        SecretMountParseTestScenario[] testInputs = new SecretMountParseTestScenario[]
+        ParseTestScenario<SecretMount>[] testInputs = new ParseTestScenario<SecretMount>[]
         {
-            new SecretMountParseTestScenario
+            new ParseTestScenario<SecretMount>
             {
                 Text = "type=secret,id=foo",
                 TokenValidators = new Action<Token>[]
@@ -184,7 +169,7 @@ public class SecretMountTests
                     Assert.Null(result.DestinationPath);
                 }
             },
-            new SecretMountParseTestScenario
+            new ParseTestScenario<SecretMount>
             {
                 Text = "type=secret,id=foo,dst=test",
                 TokenValidators = new Action<Token>[]
@@ -202,7 +187,7 @@ public class SecretMountTests
                     Assert.Equal("test", result.DestinationPath);
                 }
             },
-            new SecretMountParseTestScenario
+            new ParseTestScenario<SecretMount>
             {
                 Text = "type=secret,id=foo,env=test",
                 TokenValidators = new Action<Token>[]
@@ -220,7 +205,7 @@ public class SecretMountTests
                     Assert.Equal("test", result.EnvironmentVariable);
                 }
             },
-            new SecretMountParseTestScenario
+            new ParseTestScenario<SecretMount>
             {
                 EscapeChar = '`',
                 Text = "typ`\ne`\n=`\nsecret`\n,`\nid=foo",
@@ -247,7 +232,7 @@ public class SecretMountTests
                     Assert.Null(result.DestinationPath);
                 }
             },
-            new SecretMountParseTestScenario
+            new ParseTestScenario<SecretMount>
             {
                 Text = "type=secret,id=$secretid",
                 TokenValidators = new Action<Token>[]
@@ -268,12 +253,12 @@ public class SecretMountTests
                     Assert.Null(result.DestinationPath);
                 }
             },
-            new SecretMountParseTestScenario
+            new ParseTestScenario<SecretMount>
             {
                 Text = "type=foo",
                 ParseExceptionPosition = new Position(1, 1, 9)
             },
-            new SecretMountParseTestScenario
+            new ParseTestScenario<SecretMount>
             {
                 Text = "type=secret",
                 ParseExceptionPosition = new Position(1, 1, 12)
@@ -344,11 +329,6 @@ public class SecretMountTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class SecretMountParseTestScenario : ParseTestScenario<SecretMount>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<SecretMount>

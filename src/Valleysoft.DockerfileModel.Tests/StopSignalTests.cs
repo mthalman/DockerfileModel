@@ -8,23 +8,8 @@ public class StopSignalInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(StopSignalInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            StopSignalInstruction result = StopSignalInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => StopSignalInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<StopSignalInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, StopSignalInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -61,9 +46,9 @@ public class StopSignalInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        StopSignalInstructionParseTestScenario[] testInputs = new StopSignalInstructionParseTestScenario[]
+        ParseTestScenario<StopSignalInstruction>[] testInputs = new ParseTestScenario<StopSignalInstruction>[]
         {
-            new StopSignalInstructionParseTestScenario
+            new ParseTestScenario<StopSignalInstruction>
             {
                 Text = "STOPSIGNAL name",
                 TokenValidators = new Action<Token>[]
@@ -79,7 +64,7 @@ public class StopSignalInstructionTests
                     Assert.Equal("name", result.Signal);
                 }
             },
-            new StopSignalInstructionParseTestScenario
+            new ParseTestScenario<StopSignalInstruction>
             {
                 Text = "STOPSIGNAL `\n name",
                 EscapeChar = '`',
@@ -130,11 +115,6 @@ public class StopSignalInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class StopSignalInstructionParseTestScenario : ParseTestScenario<StopSignalInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<StopSignalInstruction>
