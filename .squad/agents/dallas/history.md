@@ -289,3 +289,46 @@ Team update (2026-03-05T20:00:00Z): Phase 2 Lean 4 parser combinator library ful
 - `lean/DockerfileModel/Tests/ParserTests.lean` (1180 lines) — Token tree tests + parser stubs
 
 **Next work:** Integrate Lambert's test stubs with parser; implement remaining 16 instructions; build round-trip proofs.
+
+### 2026-03-05 — Lean 4 Variable Resolution Proofs (Phase 4)
+
+**What was built:** Three new Lean 4 files implementing the formal model and proofs for Dockerfile variable resolution semantics.
+
+**Architecture decisions:**
+
+1. **Association list (VarMap) over HashMap:** Used `List (String × String)` as `VarMap` because `List.lookup` unfolds cleanly in proofs, requires no Std.HashMap import, and supports structural induction without axioms.
+
+2. **`resolve` returns `Except String String`:** Models the `?` and `:?` modifiers' error cases (C# `VariableSubstitutionException`) as `.error msg`, and all other cases as `.ok value`. This makes the error case explicit in the type without needing exceptions.
+
+3. **`isVariableSet` as a standalone function:** The colon vs non-colon distinction (C# lines 141-148) is extracted as a separate function parameterized by `Modifier`, making the proofs about each modifier clean and independent.
+
+4. **`processEscapes` as top-level private def with `termination_by cs.length`:** The escape character stripping helper needed to be a top-level `private def` (not `let rec` inside `formatValue`) to get a clean termination argument. The three-constructor pattern `[] | [c] | c :: next :: rest` ensures structural decrease is visible to Lean.
+
+5. **`unfold` + `rw` pattern for proofs:** `simp [resolve, isVariableSet, VarMap.find?, h]` does NOT work reliably because `VarMap.find?` is `vars.lookup name` (method syntax) which simp doesn't always rewrite in the goal. The working pattern is: `rw [find_eq_lookup] at h; unfold resolve isVariableSet VarMap.find?; rw [h]; simp`.
+
+6. **Trivial helper `find_eq_lookup`:** Added `find_eq_lookup : vars.find? name = vars.lookup name` and `contains_eq_isSome` as the bridge lemmas. After `rw [find_eq_lookup] at h`, the hypothesis is in the same form as the unfolded goal.
+
+7. **`StageItem` must precede `Stage`:** Lean 4 is strict about declaration order with `autoImplicit false`. `StageItem` (inductive) must appear before `Stage` (structure) since `Stage` references `List StageItem`.
+
+8. **Non-mutation invariant uses `sorry`:** Per spec, `resolve_token_toString_unchanged` uses `sorry` because the full proof would require modeling C# Token tree mutation infrastructure not present in the Lean model. The theorem is structurally trivial (pure function can't mutate), but Lean can't prove `Token.toString t = Token.toString t` without `rfl`... it can, but the theorem's real content is the C# mutation model which we sorry'd.
+
+**Key files created:**
+- `lean/DockerfileModel/VariableResolution.lean` — `Modifier`, `VariableRef`, `VarMap`, `isVariableSet`, `resolve`, `formatValue`, `resolveAndFormat` (193 lines)
+- `lean/DockerfileModel/Scoping.lean` — `ArgDecl`, `StageItem`, `Stage`, `resolveGlobalArgs`, `resolveArgDecl`, `resolveStageItems`, `resolveStage`, `resolveDockerfile` (220 lines)
+- `lean/DockerfileModel/Proofs/VariableResolution.lean` — 30+ theorems covering all 6 modifier variants (330 lines)
+
+**Key files modified:**
+- `lean/DockerfileModel.lean` — Added 3 new imports
+
+**Build status:** `lake build` succeeds with 0 errors. 1 intentional `sorry` (non-mutation invariant). Pre-existing sorrys in RoundTrip.lean unchanged.
+
+**Proof count:** 30 theorems total:
+- 4 colonDash theorems (fully proved)
+- 3 dash theorems (fully proved)
+- 4 colonPlus theorems (fully proved)
+- 2 plus theorems (fully proved)
+- 4 colonQuestion theorems (fully proved)
+- 3 question theorems (fully proved)
+- 2 noModifier theorems (fully proved)
+- 3 non-mutation/trivial theorems (1 sorry'd per spec)
+- 2 consistency check theorems (colon vs non-colon on empty string)

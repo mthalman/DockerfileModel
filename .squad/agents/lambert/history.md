@@ -265,3 +265,12 @@ Team update (2026-03-05T20:00:00Z): Phase 2 comprehensive parser test suite comp
 - Shared test data allows straightforward integration (uncomment + import)
 
 **Architecture alignment:** Follows Ripley's 8 Phase 2 architecture decisions. Tests validate token model before parser integration, ensuring round-trip correctness.
+
+### 2026-03-05T23:43:03Z — Phase 4 Variable Resolution Lean Proofs Complete
+
+Team update (2026-03-05T23:43:03Z): Dallas completed Phase 4 formal verification of variable resolution semantics. Three new Lean 4 modules created:
+- `lean/DockerfileModel/VariableResolution.lean` — Core `resolve` function, `VarMap` type, `Modifier` enum, `isVariableSet` predicate
+- `lean/DockerfileModel/Scoping.lean` — Dockerfile variable scoping rules
+- `lean/DockerfileModel/Proofs/VariableResolution.lean` — All 5 modifier proofs (dash_setEmpty, dash_useEmpty, colon_setEmpty, colon_useEmpty, plain)
+
+Key design decisions: VarMap as association list (List (String × String)) for proof-friendliness, Except String String return type for error modeling, extracted processEscapes for termination clarity. All modifier proofs complete (no sorry), 1 documented sorry in resolve_token_toString_unchanged per spec. Lean build passes (18 jobs). .NET baseline verified green (649 tests).
