@@ -45,3 +45,25 @@
 - `src/Valleysoft.DockerfileModel/CopyInstruction.cs`
 - `src/Valleysoft.DockerfileModel/FileTransferInstruction.cs`
 - `src/Valleysoft.DockerfileModel/DockerfileBuilder.cs`
+
+### 2026-03-04 — RUN --network and --security options (Issue #116)
+
+**Key-value flag token pattern**: `--network=<value>` and `--security=<value>` are key-value flags, so they follow the exact `KeyValueToken<KeywordToken, LiteralToken>` pattern used by `PlatformFlag`, `IntervalFlag`, etc. Each gets its own class (`NetworkFlag.cs`, `SecurityFlag.cs`) with the standard `Parse`, `GetParser`, and internal token constructor.
+
+**RunInstruction property pattern**: Followed the HealthCheckInstruction 3-tier property pattern for optional flags: `string? Network` -> `LiteralToken? NetworkToken` -> `private NetworkFlag? NetworkFlag`. Each tier delegates to the tier below using `SetOptionalLiteralTokenValue` and `SetOptionalKeyValueTokenValue` from `AggregateToken`. This requires storing `escapeChar` as a field on RunInstruction.
+
+**Parser refactored to Options() pattern**: The `GetArgsParser` method was refactored from a dedicated mount-only `from mounts in ...` pattern to an `Options()` combinator pattern (like HealthCheckInstruction) that accepts `MountFlag`, `NetworkFlag`, or `SecurityFlag` in any order via `.Many().Flatten()`. This preserves round-trip fidelity for any flag ordering.
+
+**Constructor overload collapse**: Removed the intermediate overloads `(string, IEnumerable<Mount>, char)` and `(string, IEnumerable<string>, IEnumerable<Mount>, char)` to avoid ambiguity with the new overloads that add `string? network, string? security` as optional parameters. The optional-parameter overloads subsume the old ones.
+
+**GetFlagArgs replaced CreateMountFlagArgs**: The `CreateMountFlagArgs` method was replaced with `GetFlagArgs` (using `StringBuilder`, matching `HealthCheckInstruction.GetOptionArgs`), which appends all flag types in order: mounts, then network, then security.
+
+**Key files created/modified**:
+- `src/Valleysoft.DockerfileModel/NetworkFlag.cs` (new)
+- `src/Valleysoft.DockerfileModel/SecurityFlag.cs` (new)
+- `src/Valleysoft.DockerfileModel/RunInstruction.cs` (modified)
+- `src/Valleysoft.DockerfileModel/DockerfileBuilder.cs` (modified)
+
+### 2026-03-05 — RUN --network and --security implementation complete (Issue #116)
+
+**Team update (2026-03-05T04:38:40Z)**: Dallas completed NetworkFlag and SecurityFlag implementation with 3-tier property pattern and Options() parser refactor. All 532 pre-existing tests pass. Lambert wrote 25 comprehensive tests (NetworkFlagTests, SecurityFlagTests, RunInstructionTests updates). Full suite: 557 tests pass. Decisions documented in decisions.md. Ready for review.

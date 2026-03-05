@@ -155,14 +155,16 @@ public class DockerfileBuilder
     public DockerfileBuilder RunInstruction(string command) =>
         RunInstruction(command, Enumerable.Empty<Mount>());
 
-    public DockerfileBuilder RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts) =>
-        AddConstruct(new RunInstruction(commandWithArgs, mounts, EscapeChar));
+    public DockerfileBuilder RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts,
+        string? network = null, string? security = null) =>
+        AddConstruct(new RunInstruction(commandWithArgs, mounts, network, security, EscapeChar));
 
     public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args) =>
         RunInstruction(command, args, Enumerable.Empty<Mount>());
 
-    public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts) =>
-        AddConstruct(new RunInstruction(command, args, mounts, EscapeChar));
+    public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts,
+        string? network = null, string? security = null) =>
+        AddConstruct(new RunInstruction(command, args, mounts, network, security, EscapeChar));
 
     public DockerfileBuilder RunInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.RunInstruction.Parse);

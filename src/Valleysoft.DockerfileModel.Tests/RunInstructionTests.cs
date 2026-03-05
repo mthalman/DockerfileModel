@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -33,39 +33,13 @@ public class RunInstructionTests
         RunInstruction result;
         if (scenario.Args is null)
         {
-            if (scenario.Mounts is null)
-            {
-                result = new RunInstruction(scenario.Command);
-            }
-            else
-            {
-                result = new RunInstruction(scenario.Command, scenario.Mounts);
-            }
+            result = new RunInstruction(scenario.Command, scenario.Mounts ?? Enumerable.Empty<Mount>(),
+                network: scenario.Network, security: scenario.Security);
         }
         else
         {
-            if (scenario.Mounts is null)
-            {
-                if (scenario.Args is null)
-                {
-                    result = new RunInstruction(scenario.Command);
-                }
-                else
-                {
-                    result = new RunInstruction(scenario.Command, scenario.Args);
-                }
-            }
-            else
-            {
-                if (scenario.Args is null)
-                {
-                    result = new RunInstruction(scenario.Command, scenario.Mounts);
-                }
-                else
-                {
-                    result = new RunInstruction(scenario.Command, scenario.Args, scenario.Mounts);
-                }
-            }
+            result = new RunInstruction(scenario.Command, scenario.Args, scenario.Mounts ?? Enumerable.Empty<Mount>(),
+                network: scenario.Network, security: scenario.Security);
         }
 
         Assert.Collection(result.Tokens, scenario.TokenValidators);
@@ -84,6 +58,90 @@ public class RunInstructionTests
 
         instruction.Mounts[0] = new SecretMount("id3");
         Assert.Equal("RUN --mount=type=secret,id=id3 echo hello", instruction.ToString());
+    }
+
+    [Fact]
+    public void Network()
+    {
+        RunInstruction instruction = new("echo hello", Enumerable.Empty<Mount>(), network: "host");
+        Assert.Equal("host", instruction.Network);
+        Assert.Equal("host", instruction.NetworkToken!.Value);
+        Assert.Equal("RUN --network=host echo hello", instruction.ToString());
+
+        instruction.Network = "none";
+        Assert.Equal("none", instruction.Network);
+        Assert.Equal("none", instruction.NetworkToken!.Value);
+        Assert.Equal("RUN --network=none echo hello", instruction.ToString());
+
+        instruction.Network = null;
+        Assert.Null(instruction.Network);
+        Assert.Null(instruction.NetworkToken);
+        Assert.Equal("RUN echo hello", instruction.ToString());
+
+        instruction.NetworkToken = new LiteralToken("default");
+        Assert.Equal("default", instruction.Network);
+        Assert.Equal("default", instruction.NetworkToken.Value);
+        Assert.Equal("RUN --network=default echo hello", instruction.ToString());
+
+        instruction.NetworkToken.Value = "host";
+        Assert.Equal("host", instruction.Network);
+        Assert.Equal("host", instruction.NetworkToken.Value);
+        Assert.Equal("RUN --network=host echo hello", instruction.ToString());
+
+        instruction.NetworkToken = null;
+        Assert.Null(instruction.Network);
+        Assert.Null(instruction.NetworkToken);
+        Assert.Equal("RUN echo hello", instruction.ToString());
+    }
+
+    [Fact]
+    public void NetworkWithVariables()
+    {
+        RunInstruction instruction = new("echo hello", Enumerable.Empty<Mount>(), network: "$var");
+        TestHelper.TestVariablesWithNullableLiteral(
+            () => instruction.NetworkToken!, token => instruction.NetworkToken = token, val => instruction.Network = val, "var", canContainVariables: true);
+    }
+
+    [Fact]
+    public void Security()
+    {
+        RunInstruction instruction = new("echo hello", Enumerable.Empty<Mount>(), security: "insecure");
+        Assert.Equal("insecure", instruction.Security);
+        Assert.Equal("insecure", instruction.SecurityToken!.Value);
+        Assert.Equal("RUN --security=insecure echo hello", instruction.ToString());
+
+        instruction.Security = "sandbox";
+        Assert.Equal("sandbox", instruction.Security);
+        Assert.Equal("sandbox", instruction.SecurityToken!.Value);
+        Assert.Equal("RUN --security=sandbox echo hello", instruction.ToString());
+
+        instruction.Security = null;
+        Assert.Null(instruction.Security);
+        Assert.Null(instruction.SecurityToken);
+        Assert.Equal("RUN echo hello", instruction.ToString());
+
+        instruction.SecurityToken = new LiteralToken("insecure");
+        Assert.Equal("insecure", instruction.Security);
+        Assert.Equal("insecure", instruction.SecurityToken.Value);
+        Assert.Equal("RUN --security=insecure echo hello", instruction.ToString());
+
+        instruction.SecurityToken.Value = "sandbox";
+        Assert.Equal("sandbox", instruction.Security);
+        Assert.Equal("sandbox", instruction.SecurityToken.Value);
+        Assert.Equal("RUN --security=sandbox echo hello", instruction.ToString());
+
+        instruction.SecurityToken = null;
+        Assert.Null(instruction.Security);
+        Assert.Null(instruction.SecurityToken);
+        Assert.Equal("RUN echo hello", instruction.ToString());
+    }
+
+    [Fact]
+    public void SecurityWithVariables()
+    {
+        RunInstruction instruction = new("echo hello", Enumerable.Empty<Mount>(), security: "$var");
+        TestHelper.TestVariablesWithNullableLiteral(
+            () => instruction.SecurityToken!, token => instruction.SecurityToken = token, val => instruction.Security = val, "var", canContainVariables: true);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -398,6 +456,176 @@ public class RunInstructionTests
                     Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
                 }
             },
+            // --network flag with shell form command
+            new RunInstructionParseTestScenario
+            {
+                Text = "RUN --network=host echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo hello", result.Command.ToString());
+                    Assert.Equal("host", result.Network);
+                    Assert.Empty(result.Mounts);
+                    Assert.Null(result.Security);
+                }
+            },
+            // --security flag with shell form command
+            new RunInstructionParseTestScenario
+            {
+                Text = "RUN --security=insecure echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo hello", result.Command.ToString());
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Empty(result.Mounts);
+                    Assert.Null(result.Network);
+                }
+            },
+            // Both --network and --security flags
+            new RunInstructionParseTestScenario
+            {
+                Text = "RUN --network=host --security=insecure echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // --mount + --network flags together
+            new RunInstructionParseTestScenario
+            {
+                Text = "RUN --mount=type=secret,id=id --network=host echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                            token => ValidateKeyValue(token, "type", "secret"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "id", "id"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<SecretMount>(result.Mounts.First());
+                    Assert.Equal("host", result.Network);
+                    Assert.Null(result.Security);
+                }
+            },
+            // All flags in mixed order: --network, --mount, --security
+            new RunInstructionParseTestScenario
+            {
+                Text = "RUN --network=host --mount=type=secret,id=id --security=insecure echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                            token => ValidateKeyValue(token, "type", "secret"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "id", "id"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<SecretMount>(result.Mounts.First());
+                }
+            },
+            // --network flag with exec form command
+            new RunInstructionParseTestScenario
+            {
+                Text = "RUN --network=host [\"/bin/bash\", \"-c\", \"echo hello\"]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Equal(
+                        new string[]
+                        {
+                            "/bin/bash",
+                            "-c",
+                            "echo hello"
+                        },
+                        cmd.Values.ToArray());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
@@ -503,6 +731,72 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "echo hello"))
                 }
             },
+            // Create with network flag
+            new CreateTestScenario
+            {
+                Command = "echo hello",
+                Network = "host",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Null(result.Security);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // Create with security flag
+            new CreateTestScenario
+            {
+                Command = "echo hello",
+                Security = "insecure",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Null(result.Network);
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // Create with both network and security flags
+            new CreateTestScenario
+            {
+                Command = "echo hello",
+                Network = "host",
+                Security = "insecure",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Empty(result.Mounts);
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
@@ -518,5 +812,7 @@ public class RunInstructionTests
         public string Command { get; set; }
         public IEnumerable<string> Args { get; set; }
         public IEnumerable<Mount> Mounts { get; set; }
+        public string Network { get; set; }
+        public string Security { get; set; }
     }
 }
