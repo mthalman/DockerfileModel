@@ -67,3 +67,28 @@
 ### 2026-03-05 — RUN --network and --security implementation complete (Issue #116)
 
 **Team update (2026-03-05T04:38:40Z)**: Dallas completed NetworkFlag and SecurityFlag implementation with 3-tier property pattern and Options() parser refactor. All 532 pre-existing tests pass. Lambert wrote 25 comprehensive tests (NetworkFlagTests, SecurityFlagTests, RunInstructionTests updates). Full suite: 557 tests pass. Decisions documented in decisions.md. Ready for review.
+
+### 2026-03-05 — ADD --checksum, --keep-git-dir, --link options (Issue #103)
+
+**Single constructor for AddInstruction**: Unlike CopyInstruction which kept a backward-compatible positional constructor, AddInstruction was refactored to a single constructor with all optional parameters. The base-class `FileTransferInstructionTests` factory lambda was updated to use named args (`changeOwner:`, `permissions:`, `escapeChar:`) to avoid overload ambiguity — matching the pattern CopyInstruction already uses.
+
+**KeywordToken parses hyphens fine**: `KeywordToken.GetParser("keep-git-dir", escapeChar)` works correctly. The `StringToken` helper in ParseHelper uses `Parse.IgnoreCase` for each character sequentially, so hyphens inside keyword names parse without issue.
+
+**optionalFlagParser for multiple ADD flags**: Rather than refactoring to the full Options() combinator pattern (as was done for RUN), ADD uses the existing `optionalFlagParser` mechanism in `FileTransferInstruction.GetInnerParser`. The three new ADD flags (ChecksumFlag, KeepGitDirFlag, LinkFlag) are chained with `.Or()` and passed as the optional parser. This keeps the change minimal and contained.
+
+**Flag ordering in CreateInstructionString**: `--checksum` is passed as `optionalFlag` (leading, before chown/chmod). `--keep-git-dir` and `--link` are combined into a single `trailingOptionalFlag` string (after chmod). This reuses the existing two-slot signature without requiring further changes to `FileTransferInstruction`.
+
+**ChecksumFlag**: `KeyValueToken<KeywordToken, LiteralToken>` — exact same pattern as NetworkFlag/SecurityFlag. Supports variable references in value (uses `LiteralWithVariables`).
+
+**KeepGitDirFlag**: `AggregateToken` — same pattern as LinkFlag. Three inner tokens: `SymbolToken('-')`, `SymbolToken('-')`, `KeywordToken("keep-git-dir")`.
+
+**LinkFlag reuse**: No new class needed. ADD wires in the existing `LinkFlag` class from CopyInstruction, following the same property pattern.
+
+**Key files created/modified**:
+- `src/Valleysoft.DockerfileModel/ChecksumFlag.cs` (new)
+- `src/Valleysoft.DockerfileModel/KeepGitDirFlag.cs` (new)
+- `src/Valleysoft.DockerfileModel/AddInstruction.cs` (modified — single constructor, 3 new flag properties)
+- `src/Valleysoft.DockerfileModel/DockerfileBuilder.cs` (modified — AddInstruction builder extended)
+- Test files: AddInstructionTests.cs, ChecksumFlagTests.cs, KeepGitDirFlagTests.cs, DockerfileBuilderTests.cs (pre-written by Lambert, constructor lambda updated)
+
+**Test count**: 557 → 599 (42 new tests). All pass.
