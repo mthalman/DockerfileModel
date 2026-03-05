@@ -1,4 +1,6 @@
-﻿using Xunit;
+using Valleysoft.DockerfileModel.Tokens;
+
+using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
 namespace Valleysoft.DockerfileModel.Tests;
 
@@ -7,20 +9,826 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
     public AddInstructionTests()
         : base("ADD", AddInstruction.Parse,
             (sources, destination, changeOwner, permissions, escapeChar) =>
-                new AddInstruction(sources, destination, changeOwner, permissions, escapeChar))
+                new AddInstruction(sources, destination, changeOwner: changeOwner, permissions: permissions, escapeChar: escapeChar))
     {
     }
 
     [Theory]
+    [MemberData(nameof(ParseTestInputBase))]
+    public void ParseBase(FileTransferInstructionParseTestScenario scenario) => RunParseTest(scenario);
+
+    [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(FileTransferInstructionParseTestScenario scenario) => RunParseTest(scenario);
+    public void Parse(AddInstructionParseTestScenario scenario)
+    {
+        if (scenario.ParseExceptionPosition is null)
+        {
+            AddInstruction result = AddInstruction.Parse(scenario.Text, scenario.EscapeChar);
+            Assert.Equal(scenario.Text, result.ToString());
+            Assert.Collection(result.Tokens, scenario.TokenValidators);
+            scenario.Validate?.Invoke(result);
+        }
+        else
+        {
+            ParseException exception = Assert.Throws<ParseException>(
+                () => AddInstruction.Parse(scenario.Text, scenario.EscapeChar));
+            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
+            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(CreateTestInputBase))]
+    public void CreateBase(CreateTestScenario scenario) => RunCreateTest(scenario);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
-    public void Create(CreateTestScenario scenario) => RunCreateTest(scenario);
+    public void Create(AddInstructionCreateTestScenario scenario)
+    {
+        AddInstruction result = new(
+            scenario.Sources,
+            scenario.Destination,
+            scenario.ChangeOwner,
+            scenario.Permissions,
+            escapeChar: scenario.EscapeChar,
+            checksum: scenario.Checksum,
+            keepGitDir: scenario.KeepGitDir,
+            link: scenario.Link);
+        Assert.Collection(result.Tokens, scenario.TokenValidators);
+        scenario.Validate?.Invoke(result);
+    }
 
-    public static IEnumerable<object[]> ParseTestInput() => ParseTestInput("ADD");
+    [Fact]
+    public void Checksum()
+    {
+        // Not specified by default
+        AddInstruction instruction = new(new string[] { "src" }, "dst", escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.Null(instruction.Checksum);
+        Assert.Null(instruction.ChecksumToken);
+        Assert.Equal("ADD src dst", instruction.ToString());
 
+        // Set via property
+        instruction.Checksum = "sha256:abc123";
+        Assert.Equal("sha256:abc123", instruction.Checksum);
+        Assert.Equal("sha256:abc123", instruction.ChecksumToken!.Value);
+        Assert.Equal("ADD --checksum=sha256:abc123 src dst", instruction.ToString());
 
-    public static IEnumerable<object[]> CreateTestInput() => CreateTestInput("ADD");
+        // Update via property
+        instruction.Checksum = "sha512:def456";
+        Assert.Equal("sha512:def456", instruction.Checksum);
+        Assert.Equal("sha512:def456", instruction.ChecksumToken!.Value);
+        Assert.Equal("ADD --checksum=sha512:def456 src dst", instruction.ToString());
+
+        // Clear via property
+        instruction.Checksum = null;
+        Assert.Null(instruction.Checksum);
+        Assert.Null(instruction.ChecksumToken);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Set via token
+        instruction.ChecksumToken = new LiteralToken("sha256:abc123");
+        Assert.Equal("sha256:abc123", instruction.Checksum);
+        Assert.Equal("sha256:abc123", instruction.ChecksumToken.Value);
+        Assert.Equal("ADD --checksum=sha256:abc123 src dst", instruction.ToString());
+
+        // Update token value directly
+        instruction.ChecksumToken.Value = "sha384:newvalue";
+        Assert.Equal("sha384:newvalue", instruction.Checksum);
+        Assert.Equal("sha384:newvalue", instruction.ChecksumToken.Value);
+        Assert.Equal("ADD --checksum=sha384:newvalue src dst", instruction.ToString());
+
+        // Clear via token
+        instruction.ChecksumToken = null;
+        Assert.Null(instruction.Checksum);
+        Assert.Null(instruction.ChecksumToken);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Construct with checksum directly in the constructor
+        instruction = new(new string[] { "src" }, "dst", checksum: "sha256:abc123", escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.Equal("sha256:abc123", instruction.Checksum);
+        Assert.Equal("ADD --checksum=sha256:abc123 src dst", instruction.ToString());
+
+        // Toggle off
+        instruction.Checksum = null;
+        Assert.Null(instruction.Checksum);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Parse with --checksum already present and remove it
+        instruction = AddInstruction.Parse($"ADD`\n --checksum=sha256:abc123`\n src dst", '`');
+        instruction.Checksum = null;
+        Assert.Null(instruction.Checksum);
+        Assert.Equal($"ADD`\n`\n src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void ChecksumWithVariables()
+    {
+        AddInstruction instruction = new(new string[] { "src" }, "dst", checksum: "$var", escapeChar: Dockerfile.DefaultEscapeChar);
+        TestHelper.TestVariablesWithNullableLiteral(
+            () => instruction.ChecksumToken!, token => instruction.ChecksumToken = token, val => instruction.Checksum = val, "var", canContainVariables: true);
+    }
+
+    [Fact]
+    public void KeepGitDir()
+    {
+        // Not set by default
+        AddInstruction instruction = new(new string[] { "src" }, "dst", escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.False(instruction.KeepGitDir);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Set KeepGitDir = true via property
+        instruction.KeepGitDir = true;
+        Assert.True(instruction.KeepGitDir);
+        Assert.Equal("ADD --keep-git-dir src dst", instruction.ToString());
+
+        // Set KeepGitDir = false — flag should be removed
+        instruction.KeepGitDir = false;
+        Assert.False(instruction.KeepGitDir);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Construct with keepGitDir = true directly in the constructor
+        instruction = new(new string[] { "src" }, "dst", keepGitDir: true, escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.KeepGitDir);
+        Assert.Equal("ADD --keep-git-dir src dst", instruction.ToString());
+
+        // Toggle off again
+        instruction.KeepGitDir = false;
+        Assert.False(instruction.KeepGitDir);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Parse from text with line-continuation escape and then set KeepGitDir
+        instruction = AddInstruction.Parse($"ADD`\n src dst", '`');
+        instruction.KeepGitDir = true;
+        Assert.True(instruction.KeepGitDir);
+        Assert.Equal($"ADD --keep-git-dir`\n src dst", instruction.ToString());
+
+        // Parse with --keep-git-dir already present and remove it
+        instruction = AddInstruction.Parse($"ADD`\n --keep-git-dir`\n src dst", '`');
+        instruction.KeepGitDir = false;
+        Assert.False(instruction.KeepGitDir);
+        Assert.Equal($"ADD`\n`\n src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Link()
+    {
+        // Not set by default
+        AddInstruction instruction = new(new string[] { "src" }, "dst", escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.False(instruction.Link);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Set Link = true via property
+        instruction.Link = true;
+        Assert.True(instruction.Link);
+        Assert.Equal("ADD --link src dst", instruction.ToString());
+
+        // Set Link = false — flag should be removed
+        instruction.Link = false;
+        Assert.False(instruction.Link);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Construct with link = true directly in the constructor
+        instruction = new(new string[] { "src" }, "dst", link: true, escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Link);
+        Assert.Equal("ADD --link src dst", instruction.ToString());
+
+        // Toggle off again
+        instruction.Link = false;
+        Assert.False(instruction.Link);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Parse from text with line-continuation escape and then set Link
+        instruction = AddInstruction.Parse($"ADD`\n src dst", '`');
+        instruction.Link = true;
+        Assert.True(instruction.Link);
+        Assert.Equal($"ADD --link`\n src dst", instruction.ToString());
+
+        // Parse with --link already present and remove it
+        instruction = AddInstruction.Parse($"ADD`\n --link`\n src dst", '`');
+        instruction.Link = false;
+        Assert.False(instruction.Link);
+        Assert.Equal($"ADD`\n`\n src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Checksum_WithChown()
+    {
+        AddInstruction instruction = new(
+            new string[] { "src" }, "dst",
+            changeOwner: new UserAccount("user"),
+            checksum: "sha256:abc123",
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.Equal("sha256:abc123", instruction.Checksum);
+        Assert.Equal("user", instruction.ChangeOwner.User);
+        Assert.Equal("ADD --checksum=sha256:abc123 --chown=user src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void KeepGitDir_WithChown()
+    {
+        AddInstruction instruction = new(
+            new string[] { "src" }, "dst",
+            changeOwner: new UserAccount("user"),
+            keepGitDir: true,
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.KeepGitDir);
+        Assert.Equal("user", instruction.ChangeOwner.User);
+        Assert.Equal("ADD --chown=user --keep-git-dir src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Link_WithChown()
+    {
+        AddInstruction instruction = new(
+            new string[] { "src" }, "dst",
+            changeOwner: new UserAccount("user"),
+            link: true,
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Link);
+        Assert.Equal("user", instruction.ChangeOwner.User);
+        Assert.Equal("ADD --chown=user --link src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Link_WithChmod()
+    {
+        AddInstruction instruction = new(
+            new string[] { "src" }, "dst",
+            permissions: "755",
+            link: true,
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Link);
+        Assert.Equal("755", instruction.Permissions);
+        Assert.Equal("ADD --chmod=755 --link src dst", instruction.ToString());
+    }
+
+    public static IEnumerable<object[]> ParseTestInputBase() => ParseTestInput("ADD");
+
+    public static IEnumerable<object[]> CreateTestInputBase() => CreateTestInput("ADD");
+
+    public static IEnumerable<object[]> ParseTestInput()
+    {
+        AddInstructionParseTestScenario[] testInputs = new AddInstructionParseTestScenario[]
+        {
+            // --checksum alone
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --checksum=sha256:abc123 src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ADD", result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("dst", result.Destination);
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                    Assert.False(result.Link);
+                }
+            },
+            // --keep-git-dir alone
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --keep-git-dir src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ADD", result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("dst", result.Destination);
+                    Assert.True(result.KeepGitDir);
+                    Assert.Null(result.Checksum);
+                    Assert.False(result.Link);
+                }
+            },
+            // --link alone
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --link src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ADD", result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("dst", result.Destination);
+                    Assert.True(result.Link);
+                    Assert.Null(result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                }
+            },
+            // --checksum and --keep-git-dir together
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --checksum=sha256:abc123 --keep-git-dir src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.True(result.KeepGitDir);
+                    Assert.False(result.Link);
+                }
+            },
+            // --checksum and --link together
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --checksum=sha256:abc123 --link src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                    Assert.True(result.Link);
+                }
+            },
+            // --keep-git-dir and --link together
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --keep-git-dir --link src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Null(result.Checksum);
+                    Assert.True(result.KeepGitDir);
+                    Assert.True(result.Link);
+                }
+            },
+            // all three new flags together
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --checksum=sha256:abc123 --keep-git-dir --link src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.True(result.KeepGitDir);
+                    Assert.True(result.Link);
+                }
+            },
+            // --checksum with --chown
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --checksum=sha256:abc123 --chown=user src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "chown"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<UserAccount>(token, "user",
+                            token => ValidateLiteral(token, "user"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.Equal("user", result.ChangeOwner.User);
+                    Assert.False(result.KeepGitDir);
+                    Assert.False(result.Link);
+                }
+            },
+            // --link with --chmod
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --link --chmod=755 src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "chmod"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "755")),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Link);
+                    Assert.Equal("755", result.Permissions);
+                    Assert.Null(result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                }
+            },
+            // any-order: --link before --checksum
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --link --checksum=sha256:abc123 src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.True(result.Link);
+                    Assert.False(result.KeepGitDir);
+                }
+            },
+            // any-order: --link before --keep-git-dir
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --link --keep-git-dir src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Null(result.Checksum);
+                    Assert.True(result.Link);
+                    Assert.True(result.KeepGitDir);
+                }
+            },
+            // variable checksum
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --checksum=$CHECKSUM src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChecksumFlag>(token, "--checksum=$CHECKSUM",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "checksum"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<LiteralToken>(token, "$CHECKSUM",
+                            token => ValidateAggregate<VariableRefToken>(token, "$CHECKSUM",
+                                token => ValidateString(token, "CHECKSUM")))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("$CHECKSUM", result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                    Assert.False(result.Link);
+                }
+            },
+            // round-trip: --checksum with line continuation
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --checksum=sha256:abc123 `\n src dst",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLineContinuation(token, '`', "\n"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.Equal("ADD --checksum=sha256:abc123 `\n src dst", result.ToString());
+                }
+            },
+            // round-trip: --keep-git-dir with line continuation
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --keep-git-dir `\n src dst",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLineContinuation(token, '`', "\n"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.KeepGitDir);
+                    Assert.Equal("ADD --keep-git-dir `\n src dst", result.ToString());
+                }
+            },
+            // round-trip: --link with line continuation
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --link `\n src dst",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLineContinuation(token, '`', "\n"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Link);
+                    Assert.Equal("ADD --link `\n src dst", result.ToString());
+                }
+            },
+            // all three flags with --chown and --chmod
+            new AddInstructionParseTestScenario
+            {
+                Text = "ADD --checksum=sha256:abc123 --keep-git-dir --chown=user --chmod=755 --link src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "chown"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<UserAccount>(token, "user",
+                            token => ValidateLiteral(token, "user"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "chmod"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "755")),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.True(result.KeepGitDir);
+                    Assert.True(result.Link);
+                    Assert.Equal("user", result.ChangeOwner.User);
+                    Assert.Equal("755", result.Permissions);
+                }
+            },
+        };
+
+        return testInputs.Select(input => new object[] { input });
+    }
+
+    public static IEnumerable<object[]> CreateTestInput()
+    {
+        AddInstructionCreateTestScenario[] testInputs = new AddInstructionCreateTestScenario[]
+        {
+            // Create with checksum only
+            new AddInstructionCreateTestScenario
+            {
+                Sources = new string[] { "src" },
+                Destination = "dst",
+                Checksum = "sha256:abc123",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                    Assert.False(result.Link);
+                    Assert.Equal("ADD --checksum=sha256:abc123 src dst", result.ToString());
+                }
+            },
+            // Create with keepGitDir only
+            new AddInstructionCreateTestScenario
+            {
+                Sources = new string[] { "src" },
+                Destination = "dst",
+                KeepGitDir = true,
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Null(result.Checksum);
+                    Assert.True(result.KeepGitDir);
+                    Assert.False(result.Link);
+                    Assert.Equal("ADD --keep-git-dir src dst", result.ToString());
+                }
+            },
+            // Create with link only
+            new AddInstructionCreateTestScenario
+            {
+                Sources = new string[] { "src" },
+                Destination = "dst",
+                Link = true,
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Null(result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                    Assert.True(result.Link);
+                    Assert.Equal("ADD --link src dst", result.ToString());
+                }
+            },
+            // Create with all three new flags
+            new AddInstructionCreateTestScenario
+            {
+                Sources = new string[] { "src" },
+                Destination = "dst",
+                Checksum = "sha256:abc123",
+                KeepGitDir = true,
+                Link = true,
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.True(result.KeepGitDir);
+                    Assert.True(result.Link);
+                    Assert.Equal("ADD --checksum=sha256:abc123 --keep-git-dir --link src dst", result.ToString());
+                }
+            },
+        };
+
+        return testInputs.Select(input => new object[] { input });
+    }
+
+    private static void ValidateKeepGitDirFlag(Token token)
+    {
+        ValidateAggregate<KeepGitDirFlag>(token, "--keep-git-dir",
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "keep-git-dir"));
+    }
+
+    private static void ValidateLinkFlag(Token token)
+    {
+        ValidateAggregate<LinkFlag>(token, "--link",
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "link"));
+    }
+
+    public class AddInstructionParseTestScenario : ParseTestScenario<AddInstruction>
+    {
+        public char EscapeChar { get; set; }
+    }
+
+    public class AddInstructionCreateTestScenario : TestScenario<AddInstruction>
+    {
+        public IEnumerable<string> Sources { get; set; }
+        public string Destination { get; set; }
+        public UserAccount ChangeOwner { get; set; }
+        public string Permissions { get; set; }
+        public string Checksum { get; set; }
+        public bool KeepGitDir { get; set; }
+        public bool Link { get; set; }
+        public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
+    }
 }

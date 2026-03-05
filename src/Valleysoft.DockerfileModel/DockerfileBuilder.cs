@@ -37,8 +37,9 @@ public class DockerfileBuilder
         AddConstruct(new Whitespace(DefaultNewLine));
 
     public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, UserAccount? changeOwnerFlag = null,
-        string? permissions = null) =>
-        AddConstruct(new AddInstruction(sources, destination, changeOwnerFlag, permissions, EscapeChar));
+        string? permissions = null, string? checksum = null, bool keepGitDir = false, bool link = false) =>
+        AddConstruct(new AddInstruction(sources, destination, changeOwner: changeOwnerFlag, permissions: permissions,
+            checksum: checksum, keepGitDir: keepGitDir, link: link, escapeChar: EscapeChar));
 
     public DockerfileBuilder AddInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.AddInstruction.Parse);
