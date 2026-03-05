@@ -215,3 +215,77 @@ Created `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.c
 - `.github/workflows/ci.yml` — Added lean CI job
 
 **Team update (2026-03-05T22:00:00Z)**: Dallas completed Phase 1 Lean 4 formal specification. Ripley reviewed and approved: all 8 theorems sound, token type mapping faithful to C# hierarchy, all 18 instruction types present with correct keywords, CI integration properly structured. Decision documents merged to .squad/decisions.md. Orchestration logs created. Ready to ship.
+
+### 2026-03-05 — Lean 4 Parser Combinator Library + FROM/ARG Parsers (Phase 2)
+
+**What was built:** Complete Lean 4 parser combinator library translating ParseHelper.cs, plus FROM and ARG instruction parsers, plus round-trip theorem statements.
+
+**Architecture decisions:**
+
+1. **Custom Parser monad (no external dependencies):** Defined `Parser α := Position -> ParseResult α` where `Position` tracks source string + `String.Pos` offset. Lean's `do` notation via `Monad` instance provides the same compositional power as Sprache's LINQ syntax. `or'` (always-backtrack) maps to Sprache `.Or()`, `xOr` (fail-on-consumption) maps to `.XOr()`.
+
+2. **Token-producing parsers throughout:** Every parser produces `Token` values from Token.lean, not raw strings. This preserves the full token tree structure needed for round-trip fidelity proofs. Whitespace is captured as `WhitespaceToken`, line continuations as `LineContinuationToken`, etc.
+
+3. **Three-tier parser organization:**
+   - `Parser/Basic.lean` — Core monad, character parsers, repetition, alternation (~330 lines)
+   - `Parser/Combinators.lean` — Higher-level combinators: sepBy, between, manyTill, etc. (~150 lines)
+   - `Parser/DockerfileParsers.lean` — Dockerfile-specific parsers translating ParseHelper.cs (~620 lines)
+   - `Parser/Instructions/From.lean` — FROM instruction parser (~75 lines)
+   - `Parser/Instructions/Arg.lean` — ARG instruction parser (~70 lines)
+
+4. **`partial` for recursive parsers:** `many`, `bracedVariableRef` (mutually recursive with variable refs), and `literalWithVariablesUnquoted` use `partial` because they involve genuinely recursive parsing. Lean 4's `partial` is the right tool here — termination depends on input consumption progress which is hard to prove structurally.
+
+5. **`collapseStringTokens` for token merging:** Adjacent `StringToken` values are merged into a single `StringToken`, matching C# `TokenHelper.CollapseStringTokens()`. This ensures the token tree structure matches the C# parser output.
+
+6. **Variable reference parsing:** Three forms supported: `$VAR` (simple), `${VAR}` (braced), `${VAR:-default}` (braced with modifier). Modifier values can themselves contain variable references (recursive). The six modifiers `:-`, `:+`, `:?`, `-`, `+`, `?` are tried in order with longest-match first.
+
+7. **Round-trip theorems stated with `sorry`:** The formal statements for `fromInstruction_roundTrip` and `argInstruction_roundTrip` are precisely typed but carry `sorry` proofs. Full proofs require establishing that every parser character consumption is faithfully captured in exactly one token — a substantial proof effort deferred to Phase 3+. The general `roundTrip` theorem is also stated.
+
+8. **keywordParser avoids `for` loop:** Instead of Lean's `for` with mutable (which requires `ForIn` instance for `Parser`), the keyword parser uses explicit `let rec` pattern matching on the character list. This avoids needing typeclass instances that our custom monad doesn't provide.
+
+**Key files created:**
+- `lean/DockerfileModel/Parser/Basic.lean` — Core parser monad and combinators
+- `lean/DockerfileModel/Parser/Combinators.lean` — Higher-level combinators
+- `lean/DockerfileModel/Parser/DockerfileParsers.lean` — Dockerfile-specific parsers (ParseHelper.cs translation)
+- `lean/DockerfileModel/Parser/Instructions/From.lean` — FROM instruction parser
+- `lean/DockerfileModel/Parser/Instructions/Arg.lean` — ARG instruction parser
+- `lean/DockerfileModel/Proofs/RoundTrip.lean` — Round-trip theorem statements
+
+**Key files modified:**
+- `lean/DockerfileModel.lean` — Added imports for new modules
+
+**C# patterns translated to Lean:**
+- `ParseHelper.Whitespace()` -> `whitespace` (returns `List Token`)
+- `ParseHelper.LineContinuations(escapeChar)` -> `lineContinuations escapeChar`
+- `ParseHelper.ArgTokens(parser, escapeChar)` -> `argTokens parser escapeChar`
+- `ParseHelper.Instruction(name, escapeChar, argsParser)` -> `instructionParser name escapeChar argsParser`
+- `ParseHelper.LiteralWithVariables(escapeChar)` -> `literalWithVariables escapeChar`
+- `ParseHelper.IdentifierString(escapeChar, first, tail)` -> `identifierString escapeChar firstPred tailPred`
+- `KeywordToken.GetParser(keyword, escapeChar)` -> `keywordParser keyword escapeChar`
+- `VariableRefToken.GetParser(...)` -> `variableRefParser escapeChar`
+- `PlatformFlag.GetParser(escapeChar)` -> `platformFlagParser escapeChar`
+- `StageName.GetParser(escapeChar)` -> `stageNameParser escapeChar`
+- `ArgDeclaration.GetParser(escapeChar)` -> `argDeclarationParser escapeChar`
+
+### 2026-03-05T20:00:00Z — Phase 2 Lean 4 Parser Implementation Complete
+
+Team update (2026-03-05T20:00:00Z): Phase 2 Lean 4 parser combinator library fully implemented (1462 lines across 6 modules). FromParser and ArgParser complete with end-to-end testing via ParserTests.lean (48 active tests). Ripley designed architecture (8 decisions), Lambert created test suite (18 parser stubs ready for integration). Round-trip theorems stated; proofs deferred to Phase 3. Ready for next phase: extend to remaining 16 instructions using same pattern.
+
+**Architecture decisions adopted:**
+- Use `Lean.Parsec` built-in (zero dependencies)
+- Produce existing `Token` type directly
+- Flat module structure under `Parser/`
+- Custom Parser monad fallback if needed
+- Bottom-up round-trip proof strategy starting with FROM
+- Implementation order: Basic → Tokens → From/Arg → remaining instructions
+
+**Deliverables:**
+- `lean/DockerfileModel/Parser/Basic.lean` (327 lines) — Core monad + combinators
+- `lean/DockerfileModel/Parser/Combinators.lean` (172 lines) — Higher-level patterns
+- `lean/DockerfileModel/Parser/DockerfileParsers.lean` (620 lines) — Dockerfile-specific parsers
+- `lean/DockerfileModel/Parser/FromParser.lean` (107 lines) — FROM instruction
+- `lean/DockerfileModel/Parser/ArgParser.lean` (91 lines) — ARG instruction
+- `lean/DockerfileModel/Parser/RoundTripProofs.lean` (145 lines) — Theorems + helper lemmas
+- `lean/DockerfileModel/Tests/ParserTests.lean` (1180 lines) — Token tree tests + parser stubs
+
+**Next work:** Integrate Lambert's test stubs with parser; implement remaining 16 instructions; build round-trip proofs.

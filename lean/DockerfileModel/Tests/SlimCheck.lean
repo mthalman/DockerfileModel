@@ -20,6 +20,7 @@
 import DockerfileModel.Token
 import DockerfileModel.Instruction
 import DockerfileModel.Dockerfile
+import DockerfileModel.Tests.ParserTests
 
 namespace DockerfileModel.Tests
 
@@ -347,4 +348,6 @@ def main : IO Unit := do
   IO.println ""
   testTokenTreeConsistency
   IO.println ""
-  IO.println "=== All property tests passed ==="
+  runParserTests
+  IO.println ""
+  IO.println "=== All tests passed ==="

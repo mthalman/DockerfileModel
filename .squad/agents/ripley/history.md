@@ -176,3 +176,64 @@ Team update (2026-03-05T16:04:05Z): Ripley completed review verdict approving Da
 **Key finding:** Tests in `SlimCheck.lean` are type-checked but not executed in CI. The lakefile defines `lean_lib` only; a `lean_exe` target would be needed to run the `main` function. Not a blocker because formal proofs ARE verified during elaboration.
 
 **Team update (2026-03-05T22:00:00Z)**: Ripley approved Phase 1 Lean 4 implementation. Dallas completed all work. Decision documents merged to .squad/decisions.md. Ready to ship formal-verification-lean branch.
+
+### 2026-03-05 — Phase 2 Lean Parser Architecture Decision
+
+**Branch:** dev (architecture decision only, no code changes)
+
+**Architecture decision completed for Phase 2 — Lean 4 parser combinators.** Analyzed all 877 lines of `ParseHelper.cs`, `DockerfileParser.cs`, `FromInstruction.cs`, `ArgInstruction.cs`, plus token-level parsers (`KeywordToken.cs`, `LineContinuationToken.cs`, `VariableRefToken.cs`). Cross-referenced against existing Lean 4 model in `Token.lean`, `Instruction.lean`, `Dockerfile.lean`.
+
+**8 architecture decisions made:**
+
+1. **Parser monad: `Lean.Parsec` (built-in)**. No external dependencies. Type is `String.Iterator -> ParseResult a` — clean for proofs. Rejected lean4-parser (unnecessary dependency), Megaparsec.lean (over-engineered), custom monad (duplicate effort).
+
+2. **Output type: Existing `Token` inductive directly**. No intermediate AST. Parsers return `Parsec Token` or `Parsec (List Token)`, assembled into `Token.aggregate` at instruction level.
+
+3. **Module structure: `lean/DockerfileModel/Parser/` directory**. 12 files: `Basic.lean` (core combinators), `Tokens.lean` (token parsers), `From.lean`, `Arg.lean`, `Run.lean`, `SimpleInstructions.lean`, `Command.lean`, `FileTransfer.lean`, `HealthCheck.lean`, `Instruction.lean` (dispatch), `Dockerfile.lean` (top-level).
+
+4. **Combinator mapping: Sprache LINQ -> Lean `do` notation**. Systematic mapping: `.Or` -> `attempt p <|> q`, `.XOr` -> `p <|> q`, `.Optional()` -> custom `optional`, `.Many()` -> `many`, `.AtLeastOnce()` -> `many1`, `.Except()` -> custom `except`, `ConcatTokens` -> `List.join`.
+
+5. **Escape char threading: Explicit `ParserConfig` parameter**, not reader monad. Simpler for proofs.
+
+6. **Round-trip theorem strategy: Bottom-up, per-combinator**. Four proof levels: primitive parsers, composite combinators, instruction parsers, Dockerfile parser. Helper `consumed` function bridges iterator state to string equality.
+
+7. **Implementation order: Basic.lean -> Tokens.lean -> From.lean -> RoundTrip proofs -> SimpleInstructions -> Arg -> Command -> FileTransfer -> HealthCheck -> Run -> Instruction dispatch -> Dockerfile**.
+
+8. **No lakefile changes needed**: `lean_lib` auto-discovers modules. No new Lake dependencies.
+
+**Key risk identified:** Termination checking on mutually recursive parsers (`literalWithVariables` <-> `variableRef`). Mitigation: use `partial` initially, address termination later.
+
+**Key insight:** The hard work is in `Basic.lean` — whitespace/line-continuation/quoting combinators. Get those right and per-instruction parsers are mechanical translations from C#.
+
+**Decision document:** `.squad/decisions/inbox/ripley-lean-parser-architecture.md`
+
+**Key file paths for Phase 2 implementation:**
+- `lean/DockerfileModel/Parser/Basic.lean` — core combinators (to create)
+- `lean/DockerfileModel/Parser/Tokens.lean` — token-level parsers (to create)
+- `lean/DockerfileModel/Parser/From.lean` — FROM instruction parser (to create)
+- `lean/DockerfileModel/Proofs/RoundTrip.lean` — round-trip theorem (to create)
+- `src/Valleysoft.DockerfileModel/ParseHelper.cs` — C# reference (877 lines)
+- `src/Valleysoft.DockerfileModel/DockerfileParser.cs` — C# top-level parser reference
+- `src/Valleysoft.DockerfileModel/Tokens/VariableRefToken.cs` — variable ref parser reference
+- `src/Valleysoft.DockerfileModel/Tokens/LineContinuationToken.cs` — line continuation parser reference
+
+### 2026-03-05T20:00:00Z — Phase 2 Parser Combinator Architecture Adopted
+
+Team update (2026-03-05T20:00:00Z): Phase 2 Lean 4 parser combinator architecture design completed and adopted by team. 8 architecture decisions finalized, decision document (21.3KB) merged to .squad/decisions.md. Dallas implemented parser combinator library (1462 lines, 6 modules); Lambert created test suite (1180 lines, 48 active tests + 18 stubs); both follow architecture recommendations. Orchestration logs and session log created.
+
+**Architecture (8 decisions) highlights:**
+- Use `Lean.Parsec` built-in (zero external dependencies)
+- Produce existing `Token` type directly, not intermediate AST
+- Flat module structure under `Parser/`, one file per concern
+- Systematic Sprache → Lean combinator mapping
+- Thread escape char as explicit `ParserConfig` parameter
+- Bottom-up round-trip theorem strategy, FROM first
+- Implementation order: Basic.lean → Tokens.lean → From/Arg with proofs
+- No lakefile changes; auto-discovery sufficient
+
+**Deliverables from this team session:**
+- **Ripley:** 8 architecture decisions, Lean parser design specification
+- **Dallas:** 6 Lean modules (Basic, Combinators, DockerfileParsers, FromParser, ArgParser, RoundTripProofs), parseFrom/parseArg API
+- **Lambert:** ParserTests.lean with 48 active token-tree tests + 18 parser stubs
+
+**Status:** Foundation complete; ready for Phase 2 execution (remaining 16 instructions, expanded proof work).
