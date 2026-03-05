@@ -155,3 +155,7 @@
 ### 2026-03-05 — Refactoring execution session complete
 
 Team update (2026-03-05T16:04:05Z): Lambert completed T1+T2 test consolidation (added EscapeChar to base, deleted 37 subclasses, extracted RunParseTest helper, fixed UserAccount.Parse bugfix). Dallas completed L1+L2+L3 library cleanup. Ripley completed full code review and approved all changes. All 599 tests passing. Changes documented in .squad/decisions.md. Session logs created in .squad/log/ and .squad/orchestration-log/. Production-ready to merge and ship.
+
+### 2026-03-05 — FsCheck Property-Based Testing Infrastructure Ready (P0-1 + P0-2)
+
+Team update (2026-03-05T17:45:00Z): Dallas completed FsCheck Phase 0 infrastructure setup (P0-1 and P0-2). Added FsCheck 3.1.0 and FsCheck.Xunit 3.1.0 packages. Created comprehensive DockerfileArbitraries generator suite (609 lines) with generators for all 18 instruction types, variable references (all 6 modifiers), and Dockerfile-level composition. Identified and documented round-trip exclusion at Dockerfile level: STOPSIGNAL, MAINTAINER, SHELL use excludeTrailingWhitespace=true, causing trailing \n loss in multi-instruction context (pre-existing behavior). 621 tests passing (599 existing + 22 property-based). Zero warnings. Generators ready for P0-3 through P0-7 property test implementation. Lambert can now start P0-3 (round-trip fidelity) in parallel with other team members on P0-4 through P0-7. See .squad/decisions.md for full Formal Verification PRD and Phase 0 decomposition.

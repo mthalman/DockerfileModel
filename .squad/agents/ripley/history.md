@@ -87,3 +87,29 @@
 ### 2026-03-05 — Refactoring execution session complete
 
 Team update (2026-03-05T16:04:05Z): Ripley completed review verdict approving Dallas L1+L2+L3 and Lambert T1+T2+BugFix. Dallas and Lambert completed assigned work tasks. All 599 tests passing, 0 warnings, 0 errors. Code review determined all changes production-ready. Changes documented in .squad/decisions.md. Session logs created in .squad/log/ and .squad/orchestration-log/. Ready to merge and ship.
+
+### 2026-03-05 — Formal verification PRD decomposition
+
+**Branch:** formal-verification
+
+**Phase 0 decomposition completed.** 8 work items defined (P0-1 through P0-8) for property-based testing with FsCheck. Key architecture decisions:
+
+1. **Generators produce strings, not tokens.** Tests exercise the public Parse API to catch real parser bugs. Generating token trees directly would bypass the parser.
+2. **P0-2 (generators) is the critical path and bottleneck.** It's the only L-sized item. All 5 property tests (P0-3 through P0-7) depend on it and can run in parallel once generators are ready.
+3. **Two-level round-trip testing:** Dockerfile-level (full text) and instruction-level (per-instruction). Both are necessary — they catch different bug classes.
+4. **Escape character variants are first-class concerns.** Generators must test both `\` and `` ` `` escape chars. The backtick escape (Windows Dockerfiles) has historically been an edge-case source.
+5. **VariableRefToken.GetUnderlyingValue adds `$` prefix** — token tree consistency property (P0-4) must account for this override. Same for IQuotableToken quote wrapping.
+6. **Variable modifier semantics have a `:` prefix distinction** — `:` changes "unset" semantics to "unset or empty". Six modifiers total: `:-`, `:+`, `:?`, `-`, `+`, `?`.
+
+**Key file paths for Phase 0:**
+- `src/Valleysoft.DockerfileModel.Tests/Valleysoft.DockerfileModel.Tests.csproj` — add FsCheck packages
+- `src/Valleysoft.DockerfileModel.Tests/PropertyTests.cs` — all 5 property tests (create)
+- `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` — FsCheck generators (create)
+- `src/Valleysoft.DockerfileModel/Instruction.cs` — instruction name registry (18 instruction types)
+- `src/Valleysoft.DockerfileModel/Tokens/VariableRefToken.cs` — modifier syntax and resolution logic
+- `src/Valleysoft.DockerfileModel/DockerfileParser.cs` — construct splitting logic (parse isolation property)
+- `src/Valleysoft.DockerfileModel/Dockerfile.cs` — Parse/ToString/ResolveVariables
+
+**Phase 1 (Lean 4 scaffold) — 5 future work items sketched (P1-1 through P1-5).** Not starting yet. Requires Lean 4 expertise not currently on team.
+
+**Decision document:** `.squad/decisions/inbox/ripley-formal-verification-decomposition.md`
