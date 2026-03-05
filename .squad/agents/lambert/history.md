@@ -209,3 +209,59 @@ Team update (2026-03-05T17:45:00Z): Dallas completed FsCheck Phase 0 infrastruct
 
 **Files modified:**
 - `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` — added 3 instructions to BodyInstruction() generator, updated XML doc comment
+
+### 2026-03-05 — Phase 2: Lean Parser Tests for FROM and ARG Instructions
+
+**What was implemented:** Comprehensive parser test suite in Lean 4 for FROM and ARG instructions, translating all test cases from the C# test files (`FromInstructionTests.cs` and `ArgInstructionTests.cs`).
+
+**Test file created:** `lean/DockerfileModel/Tests/ParserTests.lean`
+
+**Test counts:**
+- FROM round-trip tests: 22 (simple, tag, digest, stage name, platform flag, all combined, variable refs, line continuations with both `\` and `` ` `` escape chars, quoted names, case-insensitive keywords, extra whitespace, fully qualified image refs)
+- ARG round-trip tests: 14 (simple, multiple declarations, empty default, quoted empty, with values, variable ref defaults, line continuations, embedded comments, underscore names, quoted values with spaces)
+- Token tree structure validation tests: 4 (FROM with platform+stage deep walk, ARG with value deep walk, ARG quoted empty structure)
+- Dockerfile-level tests: 2 (ARG+FROM combination, multi-stage)
+- Edge case tests: 6 (empty instruction, single-char names, CRLF, tab whitespace, tab indentation)
+- Parser stubs (commented out for Dallas): 18 (FROM success: 6, FROM errors: 4, ARG success: 4, ARG errors: 3, Dockerfile: 1)
+- **Total active tests: 48, Total parser stubs: 18**
+
+**Approach chosen:** Two-tier strategy:
+1. **Active tests (run now):** Construct expected token trees manually using Token.mk* helpers, then verify `toString` round-trips to the original string. This validates the token model and provides expected outputs.
+2. **Parser stubs (commented out):** Full `Parser.parseFrom` / `Parser.parseArg` / `Parser.parseDockerfile` test functions that can be uncommented once Dallas's parser combinator library is ready. Includes both success and error path cases.
+
+**Key patterns discovered:**
+- The Lean token model maps cleanly to C# test scenarios. `Token.mkKeyValue` serves as the analog for both `PlatformFlag` (key-value flag) and `ArgDeclaration` (name[=value]).
+- `Token.mkIdentifier` maps to both `Variable` and `StageName` in C# (both are identifier tokens).
+- The `QuoteInfo` mechanism correctly handles the `ARG MYARG=""` case where the quoted literal wraps empty content in double quotes.
+- Line continuation tokens (`mkLineContinuation`) contain exactly two children: escape symbol + newline, matching the C# `LineContinuationToken` structure.
+- The C# test file uses `ValidateQuotableAggregate<LiteralToken>` for quoted literals — in Lean this maps to `Token.mkLiteral children (some { quoteChar })`.
+- Comments inside instructions (e.g., `FROM ... #comment\n ...`) are modeled as `Token.mkComment` children of the instruction token, matching C# `CommentToken`.
+
+**Integration points:**
+- `SlimCheck.lean` updated to import `ParserTests` and call `runParserTests` from `main`.
+- No changes needed to `lakefile.lean` — the `lean_lib` target auto-includes all files under `DockerfileModel/`.
+
+**Files created:**
+- `lean/DockerfileModel/Tests/ParserTests.lean` — 48 active tests + 18 parser stubs
+
+**Files modified:**
+- `lean/DockerfileModel/Tests/SlimCheck.lean` — added import and `runParserTests` call in main
+
+### 2026-03-05T20:00:00Z — Phase 2 Parser Test Suite Complete
+
+Team update (2026-03-05T20:00:00Z): Phase 2 comprehensive parser test suite completed. ParserTests.lean (1180 lines) created with 48 active token-tree construction tests (FROM: 28, ARG: 20) plus 18 commented parser stubs. All tests pass; token model validated with full edge case coverage (line continuations, variable references, quoting, comments, case insensitivity, CRLF/tabs). SlimCheck.lean updated to run ParserTests. Ready for Dallas parser integration.
+
+**Test suite statistics:**
+- **Active tests:** 48 (FROM: 28, ARG: 20)
+  - Basic syntax, tags, digests, platform flags, staging, line continuations, quotes, variables, comments, case variations, whitespace
+- **Parser stubs:** 18 (marked with `-- [PARSER]`)
+  - Full parser integration tests using `Parser.parseFrom`, `Parser.parseArg`
+  - Round-trip fidelity verification
+  - Error path tests (malformed syntax, missing fields)
+
+**Test strategy rationale:**
+- Token tree tests exercise model immediately with all edge cases
+- Parser stubs provide Dallas concrete acceptance criteria
+- Shared test data allows straightforward integration (uncomment + import)
+
+**Architecture alignment:** Follows Ripley's 8 Phase 2 architecture decisions. Tests validate token model before parser integration, ensuring round-trip correctness.
