@@ -1,6 +1,8 @@
 import DockerfileModel.Token
 import DockerfileModel.Instruction
 import DockerfileModel.Dockerfile
+import DockerfileModel.VariableResolution
+import DockerfileModel.Scoping
 import DockerfileModel.Parser.Basic
 import DockerfileModel.Parser.Combinators
 import DockerfileModel.Parser.DockerfileParsers
@@ -8,4 +10,5 @@ import DockerfileModel.Parser.Instructions.From
 import DockerfileModel.Parser.Instructions.Arg
 import DockerfileModel.Proofs.TokenConcat
 import DockerfileModel.Proofs.RoundTrip
+import DockerfileModel.Proofs.VariableResolution
 import DockerfileModel.Tests.SlimCheck
