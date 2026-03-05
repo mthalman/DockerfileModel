@@ -1009,3 +1009,79 @@ Each test:
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+---
+
+# Decision: Phase 4 Variable Resolution Lean 4 Implementation
+
+**Author:** Dallas (Core Dev)
+**Date:** 2026-03-05
+**Phase:** Phase 4 — Variable Resolution Proofs in Lean 4
+
+## Context
+
+Implemented the formal Lean 4 model and proofs for Dockerfile variable resolution semantics, covering:
+- `VariableRefToken.ResolveVariables` (C#, lines 121-196)
+- `Dockerfile.ResolveVariables` scoping rules (C#, lines 97-160)
+
+## Decisions
+
+### 1. Association List (VarMap) as Variable Map
+
+**Decision:** Use `List (String × String)` aliased as `VarMap` rather than `Std.HashMap`.
+
+**Rationale:**
+- `List.lookup` unfolds completely in Lean proofs (no external axioms)
+- No Std library dependency needed
+- Structural induction works cleanly on lists
+- `simp` knows how to simplify `List.lookup` with concrete hypotheses
+
+**Tradeoff:** O(n) lookup vs O(1) HashMap, but this is a specification model not an implementation — correctness matters more than performance.
+
+### 2. `Except String String` Return Type for `resolve`
+
+**Decision:** `resolve` returns `Except String String` (`.error msg` | `.ok value`).
+
+**Rationale:** The `?` and `:?` modifiers throw `VariableSubstitutionException` in C#. Modeling this as `Except` makes the error path explicit in the type, enabling proofs that state "this modifier errors when..." precisely.
+
+**Alternative considered:** `Option String` — rejected because it conflates "unset error" with "no value", losing the error message content.
+
+### 3. `isVariableSet` Extracted as Standalone Function
+
+**Decision:** The colon vs non-colon distinction is a standalone `isVariableSet : VarMap → String → Modifier → Bool` rather than inlined in `resolve`.
+
+**Rationale:** Individual modifier theorems (e.g., `dash_setEmpty`) need to reason about `isVariableSet` independently. Extraction makes these proofs cleaner and allows the colon/non-colon lemmas to be reused.
+
+### 4. `processEscapes` as Top-Level Private Def
+
+**Decision:** Extract the escape character processing loop as `private def processEscapes (escapeChar : Char) : List Char → List Char` with explicit `termination_by cs => cs.length` and `decreasing_by all_goals (simp only [List.length_cons]; omega)`.
+
+**Rationale:** `let rec` inside `formatValue` caused termination proving difficulties because Lean couldn't see the structural decrease for the "single escape before other char" case. Top-level extraction with the three-constructor pattern `[] | [c] | c :: next :: rest` makes all three recursive calls obviously decreasing.
+
+### 5. `unfold` + `rw` Proof Pattern (NOT plain `simp`)
+
+**Decision:** Use `rw [find_eq_lookup] at h; unfold resolve isVariableSet VarMap.find?; rw [h]; simp` pattern for all modifier proofs.
+
+**Rationale:** `simp [resolve, isVariableSet, VarMap.find?, h]` does not work because `VarMap.find?` unfolds to `vars.lookup name` (dot-notation method call) which doesn't match the `List.lookup name vars` function-call form that appears in the goal after unfolding. The bridge lemma `find_eq_lookup : vars.find? name = vars.lookup name` converts hypotheses to the right form, then `rw` substitutes into the unfolded goal.
+
+**Lesson:** In Lean 4, method-style `obj.method` and function-style `Namespace.method obj` are definitionally equal but may not be transparently simplified by `simp`. Always unfold both sides to `List.lookup` before using hypotheses.
+
+### 6. One `sorry` in Non-Mutation Invariant (Per Spec)
+
+**Decision:** `resolve_token_toString_unchanged` uses `sorry`.
+
+**Rationale:** The full C# non-mutation invariant (`updateInline = false` means Token.toString is unchanged) would require modeling the full C# Token tree mutation infrastructure. Our Lean model is purely functional — `resolve` has type `VarMap → VariableRef → Except String String` and structurally cannot modify any Token. The `sorry` documents this modeling gap, as specified in the task.
+
+## Files Created
+
+- `lean/DockerfileModel/VariableResolution.lean`
+- `lean/DockerfileModel/Scoping.lean`
+- `lean/DockerfileModel/Proofs/VariableResolution.lean`
+
+## Files Modified
+
+- `lean/DockerfileModel.lean` (added 3 imports)
+
+## Build Verification
+
+`cd lean && lake build` passes with 0 errors. 1 intentional `sorry`.
