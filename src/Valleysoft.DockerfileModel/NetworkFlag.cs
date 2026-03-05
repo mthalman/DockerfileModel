@@ -1,12 +1,13 @@
 using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public class NetworkFlag : KeyValueToken<KeywordToken, LiteralToken>
+public class NetworkFlag : KeywordLiteralFlag
 {
+    private const string Keyword = "network";
+
     public NetworkFlag(string network, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("network", escapeChar), new LiteralToken(network, canContainVariables: true, escapeChar), isFlag: true)
+        : base(Keyword, network, escapeChar)
     {
     }
 
@@ -15,17 +16,8 @@ public class NetworkFlag : KeyValueToken<KeywordToken, LiteralToken>
     }
 
     public static NetworkFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Parse(
-            text,
-            KeywordToken.GetParser("network", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new NetworkFlag(tokens),
-            escapeChar: escapeChar);
+        ParseFlag(text, Keyword, tokens => new NetworkFlag(tokens), escapeChar);
 
     public static Parser<NetworkFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetParser(
-            KeywordToken.GetParser("network", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new NetworkFlag(tokens),
-            escapeChar: escapeChar);
+        GetFlagParser(Keyword, tokens => new NetworkFlag(tokens), escapeChar);
 }

@@ -4,7 +4,7 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public class RunInstruction : Instruction
+public class RunInstruction : CommandInstruction
 {
     private readonly char escapeChar;
 
@@ -37,16 +37,6 @@ public class RunInstruction : Instruction
             new TokenList<MountFlag>(TokenList),
             flag => flag.ValueToken,
             (flag, mount) => flag.ValueToken = mount);
-    }
-
-    public Command Command
-    {
-        get => this.Tokens.OfType<Command>().First();
-        set
-        {
-            Requires.NotNull(value, nameof(value));
-            SetToken(Command, value);
-        }
     }
 
     public IList<Mount> Mounts { get; }
@@ -96,12 +86,6 @@ public class RunInstruction : Instruction
         from tokens in GetInnerParser(escapeChar)
         select new RunInstruction(tokens, escapeChar);
 
-    public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
-    {
-        // Do not resolve variables for the command of a RUN instruction. It is shell/runtime-specific.
-        return ToString();
-    }
-
     private static IEnumerable<Token> GetTokens(string commandWithArgs, IEnumerable<Mount> mounts,
         string? network, string? security, char escapeChar)
     {
@@ -148,7 +132,7 @@ public class RunInstruction : Instruction
         return builder.ToString();
     }
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private new static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from options in Options(escapeChar)
         from whitespace in Whitespace()
         from command in ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar)
@@ -162,7 +146,7 @@ public class RunInstruction : Instruction
             escapeChar)
             .Many().Flatten();
 
-    private static Parser<Command> GetCommandParser(char escapeChar) =>
+    private new static Parser<Command> GetCommandParser(char escapeChar) =>
         ExecFormCommand.GetParser(escapeChar)
             .Cast<ExecFormCommand, Command>()
             .Or(ShellFormCommand.GetParser(escapeChar));

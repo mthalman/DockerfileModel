@@ -8,23 +8,8 @@ public class KeepGitDirFlagTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(KeepGitDirFlagParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            KeepGitDirFlag result = KeepGitDirFlag.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => KeepGitDirFlag.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<KeepGitDirFlag> scenario) =>
+        TestHelper.RunParseTest(scenario, KeepGitDirFlag.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -37,9 +22,9 @@ public class KeepGitDirFlagTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        KeepGitDirFlagParseTestScenario[] testInputs = new KeepGitDirFlagParseTestScenario[]
+        ParseTestScenario<KeepGitDirFlag>[] testInputs = new ParseTestScenario<KeepGitDirFlag>[]
         {
-            new KeepGitDirFlagParseTestScenario
+            new ParseTestScenario<KeepGitDirFlag>
             {
                 Text = "--keep-git-dir",
                 TokenValidators = new Action<Token>[]
@@ -78,11 +63,6 @@ public class KeepGitDirFlagTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class KeepGitDirFlagParseTestScenario : ParseTestScenario<KeepGitDirFlag>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<KeepGitDirFlag>

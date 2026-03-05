@@ -8,23 +8,8 @@ public class EntrypointInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(EntrypointInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            EntrypointInstruction result = EntrypointInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => EntrypointInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<EntrypointInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, EntrypointInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -46,9 +31,9 @@ public class EntrypointInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        EntrypointInstructionParseTestScenario[] testInputs = new EntrypointInstructionParseTestScenario[]
+        ParseTestScenario<EntrypointInstruction>[] testInputs = new ParseTestScenario<EntrypointInstruction>[]
         {
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT echo hello",
                 TokenValidators = new Action<Token>[]
@@ -69,7 +54,7 @@ public class EntrypointInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT $TEST",
                 TokenValidators = new Action<Token>[]
@@ -80,7 +65,7 @@ public class EntrypointInstructionTests
                         token => ValidateLiteral(token, "$TEST"))
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT echo $TEST",
                 TokenValidators = new Action<Token>[]
@@ -91,7 +76,7 @@ public class EntrypointInstructionTests
                         token => ValidateLiteral(token, "echo $TEST"))
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT T\\$EST",
                 TokenValidators = new Action<Token>[]
@@ -102,7 +87,7 @@ public class EntrypointInstructionTests
                         token => ValidateLiteral(token, "T\\$EST"))
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT echo `\n#test comment\nhello",
                 EscapeChar = '`',
@@ -134,7 +119,7 @@ public class EntrypointInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
@@ -217,11 +202,6 @@ public class EntrypointInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class EntrypointInstructionParseTestScenario : ParseTestScenario<EntrypointInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<EntrypointInstruction>

@@ -147,6 +147,5 @@ public class LiteralTokenTests
 
 public class LiteralTokenParseTestScenario : ParseTestScenario<LiteralToken>
 {
-    public char EscapeChar { get; set; }
     public bool ParseVariableRefs { get; set; }
 }

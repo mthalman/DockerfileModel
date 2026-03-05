@@ -8,23 +8,8 @@ public class ShellFormCommandTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ShellFormCommandParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            ShellFormCommand result = ShellFormCommand.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => RunInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<ShellFormCommand> scenario) =>
+        TestHelper.RunParseTest(scenario, ShellFormCommand.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -63,9 +48,9 @@ public class ShellFormCommandTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ShellFormCommandParseTestScenario[] testInputs = new ShellFormCommandParseTestScenario[]
+        ParseTestScenario<ShellFormCommand>[] testInputs = new ParseTestScenario<ShellFormCommand>[]
         {
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "echo hello",
                 TokenValidators = new Action<Token>[]
@@ -79,7 +64,7 @@ public class ShellFormCommandTests
                     Assert.Equal("echo hello", result.Value);
                 }
             },
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "echo `\n#test comment\nhello",
                 EscapeChar = '`',
@@ -103,7 +88,7 @@ public class ShellFormCommandTests
                     Assert.Equal("echo hello", result.Value);
                 }
             },
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "echo`\n  `\n  hello",
                 EscapeChar = '`',
@@ -117,7 +102,7 @@ public class ShellFormCommandTests
                         token => ValidateString(token, "  hello")),
                 }
             },
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "ec`\nho `test",
                 EscapeChar = '`',
@@ -131,7 +116,7 @@ public class ShellFormCommandTests
                         token => ValidateString(token, "ho `test"))
                 }
             },
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "\"ec`\nh`\"o `test\"",
                 EscapeChar = '`',
@@ -165,11 +150,6 @@ public class ShellFormCommandTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class ShellFormCommandParseTestScenario : ParseTestScenario<ShellFormCommand>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<ShellFormCommand>

@@ -8,23 +8,8 @@ public class HealthCheckInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(HealthCheckInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            HealthCheckInstruction result = HealthCheckInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => HealthCheckInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<HealthCheckInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, HealthCheckInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -238,9 +223,9 @@ public class HealthCheckInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        HealthCheckInstructionParseTestScenario[] testInputs = new HealthCheckInstructionParseTestScenario[]
+        ParseTestScenario<HealthCheckInstruction>[] testInputs = new ParseTestScenario<HealthCheckInstruction>[]
         {
-            new HealthCheckInstructionParseTestScenario
+            new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK NONE",
                 TokenValidators = new Action<Token>[]
@@ -256,7 +241,7 @@ public class HealthCheckInstructionTests
                     Assert.Null(result.CmdInstruction);
                 }
             },
-            new HealthCheckInstructionParseTestScenario
+            new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK CMD /bin/check-running",
                 TokenValidators = new Action<Token>[]
@@ -277,7 +262,7 @@ public class HealthCheckInstructionTests
                     Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
                 }
             },
-            new HealthCheckInstructionParseTestScenario
+            new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK --start-period=10s CMD /bin/check-running",
                 TokenValidators = new Action<Token>[]
@@ -301,7 +286,7 @@ public class HealthCheckInstructionTests
                     Assert.Equal("10s", result.StartPeriod);
                 }
             },
-            new HealthCheckInstructionParseTestScenario
+            new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK --interval=1m --start-period=10s --retries=5 --timeout=1h CMD /bin/check-running",
                 TokenValidators = new Action<Token>[]
@@ -334,7 +319,7 @@ public class HealthCheckInstructionTests
                     Assert.Equal("1h", result.Timeout);
                 }
             },
-            new HealthCheckInstructionParseTestScenario
+            new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK `\n--start-period=10s `\nCMD /bin/check-running",
                 EscapeChar = '`',
@@ -445,11 +430,6 @@ public class HealthCheckInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class HealthCheckInstructionParseTestScenario : ParseTestScenario<HealthCheckInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<HealthCheckInstruction>

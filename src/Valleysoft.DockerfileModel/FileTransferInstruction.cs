@@ -123,17 +123,6 @@ public abstract class FileTransferInstruction : Instruction
 
         string flags = $"{optionalFlag}{changeOwnerFlagStr}{changeModeFlagStr}{trailingOptionalFlag}";
 
-        TokenBuilder builder = new();
-        builder
-            .Keyword(instructionName)
-            .Whitespace(" ");
-
-        if (changeOwner is not null)
-        {
-            builder.Tokens.Add(changeOwner);
-            builder.Whitespace(" ");
-        }
-
         bool useJsonForm = locations.Any(loc => loc.Contains(' '));
         if (useJsonForm)
         {

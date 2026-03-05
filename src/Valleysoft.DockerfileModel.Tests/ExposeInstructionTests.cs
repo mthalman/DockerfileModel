@@ -8,23 +8,8 @@ public class ExposeInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ExposeInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            ExposeInstruction result = ExposeInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => ExposeInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<ExposeInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, ExposeInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -114,9 +99,9 @@ public class ExposeInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ExposeInstructionParseTestScenario[] testInputs = new ExposeInstructionParseTestScenario[]
+        ParseTestScenario<ExposeInstruction>[] testInputs = new ParseTestScenario<ExposeInstruction>[]
         {
-            new ExposeInstructionParseTestScenario
+            new ParseTestScenario<ExposeInstruction>
             {
                 Text = "EXPOSE 80",
                 TokenValidators = new Action<Token>[]
@@ -132,7 +117,7 @@ public class ExposeInstructionTests
                     Assert.Equal("80", result.Port);
                 }
             },
-            new ExposeInstructionParseTestScenario
+            new ParseTestScenario<ExposeInstruction>
             {
                 Text = "EXPOSE 433/tcp",
                 TokenValidators = new Action<Token>[]
@@ -151,7 +136,7 @@ public class ExposeInstructionTests
                     Assert.Equal("tcp", result.Protocol);
                 }
             },
-            new ExposeInstructionParseTestScenario
+            new ParseTestScenario<ExposeInstruction>
             {
                 Text = "EXPOSE $TEST",
                 TokenValidators = new Action<Token>[]
@@ -163,7 +148,7 @@ public class ExposeInstructionTests
                             token => ValidateString(token, "TEST")))
                 }
             },
-            new ExposeInstructionParseTestScenario
+            new ParseTestScenario<ExposeInstruction>
             {
                 Text = "EXPOSE`\n 80`\n/`\ntcp",
                 EscapeChar = '`',
@@ -214,11 +199,6 @@ public class ExposeInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class ExposeInstructionParseTestScenario : ParseTestScenario<ExposeInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<ExposeInstruction>

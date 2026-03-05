@@ -8,23 +8,8 @@ public class ChecksumFlagTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ChecksumFlagParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            ChecksumFlag result = ChecksumFlag.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => ChecksumFlag.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<ChecksumFlag> scenario) =>
+        TestHelper.RunParseTest(scenario, ChecksumFlag.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -37,10 +22,10 @@ public class ChecksumFlagTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ChecksumFlagParseTestScenario[] testInputs = new ChecksumFlagParseTestScenario[]
+        ParseTestScenario<ChecksumFlag>[] testInputs = new ParseTestScenario<ChecksumFlag>[]
         {
             // sha256 hash
-            new ChecksumFlagParseTestScenario
+            new ParseTestScenario<ChecksumFlag>
             {
                 Text = "--checksum=sha256:abc123def456",
                 TokenValidators = new Action<Token>[]
@@ -58,7 +43,7 @@ public class ChecksumFlagTests
                 }
             },
             // sha384 hash
-            new ChecksumFlagParseTestScenario
+            new ParseTestScenario<ChecksumFlag>
             {
                 Text = "--checksum=sha384:deadbeef1234567890abcdef",
                 TokenValidators = new Action<Token>[]
@@ -76,7 +61,7 @@ public class ChecksumFlagTests
                 }
             },
             // sha512 hash
-            new ChecksumFlagParseTestScenario
+            new ParseTestScenario<ChecksumFlag>
             {
                 Text = "--checksum=sha512:0123456789abcdef",
                 TokenValidators = new Action<Token>[]
@@ -94,7 +79,7 @@ public class ChecksumFlagTests
                 }
             },
             // variable reference
-            new ChecksumFlagParseTestScenario
+            new ParseTestScenario<ChecksumFlag>
             {
                 Text = "--checksum=$CHECKSUM",
                 TokenValidators = new Action<Token>[]
@@ -179,11 +164,6 @@ public class ChecksumFlagTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class ChecksumFlagParseTestScenario : ParseTestScenario<ChecksumFlag>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<ChecksumFlag>

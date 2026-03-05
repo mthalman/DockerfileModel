@@ -8,23 +8,8 @@ public class NetworkFlagTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(NetworkFlagParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            NetworkFlag result = NetworkFlag.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => NetworkFlag.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<NetworkFlag> scenario) =>
+        TestHelper.RunParseTest(scenario, NetworkFlag.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -37,9 +22,9 @@ public class NetworkFlagTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        NetworkFlagParseTestScenario[] testInputs = new NetworkFlagParseTestScenario[]
+        ParseTestScenario<NetworkFlag>[] testInputs = new ParseTestScenario<NetworkFlag>[]
         {
-            new NetworkFlagParseTestScenario
+            new ParseTestScenario<NetworkFlag>
             {
                 Text = "--network=default",
                 TokenValidators = new Action<Token>[]
@@ -56,7 +41,7 @@ public class NetworkFlagTests
                     Assert.Equal("default", result.Value);
                 }
             },
-            new NetworkFlagParseTestScenario
+            new ParseTestScenario<NetworkFlag>
             {
                 Text = "--network=none",
                 TokenValidators = new Action<Token>[]
@@ -73,7 +58,7 @@ public class NetworkFlagTests
                     Assert.Equal("none", result.Value);
                 }
             },
-            new NetworkFlagParseTestScenario
+            new ParseTestScenario<NetworkFlag>
             {
                 Text = "--network=host",
                 TokenValidators = new Action<Token>[]
@@ -90,7 +75,7 @@ public class NetworkFlagTests
                     Assert.Equal("host", result.Value);
                 }
             },
-            new NetworkFlagParseTestScenario
+            new ParseTestScenario<NetworkFlag>
             {
                 Text = "--network=$NET",
                 TokenValidators = new Action<Token>[]
@@ -175,11 +160,6 @@ public class NetworkFlagTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class NetworkFlagParseTestScenario : ParseTestScenario<NetworkFlag>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<NetworkFlag>

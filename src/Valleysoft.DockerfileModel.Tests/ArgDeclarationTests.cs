@@ -7,23 +7,8 @@ public class ArgDeclarationTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ArgDeclarationParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            ArgDeclaration result = ArgDeclaration.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => ArgDeclaration.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<ArgDeclaration> scenario) =>
+        TestHelper.RunParseTest(scenario, ArgDeclaration.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -105,9 +90,9 @@ public class ArgDeclarationTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ArgDeclarationParseTestScenario[] testInputs = new ArgDeclarationParseTestScenario[]
+        ParseTestScenario<ArgDeclaration>[] testInputs = new ParseTestScenario<ArgDeclaration>[]
         {
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "MYARG",
                 TokenValidators = new Action<Token>[]
@@ -120,7 +105,7 @@ public class ArgDeclarationTests
                     Assert.Null(result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "MYARG=",
                 TokenValidators = new Action<Token>[]
@@ -134,7 +119,7 @@ public class ArgDeclarationTests
                     Assert.Equal("", result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "MYARG=\"\"",
                 TokenValidators = new Action<Token>[]
@@ -149,7 +134,7 @@ public class ArgDeclarationTests
                     Assert.Equal("", result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "myarg=1",
                 TokenValidators = new Action<Token>[]
@@ -164,7 +149,7 @@ public class ArgDeclarationTests
                     Assert.Equal("1", result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "myarg`\n=`\n1",
                 EscapeChar = '`',
@@ -182,7 +167,7 @@ public class ArgDeclarationTests
                     Assert.Equal("1", result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "MYARG=\"test\"",
                 EscapeChar = '`',
@@ -198,7 +183,7 @@ public class ArgDeclarationTests
                     Assert.Equal("test", result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "\"MY_ARG\"='value'",
                 EscapeChar = '`',
@@ -214,7 +199,7 @@ public class ArgDeclarationTests
                     Assert.Equal("value", result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "\"MY`\"_ARG\"='va`'lue'",
                 EscapeChar = '`',
@@ -230,7 +215,7 @@ public class ArgDeclarationTests
                     Assert.Equal("va`'lue", result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "MY_ARG=va`'lue",
                 EscapeChar = '`',
@@ -246,7 +231,7 @@ public class ArgDeclarationTests
                     Assert.Equal("va`'lue", result.Value);
                 }
             },
-            new ArgDeclarationParseTestScenario
+            new ParseTestScenario<ArgDeclaration>
             {
                 Text = "MY_ARG=\'\'",
                 TokenValidators = new Action<Token>[]
@@ -323,11 +308,6 @@ public class ArgDeclarationTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class ArgDeclarationParseTestScenario : ParseTestScenario<ArgDeclaration>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<ArgDeclaration>

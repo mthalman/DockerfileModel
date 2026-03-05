@@ -7,23 +7,8 @@ public class VariableRefTokenTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(VariableRefTokenParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            VariableRefToken result = VariableRefToken.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => VariableRefToken.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<VariableRefToken> scenario) =>
+        TestHelper.RunParseTest(scenario, VariableRefToken.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -144,9 +129,9 @@ public class VariableRefTokenTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        VariableRefTokenParseTestScenario[] testInputs = new VariableRefTokenParseTestScenario[]
+        ParseTestScenario<VariableRefToken>[] testInputs = new ParseTestScenario<VariableRefToken>[]
         {
-            new VariableRefTokenParseTestScenario
+            new ParseTestScenario<VariableRefToken>
             {
                 Text = "$foo",
                 TokenValidators = new Action<Token>[]
@@ -158,7 +143,7 @@ public class VariableRefTokenTests
                     Assert.Equal("foo", result.VariableName);
                 }
             },
-            new VariableRefTokenParseTestScenario
+            new ParseTestScenario<VariableRefToken>
             {
                 Text = "${foo}",
                 TokenValidators = new Action<Token>[]
@@ -172,7 +157,7 @@ public class VariableRefTokenTests
                     Assert.Equal("foo", result.VariableName);
                 }
             },
-            new VariableRefTokenParseTestScenario
+            new ParseTestScenario<VariableRefToken>
             {
                 Text = "${foo:-test}",
                 TokenValidators = new Action<Token>[]
@@ -433,11 +418,6 @@ public class VariableRefTokenTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class VariableRefTokenParseTestScenario : ParseTestScenario<VariableRefToken>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<VariableRefToken>

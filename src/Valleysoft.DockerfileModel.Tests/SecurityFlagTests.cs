@@ -8,23 +8,8 @@ public class SecurityFlagTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(SecurityFlagParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            SecurityFlag result = SecurityFlag.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => SecurityFlag.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<SecurityFlag> scenario) =>
+        TestHelper.RunParseTest(scenario, SecurityFlag.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -37,9 +22,9 @@ public class SecurityFlagTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        SecurityFlagParseTestScenario[] testInputs = new SecurityFlagParseTestScenario[]
+        ParseTestScenario<SecurityFlag>[] testInputs = new ParseTestScenario<SecurityFlag>[]
         {
-            new SecurityFlagParseTestScenario
+            new ParseTestScenario<SecurityFlag>
             {
                 Text = "--security=insecure",
                 TokenValidators = new Action<Token>[]
@@ -56,7 +41,7 @@ public class SecurityFlagTests
                     Assert.Equal("insecure", result.Value);
                 }
             },
-            new SecurityFlagParseTestScenario
+            new ParseTestScenario<SecurityFlag>
             {
                 Text = "--security=sandbox",
                 TokenValidators = new Action<Token>[]
@@ -73,7 +58,7 @@ public class SecurityFlagTests
                     Assert.Equal("sandbox", result.Value);
                 }
             },
-            new SecurityFlagParseTestScenario
+            new ParseTestScenario<SecurityFlag>
             {
                 Text = "--security=$SEC",
                 TokenValidators = new Action<Token>[]
@@ -140,11 +125,6 @@ public class SecurityFlagTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class SecurityFlagParseTestScenario : ParseTestScenario<SecurityFlag>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<SecurityFlag>

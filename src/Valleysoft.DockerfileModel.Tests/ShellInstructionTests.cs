@@ -8,23 +8,8 @@ public class ShellInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ShellInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            ShellInstruction result = ShellInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => ShellInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<ShellInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, ShellInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -38,9 +23,9 @@ public class ShellInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ShellInstructionParseTestScenario[] testInputs = new ShellInstructionParseTestScenario[]
+        ParseTestScenario<ShellInstruction>[] testInputs = new ParseTestScenario<ShellInstruction>[]
         {
-            new ShellInstructionParseTestScenario
+            new ParseTestScenario<ShellInstruction>
             {
                 Text = "SHELL [\"echo\", \"hello\"]",
                 TokenValidators = new Action<Token>[]
@@ -70,7 +55,7 @@ public class ShellInstructionTests
                         });
                 }
             },
-            new ShellInstructionParseTestScenario
+            new ParseTestScenario<ShellInstruction>
             {
                 Text = "SHELL [\"echo\"]",
                 TokenValidators = new Action<Token>[]
@@ -96,7 +81,7 @@ public class ShellInstructionTests
                         });
                 }
             },
-            new ShellInstructionParseTestScenario
+            new ParseTestScenario<ShellInstruction>
             {
                 Text = "SHELL `\n[\"echo\"]",
                 EscapeChar = '`',
@@ -173,11 +158,6 @@ public class ShellInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class ShellInstructionParseTestScenario : ParseTestScenario<ShellInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<ShellInstruction>

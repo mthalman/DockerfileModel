@@ -8,23 +8,8 @@ public class FromInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(FromInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            FromInstruction result = FromInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => FromInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<FromInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, FromInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -148,9 +133,9 @@ public class FromInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        FromInstructionParseTestScenario[] testInputs = new FromInstructionParseTestScenario[]
+        ParseTestScenario<FromInstruction>[] testInputs = new ParseTestScenario<FromInstruction>[]
         {
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM scratch",
                 TokenValidators = new Action<Token>[]
@@ -168,7 +153,7 @@ public class FromInstructionTests
                     Assert.Null(result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM `\nscratch",
                 EscapeChar = '`',
@@ -190,7 +175,7 @@ public class FromInstructionTests
                     Assert.Null(result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM alpine:latest as build",
                 TokenValidators = new Action<Token>[]
@@ -212,7 +197,7 @@ public class FromInstructionTests
                     Assert.Equal("build", result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM alpine`\n as build",
                 EscapeChar = '`',
@@ -236,7 +221,7 @@ public class FromInstructionTests
                     Assert.Equal("build", result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM `\nalpine:latest `\nas `\n#comment\nbuild",
                 EscapeChar = '`',
@@ -279,7 +264,7 @@ public class FromInstructionTests
                     Assert.Equal("build", result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM --platform=linux/amd64 alpine as build",
                 TokenValidators = new Action<Token>[]
@@ -308,7 +293,7 @@ public class FromInstructionTests
                     Assert.Equal("build", result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM --platform=linux/amd64 alpine",
                 TokenValidators = new Action<Token>[]
@@ -333,7 +318,7 @@ public class FromInstructionTests
                     Assert.Null(result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM `\n  --platform=linux/amd64`\n  alpine",
                 EscapeChar = '`',
@@ -366,7 +351,7 @@ public class FromInstructionTests
                     Assert.Null(result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM al\\\npine",
                 EscapeChar = '\\',
@@ -382,7 +367,7 @@ public class FromInstructionTests
                         token => ValidateString(token, "pine"))
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM alpine AS bui`\nld",
                 EscapeChar = '`',
@@ -400,7 +385,7 @@ public class FromInstructionTests
                         token => ValidateString(token, "ld"))
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM \"al\\\npine\"",
                 EscapeChar = '\\',
@@ -416,27 +401,27 @@ public class FromInstructionTests
                         token => ValidateString(token, "pine"))
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "xFROM ",
                 ParseExceptionPosition = new Position(1, 1, 1)
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM ",
                 ParseExceptionPosition = new Position(1, 1, 6)
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM x y",
                 ParseExceptionPosition = new Position(1, 1, 8)
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM platform= alpine",
                 ParseExceptionPosition = new Position(1, 1, 22)
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM alpine AS",
                 ParseExceptionPosition = new Position(1, 1, 13)
@@ -547,11 +532,6 @@ public class FromInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class FromInstructionParseTestScenario : ParseTestScenario<FromInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<FromInstruction>

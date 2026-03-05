@@ -15,27 +15,12 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
 
     [Theory]
     [MemberData(nameof(ParseTestInputBase))]
-    public void ParseBase(FileTransferInstructionParseTestScenario scenario) => RunParseTest(scenario);
+    public void ParseBase(ParseTestScenario<AddInstruction> scenario) => RunParseTest(scenario);
 
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(AddInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            AddInstruction result = AddInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => AddInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<AddInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, AddInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInputBase))]
@@ -268,10 +253,10 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        AddInstructionParseTestScenario[] testInputs = new AddInstructionParseTestScenario[]
+        ParseTestScenario<AddInstruction>[] testInputs = new ParseTestScenario<AddInstruction>[]
         {
             // --checksum alone
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --checksum=sha256:abc123 src dst",
                 TokenValidators = new Action<Token>[]
@@ -296,7 +281,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // --keep-git-dir alone
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --keep-git-dir src dst",
                 TokenValidators = new Action<Token>[]
@@ -321,7 +306,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // --link alone
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --link src dst",
                 TokenValidators = new Action<Token>[]
@@ -346,7 +331,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // --checksum and --keep-git-dir together
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --checksum=sha256:abc123 --keep-git-dir src dst",
                 TokenValidators = new Action<Token>[]
@@ -369,7 +354,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // --checksum and --link together
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --checksum=sha256:abc123 --link src dst",
                 TokenValidators = new Action<Token>[]
@@ -392,7 +377,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // --keep-git-dir and --link together
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --keep-git-dir --link src dst",
                 TokenValidators = new Action<Token>[]
@@ -415,7 +400,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // all three new flags together
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --checksum=sha256:abc123 --keep-git-dir --link src dst",
                 TokenValidators = new Action<Token>[]
@@ -440,7 +425,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // --checksum with --chown
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --checksum=sha256:abc123 --chown=user src dst",
                 TokenValidators = new Action<Token>[]
@@ -470,7 +455,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // --link with --chmod
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --link --chmod=755 src dst",
                 TokenValidators = new Action<Token>[]
@@ -499,7 +484,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // any-order: --link before --checksum
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --link --checksum=sha256:abc123 src dst",
                 TokenValidators = new Action<Token>[]
@@ -522,7 +507,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // any-order: --link before --keep-git-dir
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --link --keep-git-dir src dst",
                 TokenValidators = new Action<Token>[]
@@ -545,7 +530,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // variable checksum
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --checksum=$CHECKSUM src dst",
                 TokenValidators = new Action<Token>[]
@@ -573,7 +558,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // round-trip: --checksum with line continuation
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --checksum=sha256:abc123 `\n src dst",
                 EscapeChar = '`',
@@ -596,7 +581,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // round-trip: --keep-git-dir with line continuation
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --keep-git-dir `\n src dst",
                 EscapeChar = '`',
@@ -619,7 +604,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // round-trip: --link with line continuation
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --link `\n src dst",
                 EscapeChar = '`',
@@ -642,7 +627,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 }
             },
             // all three flags with --chown and --chmod
-            new AddInstructionParseTestScenario
+            new ParseTestScenario<AddInstruction>
             {
                 Text = "ADD --checksum=sha256:abc123 --keep-git-dir --chown=user --chmod=755 --link src dst",
                 TokenValidators = new Action<Token>[]
@@ -813,11 +798,6 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
             token => ValidateSymbol(token, '-'),
             token => ValidateSymbol(token, '-'),
             token => ValidateKeyword(token, "link"));
-    }
-
-    public class AddInstructionParseTestScenario : ParseTestScenario<AddInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class AddInstructionCreateTestScenario : TestScenario<AddInstruction>

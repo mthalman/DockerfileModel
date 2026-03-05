@@ -15,27 +15,12 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
 
     [Theory]
     [MemberData(nameof(ParseTestInputBase))]
-    public void ParseBase(FileTransferInstructionParseTestScenario scenario) => RunParseTest(scenario);
+    public void ParseBase(ParseTestScenario<CopyInstruction> scenario) => RunParseTest(scenario);
 
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(CopyInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            CopyInstruction result = CopyInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => CopyInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<CopyInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, CopyInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInputBase))]
@@ -159,9 +144,9 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        CopyInstructionParseTestScenario[] testInputs = new CopyInstructionParseTestScenario[]
+        ParseTestScenario<CopyInstruction>[] testInputs = new ParseTestScenario<CopyInstruction>[]
         {
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = $"COPY --from=stage src dst",
                 TokenValidators = new Action<Token>[]
@@ -184,7 +169,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                     Assert.False(result.Link);
                 }
             },
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = $"COPY --from=stage --chown=id src dst",
                 TokenValidators = new Action<Token>[]
@@ -217,7 +202,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 }
             },
             // --link flag alone
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = "COPY --link src dst",
                 TokenValidators = new Action<Token>[]
@@ -241,7 +226,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 }
             },
             // --link with --from
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = "COPY --from=stage --link src dst",
                 TokenValidators = new Action<Token>[]
@@ -267,7 +252,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 }
             },
             // --link before --from
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = "COPY --link --from=stage src dst",
                 TokenValidators = new Action<Token>[]
@@ -293,7 +278,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 }
             },
             // --link with --chown
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = "COPY --link --chown=user:group src dst",
                 TokenValidators = new Action<Token>[]
@@ -324,7 +309,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 }
             },
             // --link with --chmod
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = "COPY --link --chmod=755 src dst",
                 TokenValidators = new Action<Token>[]
@@ -351,7 +336,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 }
             },
             // --link with --from, --chown, and --chmod all together
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = "COPY --from=stage --link --chown=user --chmod=755 src dst",
                 TokenValidators = new Action<Token>[]
@@ -390,7 +375,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 }
             },
             // Round-trip: --link with line continuation and whitespace
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = "COPY --link `\n src dst",
                 EscapeChar = '`',
@@ -414,7 +399,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 }
             },
             // Multiple sources with --link
-            new CopyInstructionParseTestScenario
+            new ParseTestScenario<CopyInstruction>
             {
                 Text = "COPY --link src1 src2 dst",
                 TokenValidators = new Action<Token>[]
@@ -459,8 +444,4 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
             token => ValidateIdentifier<StageName>(token, value));
     }
 
-    public class CopyInstructionParseTestScenario : ParseTestScenario<CopyInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
 }
