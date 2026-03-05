@@ -213,3 +213,5 @@ Created `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.c
 - `lean/DockerfileModel/Proofs/TokenConcat.lean` — 8 formal theorems
 - `lean/DockerfileModel/Tests/SlimCheck.lean` — 7 executable property test suites
 - `.github/workflows/ci.yml` — Added lean CI job
+
+**Team update (2026-03-05T22:00:00Z)**: Dallas completed Phase 1 Lean 4 formal specification. Ripley reviewed and approved: all 8 theorems sound, token type mapping faithful to C# hierarchy, all 18 instruction types present with correct keywords, CI integration properly structured. Decision documents merged to .squad/decisions.md. Orchestration logs created. Ready to ship.

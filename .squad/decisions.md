@@ -625,6 +625,234 @@ These are not blockers. Ship now, address opportunistically:
 - `Generators/` subdirectory is a clean organizational choice
 - Build time impact: ~9.7 seconds total (previously ~570ms for 599 tests). The 50 property tests add ~9 seconds due to 200 samples each. Acceptable for CI.
 
+### 2026-03-05: Lean 4 Formal Verification Phase 1 — Token Model Specification
+**Author:** Dallas (Core Dev)
+**Date:** 2026-03-05
+**Branch:** formal-verification-lean
+
+#### Context
+Phase 0 (FsCheck property-based testing) is complete and merged. Phase 1 creates the Lean 4 formal specification project that models the C# token hierarchy and proves fundamental properties about token concatenation.
+
+#### Decisions
+
+**1. Single recursive `toString` instead of `getUnderlyingValue` + `toString`**
+
+The C# codebase uses two methods: `Token.GetUnderlyingValue()` (virtual, overridden in `VariableRefToken`) and `Token.ToString()` (sealed, adds quote wrapping). In the Lean model, these are combined into a single `Token.toString` function to avoid mutual recursion. The `variableRef` kind case handles the `$` prefix, and the `quoteInfo` match handles quote wrapping. This simplifies termination checking and proof structure.
+
+**2. Token modeled as two-constructor inductive with kind tags**
+
+Rather than a flat inductive with 13+ constructors (one per C# token subclass), we use:
+- `Token.primitive (kind : PrimitiveKind) (value : String)` — 4 primitive kinds
+- `Token.aggregate (kind : AggregateKind) (children : List Token) (quoteInfo : Option QuoteInfo)` — 9 aggregate kinds
+
+This mirrors the C# two-level hierarchy and allows proofs to be stated generically over all non-variableRef aggregate kinds.
+
+**3. Quote info as optional field rather than separate type**
+
+`Option QuoteInfo` on the `aggregate` constructor models the C# `IQuotableToken` interface. Only `literal` and `identifier` kinds would realistically have `some` quote info, but the type system doesn't enforce this — the proofs handle all cases uniformly.
+
+**4. Lean 4 v4.27.0 toolchain**
+
+Pinned to the stable v4.27.0 release (January 23, 2025). This is a well-tested release with good support for nested inductive types and structural recursion over `List Token` children.
+
+**5. Proof strategy: `unfold` + `rfl` for concrete kinds, `cases` + `simp_all` for general theorems**
+
+Specialized theorems for individual kinds (keyword, literal, etc.) can be proved by `unfold Token.toString; rfl` because the nested matches fully reduce. The general theorem parameterized over `kind ≠ .variableRef` uses `cases kind <;> simp_all` to discharge all 9 cases.
+
+**6. CI integration: independent `lean` job**
+
+The lean job runs independently from the .NET build job. It installs elan, then runs `lake build` in the `lean/` directory. This keeps lean proof checking decoupled from the .NET build and avoids adding lean as a dependency of the main build.
+
+#### Files Changed
+- `lean/` — entire new directory (7 Lean files + lakefile + toolchain)
+- `.github/workflows/ci.yml` — added `lean` job
+
+#### Result
+8 formal theorems proving token concatenation properties. 7 executable test suites covering primitive identity, aggregate concatenation, variableRef prefix, quote wrapping, Dockerfile concatenation, instruction name mapping, and recursive tree consistency.
+
+### 2026-03-05: Phase 1 Review Gate — Lean 4 Token Model Specification
+**Author:** Ripley (Lead)
+**Date:** 2026-03-05
+**Branch:** formal-verification-lean
+
+#### Verdict: APPROVE
+
+Phase 1 Lean 4 formal specification is correct and ready to ship. All 8 theorems are sound, all 18 instruction types are present, token type mapping is faithful to the C# hierarchy, and the CI job is properly structured.
+
+---
+
+#### 1. Token Type Mapping Correctness
+
+**PrimitiveKind (4 kinds) -- CORRECT:**
+- `string` -> `StringToken` -- matches
+- `whitespace` -> `WhitespaceToken` -- matches
+- `symbol` -> `SymbolToken` -- matches
+- `newLine` -> `NewLineToken` -- matches
+
+All 4 C# `PrimitiveToken` subclasses are represented.
+
+**AggregateKind (9 kinds) -- CORRECT:**
+- `keyword` -> `KeywordToken` -- matches
+- `literal` -> `LiteralToken` (IQuotableToken) -- matches
+- `identifier` -> `IdentifierToken` (IQuotableToken) -- matches
+- `variableRef` -> `VariableRefToken` -- matches
+- `comment` -> `CommentToken` -- matches
+- `lineContinuation` -> `LineContinuationToken` -- matches
+- `keyValue` -> `KeyValueToken<TKey, TValue>` -- matches
+- `instruction` -> `Instruction` (via `DockerfileConstruct`) -- matches
+- `construct` -> `DockerfileConstruct` -- matches
+
+The two-constructor inductive with kind tags is a sound modeling choice. It mirrors the C# two-level hierarchy (`PrimitiveToken` vs `AggregateToken`) and avoids a flat 13+ constructor type that would complicate proofs.
+
+**Modeling decision noted:** The Lean model does not represent every concrete C# AggregateToken subclass (e.g., flag types like `BooleanFlag`, `KeywordLiteralFlag`; domain types like `StageName`, `UserAccount`, `ImageName`, `Mount`). These are all structurally `AggregateToken` instances whose `toString` behavior follows the base concatenation rule. For Phase 1's scope (proving toString concatenation properties), this level of abstraction is correct. All those subclasses inherit `AggregateToken.GetUnderlyingValue` without overriding it.
+
+**QuoteInfo modeling -- CORRECT:** `Option QuoteInfo` on the aggregate constructor models the C# `IQuotableToken` interface. In C#, `QuoteChar` is `char?`; when null, the string interpolation in `Token.ToString` produces just the underlying value (wrapping is invisible). The Lean `none` case correctly produces no wrapping. The model allows any aggregate kind to carry quote info, which is broader than C# (where only LiteralToken and IdentifierToken implement IQuotableToken), but the proofs handle all cases uniformly. Acceptable for Phase 1.
+
+#### 2. Special Behavior Modeling
+
+**VariableRefToken `$` prefix -- CORRECT:**
+
+C# override in `VariableRefToken.GetUnderlyingValue`:
+```csharp
+return $"${base.GetUnderlyingValue(options)}";
+```
+
+Lean model:
+```lean
+let underlying := match kind with
+  | .variableRef => "$" ++ childConcat
+  | _ => childConcat
+```
+
+The `$` is prepended before the child concatenation, exactly matching the C# behavior. The `mkVariableRef` helper correctly notes that children do NOT include the `$`.
+
+**IQuotableToken quote wrapping -- CORRECT:**
+
+C# `Token.ToString`:
+```csharp
+if (!options.ExcludeQuotes && this is IQuotableToken quotableToken) {
+    return $"{quotableToken.QuoteChar}{value}{quotableToken.QuoteChar}";
+}
+```
+
+Lean model:
+```lean
+match quoteInfo with
+| some qi => String.singleton qi.quoteChar ++ underlying ++ String.singleton qi.quoteChar
+| none => underlying
+```
+
+Quote wrapping occurs after the underlying value (including `$` prefix for variableRef) is computed, matching the C# call order where `GetUnderlyingValue` runs first, then `ToString` wraps.
+
+**Combined `toString` function -- CORRECT:**
+
+Dallas's decision to combine `GetUnderlyingValue` and `ToString` into a single recursive `Token.toString` is the right call. It avoids mutual recursion, simplifies termination checking, and produces cleaner proofs. The function correctly handles all four cases:
+1. Primitive: return value
+2. Non-variableRef aggregate without quotes: concat children
+3. VariableRefToken without quotes: `$` + concat children
+4. Any aggregate with quotes: wrap (underlying) in quote chars
+
+#### 3. Instruction Coverage -- CORRECT
+
+All 18 instruction types present with correct keyword mappings:
+
+| Lean Variant | C# Class | Keyword |
+|---|---|---|
+| from | FromInstruction | FROM |
+| run | RunInstruction | RUN |
+| cmd | CmdInstruction | CMD |
+| entrypoint | EntrypointInstruction | ENTRYPOINT |
+| copy | CopyInstruction | COPY |
+| add | AddInstruction | ADD |
+| env | EnvInstruction | ENV |
+| arg | ArgInstruction | ARG |
+| expose | ExposeInstruction | EXPOSE |
+| volume | VolumeInstruction | VOLUME |
+| user | UserInstruction | USER |
+| workdir | WorkdirInstruction | WORKDIR |
+| label | LabelInstruction | LABEL |
+| stopSignal | StopSignalInstruction | STOPSIGNAL |
+| healthCheck | HealthCheckInstruction | HEALTHCHECK |
+| shell | ShellInstruction | SHELL |
+| maintainer | MaintainerInstruction | MAINTAINER |
+| onBuild | OnBuildInstruction | ONBUILD |
+
+The `all_length` theorem (`all.length = 18`) proved by `native_decide` is a nice completeness check.
+
+#### 4. Proof Soundness -- CORRECT
+
+All 8 formal theorems (plus 2 auxiliary) are correctly stated and proved:
+
+1. **`token_toString_aggregate`** -- General theorem for non-variableRef aggregates without quotes. Proved by `unfold; cases kind <;> simp_all`. Sound: exhausts all 9 AggregateKind cases, hypothesis `hkind` eliminates `variableRef`.
+
+2. **`token_toString_keyword`**, **`token_toString_literal`**, **`token_toString_comment`**, **`token_toString_instruction_kind`** -- Specialized versions for specific kinds. All proved by `unfold; rfl`. Sound: these are definitional equalities that reduce directly.
+
+3. **`token_toString_variableRef`** -- VariableRef prepends `$`. Proved by `unfold; rfl`. Sound.
+
+4. **`token_toString_quoted`** -- Quote wrapping for non-variableRef. Proved by `unfold; cases kind <;> simp_all`. Sound.
+
+5. **`token_toString_primitive`** -- Primitive returns value. Proved by `unfold; rfl`. Sound.
+
+6. **`dockerfile_toString_concat`** -- Dockerfile toString = concat of constructs. Proved by `unfold; rfl`. Sound.
+
+7. **`token_toString_variableRef_quoted`** -- VariableRef with quotes wraps the `$`-prefixed value. Proved by `unfold; rfl`. Sound.
+
+**Key verification:** The proofs match the actual property we want to prove -- that `AggregateToken.ToString()` equals the concatenation of children's `ToString()` results, with the two documented exceptions (VariableRefToken prefix and IQuotableToken wrapping). This is the fundamental structural invariant of the C# token hierarchy.
+
+#### 5. SlimCheck Tests -- ACCEPTABLE WITH NOTE
+
+The file contains 7 test suites with concrete examples covering:
+1. Primitive token identity (6 cases)
+2. Aggregate concat (6 cases)
+3. VariableRef `$` prefix (4 cases including modifier forms)
+4. Quote wrapping (4 cases)
+5. Dockerfile concatenation (3 cases)
+6. Instruction name mapping (18 cases)
+7. Recursive token tree consistency (2 complex cases)
+
+**NOTE:** Despite the filename `SlimCheck.lean`, these tests do NOT use Lean's SlimCheck library for property-based testing. They are deterministic IO-based tests with handcrafted examples. The file header correctly explains this design choice (recursive Token type makes SlimCheck derivation complex). This is honest and pragmatic.
+
+**IMPORTANT:** These tests will NOT execute during `lake build`. The lakefile defines only a `lean_lib` target, not a `lean_exe`. The `main` function in `SlimCheck.lean` is type-checked but never called. The tests serve as type-level specifications (confirming the function calls are well-formed) but do not verify runtime behavior in CI.
+
+This is acceptable because:
+- The formal proofs in `Proofs/TokenConcat.lean` ARE checked during `lake build` -- Lean verifies all theorem statements during elaboration
+- The tests are supplementary examples, not the primary verification mechanism
+- The proofs already cover the properties these tests exercise
+
+**Future improvement:** Add a `lean_exe` target for the test runner and a CI step to execute it. This would provide runtime verification of the concrete examples in addition to the formal proofs.
+
+#### 6. CI Integration -- CORRECT
+
+The `lean` job is properly structured:
+- Runs on `ubuntu-latest` -- correct for Lean 4
+- Installs elan via the official `elan-init.sh` script -- standard method
+- Adds `~/.elan/bin` to `$GITHUB_PATH` -- correct for subsequent steps
+- Runs `~/.elan/bin/lake build` with `working-directory: lean` -- correct, uses full path as belt-and-suspenders
+- Independent from the `build` job -- correct, no unnecessary coupling
+- The `defaults.run.working-directory: src` applies to the Install elan step, but the `curl` and `echo` commands are directory-independent, so this is harmless
+
+**Minor note:** The elan install URL is not pinned to a specific commit hash (unlike `actions/checkout` which pins `de0fac2e...`). This is standard practice for elan installations but could be pinned for reproducibility.
+
+#### 7. Lean 4 Idioms -- CORRECT
+
+- **Toolchain:** v4.27.0 (January 2026) -- stable release, good choice
+- **`autoImplicit := false`** -- good practice for formal verification, prevents implicit variable introduction
+- **Inductive type design:** Two-constructor with kind tags is idiomatic Lean 4. `deriving Repr, BEq, Inhabited` is appropriate. `DecidableEq` on `AggregateKind` enables the `cases kind <;> simp_all` proof strategy.
+- **Recursive `toString`:** Structural recursion over `List Token` children via `List.map`. Lean 4 handles nested inductive types well for this pattern.
+- **Proof tactics:** `unfold + rfl` for definitional equalities and `cases + simp_all` for case-split reasoning -- both are standard Lean 4 proof patterns.
+- **Namespace organization:** `DockerfileModel` namespace with `Token`, `Instruction`, `Dockerfile` sub-namespaces -- clean and idiomatic.
+- **Structure definitions:** `Instruction`, `DockerfileConstruct`, `Dockerfile`, `QuoteInfo` as structures with fields -- appropriate use of Lean 4 structures.
+
+#### Summary
+
+The implementation is correct and faithful to the C# token hierarchy. The formal proofs are sound and cover the key structural invariant (toString = concat children, modulo VariableRefToken and IQuotableToken). The CI integration is properly structured.
+
+**Items for future phases (not blockers):**
+1. Add `lean_exe` target + CI step to execute the test runner
+2. Consider adding proofs about instruction-level structure (keyword + whitespace + args)
+3. Consider proving properties about ConstructType discrimination
+4. Pin elan install URL to a specific commit hash for reproducibility
+
 ## Governance
 
 - All meaningful changes require team consensus
