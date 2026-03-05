@@ -8,4 +8,3 @@ package «DockerfileModel» where
 
 @[default_target]
 lean_lib «DockerfileModel» where
-  srcDir := "DockerfileModel"
