@@ -560,10 +560,8 @@ public static class DockerfileArbitraries
 
     /// <summary>
     /// Generates a single instruction valid after FROM (not FROM itself, no ONBUILD recursion).
-    /// Only includes instructions whose Sprache parser consumes the trailing \n
-    /// (i.e., those using ArgTokens with the default excludeTrailingWhitespace=false).
-    /// Excluded: STOPSIGNAL, MAINTAINER, SHELL (they use excludeTrailingWhitespace=true
-    /// and silently drop the trailing \n during Dockerfile-level parsing).
+    /// Includes all instruction types whose Sprache parser preserves trailing \n
+    /// during Dockerfile-level parsing.
     /// </summary>
     private static Gen<string> BodyInstruction() =>
         Gen.OneOf(
@@ -578,7 +576,10 @@ public static class DockerfileArbitraries
             LabelInstruction(),
             UserInstruction(),
             VolumeInstruction(),
-            WorkdirInstruction());
+            WorkdirInstruction(),
+            StopSignalInstruction(),
+            MaintainerInstruction(),
+            ShellInstruction());
 
     // ──────────────────────────────────────────────
     // Public generators for property tests (P0-5, P0-6, P0-7)

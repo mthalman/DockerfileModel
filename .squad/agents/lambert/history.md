@@ -194,3 +194,18 @@ Team update (2026-03-05T17:45:00Z): Dallas completed FsCheck Phase 0 infrastruct
 **Files modified:**
 - `src/Valleysoft.DockerfileModel.Tests/PropertyTests.cs` — added 28 new tests across 4 categories
 - `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` — added 3 new public generators
+
+### 2026-03-05 — FsCheck Generator Update for Issue #176 Fix
+
+**What was updated:** Updated `DockerfileArbitraries.cs` to include `StopSignalInstruction()`, `MaintainerInstruction()`, and `ShellInstruction()` in the `BodyInstruction()` generator's `Gen.OneOf(...)` list. These three instruction types were previously excluded because their Sprache parsers used `excludeTrailingWhitespace: true`, which caused trailing `\n` loss during Dockerfile-level parsing. Dallas is fixing the parsers (issue #176) so these instructions will correctly preserve trailing newlines, making them safe to include in the Dockerfile body generator.
+
+**Changes made:**
+1. Added `StopSignalInstruction()`, `MaintainerInstruction()`, and `ShellInstruction()` to the `Gen.OneOf(...)` list in `BodyInstruction()` (lines 580-582).
+2. Updated the XML doc comment on `BodyInstruction()` to remove the exclusion note — the comment now simply states it includes all instruction types whose parsers preserve trailing `\n`.
+
+**Test results:** All 649 tests pass (0 failures, 0 skipped). Dallas's parser fix was apparently already applied on this branch, so the round-trip property tests (which exercise the `BodyInstruction()` generator via `DockerfileBody()` and `ValidDockerfile()`) pass with STOPSIGNAL, MAINTAINER, and SHELL included.
+
+**Build note:** FsCheck 3.1.0 NuGet packages required a `dotnet restore --force` and clearing the stale `obj/Debug` cache to resolve correctly. The `--no-restore` flag would fail without this.
+
+**Files modified:**
+- `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` — added 3 instructions to BodyInstruction() generator, updated XML doc comment

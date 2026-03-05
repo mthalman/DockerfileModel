@@ -38,5 +38,5 @@ public class ShellInstruction : CommandInstruction
             GetArgsParser(escapeChar));
 
     private new static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        ArgTokens(ExecFormCommand.GetParser(escapeChar).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true);
+        ArgTokens(ExecFormCommand.GetParser(escapeChar).AsEnumerable(), escapeChar);
 }
