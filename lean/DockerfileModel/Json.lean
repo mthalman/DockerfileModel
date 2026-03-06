@@ -35,6 +35,7 @@ def AggregateKind.toJsonName : AggregateKind → String
   | .keyValue         => "keyValue"
   | .instruction      => "instruction"
   | .construct        => "construct"
+  | .heredoc          => "heredoc"
 
 namespace Json
 

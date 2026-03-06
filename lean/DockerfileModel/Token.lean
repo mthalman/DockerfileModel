@@ -46,6 +46,7 @@ inductive AggregateKind where
   | keyValue         -- KeyValueToken: key=value pairs (possibly with -- flag prefix)
   | instruction      -- InstructionToken: a full instruction (keyword + args)
   | construct        -- DockerfileConstruct: top-level construct wrapper
+  | heredoc          -- heredoc content blocks
   deriving Repr, BEq, Inhabited, DecidableEq
 
 /-- Quote information for tokens implementing IQuotableToken.
@@ -160,6 +161,10 @@ def mkInstruction (children : List Token) : Token :=
 /-- Helper: create a DockerfileConstruct token. -/
 def mkConstruct (children : List Token) : Token :=
   .aggregate .construct children none
+
+/-- Helper: create a Heredoc token. -/
+def mkHeredoc (children : List Token) : Token :=
+  .aggregate .heredoc children none
 
 /-- Extract the children of an aggregate token, or empty list for primitives. -/
 def children : Token → List Token
