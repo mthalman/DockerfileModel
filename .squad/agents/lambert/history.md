@@ -274,3 +274,4 @@ Team update (2026-03-05T23:43:03Z): Dallas completed Phase 4 formal verification
 - `lean/DockerfileModel/Proofs/VariableResolution.lean` — All 5 modifier proofs (dash_setEmpty, dash_useEmpty, colon_setEmpty, colon_useEmpty, plain)
 
 Key design decisions: VarMap as association list (List (String × String)) for proof-friendliness, Except String String return type for error modeling, extracted processEscapes for termination clarity. All modifier proofs complete (no sorry), 1 documented sorry in resolve_token_toString_unchanged per spec. Lean build passes (18 jobs). .NET baseline verified green (649 tests).
+Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new theorems in Capstone.lean, token_concat_length fixed in RoundTrip.lean, proof coverage documented. Total: 55 proved, 4 documented sorries. Build: 19 jobs, 0 errors. — decided by Dallas

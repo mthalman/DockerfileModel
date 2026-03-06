@@ -1085,3 +1085,89 @@ Implemented the formal Lean 4 model and proofs for Dockerfile variable resolutio
 ## Build Verification
 
 `cd lean && lake build` passes with 0 errors. 1 intentional `sorry`.
+# Decision: Lean 4 Phase 5 Capstone Proof Architecture
+
+**Author:** Dallas (Core Dev)
+**Date:** 2026-03-05
+**Phase:** Phase 5 — Full Round-Trip + Mutation Isolation Proofs
+
+---
+
+## Context
+
+Phase 5 is the formal verification capstone. Three major proof deliverables:
+1. Full round-trip compositional theorem
+2. Mutation isolation theorem
+3. Proof coverage documentation
+
+---
+
+## Decision 1: Compositional Round-Trip Structure (not per-parser)
+
+**What:** The capstone round-trip theorem is proved at the compositional level — IF each construct round-trips its segment, THEN the full Dockerfile round-trips. Per-parser correctness remains sorry'd.
+
+**Why:** Per-parser correctness (that every consumed character ends up in exactly one token) is a deep metatheoretic result about the parser monad. It requires establishing position-tracking invariants for every combinator in `Parser/Basic.lean` and `Parser/DockerfileParsers.lean`. This is a substantial proof effort (likely 200+ lemmas) that is out of scope for Phase 5. The standard approach in verified compiler/parser work is exactly this: prove the compositional structure completely, name the per-combinator obligations, and leave them as the remaining proof debt.
+
+**Effect:** The `dockerfile_roundTrip_compositional` theorem in `Capstone.lean` is fully machine-checked. The `fromInstruction_roundTrip`, `argInstruction_roundTrip`, and `roundTrip` theorems in `RoundTrip.lean` remain sorry'd as named obligations.
+
+---
+
+## Decision 2: `ConstructRoundTrip` as a named predicate
+
+**What:** The per-construct obligation is defined as `def ConstructRoundTrip (c : DockerfileConstruct) (seg : String) : Prop := DockerfileConstruct.toString c = seg` rather than inlined.
+
+**Why:** Naming the obligation makes the compositional theorem's `h_each` hypothesis readable, creates a stable name for future proof work to discharge, and documents the obligation's role. It's the standard "contract" pattern for modular proof construction.
+
+---
+
+## Decision 3: No import of Capstone from RoundTrip (no circular imports)
+
+**What:** `Capstone.lean` imports `TokenConcat` but NOT `RoundTrip`. The `token_concat_length` fix is added directly to `RoundTrip.lean` with private helper lemmas. `DockerfileModel.lean` imports both.
+
+**Why:** Circular imports are not allowed in Lean 4. Capstone needs TokenConcat for `dockerfile_toString_concat`. RoundTrip owns its own `token_concat_length` — the fix lives in the file that declares the theorem.
+
+**Import graph:**
+```
+DockerfileModel.lean
+├── Proofs.TokenConcat
+├── Proofs.RoundTrip (imports TokenConcat, Parser.*)
+├── Proofs.VariableResolution
+└── Proofs.Capstone (imports TokenConcat only)
+```
+
+---
+
+## Decision 4: `List.getElem_set_ne` for mutation isolation (no Mathlib)
+
+**What:** Mutation isolation is proved in one line via `List.getElem_set_ne`, which is in Lean 4.27.0's stdlib.
+
+**Why:** No Mathlib dependency needed. The lake-manifest.json has no packages — this project is pure Lean 4 stdlib. `List.getElem_set_ne` has the exact signature needed:
+```
+∀ {α} {l : List α} {i j : Nat}, i ≠ j → ∀ {a} (hj : j < (l.set i a).length), (l.set i a)[j] = l[j]
+```
+
+---
+
+## Decision 5: `String.join` length proof via generalized induction
+
+**What:** To prove `token_concat_length` (length of join = foldl-sum of lengths), the approach is:
+1. `private theorem foldl_add_shift`: `foldl (k + acc) ns = k + foldl acc ns`
+2. `private theorem string_join_length_eq_foldl`: generalize over initial `acc`, induct, use `foldl_add_shift` + `omega`
+
+**Why:** `String.join` is defined as `List.foldl (· ++ ·) ""`. A direct induction fails because the cons case produces `foldl (· ++ ·) (acc ++ s) rest`, and after `ih (acc ++ s)` the goal has `foldl (·+·) (0 + s.length) rest_lengths` on the RHS — the `0 + s.length` comes from the empty string's length. `foldl_add_shift` extracts the `s.length` from that accumulator position, letting `omega` close the goal.
+
+**Key lemma order:** `foldl_add_shift` (arithmetic) → `string_join_length_eq_foldl` (string-to-length bridge) → `token_concat_length` (token-specific application).
+
+---
+
+## Proof Count Summary
+
+| Category | Proved (✅) | Sorry (⚠️) |
+|----------|-----------|----------|
+| Phase 1 TokenConcat | 10 | 0 |
+| Phase 2 RoundTrip | 4 (+1 fixed in P5) | 3 |
+| Phase 4 VarResolution | 29 | 1 |
+| Phase 5 Capstone | 12 | 0 |
+| **Total** | **55** | **4** |
+
+Build: `lake build` — 19 jobs, 0 errors. All 4 sorries are documented obligations.
