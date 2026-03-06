@@ -374,3 +374,193 @@ Team update (2026-03-05T20:00:00Z): Phase 2 Lean 4 parser combinator library ful
 - `lean/DockerfileModel.lean` (modified — Capstone import added)
 - `lean/PROOF_STATUS.md` (new)
 Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new theorems in Capstone.lean, token_concat_length fixed in RoundTrip.lean, proof coverage documented. Total: 55 proved, 4 documented sorries. Build: 19 jobs, 0 errors. — decided by Dallas
+
+### 2026-03-05 — Fix Stage Name Validation (Phase A)
+
+**What changed:** Fixed `stageNameParser` in `DockerfileParsers.lean` to enforce BuildKit's `^[a-z][a-z0-9-_.]*$` regex for stage names. The parser previously used `c.isAlpha` which accepts both uppercase and lowercase letters.
+
+**Fix:** Changed the first character predicate from `c.isAlpha` to `c.isLower`, and the tail character predicate from `c.isAlpha || c.isDigit || ...` to `c.isLower || c.isDigit || ...`. Two-line change in the predicate lambdas.
+
+**Behavioral impact:** When an uppercase stage name like `Builder` appears after `AS`, the `stageNameParser` now fails to match it. Because `fromStageNameParser` is wrapped in `Parser.optional`, this means the FROM instruction parses successfully but without the AS clause — the `AS Builder` portion is treated as unparsed trailing text. This matches correct behavior: BuildKit stage names are strictly lowercase.
+
+**Test approach:** Added 5 parser-based tests that call `parseFrom` directly (not just token tree construction):
+- `testStageNameLowercaseSucceeds` — `FROM ubuntu AS builder` parses with stage name
+- `testStageNameUppercaseRejected` — `FROM ubuntu AS Builder` parses as `FROM ubuntu` (no stage name)
+- `testStageNameWithSpecialChars` — `FROM ubuntu AS build-stage.v2_final` succeeds
+- `testStageNameLetterDigit` — `FROM ubuntu AS a1` succeeds
+- `testStageNameDigitStartRejected` — `FROM ubuntu AS 1builder` parses as `FROM ubuntu` (no stage name)
+
+**Key files modified:**
+- `lean/DockerfileModel/Parser/DockerfileParsers.lean` (line 578-582 — stageNameParser predicates)
+- `lean/DockerfileModel/Tests/ParserTests.lean` (added import + 5 new test functions + test runner wiring)
+
+**Build status:** `lake build` succeeds: 19 jobs, 0 errors. All existing tests + 5 new tests pass.
+
+### 2026-03-05 — Phase B: Shared Parser Infrastructure
+
+**What was built:** Reusable parser components that multiple instruction parsers will need: exec form (JSON array), generic flag parsers, shell form command, and heredoc token support.
+
+**Architecture decisions:**
+
+1. **`flagParser` defined in DockerfileParsers.lean (not Flags.lean):** The generic `flagParser` depends on `keywordParser` and `literalWithVariables` which live in DockerfileParsers.lean. Flags.lean imports DockerfileParsers.lean, so defining `flagParser` in Flags.lean would create a circular import if DockerfileParsers.lean tried to use it. Solution: define `flagParser` in DockerfileParsers.lean alongside its dependencies. `platformFlagParser` now delegates to `flagParser "platform"`. Flags.lean adds `booleanFlagParser` and re-exports `flagParser` via the open namespace.
+
+2. **Exec form uses raw escape text for round-trip fidelity:** JSON escapes like `\n`, `\t`, `\uXXXX` inside double-quoted strings are preserved as-is (e.g., the string `"\\n"` stays as `"\\n"`, not converted to an actual newline). This ensures the parser output round-trips character-for-character.
+
+3. **`open Parser` needed in new files:** Files under `namespace DockerfileModel.Parser.ExecForm` and `DockerfileModel.Parser.Flags` need `open Parser` (in addition to `open DockerfileModel.Parser`) to bring the inner `DockerfileModel.Parser.Parser` namespace into scope. Without this, combinators like `char`, `many`, `satisfy`, `or'` are not found.
+
+4. **`heredoc` added as 10th AggregateKind constructor:** Added to Token.lean's `AggregateKind` inductive type plus `mkHeredoc` helper and Json.lean's `toJsonName`. All existing proofs using `cases kind <;> simp_all` handle the new constructor automatically.
+
+5. **`shellFormCommand` uses `allowed` whitespace mode for inner literal parsing:** The shell form captures everything to end-of-line including spaces. It composes `valueOrVariableRef` with literal parsing (whitespace-allowed mode), whitespace tokens, and line continuation support, producing a single `LiteralToken` containing the entire command text.
+
+6. **`booleanFlagParser` handles three forms:** `--name` (no value, 3 children), `--name=true` (5 children), `--name=false` (5 children). The value parsing uses `keywordParser` for case-insensitive "true"/"false" matching.
+
+**Files created:**
+- `lean/DockerfileModel/Parser/ExecForm.lean` — JSON array parser for exec form (~140 lines)
+- `lean/DockerfileModel/Parser/Flags.lean` — Boolean flag parser + re-export of generic flagParser (~90 lines)
+
+**Files modified:**
+- `lean/DockerfileModel/Token.lean` — Added `heredoc` to AggregateKind + `mkHeredoc` helper
+- `lean/DockerfileModel/Json.lean` — Added `heredoc` case to `AggregateKind.toJsonName`
+- `lean/DockerfileModel/Parser/DockerfileParsers.lean` — Added generic `flagParser`, refactored `platformFlagParser` to delegate, added `shellFormCommand`
+- `lean/DockerfileModel.lean` — Added imports for ExecForm and Flags
+- `lean/DockerfileModel/Tests/ParserTests.lean` — Added 17 new tests (7 exec form, 6 flags, 4 shell form)
+
+**Test results:** All tests pass. Build: 21 jobs, 0 errors. New test breakdown:
+- ExecForm: simple array, empty array, whitespace, line continuations, single element, JSON escapes, three elements
+- Flags: --platform=value, --from=value, --link (boolean), --link=true, --link=false, --chown=value
+- ShellForm: basic command, variable refs, line continuation, braced variable refs
+
+### 2026-03-05 — Phase C: 10 Simple Instruction Parsers
+
+**What was built:** Complete parsers for 10 instruction types following the established FROM/ARG pattern, plus 54 new tests and an expanded dispatch table.
+
+**Architecture decisions:**
+
+1. **`open Parser` required for combinator access:** Files that use inner parser combinators (`or'`, `many`, `satisfy`, `char`) must have `open Parser` in addition to `open DockerfileModel.Parser`. The outer namespace (`DockerfileModel.Parser`) has the Dockerfile-specific combinators (`instructionParser`, `argTokens`, `literalWithVariables`), while the inner namespace (`DockerfileModel.Parser.Parser`) has the core combinators. From.lean and Arg.lean avoided this by accessing inner combinators with explicit `Parser.` prefix (e.g., `Parser.optional`, `Parser.pure`), but files using `or'` and `many` directly need the `open`.
+
+2. **Test runner split into sub-functions:** The `runParserTests` `do` block hit Lean 4's `maxRecDepth` limit when it grew beyond ~140 statements. Split into 4 sub-functions: `runParserTests_FromArg`, `runParserTests_Infrastructure`, `runParserTests_PhaseC_Group1`, `runParserTests_PhaseC_Group2`. The top-level `runParserTests` calls all four.
+
+3. **ENV dual-format via `or'`:** ENV modern format (`KEY=VALUE`) is tried first, then legacy format (`KEY VALUE`) as fallback. The modern parser looks for `=` in the key-value pair structure. Both produce `KeyValueToken` children but with different internal structure (modern has `SymbolToken('=')`, legacy has `WhitespaceToken` between key and value).
+
+4. **LABEL key parser allows dots and hyphens:** `labelKeyParser` uses `identifierString` with a broader predicate set (includes `.` and `-`) compared to `envKeyParser` (standard identifier chars only). This supports common label conventions like `com.example.version` and `maintainer-name`.
+
+5. **USER optional group via `Parser.optional`:** The `:group` part is parsed as an optional extension. When present, the result is wrapped as a `KeyValueToken` containing `[LiteralToken(username), SymbolToken(':'), LiteralToken(group)]`. When absent, just the `LiteralToken(username)` is returned directly.
+
+6. **EXPOSE port/protocol pattern:** Each port spec is either a plain `LiteralToken` (port only) or a `KeyValueToken` containing `[LiteralToken(port), SymbolToken('/'), LiteralToken(protocol)]`. Multiple port specs are parsed as consecutive `argTokens` calls.
+
+7. **VOLUME and CMD/ENTRYPOINT share the exec-form-or-fallback pattern:** All three use `or'` to try `jsonArrayParser` first, then a fallback parser. CMD/ENTRYPOINT fall back to `shellFormCommand`, VOLUME falls back to space-separated literal paths.
+
+8. **SHELL is exec-form only:** Unlike CMD/ENTRYPOINT, SHELL uses `jsonArrayParser` without any fallback. Non-JSON input will fail to parse.
+
+9. **`dispatchParse` helper in Main.lean:** Extracted the repeated match/print/error pattern into a single function to reduce duplication across 12 instruction dispatch cases.
+
+**Files created (10 parser files):**
+- `lean/DockerfileModel/Parser/Instructions/Maintainer.lean`
+- `lean/DockerfileModel/Parser/Instructions/Workdir.lean`
+- `lean/DockerfileModel/Parser/Instructions/Stopsignal.lean`
+- `lean/DockerfileModel/Parser/Instructions/Cmd.lean`
+- `lean/DockerfileModel/Parser/Instructions/Entrypoint.lean`
+- `lean/DockerfileModel/Parser/Instructions/Shell.lean`
+- `lean/DockerfileModel/Parser/Instructions/User.lean`
+- `lean/DockerfileModel/Parser/Instructions/Expose.lean`
+- `lean/DockerfileModel/Parser/Instructions/Volume.lean`
+- `lean/DockerfileModel/Parser/Instructions/Env.lean`
+- `lean/DockerfileModel/Parser/Instructions/Label.lean`
+
+**Files modified:**
+- `lean/DockerfileModel.lean` — Added 10 new instruction imports
+- `lean/DockerfileModel/Main.lean` — Extended dispatch table to 12 instructions + `dispatchParse` helper
+- `lean/DockerfileModel/Tests/ParserTests.lean` — Added 54 new tests (5 per instruction except ENV=6, CMD=5, ENTRYPOINT=4, SHELL=4, EXPOSE=5, VOLUME=5, LABEL=5), split test runner into sub-functions
+
+**Test count:** 54 new parser tests, all passing. Build: 32 jobs, 0 errors. Pre-existing warnings unchanged (3 `sorry` in RoundTrip.lean, 1 `sorry` in VariableResolution.lean, 1 unused variable in DockerfileParsers.lean).
+
+### 2026-03-05 — Phase D: 5 Complex Instruction Parsers (RUN, COPY, ADD, HEALTHCHECK, ONBUILD)
+
+**What was built:** Complete parsers for the 5 remaining complex instruction types that have flags, multiple forms, and validation rules. All 5 parsers follow the established pattern from Phase C with additional flag-handling infrastructure.
+
+**Architecture decisions:**
+
+1. **Flags parsed via `many` with `or'` alternation:** Each instruction's flag parser wraps `or'` chains inside `argTokens` with `excludeTrailingWhitespace := true`. The outer `many` combinator allows zero or more flags in any order. Repeatable flags (mount, exclude) work automatically because `many` keeps consuming as long as any flag matches.
+
+2. **RUN uses 3 flag types:** `--mount`, `--network`, and `--security` are all `flagParser` (key-value). Mount values are opaque literals — the `flagParser` captures everything via `literalWithVariables` which handles commas and equals signs inside the value naturally (they're just literal characters).
+
+3. **COPY and ADD share the same file-args pattern:** Both define `spaceSeparatedFileArgs` privately as a fallback from exec form. The helper parses `literalWithVariables` tokens separated by whitespace. The exec form (`jsonArrayParser`) is tried first via `or'`.
+
+4. **HEALTHCHECK has two branches via `or'`:** NONE form (just the keyword) is tried first, CMD form (flags + CMD keyword + command) is the fallback. The CMD form reuses the same exec-form-or-shell-form pattern from CMD instruction.
+
+5. **ONBUILD validation uses post-parse string check:** After `shellFormCommand` captures the entire trigger text, `isRestrictedTrigger` checks if it starts with ONBUILD, FROM, or MAINTAINER (case-insensitive). If restricted, `Parser.fail` is called, which causes the parse to return `none`.
+
+6. **`String.trim` deprecated in Lean 4.27.0:** Replaced with `String.trimAscii.toString` — the new API returns `String.Slice` instead of `String`, so `.toString` conversion is needed.
+
+**Files created (5 parser files):**
+- `lean/DockerfileModel/Parser/Instructions/Run.lean` — RUN with mount/network/security flags
+- `lean/DockerfileModel/Parser/Instructions/Copy.lean` — COPY with from/chown/chmod/link/parents/exclude flags
+- `lean/DockerfileModel/Parser/Instructions/Add.lean` — ADD with chown/chmod/link/keep-git-dir/checksum/unpack/exclude flags
+- `lean/DockerfileModel/Parser/Instructions/Healthcheck.lean` — HEALTHCHECK NONE and CMD forms with interval/timeout/start-period/start-interval/retries flags
+- `lean/DockerfileModel/Parser/Instructions/Onbuild.lean` — ONBUILD with restricted trigger validation
+
+**Files modified:**
+- `lean/DockerfileModel.lean` — Added 5 new instruction imports
+- `lean/DockerfileModel/Main.lean` — Extended dispatch table to 18 instructions (RUN, COPY, ADD, HEALTHCHECK, ONBUILD added)
+- `lean/DockerfileModel/Tests/ParserTests.lean` — Added 30 new tests (7 RUN, 6 COPY, 6 ADD, 6 HEALTHCHECK, 5 ONBUILD), new `runParserTests_PhaseD` runner function
+
+**Test count:** 30 new parser tests, all passing. Build: 37 jobs, 0 errors. Pre-existing warnings unchanged.
+
+### 2026-03-05 — Phase E: Heredoc Support and Advanced Variable Modifiers
+
+**What was built:** Two major features: (1) a heredoc parser for inline scripts/files in Dockerfiles, and (2) six extended bash-style variable modifiers for pattern operations.
+
+**Architecture decisions:**
+
+1. **Heredoc uses a two-pass design:** The `heredocMarkerParser` detects the opening `<<[-]["]DELIM["]` on the instruction line. The `heredocBodyParser` then consumes subsequent lines until the closing delimiter appears alone on a line. Body content is stored as primitive string tokens inside a `Token.aggregate .heredoc` wrapper. The `AggregateKind.heredoc` variant was already added in Phase B.
+
+2. **Chomp flag (`-`) strips leading tabs:** When the `-` flag is present (as in `<<-EOF`), the body parser strips leading tab characters from each content line using `List.dropWhile`. The closing delimiter line can also be tab-indented. This matches bash heredoc behavior.
+
+3. **Quoted delimiters disable variable expansion:** The marker parser distinguishes quoted (`<<"EOF"` or `<<'EOF'`) from unquoted (`<<EOF`) delimiters. The `quoted` flag is returned but currently advisory — the parser itself does not expand variables in the body. This models BuildKit's behavior where quoting affects expansion.
+
+4. **Instruction parsers use `or'` to try heredoc first:** In RUN, COPY, and ADD instruction parsers, the heredoc form is tried before exec form and shell form via `or'` alternation. COPY and ADD use `heredocWithDestination` which also parses a destination path after the marker.
+
+5. **Extended Modifier type is additive:** Six new constructors were added to the `Modifier` inductive: `hashPattern`, `doubleHashPattern`, `percentPattern`, `doublePercentPattern`, `slashPattern`, `doubleSlashPattern`. The existing six constructors are unchanged. The `resolve` function adds new match arms; the `isVariableSet` function treats pattern modifiers like non-colon variants (set = present in map).
+
+6. **Existing proofs unaffected:** All proofs in `Proofs/VariableResolution.lean` continued to close without modification. The proofs construct specific `VariableRef` values with specific modifier constructors (`.colonDash`, `.dash`, etc.), so they never reach the new match arms. Lean 4's match elaboration handles the new constructors correctly because they're exhaustive.
+
+7. **Pattern operations use simplified literal matching:** The `removePrefix`, `removeSuffix`, `replaceFirst`, and `replaceAll` helper functions implement literal string operations only. Glob pattern matching is deferred — values are returned unchanged if a glob pattern would be needed. This keeps the formal model type-correct while acknowledging the complexity gap.
+
+8. **Variable parser `validModifiers` order matters:** The list `[":-", ":+", ":?", "-", "+", "?", "##", "#", "%%", "%", "//", "/"]` ensures longer modifiers are tried before shorter ones. The `modifierParser` uses `or'` folding over `string` parsers, so `##` is tried before `#`, `%%` before `%`, `//` before `/`.
+
+9. **Slash modifier value encoding:** For `${var/old/new}`, the modifier value is stored as `"old/new"` (a single string). The `resolve` function splits on `/` to extract pattern and replacement. This avoids needing a separate field in `VariableRef` for the replacement value.
+
+10. **Lean 4.27.0 String API changes:** `String.dropRight` is deprecated in favor of `String.dropEnd` (which returns `String.Slice`). The heredoc parser uses `List.dropLast` on `String.toList` instead, keeping everything as `String` to avoid type mismatches.
+
+**Files created (1):**
+- `lean/DockerfileModel/Parser/Heredoc.lean` — Heredoc marker, body, instruction arg, and destination parsers
+
+**Files modified (7):**
+- `lean/DockerfileModel/VariableResolution.lean` — Extended `Modifier` type (6 new constructors), added `removePrefix`/`removeSuffix`/`replaceFirst`/`replaceAll` helpers, extended `resolve` and `isVariableSet` functions
+- `lean/DockerfileModel/Parser/DockerfileParsers.lean` — Extended `validModifiers` list with 6 new entries
+- `lean/DockerfileModel/Parser/Instructions/Run.lean` — Added heredoc import/open, heredoc branch in `runArgsParser`
+- `lean/DockerfileModel/Parser/Instructions/Copy.lean` — Added heredoc import/open, heredoc branch in `copyArgsParser`
+- `lean/DockerfileModel/Parser/Instructions/Add.lean` — Added heredoc import/open, heredoc branch in `addArgsParser`
+- `lean/DockerfileModel/Tests/ParserTests.lean` — Added 16 new tests: 4 heredoc token tree tests, 6 variable resolution tests, 6 variable parser tests; new `runParserTests_PhaseE` runner
+- `lean/DockerfileModel.lean` — Added `DockerfileModel.Parser.Heredoc` import
+
+**Test count:** 16 new Phase E tests. Build: 38 jobs, 0 errors. All existing proofs pass unchanged.
+
+### 2026-03-05 — Phase F: Proofs, Tests, and Differential Testing (Final Phase)
+
+**Round-trip theorem obligations:** Added 16 sorry'd round-trip theorem statements to `Proofs/RoundTrip.lean` for every non-FROM/ARG instruction parser: MAINTAINER, WORKDIR, STOPSIGNAL, CMD, ENTRYPOINT, SHELL, USER, EXPOSE, VOLUME, ENV, LABEL, RUN, COPY, ADD, HEALTHCHECK, ONBUILD. Each follows the identical pattern as `fromInstruction_roundTrip` — stating that if the parser consumes all input, then joining token toString values reproduces the original text. All are sorry'd because the proofs require deep parser monad correctness properties.
+
+**Test coverage expanded:** Added 25 new parser tests covering lowercase keyword variants, line continuations, braced variables, and additional ONBUILD trigger/reject tests. Total test function count: 178 in ParserTests.lean + 9 in SlimCheck.lean = 187 test functions. Each function contains multiple assertions. All 187 tests pass.
+
+**Heredoc property tests:** Added 2 new SlimCheck property test functions (`testHeredocTokenConcat`, `testHeredocAggregateConsistency`) verifying that heredoc aggregate tokens follow the same concatenation rules as other aggregate kinds (no `$` prefix, no quote wrapping). These cover: empty heredoc, multi-line heredoc, heredoc with nested variable refs, heredoc inside instruction tokens, and equivalence between heredoc and literal concatenation behavior.
+
+**Dispatch table verified:** All 18 instructions confirmed present in `Main.lean` dispatch table with case-insensitive keyword matching via `(firstWord input).toUpper`.
+
+**TokenConcat.lean verification:** The `token_toString_aggregate` theorem uses `cases kind <;> simp_all` which automatically handles all `AggregateKind` variants including `heredoc`. No changes needed.
+
+**Key files modified:**
+- `lean/DockerfileModel/Proofs/RoundTrip.lean` — 16 new imports + 16 sorry'd round-trip theorems
+- `lean/DockerfileModel/Tests/ParserTests.lean` — 25 new test functions + updated runners
+- `lean/DockerfileModel/Tests/SlimCheck.lean` — 2 new heredoc property test functions + runner update
+
+**Build:** 38 jobs, 0 errors. All 187 tests pass. All existing proofs intact.
