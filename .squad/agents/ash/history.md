@@ -21,3 +21,4 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new theorems in Capstone.lean, token_concat_length fixed in RoundTrip.lean, proof coverage documented. Total: 55 proved, 4 documented sorries. Build: 19 jobs, 0 errors. — decided by Dallas

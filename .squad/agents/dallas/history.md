@@ -332,3 +332,45 @@ Team update (2026-03-05T20:00:00Z): Phase 2 Lean 4 parser combinator library ful
 - 2 noModifier theorems (fully proved)
 - 3 non-mutation/trivial theorems (1 sorry'd per spec)
 - 2 consistency check theorems (colon vs non-colon on empty string)
+
+### 2026-03-05 — Lean 4 Capstone (Phase 5): Full Round-Trip + Mutation Isolation Proofs
+
+**What was built:** Phase 5 capstone — the formal verification project's final deliverable.
+
+**Three deliverables:**
+
+1. **`lean/DockerfileModel/Proofs/Capstone.lean`** (new, ~260 lines)
+   - `token_concat_length_proved` — fixed the sorry from RoundTrip.lean (proved via `foldl_add_shift` + `string_join_length_eq_foldl`)
+   - `dockerfile_roundTrip_compositional` — the capstone theorem: IF each construct round-trips THEN the full Dockerfile round-trips. Composes `dockerfile_toString_concat` with per-construct obligations via `List.ext_getElem`.
+   - `mutation_isolation` — one-line proof via `List.getElem_set_ne` (Lean 4.27.0 stdlib)
+   - `mutation_preserves_toString` — corollary: toString of construct j unaffected by mutation at i
+   - `mutation_isolation_dockerfile` — lifted to Dockerfile level
+   - `mutation_preserves_roundTrip` — combined: mutation-stable round-trip for unchanged constructs
+   - 12 theorems total, 0 sorry
+
+2. **Modified `lean/DockerfileModel/Proofs/RoundTrip.lean`** — fixed `token_concat_length` sorry:
+   - Added `foldl_add_shift` and `string_join_length_eq_foldl` private helper lemmas
+   - These handle the fact that `String.join` uses foldl internally with a string accumulator, not a Nat. The key insight: `foldl (k + acc) ns = k + foldl acc ns` lets us extract the accumulated `s.length` from the foldl's initial position.
+
+3. **Created `lean/PROOF_STATUS.md`** — full documentation of 55 proved theorems, 4 sorries, 7 SlimCheck property suites.
+
+**Architecture decisions:**
+
+1. **No circular imports**: Capstone.lean imports TokenConcat but NOT RoundTrip. The `token_concat_length` fix lives in RoundTrip.lean itself (private helpers). DockerfileModel.lean imports both RoundTrip and Capstone.
+
+2. **`List.getElem_set_ne` is the right tool**: Available in Lean 4.27.0 stdlib (no Mathlib needed). Signature: `∀ {α} {l : List α} {i j : Nat}, i ≠ j → ∀ {a} (hj : j < (l.set i a).length), (l.set i a)[j] = l[j]`. One-line proof for mutation isolation.
+
+3. **Compositional theorem uses `List.ext_getElem`**: To prove `items.map f = segments`, use `List.ext_getElem` with `simp [List.getElem_map]` plus the per-element hypotheses. This avoids having to reason about list structure directly.
+
+4. **`String.join` length proof strategy**: `String.join` is `List.foldl (· ++ ·) ""`. To reason about `(String.join ss).length`, generalize to any initial accumulator via `gen : ∀ acc, (ss.foldl (· ++ ·) acc).length = acc.length + ...`, then instantiate with `acc = ""`. The accumulator shifts happen at the `(0 + s.length)` boundary — `foldl_add_shift` handles this.
+
+5. **`ConstructRoundTrip` as a named obligation**: The per-construct obligation `c.toString = seg` is defined as `ConstructRoundTrip c seg`. This makes the compositional theorem's hypothesis readable and gives the obligation a stable name for future proof work.
+
+**Build status:** `lake build` succeeds: 19 jobs, 0 errors. 4 intentional sorries (3 in RoundTrip.lean — per-parser correctness, 1 in VariableResolution.lean — mutation model). Capstone: 0 sorry.
+
+**Key files:**
+- `lean/DockerfileModel/Proofs/Capstone.lean` (new)
+- `lean/DockerfileModel/Proofs/RoundTrip.lean` (modified — sorry fixed)
+- `lean/DockerfileModel.lean` (modified — Capstone import added)
+- `lean/PROOF_STATUS.md` (new)
+Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new theorems in Capstone.lean, token_concat_length fixed in RoundTrip.lean, proof coverage documented. Total: 55 proved, 4 documented sorries. Build: 19 jobs, 0 errors. — decided by Dallas
