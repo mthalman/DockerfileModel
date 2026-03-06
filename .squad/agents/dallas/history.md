@@ -564,3 +564,41 @@ Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new th
 - `lean/DockerfileModel/Tests/SlimCheck.lean` — 2 new heredoc property test functions + runner update
 
 **Build:** 38 jobs, 0 errors. All 187 tests pass. All existing proofs intact.
+
+### 2026-03-05 — Differential Testing All 18 Instructions: Findings
+
+**DiffTest project files:**
+- `src/Valleysoft.DockerfileModel.DiffTest/DiffTestRunner.cs` — ParseCSharp() switch covers all 18 types
+- `src/Valleysoft.DockerfileModel.DiffTest/InputGenerator.cs` — Generate() distributes across all 18 types
+- `src/Valleysoft.DockerfileModel.DiffTest/TokenJsonSerializer.cs` — recursive JSON serializer for C# tokens
+- `src/Valleysoft.DockerfileModel.DiffTest/DockerfileArbitraries.cs` — linked from Tests/Generators/
+
+**Results:** 900 tests run (50 per type, 18 types), 480 mismatches across 11 types, 0 errors. 7 types pass cleanly: FROM, ARG, ENV, VOLUME, WORKDIR, STOPSIGNAL, MAINTAINER.
+
+**Root cause of all mismatches is serialization structure, not parse correctness:**
+1. C# has intermediate OOP wrapper types (Command, ShellFormCommand, ExecFormCommand, UserAccount, BooleanFlag) that extend AggregateToken but are not KeyValueToken/Instruction. The TokenJsonSerializer maps these to `"kind":"construct"` as a fallback. Lean spec uses flat token lists or specific kinds.
+2. C# LABEL uses LiteralToken for key; Lean uses IdentifierToken. Lean is more semantically accurate.
+3. C# EXPOSE keeps port/protocol as flat siblings; Lean wraps in KeyValueToken.
+4. C# HEALTHCHECK nests inner CMD as full Instruction; Lean keeps CMD keyword as flat sibling.
+5. C# ONBUILD recursively parses inner instruction; Lean treats trigger as opaque literal text.
+6. C# shell form collapses whitespace into single StringToken child; Lean preserves whitespace as separate tokens within LiteralToken.
+
+**Key insight:** The serializer (TokenJsonSerializer.cs) needs to map C# subtypes to Lean-equivalent kinds. This is a serializer alignment task, not a parser bug fix. The C# parser is functionally correct — it accepts the same inputs and round-trips correctly. The structural differences are in token tree nesting choices.
+
+**InputGenerator SampleSize note:** The `SampleSize` constant (50) in InputGenerator caps actual samples per type at 50 regardless of requested count. With 18 types, max effective count is 900.
+
+### 2026-03-06 — Filed 8 GitHub issues for C# tokenization differences vs Lean spec
+
+Filed issues per Matt's directive that C# should align with Lean (Lean is authoritative), not the other way around. Each issue describes what C# does, what Lean does, why Lean is correct, and what C# changes are needed.
+
+**Issues filed:**
+- #188 — Shell form whitespace tokenization (C# collapses to single StringToken; Lean splits by whitespace)
+- #189 — LABEL key uses LiteralToken instead of IdentifierToken
+- #191 — EXPOSE port/protocol uses flat siblings instead of KeyValueToken wrapper
+- #193 — HEALTHCHECK CMD nests full CmdInstruction instead of flat tokens
+- #195 — ONBUILD recursively parses trigger instead of opaque literal
+- #196 — COPY/ADD --from flag value uses StageName/IdentifierToken instead of LiteralToken
+- #197 — BooleanFlag has no token kind mapping; should use keyValue
+- #198 — USER user:group should use keyValue aggregate instead of flat wrapper
+
+All workarounds are documented in `src/Valleysoft.DockerfileModel.DiffTest/TokenJsonSerializer.cs`.
