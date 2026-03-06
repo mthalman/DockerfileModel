@@ -46,6 +46,22 @@ public class DiffTestRunner
         {
             "FROM" => FromInstruction.Parse(input),
             "ARG" => ArgInstruction.Parse(input),
+            "RUN" => RunInstruction.Parse(input),
+            "CMD" => CmdInstruction.Parse(input),
+            "ENTRYPOINT" => EntrypointInstruction.Parse(input),
+            "COPY" => CopyInstruction.Parse(input),
+            "ADD" => AddInstruction.Parse(input),
+            "ENV" => EnvInstruction.Parse(input),
+            "EXPOSE" => ExposeInstruction.Parse(input),
+            "VOLUME" => VolumeInstruction.Parse(input),
+            "USER" => UserInstruction.Parse(input),
+            "WORKDIR" => WorkdirInstruction.Parse(input),
+            "LABEL" => LabelInstruction.Parse(input),
+            "STOPSIGNAL" => StopSignalInstruction.Parse(input),
+            "HEALTHCHECK" => HealthCheckInstruction.Parse(input),
+            "SHELL" => ShellInstruction.Parse(input),
+            "MAINTAINER" => MaintainerInstruction.Parse(input),
+            "ONBUILD" => OnBuildInstruction.Parse(input),
             _ => throw new ArgumentException($"Unsupported instruction type: {instructionType}")
         };
         return TokenJsonSerializer.Serialize(token);
