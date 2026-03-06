@@ -11,4 +11,5 @@ import DockerfileModel.Parser.Instructions.Arg
 import DockerfileModel.Proofs.TokenConcat
 import DockerfileModel.Proofs.RoundTrip
 import DockerfileModel.Proofs.VariableResolution
+import DockerfileModel.Proofs.Capstone
 import DockerfileModel.Tests.SlimCheck

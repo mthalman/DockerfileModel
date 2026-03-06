@@ -116,17 +116,52 @@ theorem primitive_toString_nonempty (kind : PrimitiveKind) (value : String)
   unfold Token.toString
   exact h
 
-/-- Concatenating token toString values preserves total length.
-    This is a key lemma for showing round-trip fidelity:
-    no characters are lost or added during tokenization. -/
+/-- Helper: `foldl (· + ·)` distributes the initial accumulator.
+    `foldl (k + acc) ns = k + foldl acc ns`. Used in `token_concat_length`. -/
+private theorem foldl_add_shift (ns : List Nat) (k acc : Nat) :
+    (ns.foldl (· + ·) (k + acc)) = k + (ns.foldl (· + ·) acc) := by
+  induction ns generalizing acc with
+  | nil => simp
+  | cons n rest ih =>
+    simp only [List.foldl]
+    rw [show k + acc + n = k + (acc + n) by omega]
+    exact ih (acc + n)
+
+/-- Helper: length of `String.join ss` equals the foldl-sum of the lengths.
+    Bridges `String.join`'s internal foldl to a Nat arithmetic foldl. -/
+private theorem string_join_length_eq_foldl (ss : List String) :
+    (String.join ss).length = (ss.map String.length).foldl (· + ·) 0 := by
+  unfold String.join
+  have gen : ∀ (acc : String),
+      (ss.foldl (· ++ ·) acc).length = acc.length + (ss.map String.length).foldl (· + ·) 0 := by
+    induction ss with
+    | nil => intro acc; simp [List.foldl]
+    | cons s rest ih =>
+      intro acc
+      simp only [List.foldl, List.map]
+      rw [ih (acc ++ s), String.length_append]
+      have key : (List.map String.length rest).foldl (· + ·) (0 + s.length) =
+                 s.length + (List.map String.length rest).foldl (· + ·) 0 := by
+        rw [Nat.zero_add]
+        exact foldl_add_shift _ s.length 0
+      rw [key]; omega
+  have h := gen ""
+  simp at h
+  exact h
+
+/-- **Proved**: Concatenating token toString values preserves total length.
+    No characters are lost or added during tokenization.
+
+    This is a key lemma for round-trip fidelity: it establishes that the
+    character count of the joined token strings equals the sum of individual
+    lengths. Previously carried a `sorry` — now fully proved via
+    `string_join_length_eq_foldl` and `List.map_map`. -/
 theorem token_concat_length (tokens : List Token) :
     (String.join (tokens.map Token.toString)).length =
     (tokens.map (fun t => (Token.toString t).length)).foldl (· + ·) 0 := by
-  induction tokens with
-  | nil => simp [List.map, String.join, List.foldl]
-  | cons t ts ih =>
-    simp [List.map, String.join]
-    sorry -- Requires String.length_append lemma
+  have h := string_join_length_eq_foldl (tokens.map Token.toString)
+  simp [List.map_map] at h ⊢
+  exact h
 
 /-- For an instruction token, toString is the join of children's toString. -/
 theorem instruction_token_toString (children : List Token) :
