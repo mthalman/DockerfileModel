@@ -34,7 +34,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
 ///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
 ///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
-///   - COPY --from value: C# uses StageName (IdentifierToken); Lean uses LiteralToken
 /// </summary>
 public static class TokenJsonSerializer
 {
@@ -135,13 +134,6 @@ public static class TokenJsonSerializer
         if (token is CmdInstruction || token is EntrypointInstruction)
         {
             SerializeShellFormInstruction(sb, (Instruction)token);
-            return;
-        }
-
-        // COPY and ADD instructions need --from identifier->literal remapping
-        if (token is CopyInstruction || token is AddInstruction)
-        {
-            SerializeFileTransferInstruction(sb, (Instruction)token);
             return;
         }
 
@@ -454,73 +446,6 @@ public static class TokenJsonSerializer
                 if (!first) sb.Append(',');
                 SerializeToken(sb, child);
                 first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    // ===================================================================
-    // File transfer instructions (COPY, ADD)
-    // COPY --from uses StageName (IdentifierToken) for the value, but Lean
-    // uses LiteralToken. Remap identifier -> literal for FromFlag values.
-    // Also handle BooleanFlag -> keyValue mapping.
-    // ===================================================================
-
-    private static void SerializeFileTransferInstruction(StringBuilder sb, Instruction instruction)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in instruction.Tokens)
-        {
-            if (child is FromFlag fromFlag)
-            {
-                // Remap the FromFlag: its value is StageName (IdentifierToken) in C#
-                // but should be LiteralToken in Lean
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeFromFlag(sb, fromFlag);
-            }
-            else if (child is BooleanFlag boolFlag)
-            {
-                // BooleanFlag -> keyValue
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeAggregate(sb, "keyValue", boolFlag);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Serialize a FromFlag, remapping the value from IdentifierToken to LiteralToken.
-    /// </summary>
-    private static void SerializeFromFlag(StringBuilder sb, FromFlag fromFlag)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in fromFlag.Tokens)
-        {
-            if (!first) sb.Append(',');
-            first = false;
-
-            // StageName (IdentifierToken) -> remap to literal kind
-            if (child is StageName || child is IdentifierToken)
-            {
-                SerializeAggregate(sb, "literal", child);
-            }
-            else
-            {
-                SerializeToken(sb, child);
             }
         }
 

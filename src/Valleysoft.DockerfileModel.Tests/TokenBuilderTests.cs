@@ -54,7 +54,7 @@ public class TokenBuilderTests
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, "from"),
                 token => ValidateSymbol(token, '='),
-                token => ValidateIdentifier<StageName>(token, "stage")),
+                token => ValidateLiteral(token, "stage")),
             token => ValidateAggregate<ImageName>(token, "repo",
                 token => {
                     Assert.Equal("repo", ((LiteralToken)token).Value);
