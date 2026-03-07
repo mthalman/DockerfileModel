@@ -41,43 +41,6 @@ dotnet run --project src/Valleysoft.DockerfileModel.DiffTest/ -- \
 
 The Lean CLI (`DockerfileModelDiffTest`) reads a Dockerfile instruction from stdin and outputs the canonical JSON token tree to stdout.
 
-## Project Structure
-
-```
-lean/
-  lakefile.lean                    # Lake build configuration
-  lean-toolchain                   # Pinned Lean 4 version (v4.27.0)
-  DockerfileModel.lean             # Root import file
-  DockerfileModel/
-    Token.lean                     # Token inductive type (mirrors C# hierarchy)
-    Instruction.lean               # 18 instruction name variants
-    Dockerfile.lean                # Dockerfile structure
-    Json.lean                      # Canonical JSON serialization
-    Main.lean                      # Differential test CLI entry point
-    VariableResolution.lean        # Variable resolution semantics
-    Scoping.lean                   # ARG scoping rules (global vs per-stage)
-    Parser/
-      Basic.lean                   # Core parser monad and primitives
-      Combinators.lean             # Parser combinators (many, or', satisfy, etc.)
-      DockerfileParsers.lean       # Shared parsers (literals, variable refs, shell form, etc.)
-      ExecForm.lean                # Exec form parser (JSON array syntax)
-      Flags.lean                   # Flag parsers (--flag=value, boolean flags)
-      Heredoc.lean                 # Heredoc syntax support
-      Instructions/                # Per-instruction parsers (18 files, one per type)
-        From.lean, Run.lean, Cmd.lean, Copy.lean, Add.lean, Env.lean,
-        Arg.lean, Expose.lean, Entrypoint.lean, Healthcheck.lean,
-        Label.lean, Maintainer.lean, Onbuild.lean, Shell.lean,
-        Stopsignal.lean, User.lean, Volume.lean, Workdir.lean
-    Proofs/
-      TokenConcat.lean             # Token concatenation theorem
-      RoundTrip.lean               # Round-trip fidelity proofs
-      VariableResolution.lean      # Variable modifier semantics proofs
-      Capstone.lean                # Full round-trip + mutation isolation proofs
-    Tests/
-      ParserTests.lean             # Parser unit tests
-      SlimCheck.lean               # Property-based tests (mirrors C# FsCheck tests)
-```
-
 ## Design Principles
 
 ### BuildKit is the Source of Truth
@@ -100,13 +63,3 @@ The `toString` function satisfies the same concatenation property as C#: for any
 ### Parser Combinators
 
 The parser is built from monadic combinators (`Parser/Basic.lean`, `Parser/Combinators.lean`) that mirror the Sprache combinators used in the C# `ParseHelper.cs`. The translation from C#'s `from...in...select` LINQ syntax maps directly to Lean's `do` notation.
-
-## Known C# Divergences
-
-When differential testing finds mismatches, the C# side gets a GitHub issue and a serializer workaround in `TokenJsonSerializer.cs`. Current known divergences:
-
-| Issue | Description | Status |
-|-------|-------------|--------|
-| [#199](https://github.com/mthalman/DockerfileModel/issues/199) | STOPSIGNAL: C# doesn't parse variable refs | Serializer workaround |
-| [#200](https://github.com/mthalman/DockerfileModel/issues/200) | RUN: C# MountFlag parser fails on various mount types | Generators disabled |
-| [#201](https://github.com/mthalman/DockerfileModel/issues/201) | ENV/LABEL: C# emits empty LiteralToken for `key=` | Serializer workaround |
