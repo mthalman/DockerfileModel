@@ -7,14 +7,15 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 /// <summary>
 /// Wraps the linked FsCheck generators (DockerfileArbitraries) to produce
 /// random test inputs for differential testing. Returns a list of
-/// (InstructionType, Text) tuples distributed evenly across all 18
+/// (InstructionType, Text, EscapeChar) tuples distributed evenly across all 18
 /// Dockerfile instruction types, shuffled with a fixed seed for reproducibility.
+/// About 10% of inputs use backtick (`) as escape char instead of backslash (\).
 /// </summary>
 public static class InputGenerator
 {
     private const int SampleSize = 50;
 
-    public static List<(string InstructionType, string Text)> Generate(int count, int seed = 42)
+    public static List<(string InstructionType, string Text, char EscapeChar)> Generate(int count, int seed = 42)
     {
         // All instruction generators with their type labels
         var generators = new (string Type, Gen<string> Gen)[]
@@ -42,7 +43,8 @@ public static class InputGenerator
         int perType = count / generators.Length;
         int remainder = count % generators.Length;
 
-        List<(string InstructionType, string Text)> inputs = new();
+        List<(string InstructionType, string Text, char EscapeChar)> inputs = new();
+        Random escapeRng = new(seed + 1); // separate RNG for escape char selection
 
         for (int g = 0; g < generators.Length; g++)
         {
@@ -50,7 +52,17 @@ public static class InputGenerator
             var samples = generators[g].Gen.Sample(SampleSize, n);
             foreach (string text in samples)
             {
-                inputs.Add((generators[g].Type, text));
+                // ~10% of inputs use backtick escape char
+                if (escapeRng.NextDouble() < 0.10)
+                {
+                    // Replace backslash continuations with backtick continuations
+                    string backtickText = text.Replace("\\\n", "`\n").Replace("\\\r\n", "`\r\n");
+                    inputs.Add((generators[g].Type, backtickText, '`'));
+                }
+                else
+                {
+                    inputs.Add((generators[g].Type, text, '\\'));
+                }
             }
         }
 

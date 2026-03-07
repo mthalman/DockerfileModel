@@ -147,6 +147,12 @@ public static class DockerfileArbitraries
         Gen.Elements("\\\n", "\\\r\n");
 
     /// <summary>
+    /// Generates a backtick line continuation (Windows escape char mode).
+    /// </summary>
+    private static Gen<string> BacktickLineContinuation() =>
+        Gen.Elements("`\n", "`\r\n");
+
+    /// <summary>
     /// Generates an optional line continuation: either a line continuation or empty string.
     /// Weighted so that about 30% of the time we get a continuation.
     /// </summary>
@@ -154,6 +160,50 @@ public static class DockerfileArbitraries
         Gen.Frequency(
             (7, Gen.Constant("")),
             (3, LineContinuation()));
+
+    /// <summary>
+    /// Generates case variations of a keyword (e.g., "FROM" → "from", "From", "fRoM").
+    /// </summary>
+    private static Gen<string> RandomCaseKeyword(string keyword) =>
+        Gen.Elements(
+            keyword.ToUpperInvariant(),
+            keyword.ToLowerInvariant(),
+            // Title case
+            char.ToUpper(keyword[0]) + keyword[1..].ToLowerInvariant(),
+            // Random mixed case (deterministic variant)
+            new string(keyword.Select((c, i) => i % 2 == 0 ? char.ToLower(c) : char.ToUpper(c)).ToArray()));
+
+    /// <summary>
+    /// Generates varied whitespace between tokens (spaces, tabs, mixed).
+    /// </summary>
+    private static Gen<string> FlexibleWhitespace() =>
+        Gen.Elements(" ", "  ", "\t", " \t", "\t ");
+
+    /// <summary>
+    /// Generates a keyword with case variation followed by flexible whitespace.
+    /// </summary>
+    private static Gen<string> KeywordWithWhitespace(string keyword) =>
+        from kw in RandomCaseKeyword(keyword)
+        from ws in FlexibleWhitespace()
+        select kw + ws;
+
+    /// <summary>
+    /// Generates glob/wildcard patterns for COPY/ADD sources.
+    /// </summary>
+    private static Gen<string> GlobPattern() =>
+        Gen.Elements("*.txt", "src/**", "?.log", "file[0-9].dat", "*.conf", "*.js");
+
+    /// <summary>
+    /// Generates values containing special but valid characters.
+    /// </summary>
+    private static Gen<string> SpecialCharValue() =>
+        Gen.Elements(
+            "value-with-dashes",
+            "value_with_underscores",
+            "value.with.dots",
+            "path/to/file",
+            "host:port",
+            "key=val");
 
     /// <summary>
     /// Generates text that may contain variable references mixed with literal text.
@@ -320,7 +370,20 @@ public static class DockerfileArbitraries
             // FROM with platform variable + image variable
             from platVar in VariableRef()
             from imageVar in VariableRef()
-            select $"FROM --platform={platVar} {imageVar}");
+            select $"FROM --platform={platVar} {imageVar}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("FROM")
+            from image in ImageName()
+            select $"{kw} {image}",
+            // Line continuation before AS
+            from image in ImageName()
+            from lc in LineContinuation()
+            from stage in StageName()
+            select $"FROM {image} {lc}  AS {stage}",
+            // Tab whitespace after keyword
+            from ws in FlexibleWhitespace()
+            from image in ImageName()
+            select $"FROM{ws}{image}");
 
     /// <summary>
     /// Generates a valid RUN instruction string (shell form or exec form).
@@ -368,6 +431,22 @@ public static class DockerfileArbitraries
             // select $"RUN --mount={mount} {cmd}"
             // Shell form with pipe commands
             from cmd in ShellCommand()
+            select $"RUN {cmd}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("RUN")
+            from cmd in ShellCommand()
+            select $"{kw} {cmd}",
+            // Multi-line shell command with continuation
+            from c1 in Gen.Elements("echo hello", "apt-get update", "mkdir -p /app")
+            from lc in LineContinuation()
+            from c2 in Gen.Elements("echo world", "apt-get install -y curl", "chmod 755 /app")
+            select $"RUN {c1} {lc}  && {c2}",
+            // Tab-separated
+            from ws in FlexibleWhitespace()
+            from cmd in ShellCommand()
+            select $"RUN{ws}{cmd}",
+            // Exec form with whitespace in JSON array
+            from cmd in ExecFormWithWhitespace()
             select $"RUN {cmd}");
 
     /// <summary>
@@ -395,7 +474,20 @@ public static class DockerfileArbitraries
             select $"CMD {cmd} {varRef}",
             // Exec form with whitespace variants
             from cmd in ExecFormWithWhitespace()
-            select $"CMD {cmd}");
+            select $"CMD {cmd}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("CMD")
+            from cmd in ShellCommand()
+            select $"{kw} {cmd}",
+            // Shell form with continuation
+            from c1 in Gen.Elements("echo hello", "cat /etc/hosts", "date")
+            from lc in LineContinuation()
+            from c2 in Gen.Elements("world", "output", "now")
+            select $"CMD {c1} {lc}  {c2}",
+            // Exec form with varied spacing
+            from exe in Gen.Elements("echo", "ls", "cat")
+            from arg in Gen.Elements("hello", "-la", "/etc/hosts")
+            select $"CMD [\"{exe}\" ,  \"{arg}\"]");
 
     /// <summary>
     /// Generates a valid ENTRYPOINT instruction string.
@@ -421,7 +513,20 @@ public static class DockerfileArbitraries
             select $"ENTRYPOINT exec {varRef}",
             // Exec form with whitespace variants
             from cmd in ExecFormWithWhitespace()
-            select $"ENTRYPOINT {cmd}");
+            select $"ENTRYPOINT {cmd}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("ENTRYPOINT")
+            from cmd in ShellCommand()
+            select $"{kw} {cmd}",
+            // Shell form with continuation
+            from c1 in Gen.Elements("/app/run", "python app.py", "java -jar app.jar")
+            from lc in LineContinuation()
+            from c2 in Gen.Elements("--config /etc/app.conf", "--port 8080", "--verbose")
+            select $"ENTRYPOINT {c1} {lc}  {c2}",
+            // Exec form with varied spacing
+            from exe in Gen.Elements("/app/run", "python", "node")
+            from arg in Gen.Elements("--config", "--port", "start")
+            select $"ENTRYPOINT [ \"{exe}\" , \"{arg}\" ]");
 
     /// <summary>
     /// Generates a valid COPY instruction string.
@@ -486,7 +591,26 @@ public static class DockerfileArbitraries
             // COPY wildcard sources
             from ext in Gen.Elements("js", "ts", "py", "cs", "go")
             from dst in PathSegment()
-            select $"COPY *.{ext} /{dst}/");
+            select $"COPY *.{ext} /{dst}/",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("COPY")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"{kw} {src} {dst}",
+            // Line continuation between sources and destination
+            from src in PathSegment()
+            from lc in LineContinuation()
+            from dst in PathSegment()
+            select $"COPY {src} {lc}  /{dst}/",
+            // Glob patterns in source
+            from glob in GlobPattern()
+            from dst in PathSegment()
+            select $"COPY {glob} /{dst}/",
+            // Tab whitespace after keyword
+            from ws in FlexibleWhitespace()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY{ws}{src} {dst}");
 
     /// <summary>
     /// Generates a valid ADD instruction string.
@@ -543,7 +667,25 @@ public static class DockerfileArbitraries
             // ADD with --keep-git-dir and --link combined
             from src in PathSegment()
             from dst in PathSegment()
-            select $"ADD --keep-git-dir --link {src} {dst}");
+            select $"ADD --keep-git-dir --link {src} {dst}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("ADD")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"{kw} {src} {dst}",
+            // Line continuation
+            from src in PathSegment()
+            from lc in LineContinuation()
+            from dst in PathSegment()
+            select $"ADD {src} {lc}  /{dst}/",
+            // URL source
+            from file in Gen.Elements("file.tar.gz", "archive.zip", "data.csv")
+            from dst in PathSegment()
+            select $"ADD https://example.com/{file} /{dst}/",
+            // Glob patterns
+            from glob in GlobPattern()
+            from dst in PathSegment()
+            select $"ADD {glob} /{dst}/");
 
     /// <summary>
     /// Generates a valid ENV instruction string.
@@ -595,7 +737,28 @@ public static class DockerfileArbitraries
             select $"ENV {key} {varRef}{text}",
             // Modern form with empty value
             from key in Identifier()
-            select $"ENV {key}=");
+            select $"ENV {key}=",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("ENV")
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"{kw} {key}={value}",
+            // Line continuation in multi-pair
+            from k1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from lc in LineContinuation()
+            from k2 in Identifier()
+            from v2 in SimpleAlphaNum()
+            select $"ENV {k1}={v1} {lc}  {k2}={v2}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ENV{ws}{key}={value}",
+            // Special characters in quoted values
+            from key in Identifier()
+            from special in SpecialCharValue()
+            select $"ENV {key}=\"{special}\"");
 
     /// <summary>
     /// Generates a valid ARG instruction string.
@@ -630,7 +793,24 @@ public static class DockerfileArbitraries
             select $"ARG {n1}={v1} {n2}={v2}",
             // ARG with empty default
             from name in Identifier()
-            select $"ARG {name}=");
+            select $"ARG {name}=",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("ARG")
+            from name in Identifier()
+            from value in SimpleAlphaNum()
+            select $"{kw} {name}={value}",
+            // Line continuation in multi-arg
+            from n1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from lc in LineContinuation()
+            from n2 in Identifier()
+            from v2 in SimpleAlphaNum()
+            select $"ARG {n1}={v1} {lc}  {n2}={v2}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from name in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ARG{ws}{name}={value}");
 
     /// <summary>
     /// Generates a valid EXPOSE instruction string.
@@ -661,7 +841,16 @@ public static class DockerfileArbitraries
             // Well-known ports with protocol
             from port in Gen.Elements("80", "443", "8080", "3000")
             from proto in Protocol()
-            select $"EXPOSE {port}/{proto}");
+            select $"EXPOSE {port}/{proto}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("EXPOSE")
+            from port in PortNumber()
+            select $"{kw} {port}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from port in PortNumber()
+            from proto in Protocol()
+            select $"EXPOSE{ws}{port}/{proto}");
 
     /// <summary>
     /// Generates a valid HEALTHCHECK instruction string.
@@ -709,7 +898,18 @@ public static class DockerfileArbitraries
             // Only --timeout
             from timeout in Duration()
             from cmd in ShellCommand()
-            select $"HEALTHCHECK --timeout={timeout} CMD {cmd}");
+            select $"HEALTHCHECK --timeout={timeout} CMD {cmd}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("HEALTHCHECK")
+            select $"{kw} NONE",
+            // Case-varied NONE
+            from none in RandomCaseKeyword("NONE")
+            select $"HEALTHCHECK {none}",
+            // Line continuation between flags
+            from interval in Duration()
+            from timeout in Duration()
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --interval={interval} \\\n  --timeout={timeout} \\\n  CMD {cmd}");
 
     /// <summary>
     /// Generates a valid LABEL instruction string.
@@ -767,7 +967,28 @@ public static class DockerfileArbitraries
             select $"LABEL {key}={varRef}",
             // Empty value
             from key in Identifier()
-            select $"LABEL {key}=");
+            select $"LABEL {key}=",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("LABEL")
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"{kw} {key}=\"{value}\"",
+            // Line continuation in multi-pair
+            from k1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from lc in LineContinuation()
+            from k2 in Identifier()
+            from v2 in SimpleAlphaNum()
+            select $"LABEL {k1}=\"{v1}\" {lc}  {k2}=\"{v2}\"",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"LABEL{ws}{key}=\"{value}\"",
+            // Special characters in quoted values
+            from key in Identifier()
+            from special in SpecialCharValue()
+            select $"LABEL {key}=\"{special}\"");
 
     /// <summary>
     /// Generates a valid MAINTAINER instruction string.
@@ -797,7 +1018,15 @@ public static class DockerfileArbitraries
             // Quoted email format
             from name in Gen.Elements("John", "Jane")
             from domain in Gen.Elements("example.com", "test.org")
-            select $"MAINTAINER \"{name} <{name}@{domain}>\"");
+            select $"MAINTAINER \"{name} <{name}@{domain}>\"",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("MAINTAINER")
+            from name in Gen.Elements("John Doe", "Jane Smith")
+            select $"{kw} {name}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from name in Gen.Elements("John Doe", "Jane Smith", "Alice Johnson")
+            select $"MAINTAINER{ws}{name}");
 
     /// <summary>
     /// Generates a valid ONBUILD instruction string.
@@ -846,7 +1075,19 @@ public static class DockerfileArbitraries
             select $"ONBUILD CMD {cmd}",
             // ONBUILD ENTRYPOINT
             from cmd in ExecFormCommand()
-            select $"ONBUILD ENTRYPOINT {cmd}");
+            select $"ONBUILD ENTRYPOINT {cmd}",
+            // Case-varied ONBUILD keyword
+            from kw in RandomCaseKeyword("ONBUILD")
+            from cmd in ShellCommand()
+            select $"{kw} RUN {cmd}",
+            // Case-varied inner keyword
+            from innerKw in RandomCaseKeyword("RUN")
+            from cmd in ShellCommand()
+            select $"ONBUILD {innerKw} {cmd}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from cmd in ShellCommand()
+            select $"ONBUILD{ws}RUN {cmd}");
 
     /// <summary>
     /// Generates a valid STOPSIGNAL instruction string.
@@ -861,7 +1102,15 @@ public static class DockerfileArbitraries
             select $"STOPSIGNAL {varRef}",
             // Signal number as variable
             from name in Identifier()
-            select $"STOPSIGNAL ${name}");
+            select $"STOPSIGNAL ${name}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("STOPSIGNAL")
+            from signal in Signal()
+            select $"{kw} {signal}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from signal in Signal()
+            select $"STOPSIGNAL{ws}{signal}");
 
     /// <summary>
     /// Generates a valid USER instruction string.
@@ -892,7 +1141,18 @@ public static class DockerfileArbitraries
             // Numeric UID with group name
             from uid in Gen.Choose(0, 65534)
             from grp in Identifier()
-            select $"USER {uid}:{grp}");
+            select $"USER {uid}:{grp}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("USER")
+            from user in Identifier()
+            select $"{kw} {user}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from user in Identifier()
+            from grp in Identifier()
+            select $"USER{ws}{user}:{grp}",
+            // Numeric boundary UIDs (root and nobody)
+            Gen.Elements("USER 0", "USER 65534"));
 
     /// <summary>
     /// Generates a valid VOLUME instruction string (JSON or shell form).
@@ -929,7 +1189,20 @@ public static class DockerfileArbitraries
             // Shell form path + variable ref
             from path in AbsolutePath()
             from varRef in VariableRef()
-            select $"VOLUME {path} {varRef}");
+            select $"VOLUME {path} {varRef}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("VOLUME")
+            from path in AbsolutePath()
+            select $"{kw} {path}",
+            // Multiple space-separated paths
+            from p1 in AbsolutePath()
+            from p2 in AbsolutePath()
+            from p3 in AbsolutePath()
+            select $"VOLUME {p1} {p2} {p3}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from path in AbsolutePath()
+            select $"VOLUME{ws}{path}");
 
     /// <summary>
     /// Generates a valid WORKDIR instruction string.
@@ -960,7 +1233,19 @@ public static class DockerfileArbitraries
             // Path with mixed variables and literals
             from seg in PathSegment()
             from varRef in VariableRef()
-            select $"WORKDIR /{seg}/{varRef}");
+            select $"WORKDIR /{seg}/{varRef}",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("WORKDIR")
+            from path in AbsolutePath()
+            select $"{kw} {path}",
+            // Tab whitespace
+            from ws in FlexibleWhitespace()
+            from path in AbsolutePath()
+            select $"WORKDIR{ws}{path}",
+            // Relative path (subdirectory)
+            from s1 in PathSegment()
+            from s2 in PathSegment()
+            select $"WORKDIR {s1}/{s2}");
 
     /// <summary>
     /// Generates a valid SHELL instruction string (exec form only).
@@ -988,7 +1273,14 @@ public static class DockerfileArbitraries
             // Windows-style shells
             from shell in Gen.Elements("cmd", "powershell", "pwsh")
             from flag in Gen.Elements("/S", "/C", "-NoProfile", "-Command")
-            select $"SHELL [\"{shell}\", \"{flag}\"]");
+            select $"SHELL [\"{shell}\", \"{flag}\"]",
+            // Case-varied keyword
+            from kw in RandomCaseKeyword("SHELL")
+            select $"{kw} [\"/bin/bash\", \"-c\"]",
+            // Whitespace in JSON array
+            from shell in Gen.Elements("/bin/bash", "/bin/sh", "/bin/zsh")
+            from flag in Gen.Elements("-c", "-e")
+            select $"SHELL [ \"{shell}\" , \"{flag}\" ]");
 
     // ──────────────────────────────────────────────
     // Dockerfile-level generators
@@ -1000,7 +1292,7 @@ public static class DockerfileArbitraries
     /// </summary>
     public static Gen<string> ValidDockerfile() =>
         from preamble in Preamble()
-        from fromInstr in FromInstruction()
+        from fromInstr in FromInstruction().Where(s => !s.Contains('\n'))
         from body in DockerfileBody()
         select BuildDockerfileText(preamble, fromInstr, body);
 
@@ -1150,6 +1442,8 @@ public static class DockerfileArbitraries
     /// Generates a single instruction valid after FROM (not FROM itself, no ONBUILD recursion).
     /// Includes all instruction types whose Sprache parser preserves trailing \n
     /// during Dockerfile-level parsing.
+    /// Filters out multi-line instructions (containing newlines from line continuations)
+    /// because the Dockerfile-level parser handles line splitting separately.
     /// </summary>
     private static Gen<string> BodyInstruction() =>
         Gen.OneOf(
@@ -1167,7 +1461,8 @@ public static class DockerfileArbitraries
             WorkdirInstruction(),
             StopSignalInstruction(),
             MaintainerInstruction(),
-            ShellInstruction());
+            ShellInstruction())
+        .Where(s => !s.Contains('\n'));
 
     // ──────────────────────────────────────────────
     // Public generators for property tests (P0-5, P0-6, P0-7)

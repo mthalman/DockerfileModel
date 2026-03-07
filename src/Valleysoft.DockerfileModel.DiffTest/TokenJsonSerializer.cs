@@ -731,22 +731,99 @@ public static class TokenJsonSerializer
 
     /// <summary>
     /// Convert an Instruction token tree to a flat LiteralToken containing
-    /// string and whitespace primitives, matching Lean's opaque text representation
-    /// for ONBUILD triggers.
+    /// string, whitespace, and lineContinuation tokens, matching Lean's opaque
+    /// text representation for ONBUILD triggers.
     /// </summary>
     private static void SerializeInstructionAsLiteral(StringBuilder sb, Instruction instruction)
     {
         // Get the full text of the instruction
         string text = instruction.ToString();
 
-        // Build the literal token with string and whitespace children,
+        // Build the literal token with string, whitespace, and lineContinuation children,
         // matching Lean's shell form parser output
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
 
         bool firstChild = true;
-        SplitStringByWhitespace(sb, text, ref firstChild);
+        SplitByWhitespaceAndLineContinuation(sb, text, ref firstChild);
 
         sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Split a string value into alternating string/whitespace/lineContinuation tokens.
+    /// Handles both backslash and backtick escape chars before newlines.
+    /// </summary>
+    private static void SplitByWhitespaceAndLineContinuation(StringBuilder sb, string text, ref bool first)
+    {
+        int i = 0;
+        while (i < text.Length)
+        {
+            // Check for line continuation: escape char + newline
+            if ((text[i] == '\\' || text[i] == '`') && i + 1 < text.Length)
+            {
+                char escChar = text[i];
+                // \n or \r\n following the escape char
+                if (text[i + 1] == '\n')
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"lineContinuation\",\"quoteChar\":null,\"children\":[");
+                    SerializePrimitive(sb, "symbol", escChar.ToString());
+                    sb.Append(',');
+                    SerializePrimitive(sb, "newLine", "\n");
+                    sb.Append("]}");
+                    i += 2;
+                    continue;
+                }
+                else if (text[i + 1] == '\r' && i + 2 < text.Length && text[i + 2] == '\n')
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"lineContinuation\",\"quoteChar\":null,\"children\":[");
+                    SerializePrimitive(sb, "symbol", escChar.ToString());
+                    sb.Append(',');
+                    SerializePrimitive(sb, "newLine", "\r\n");
+                    sb.Append("]}");
+                    i += 3;
+                    continue;
+                }
+            }
+
+            // Check for whitespace (spaces and tabs)
+            if (text[i] == ' ' || text[i] == '\t')
+            {
+                int start = i;
+                while (i < text.Length && (text[i] == ' ' || text[i] == '\t'))
+                    i++;
+
+                if (!first) sb.Append(',');
+                first = false;
+                SerializePrimitive(sb, "whitespace", text[start..i]);
+                continue;
+            }
+
+            // Regular text: collect until next whitespace, line continuation, or end
+            {
+                int start = i;
+                while (i < text.Length)
+                {
+                    if (text[i] == ' ' || text[i] == '\t')
+                        break;
+                    // Check for escape char + newline
+                    if ((text[i] == '\\' || text[i] == '`') && i + 1 < text.Length &&
+                        (text[i + 1] == '\n' || text[i + 1] == '\r'))
+                        break;
+                    i++;
+                }
+
+                if (i > start)
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    SerializePrimitive(sb, "string", text[start..i]);
+                }
+            }
+        }
     }
 
     // ===================================================================

@@ -9,6 +9,7 @@
   Usage:
     echo "FROM alpine" | DockerfileModelDiffTest
     echo "ARG MY_VAR=hello" | DockerfileModelDiffTest
+    echo "FROM alpine" | DockerfileModelDiffTest --escape `
 -/
 
 import DockerfileModel.Json
@@ -66,28 +67,39 @@ def dispatchParse (name : String) (result : Option Instruction) : IO UInt32 :=
     IO.eprintln s!"Parse error: failed to parse {name} instruction"
     return 1
 
-def main : IO UInt32 := do
+/-- Parse --escape flag from command-line arguments. Returns the escape char (default: backslash). -/
+def parseEscapeArg (args : List String) : Char :=
+  match args with
+  | "--escape" :: val :: _ =>
+    match val.toList with
+    | [c] => c
+    | _ => '\\'
+  | _ :: rest => parseEscapeArg rest
+  | [] => '\\'
+
+def main (args : List String) : IO UInt32 := do
+  let escapeChar := parseEscapeArg args
   let input ← readAllStdin
   let keyword := (firstWord input).toUpper
   match keyword with
-  | "FROM"       => dispatchParse "FROM" (parseFrom input)
-  | "ARG"        => dispatchParse "ARG" (parseArg input)
-  | "MAINTAINER" => dispatchParse "MAINTAINER" (parseMaintainer input)
-  | "WORKDIR"    => dispatchParse "WORKDIR" (parseWorkdir input)
-  | "STOPSIGNAL" => dispatchParse "STOPSIGNAL" (parseStopsignal input)
-  | "CMD"        => dispatchParse "CMD" (parseCmd input)
-  | "ENTRYPOINT" => dispatchParse "ENTRYPOINT" (parseEntrypoint input)
-  | "SHELL"      => dispatchParse "SHELL" (parseShell input)
-  | "USER"       => dispatchParse "USER" (parseUser input)
-  | "EXPOSE"     => dispatchParse "EXPOSE" (parseExpose input)
-  | "VOLUME"     => dispatchParse "VOLUME" (parseVolume input)
-  | "ENV"        => dispatchParse "ENV" (parseEnv input)
-  | "LABEL"      => dispatchParse "LABEL" (parseLabel input)
-  | "RUN"        => dispatchParse "RUN" (parseRun input)
-  | "COPY"       => dispatchParse "COPY" (parseCopy input)
-  | "ADD"        => dispatchParse "ADD" (parseAdd input)
-  | "HEALTHCHECK" => dispatchParse "HEALTHCHECK" (parseHealthcheck input)
-  | "ONBUILD"    => dispatchParse "ONBUILD" (parseOnbuild input)
+  | "FROM"       => dispatchParse "FROM" (parseFrom input escapeChar)
+  | "ARG"        => dispatchParse "ARG" (parseArg input escapeChar)
+  | "MAINTAINER" => dispatchParse "MAINTAINER" (parseMaintainer input escapeChar)
+  | "WORKDIR"    => dispatchParse "WORKDIR" (parseWorkdir input escapeChar)
+  | "STOPSIGNAL" => dispatchParse "STOPSIGNAL" (parseStopsignal input escapeChar)
+  | "CMD"        => dispatchParse "CMD" (parseCmd input escapeChar)
+  | "ENTRYPOINT" => dispatchParse "ENTRYPOINT" (parseEntrypoint input escapeChar)
+  | "SHELL"      => dispatchParse "SHELL" (parseShell input escapeChar)
+  | "USER"       => dispatchParse "USER" (parseUser input escapeChar)
+  | "EXPOSE"     => dispatchParse "EXPOSE" (parseExpose input escapeChar)
+  | "VOLUME"     => dispatchParse "VOLUME" (parseVolume input escapeChar)
+  | "ENV"        => dispatchParse "ENV" (parseEnv input escapeChar)
+  | "LABEL"      => dispatchParse "LABEL" (parseLabel input escapeChar)
+  | "RUN"        => dispatchParse "RUN" (parseRun input escapeChar)
+  | "COPY"       => dispatchParse "COPY" (parseCopy input escapeChar)
+  | "ADD"        => dispatchParse "ADD" (parseAdd input escapeChar)
+  | "HEALTHCHECK" => dispatchParse "HEALTHCHECK" (parseHealthcheck input escapeChar)
+  | "ONBUILD"    => dispatchParse "ONBUILD" (parseOnbuild input escapeChar)
   | _ =>
     IO.eprintln s!"Unknown instruction type: {keyword}"
     return 1

@@ -5,6 +5,7 @@ string mode = "";
 string leanCliPath = "";
 int count = 1000;
 int seed = 42;
+char escapeChar = '\\';
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -28,6 +29,9 @@ for (int i = 0; i < args.Length; i++)
         case "--seed":
             if (i + 1 < args.Length) seed = int.Parse(args[++i]);
             break;
+        case "--escape":
+            if (i + 1 < args.Length && args[i + 1].Length == 1) escapeChar = args[++i][0];
+            break;
     }
 }
 
@@ -44,6 +48,7 @@ switch (mode)
         Console.Error.WriteLine("  --parse                          Read stdin, output JSON (symmetric with Lean CLI)");
         Console.Error.WriteLine("  --compare --lean-cli <path> --count N  Compare both parsers on N random inputs");
         Console.Error.WriteLine("  --generate --count N             Output test inputs as TYPE\\tBASE64 lines");
+        Console.Error.WriteLine("  --escape <char>                  Set escape character (default: \\)");
         return 1;
 }
 
@@ -60,7 +65,7 @@ async Task<int> RunParse()
 
     try
     {
-        string json = DiffTestRunner.ParseCSharp(keyword, input);
+        string json = DiffTestRunner.ParseCSharp(keyword, input, escapeChar);
         Console.WriteLine(json);
         return 0;
     }
@@ -82,8 +87,8 @@ async Task<int> RunCompare()
         return 1;
     }
 
-    Console.WriteLine($"Generating {count} random inputs (seed={seed})...");
-    List<(string InstructionType, string Text)> inputs = InputGenerator.Generate(count, seed);
+    Console.WriteLine($"Generating {count} random inputs (seed={seed}, escape='{escapeChar}')...");
+    List<(string InstructionType, string Text, char EscapeChar)> inputs = InputGenerator.Generate(count, seed);
 
     Console.WriteLine($"Running differential test against Lean CLI: {leanCliPath}");
     Console.WriteLine();
@@ -139,11 +144,11 @@ async Task<int> RunCompare()
 /// </summary>
 int RunGenerate()
 {
-    List<(string InstructionType, string Text)> inputs = InputGenerator.Generate(count, seed);
-    foreach ((string type, string text) in inputs)
+    List<(string InstructionType, string Text, char EscapeChar)> inputs = InputGenerator.Generate(count, seed);
+    foreach ((string type, string text, char esc) in inputs)
     {
         string b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text));
-        Console.WriteLine($"{type}\t{b64}");
+        Console.WriteLine($"{type}\t{b64}\t{esc}");
     }
     return 0;
 }

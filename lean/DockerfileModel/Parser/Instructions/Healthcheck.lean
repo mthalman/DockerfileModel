@@ -64,7 +64,7 @@ private def healthcheckFlagParser (escapeChar : Char) : Parser (List Token) :=
                (or' (flagParser "start-period" escapeChar)
                (or' (flagParser "start-interval" escapeChar)
                     (flagParser "retries" escapeChar))))
-    Parser.pure [flag]) escapeChar (excludeTrailingWhitespace := true)
+    Parser.pure [flag]) escapeChar
 
 -- ============================================================
 -- HEALTHCHECK NONE form
