@@ -41,7 +41,10 @@ public class EntrypointInstructionTests
                     token => ValidateKeyword(token, "ENTRYPOINT"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -73,7 +76,10 @@ public class EntrypointInstructionTests
                     token => ValidateKeyword(token, "ENTRYPOINT"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo $TEST",
-                        token => ValidateLiteral(token, "echo $TEST"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo $TEST", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "$TEST")))
                 }
             },
             new ParseTestScenario<EntrypointInstruction>
@@ -97,7 +103,8 @@ public class EntrypointInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo `\n#test comment\nhello",
                         token => ValidateQuotableAggregate<LiteralToken>(token, "echo `\n#test comment\nhello", null,
-                            token => ValidateString(token, "echo "),
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                                 token => ValidateSymbol(token, '`'),
                                 token => ValidateNewLine(token, "\n")),
@@ -172,7 +179,10 @@ public class EntrypointInstructionTests
                     token => ValidateKeyword(token, "ENTRYPOINT"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 }
             },
             new CreateTestScenario

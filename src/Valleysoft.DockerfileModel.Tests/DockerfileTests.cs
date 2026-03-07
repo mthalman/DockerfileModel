@@ -624,11 +624,21 @@ public class DockerfileTests
                             token => ValidateWhitespace(token, " "),
                             token => ValidateAggregate<ShellFormCommand>(token, "apt-get update \\\r\n  && apt-get install curl\r\n",
                                 token => ValidateAggregate<LiteralToken>(token, "apt-get update \\\r\n  && apt-get install curl\r\n",
-                                    token => ValidateString(token, "apt-get update "),
+                                    token => ValidateString(token, "apt-get"),
+                                    token => ValidateWhitespace(token, " "),
+                                    token => ValidateString(token, "update"),
+                                    token => ValidateWhitespace(token, " "),
                                     token => ValidateAggregate<LineContinuationToken>(token, "\\\r\n",
                                         token => ValidateSymbol(token, '\\'),
                                         token => ValidateNewLine(token, "\r\n")),
-                                    token => ValidateString(token, "  && apt-get install curl"),
+                                    token => ValidateWhitespace(token, "  "),
+                                    token => ValidateString(token, "&&"),
+                                    token => ValidateWhitespace(token, " "),
+                                    token => ValidateString(token, "apt-get"),
+                                    token => ValidateWhitespace(token, " "),
+                                    token => ValidateString(token, "install"),
+                                    token => ValidateWhitespace(token, " "),
+                                    token => ValidateString(token, "curl"),
                                     token => ValidateNewLine(token, "\r\n"))),
                         }),
                     line => ValidateAggregate<Whitespace>(line, "\r\n"),
@@ -647,11 +657,15 @@ public class DockerfileTests
                             token => ValidateWhitespace(token, " "),
                             token => ValidateAggregate<ShellFormCommand>(token, "apk add \\\n  userspace-rcu",
                                 token => ValidateAggregate<LiteralToken>(token, "apk add \\\n  userspace-rcu",
-                                    token => ValidateString(token, "apk add "),
+                                    token => ValidateString(token, "apk"),
+                                    token => ValidateWhitespace(token, " "),
+                                    token => ValidateString(token, "add"),
+                                    token => ValidateWhitespace(token, " "),
                                     token => ValidateAggregate<LineContinuationToken>(token, "\\\n",
                                         token => ValidateSymbol(token, '\\'),
                                         token => ValidateNewLine(token, "\n")),
-                                    token => ValidateString(token, "  userspace-rcu"))),
+                                    token => ValidateWhitespace(token, "  "),
+                                    token => ValidateString(token, "userspace-rcu"))),
                         })
                 }
             },
@@ -687,7 +701,10 @@ public class DockerfileTests
                         token => ValidateKeyword(token, "CMD"),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                            token => ValidateLiteral(token, "echo hello"))
+                            token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                                token => ValidateString(token, "echo"),
+                                token => ValidateWhitespace(token, " "),
+                                token => ValidateString(token, "hello")))
                     })
                 }
             }

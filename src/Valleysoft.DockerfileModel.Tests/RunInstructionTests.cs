@@ -141,7 +141,10 @@ public class RunInstructionTests
                     token => ValidateKeyword(token, "RUN"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -174,7 +177,10 @@ public class RunInstructionTests
                     token => ValidateKeyword(token, "RUN"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo $TEST",
-                        token => ValidateLiteral(token, "echo $TEST"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo $TEST", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "$TEST")))
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -210,7 +216,10 @@ public class RunInstructionTests
                     token => ValidateLineContinuation(token, '`', "\n"),
                     token => ValidateLineContinuation(token, '`', "\n"),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))  // already correct format
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -223,7 +232,8 @@ public class RunInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo `\n#test comment\nhello",
                         token => ValidateQuotableAggregate<LiteralToken>(token, "echo `\n#test comment\nhello", null,
-                            token => ValidateString(token, "echo "),
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                                 token => ValidateSymbol(token, '`'),
                                 token => ValidateNewLine(token, "\n")),
@@ -346,7 +356,9 @@ public class RunInstructionTests
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                                 token => ValidateSymbol(token, '`'),
                                 token => ValidateNewLine(token, "\n")),
-                            token => ValidateString(token, "ho `test")))
+                            token => ValidateString(token, "ho"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "`test")))
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -363,7 +375,9 @@ public class RunInstructionTests
                             token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                                 token => ValidateSymbol(token, '`'),
                                 token => ValidateNewLine(token, "\n")),
-                            token => ValidateString(token, "h`\"o `test\"")))
+                            token => ValidateString(token, "h`\"o"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "`test\"")))
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -384,7 +398,10 @@ public class RunInstructionTests
                             token => ValidateKeyValue(token, "id", "id"))),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -424,7 +441,10 @@ public class RunInstructionTests
                     token => ValidateLineContinuation(token, '`', "\n"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -628,7 +648,10 @@ public class RunInstructionTests
                     token => ValidateKeyword(token, "RUN"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 }
             },
             new CreateTestScenario
@@ -677,7 +700,10 @@ public class RunInstructionTests
                             token => ValidateKeyValue(token, "id", "id"))),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 }
             },
             new CreateTestScenario
@@ -713,7 +739,10 @@ public class RunInstructionTests
                             token => ValidateKeyValue(token, "id", "id2"))),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 }
             },
             // Create with network flag

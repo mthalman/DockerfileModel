@@ -340,7 +340,7 @@ internal static class ParseHelper
                 from literal in LiteralToken(escapeChar, Enumerable.Empty<char>()).Optional()
                 select new Token[] { literal.GetOrDefault() },
                 escapeChar).Many()
-        select CollapseLiteralTokens(literals.Flatten(), canContainVariables: false, escapeChar);
+        select CollapseLiteralTokensPreservingWhitespace(literals.Flatten(), escapeChar);
 
     /// <summary>
     /// Parses a JSON array of strings.
@@ -560,6 +560,26 @@ internal static class ParseHelper
             {
                 QuoteChar = quoteChar
             }
+        };
+    }
+
+    /// <summary>
+    /// Collapses adjacent string tokens, preserving whitespace tokens as separate children,
+    /// and wraps the result in a literal token. Used by shell form command parsing where
+    /// whitespace within the command text must remain as separate WhitespaceToken children.
+    /// </summary>
+    /// <param name="tokens">Set of tokens to process.</param>
+    /// <param name="escapeChar">Escape character.</param>
+    private static IEnumerable<Token> CollapseLiteralTokensPreservingWhitespace(IEnumerable<Token> tokens,
+        char escapeChar)
+    {
+        Requires.NotNullEmptyOrNullElements(tokens, nameof(tokens));
+        return new Token[]
+        {
+            new LiteralToken(
+                TokenHelper.CollapseStringTokens(ExtractLiteralTokenContents(tokens)),
+                canContainVariables: false,
+                escapeChar)
         };
     }
 
