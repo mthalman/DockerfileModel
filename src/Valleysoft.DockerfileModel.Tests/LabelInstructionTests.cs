@@ -35,10 +35,10 @@ public class LabelInstructionTests
                 }
             });
 
-            Assert.Collection(instruction.LabelTokens, new Action<KeyValueToken<LiteralToken, LiteralToken>>[]
+            Assert.Collection(instruction.LabelTokens, new Action<KeyValueToken<LabelKeyToken, LiteralToken>>[]
             {
-                token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, $"{expectedKey}={expectedValue}",
-                    token => ValidateLiteral(token, expectedKey),
+                token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, $"{expectedKey}={expectedValue}",
+                    token => ValidateIdentifier<LabelKeyToken>(token, expectedKey),
                     token => ValidateSymbol(token, '='),
                     token => ValidateLiteral(token, expectedValue))
             });
@@ -75,8 +75,8 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_NAME=",
-                        token => ValidateLiteral(token, "MY_NAME"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "MY_NAME=",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_NAME"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, ""))
                 },
@@ -101,8 +101,8 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_NAME=\"\"",
-                        token => ValidateLiteral(token, "MY_NAME"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "MY_NAME=\"\"",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_NAME"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "", '\"'))
                 },
@@ -127,8 +127,8 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_NAME=John",
-                        token => ValidateLiteral(token, "MY_NAME"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "MY_NAME=John",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_NAME"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "John"))
                 },
@@ -148,33 +148,13 @@ public class LabelInstructionTests
             },
             new ParseTestScenario<LabelInstruction>
             {
-                Text = "LABEL $var1-$var2=$var3",
-                TokenValidators = new Action<Token>[]
-                {
-                    token => ValidateKeyword(token, "LABEL"),
-                    token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "$var1-$var2=$var3",
-                        token => ValidateQuotableAggregate<LiteralToken>(token, "$var1-$var2", null,
-                            token => ValidateAggregate<VariableRefToken>(token, "$var1",
-                                token => ValidateString(token, "var1")),
-                            token => ValidateString(token, "-"),
-                            token => ValidateAggregate<VariableRefToken>(token, "$var2",
-                                token => ValidateString(token, "var2"))),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateQuotableAggregate<LiteralToken>(token, "$var3", null,
-                            token => ValidateAggregate<VariableRefToken>(token, "$var3",
-                                token => ValidateString(token, "var3"))))
-                }
-            },
-            new ParseTestScenario<LabelInstruction>
-            {
                 Text = "LABEL MY_NAME=\"John Doe\"",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_NAME=\"John Doe\"",
-                        token => ValidateLiteral(token, "MY_NAME"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "MY_NAME=\"John Doe\"",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_NAME"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "John Doe", '\"'))
                 },
@@ -200,8 +180,8 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_NAME=\"John `\nDoe\"",
-                        token => ValidateLiteral(token, "MY_NAME"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "MY_NAME=\"John `\nDoe\"",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_NAME"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateQuotableAggregate<LiteralToken>(token, "John `\nDoe", '\"',
                             token => ValidateString(token, "John "),
@@ -229,8 +209,8 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "\"MY_NAME\"=John",
-                        token => ValidateLiteral(token, "MY_NAME", '\"'),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "\"MY_NAME\"=John",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_NAME", '\"'),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "John"))
                 },
@@ -256,13 +236,13 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_NAME=\"John Doe\"",
-                        token => ValidateLiteral(token, "MY_NAME"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "MY_NAME=\"John Doe\"",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_NAME"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "John Doe", '\"')),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_DOG=Rex` The` Dog",
-                        token => ValidateLiteral(token, "MY_DOG"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "MY_DOG=Rex` The` Dog",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_DOG"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "Rex` The` Dog")),
                     token => ValidateWhitespace(token, " "),
@@ -271,8 +251,8 @@ public class LabelInstructionTests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateNewLine(token, "\n")),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_CAT=fluffy",
-                        token => ValidateLiteral(token, "MY_CAT"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "MY_CAT=fluffy",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "MY_CAT"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "fluffy"))
                 },
@@ -319,8 +299,8 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "VAR1=test",
-                        token => ValidateLiteral(token, "VAR1"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "VAR1=test",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "VAR1"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "test"))
                 }
@@ -335,8 +315,8 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "VAR1=test\\ 123",
-                        token => ValidateLiteral(token, "VAR1"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "VAR1=test\\ 123",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "VAR1"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "test\\ 123"))
                 }
@@ -352,13 +332,13 @@ public class LabelInstructionTests
                 {
                     token => ValidateKeyword(token, "LABEL"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "VAR1=test",
-                        token => ValidateLiteral(token, "VAR1"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "VAR1=test",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "VAR1"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "test")),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "VAR2=\"testing 1 2 3\"",
-                        token => ValidateLiteral(token, "VAR2"),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "VAR2=\"testing 1 2 3\"",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "VAR2"),
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "testing 1 2 3", '\"'))
                 }
