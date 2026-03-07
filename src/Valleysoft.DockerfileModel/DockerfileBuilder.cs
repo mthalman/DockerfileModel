@@ -188,9 +188,6 @@ public class DockerfileBuilder
     public DockerfileBuilder UserInstruction(string user, string? group = null) =>
         AddConstruct(new UserInstruction(user, group, EscapeChar));
 
-    public DockerfileBuilder UserInstruction(UserAccount userAccount) =>
-        AddConstruct(new UserInstruction(userAccount, EscapeChar));
-
     public DockerfileBuilder UserInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.UserInstruction.Parse);
 
