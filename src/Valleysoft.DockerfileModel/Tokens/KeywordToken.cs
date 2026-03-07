@@ -27,6 +27,17 @@ public class KeywordToken : AggregateToken, IValueToken
         from tokens in GetInnerParser(keyword, escapeChar)
         select new KeywordToken(tokens);
 
+    /// <summary>
+    /// Parses any keyword (one or more letters/digits/underscores/hyphens, not starting with '=').
+    /// Used for generic key-value parsing where the key name is not known in advance.
+    /// </summary>
+    public static Parser<KeywordToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        from tokens in IdentifierString(
+            escapeChar,
+            Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')),
+            Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')))
+        select new KeywordToken(tokens);
+
     private static string StripLineContinuations(string value, char escapeChar)
     {
         StringBuilder builder = new();
