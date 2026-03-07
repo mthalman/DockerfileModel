@@ -472,7 +472,10 @@ public class RunInstructionTests
                     token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -496,7 +499,10 @@ public class RunInstructionTests
                     token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -522,7 +528,10 @@ public class RunInstructionTests
                     token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -552,7 +561,10 @@ public class RunInstructionTests
                     token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -585,7 +597,10 @@ public class RunInstructionTests
                     token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -757,7 +772,10 @@ public class RunInstructionTests
                     token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -778,7 +796,10 @@ public class RunInstructionTests
                     token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
@@ -802,7 +823,10 @@ public class RunInstructionTests
                     token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
-                        token => ValidateLiteral(token, "echo hello"))
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                            token => ValidateString(token, "echo"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "hello")))
                 },
                 Validate = result =>
                 {
