@@ -60,16 +60,13 @@ public class EnvInstruction : Instruction
             from whitespace in Whitespace().Optional()
             from variable in KeyValueToken<Variable, LiteralToken>.GetParser(
                 Variable.GetParser(escapeChar),
-                MultiVariableFormatValueParser(escapeChar),
+                LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes),
                 escapeChar: escapeChar,
                 excludeLeadingWhitespaceInValue: true,
-                excludeTrailingWhitespaceInSeparator: true).AsEnumerable()
+                excludeTrailingWhitespaceInSeparator: true,
+                optionalValue: true).AsEnumerable()
             select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
         ).AtLeastOnce().Flatten();
-
-    private static Parser<LiteralToken> MultiVariableFormatValueParser(char escapeChar) =>
-        from literal in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).Optional()
-        select literal.GetOrElse(new LiteralToken("", canContainVariables: true, escapeChar));
 
     private static Parser<IEnumerable<Token>> SingleVariableFormat(char escapeChar) =>
         ArgTokens(

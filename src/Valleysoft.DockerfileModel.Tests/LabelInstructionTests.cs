@@ -77,8 +77,7 @@ public class LabelInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "MY_NAME=",
                         token => ValidateLiteral(token, "MY_NAME"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, ""))
+                        token => ValidateSymbol(token, '='))
                 },
                 Validate = result =>
                 {
