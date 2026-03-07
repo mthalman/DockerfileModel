@@ -89,8 +89,7 @@ public class EnvInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME=",
                         token => ValidateIdentifier<Variable>(token, "MY_NAME"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, ""))
+                        token => ValidateSymbol(token, '='))
                 },
                 Validate = result =>
                 {
@@ -115,8 +114,7 @@ public class EnvInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR1=",
                         token => ValidateIdentifier<Variable>(token, "VAR1"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "")),
+                        token => ValidateSymbol(token, '=')),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR2=foo",
                         token => ValidateIdentifier<Variable>(token, "VAR2"),
