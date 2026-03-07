@@ -5,6 +5,12 @@ namespace Valleysoft.DockerfileModel.Tokens;
 
 public class VariableRefToken : AggregateToken
 {
+    // Ordering matters: longer modifiers must come before shorter prefixes (e.g., "##" before "#",
+    // "%%" before "%", "//" before "/") so that the greedy parser matches the longest modifier first.
+    // The default-value modifiers (":-", ":+", ":?", "-", "+", "?") are fully supported in
+    // ResolveVariables. The POSIX modifiers ("##", "#", "%%", "%", "//", "/") are accepted for
+    // parsing but not resolved, since Dockerfile variable resolution is limited compared to full
+    // bash — see ResolveVariables for details.
     private static readonly string[] ValidModifiers = new string[] { ":-", ":+", ":?", "-", "+", "?", "##", "#", "%%", "%", "//", "/" };
 
     /// <summary>
@@ -137,6 +143,18 @@ public class VariableRefToken : AggregateToken
 
         if (modifier is not null)
         {
+            // POSIX pattern modifiers (##, #, %%, %, //, /) require shell-level pattern
+            // matching (glob patterns, substring removal/replacement) that goes beyond
+            // Dockerfile variable resolution capabilities. Since Docker/BuildKit does not
+            // support these modifiers, we return the raw variable reference text unchanged
+            // rather than silently losing the modifier and its pattern.
+            if (modifier == "#" || modifier == "##" ||
+                modifier == "%" || modifier == "%%" ||
+                modifier == "/" || modifier == "//")
+            {
+                return ToString();
+            }
+
             bool isVariableSet;
             if (modifier[0] == ':')
             {
