@@ -724,12 +724,12 @@ public static class DockerfileArbitraries
             // from src in PathSegment()
             // from dst in PathSegment()
             // select $"COPY --chown={user}:{grp} {src} {dst}",
-            // Disabled: Lean parser crashes on line continuation between COPY flags (issue #210)
-            // from stage in StageName()
-            // from owner in Identifier()
-            // from src in PathSegment()
-            // from dst in PathSegment()
-            // select $"COPY --from={stage} \\\n  --chown={owner} {src} {dst}",
+            // Line continuation between COPY flags
+            from stage in StageName()
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from={stage} \\\n  --chown={owner} {src} {dst}",
             // \r\n line continuation
             from src in PathSegment()
             from dst in PathSegment()
@@ -823,11 +823,11 @@ public static class DockerfileArbitraries
             from src in PathSegment()
             from dst in PathSegment()
             select $"ADD {src} \\\r\n  /{dst}/",
-            // Disabled: Lean parser crashes on line continuation between ADD flags (issue #210)
-            // from owner in Identifier()
-            // from src in PathSegment()
-            // from dst in PathSegment()
-            // select $"ADD --chown={owner} \\\n  --link {src} {dst}"
+            // Line continuation between ADD flags
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chown={owner} \\\n  --link {src} {dst}",
             Gen.Constant("ADD src.txt /dst/"));
 
     /// <summary>
