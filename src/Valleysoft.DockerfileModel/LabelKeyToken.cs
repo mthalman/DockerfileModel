@@ -35,5 +35,16 @@ public class LabelKeyToken : IdentifierToken
         GetTokens(value, GetInnerParser(escapeChar)).Tokens;
 
     private static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> GetInnerParser(char escapeChar) =>
-        LiteralWithVariablesTokens(escapeChar, excludedChars: new char[] { '=' }, whitespaceMode: WhitespaceMode.AllowedInQuotes);
+        IdentifierTokens(FirstCharParser(), TailCharParser(), escapeChar);
+
+    private static Parser<char> FirstCharParser() =>
+        Sprache.Parse.Letter
+            .Or(Sprache.Parse.Char('_'))
+            .Or(Sprache.Parse.Char('.'));
+
+    private static Parser<char> TailCharParser() =>
+        Sprache.Parse.LetterOrDigit
+            .Or(Sprache.Parse.Char('_'))
+            .Or(Sprache.Parse.Char('-'))
+            .Or(Sprache.Parse.Char('.'));
 }

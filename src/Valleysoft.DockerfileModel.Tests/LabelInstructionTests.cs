@@ -148,26 +148,6 @@ public class LabelInstructionTests
             },
             new ParseTestScenario<LabelInstruction>
             {
-                Text = "LABEL $var1-$var2=$var3",
-                TokenValidators = new Action<Token>[]
-                {
-                    token => ValidateKeyword(token, "LABEL"),
-                    token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "$var1-$var2=$var3",
-                        token => ValidateQuotableAggregate<LabelKeyToken>(token, "$var1-$var2", null,
-                            token => ValidateAggregate<VariableRefToken>(token, "$var1",
-                                token => ValidateString(token, "var1")),
-                            token => ValidateString(token, "-"),
-                            token => ValidateAggregate<VariableRefToken>(token, "$var2",
-                                token => ValidateString(token, "var2"))),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateQuotableAggregate<LiteralToken>(token, "$var3", null,
-                            token => ValidateAggregate<VariableRefToken>(token, "$var3",
-                                token => ValidateString(token, "var3"))))
-                }
-            },
-            new ParseTestScenario<LabelInstruction>
-            {
                 Text = "LABEL MY_NAME=\"John Doe\"",
                 TokenValidators = new Action<Token>[]
                 {
