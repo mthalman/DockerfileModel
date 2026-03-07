@@ -35,6 +35,36 @@ public class UserInstructionTests
         Assert.Throws<ArgumentNullException>(() => result.UserAccount = null);
     }
 
+    [Fact]
+    public void UserAccountWithGroupIsKeyValueToken()
+    {
+        UserInstruction result = UserInstruction.Parse("USER alice:staff");
+        UserAccount account = result.UserAccount;
+
+        // UserAccount with group should be a KeyValueToken
+        Assert.IsAssignableFrom<KeyValueToken<LiteralToken, LiteralToken>>(account);
+
+        // IKeyValuePair should expose user as key and group as value
+        IKeyValuePair kvp = (IKeyValuePair)account;
+        Assert.Equal("alice", kvp.Key);
+        Assert.Equal("staff", kvp.Value);
+    }
+
+    [Fact]
+    public void UserAccountWithoutGroupIsKeyValueToken()
+    {
+        UserInstruction result = UserInstruction.Parse("USER alice");
+        UserAccount account = result.UserAccount;
+
+        // UserAccount without group is still a KeyValueToken (base class)
+        Assert.IsAssignableFrom<KeyValueToken<LiteralToken, LiteralToken>>(account);
+
+        // IKeyValuePair should expose user as key and null for value
+        IKeyValuePair kvp = (IKeyValuePair)account;
+        Assert.Equal("alice", kvp.Key);
+        Assert.Null(kvp.Value);
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<UserInstruction>[] testInputs = new ParseTestScenario<UserInstruction>[]

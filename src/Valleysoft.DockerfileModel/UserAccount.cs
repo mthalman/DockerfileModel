@@ -1,9 +1,9 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public class UserAccount : AggregateToken
+public class UserAccount : KeyValueToken<LiteralToken, LiteralToken>, IKeyValuePair
 {
     private readonly char escapeChar;
 
@@ -62,6 +62,19 @@ public class UserAccount : AggregateToken
                         token);
                 });
         }
+    }
+
+    // Re-implement IKeyValuePair to handle the optional group (no-group case returns null)
+    string IKeyValuePair.Key
+    {
+        get => User;
+        set => User = value;
+    }
+
+    string? IKeyValuePair.Value
+    {
+        get => Group;
+        set => Group = value;
     }
 
     public static UserAccount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
