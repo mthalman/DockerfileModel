@@ -519,9 +519,8 @@ public static class DockerfileArbitraries
             select $"RUN {c1} \\\n  && {c2} \\\n  && {c3}",
             // Disabled: C# parser treats \<spaces><newline> as regular text, not line continuation
             // Gen.Constant("RUN echo hello \\   \n  && echo world"),
-            // Disabled: C# parser crashes on exec form with empty string element (issue #203)
-            // from arg in Gen.Elements("hello", "-c", "test")
-            // select $"RUN [\"\", \"{arg}\"]",
+            from arg in Gen.Elements("hello", "-c", "test")
+            select $"RUN [\"\", \"{arg}\"]",
             Gen.Constant("RUN []"));
 
     /// <summary>
@@ -567,9 +566,8 @@ public static class DockerfileArbitraries
             from c1 in Gen.Elements("echo hello", "cat /etc/hosts")
             from c2 in Gen.Elements("world", "output")
             select $"CMD {c1} \\\r\n  {c2}",
-            // Disabled: C# parser crashes on exec form with empty string element (issue #203)
-            // from arg in Gen.Elements("hello", "world")
-            // select $"CMD [\"\", \"{arg}\"]",
+            from arg in Gen.Elements("hello", "world")
+            select $"CMD [\"\", \"{arg}\"]",
             // Three-line shell form
             from c1 in Gen.Elements("echo line1")
             from c2 in Gen.Elements("echo line2")
@@ -615,9 +613,8 @@ public static class DockerfileArbitraries
             from exe in Gen.Elements("/app/run", "python", "node")
             from arg in Gen.Elements("--config", "--port", "start")
             select $"ENTRYPOINT [ \"{exe}\" , \"{arg}\" ]",
-            // Disabled: C# parser crashes on exec form with empty string element (issue #203)
-            // from arg in Gen.Elements("/app/run", "--config")
-            // select $"ENTRYPOINT [\"\", \"{arg}\"]",
+            from arg in Gen.Elements("/app/run", "--config")
+            select $"ENTRYPOINT [\"\", \"{arg}\"]",
             // \r\n line continuation
             from c1 in Gen.Elements("/app/run", "python app.py")
             from c2 in Gen.Elements("--config /etc/app.conf", "--port 8080")
