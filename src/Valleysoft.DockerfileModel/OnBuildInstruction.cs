@@ -52,6 +52,13 @@ public class OnBuildInstruction : Instruction
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(
-            LiteralWithVariables(
-                escapeChar, whitespaceMode: WhitespaceMode.Allowed).AsEnumerable(), escapeChar);
+            LiteralTokenWithSpaces(escapeChar).AsEnumerable(), escapeChar);
+
+    // ONBUILD trigger text is opaque — BuildKit does not expand variables in it.
+    // The $ character is treated as a regular character, not a variable reference.
+    private static Parser<LiteralToken> LiteralTokenWithSpaces(char escapeChar) =>
+        from literal in LiteralString(escapeChar, Enumerable.Empty<char>(), excludeVariableRefChars: false)
+            .Or(Whitespace()).Or(LineContinuations(escapeChar)).Many().Flatten()
+        where literal.Any()
+        select new LiteralToken(TokenHelper.CollapseStringTokens(literal), canContainVariables: false, escapeChar);
 }
