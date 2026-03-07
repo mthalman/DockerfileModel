@@ -59,10 +59,10 @@ def readAllStdin : IO String := do
 /-- Helper: dispatch a parse function and output JSON or error. -/
 def dispatchParse (name : String) (result : Option Instruction) : IO UInt32 :=
   match result with
-  | some inst =>
+  | some inst => do
     IO.println (Json.Token.toJson inst.token)
     return 0
-  | none =>
+  | none => do
     IO.eprintln s!"Parse error: failed to parse {name} instruction"
     return 1
 

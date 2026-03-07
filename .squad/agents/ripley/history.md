@@ -238,3 +238,27 @@ Team update (2026-03-05T20:00:00Z): Phase 2 Lean 4 parser combinator architectur
 
 **Status:** Foundation complete; ready for Phase 2 execution (remaining 16 instructions, expanded proof work).
 Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new theorems in Capstone.lean, token_concat_length fixed in RoundTrip.lean, proof coverage documented. Total: 55 proved, 4 documented sorries. Build: 19 jobs, 0 errors. — decided by Dallas
+
+### 2026-03-06 — Differential Testing Mismatch Analysis (4 categories, 91+ mismatches)
+
+**Branch:** grammar
+
+**Analysis completed for Dallas's generator expansion findings.** 91+ mismatches across 4 categories analyzed against BuildKit authoritative behavior.
+
+**Key findings:**
+
+1. **STOPSIGNAL variable refs (HIGH severity, P0):** C# uses `LiteralToken` (no variable decomposition) but BuildKit explicitly expands variables in STOPSIGNAL. This is a real C# bug. Fix: one-line change from `LiteralToken(escapeChar, ...)` to `LiteralWithVariables(escapeChar)` in `StopSignalInstruction.GetArgsParser`. 38 of 91 mismatches.
+
+2. **Shell-form variable refs (LOW severity):** RUN/CMD/ENTRYPOINT shell-form commands: C# treats `$VAR` as opaque text (`canContainVariables: false`), Lean decomposes them. Both are valid -- C# is semantically faithful (BuildKit doesn't expand vars in these), Lean is structurally complete. Resolution: serializer workaround, flatten Lean variableRef tokens for comparison.
+
+3. **Mount flag structure (MEDIUM severity for parse failures):** Lean uses opaque `flagParser "mount"`, C# uses structured `SecretMount.GetParser`. The opaque approach is more robust. Sub-pattern (b) where C# mount parser fails on valid inputs is a real bug needing fix.
+
+4. **Empty values in key=value (LOW-MEDIUM):** C# synthesizes empty `literal[""]` via `.GetOrElse(new LiteralToken(""))`, Lean omits the value token. Resolution: serializer workaround (strip empty literals from C# tree before comparison).
+
+5. **Single-quoted `$` in shell form (LOW):** Subset of category 1. Lean's shellFormCommand doesn't model shell quoting, so `$1` inside `'{print $1}'` becomes a variableRef. Acceptable limitation.
+
+**Architectural insight:** Fundamental tension between semantic faithfulness (C# parses only what will be resolved) vs structural completeness (Lean parses all recognizable syntax). Lean's context-free approach is the better spec. C#'s `CommandInstruction.ResolveVariables` override correctly handles runtime semantics regardless.
+
+**Priority order:** P0 = STOPSIGNAL fix (C#), P1 = mount parser robustness (C#), P2 = serializer normalizations (test infra).
+
+**Decision document:** `.squad/decisions/inbox/ripley-mismatch-analysis.md`

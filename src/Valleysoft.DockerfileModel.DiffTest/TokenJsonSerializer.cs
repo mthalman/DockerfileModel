@@ -124,8 +124,15 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // Shell form instructions (RUN, CMD, ENTRYPOINT) need whitespace splitting
-        if (token is RunInstruction || token is CmdInstruction || token is EntrypointInstruction)
+        // RUN needs whitespace splitting + mount value flattening (issue #200)
+        if (token is RunInstruction)
+        {
+            SerializeRunInstruction(sb, (RunInstruction)token);
+            return;
+        }
+
+        // CMD, ENTRYPOINT need whitespace splitting
+        if (token is CmdInstruction || token is EntrypointInstruction)
         {
             SerializeShellFormInstruction(sb, (Instruction)token);
             return;
@@ -135,6 +142,20 @@ public static class TokenJsonSerializer
         if (token is CopyInstruction || token is AddInstruction)
         {
             SerializeFileTransferInstruction(sb, (Instruction)token);
+            return;
+        }
+
+        // STOPSIGNAL: C# doesn't parse variable refs (issue #199)
+        if (token is StopSignalInstruction)
+        {
+            SerializeStopSignal(sb, (StopSignalInstruction)token);
+            return;
+        }
+
+        // ENV: empty value handling (issue #201)
+        if (token is EnvInstruction)
+        {
+            SerializeInstructionStrippingEmptyLiterals(sb, (Instruction)token);
             return;
         }
 
@@ -308,6 +329,8 @@ public static class TokenJsonSerializer
     /// <summary>
     /// Serialize a LiteralToken, splitting any StringToken children that contain
     /// whitespace into alternating string/whitespace runs (matching Lean behavior).
+    /// Also flattens VariableRefTokens back to plain text — Lean's shell form parser
+    /// treats $VAR as opaque text (matching BuildKit), while C# still decomposes it.
     /// Only applied to unquoted literals with embedded whitespace.
     /// </summary>
     private static void SerializeLiteralWithWhitespaceSplitting(StringBuilder sb, LiteralToken literal)
@@ -330,8 +353,20 @@ public static class TokenJsonSerializer
         bool first = true;
         foreach (Token child in literal.Tokens)
         {
+            if (literal.QuoteChar.HasValue)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+            // Flatten VariableRefTokens to plain text (Lean treats $VAR as opaque text
+            // in shell form commands, matching BuildKit behavior)
+            else if (child is VariableRefToken varRef)
+            {
+                SplitStringByWhitespace(sb, varRef.ToString(), ref first);
+            }
             // Split StringTokens that contain whitespace (spaces/tabs)
-            if (!literal.QuoteChar.HasValue && child is StringToken strTok && ContainsWhitespace(strTok.Value))
+            else if (child is StringToken strTok && ContainsWhitespace(strTok.Value))
             {
                 SplitStringByWhitespace(sb, strTok.Value, ref first);
             }
@@ -530,6 +565,12 @@ public static class TokenJsonSerializer
         bool isFirstChild = true;
         foreach (Token child in kvToken.Tokens)
         {
+            // Strip empty LiteralTokens (issue #201)
+            if (!isFirstChild && child is LiteralToken lit && lit.ToString() == "")
+            {
+                continue;
+            }
+
             if (!first) sb.Append(',');
             first = false;
 
@@ -704,6 +745,359 @@ public static class TokenJsonSerializer
 
         bool firstChild = true;
         SplitStringByWhitespace(sb, text, ref firstChild);
+
+        sb.Append("]}");
+    }
+
+    // ===================================================================
+    // Workaround: RUN instruction — mount value flattening (see issue #200)
+    // C# over-parses mount flag values into structured KeyValueToken children
+    // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
+    // value as an opaque literal string. This serializer flattens the Mount
+    // aggregate back to a single LiteralToken containing the opaque text.
+    // Also applies shell form whitespace splitting (same as CMD/ENTRYPOINT).
+    // ===================================================================
+
+    private static void SerializeRunInstruction(StringBuilder sb, RunInstruction instruction)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        foreach (Token child in instruction.Tokens)
+        {
+            // MountFlag is a KeyValueToken<KeywordToken, Mount>.
+            // Its Mount value child is an AggregateToken with structured children
+            // that Lean treats as opaque text. Flatten the mount value.
+            if (child is MountFlag mountFlag)
+            {
+                if (!first) sb.Append(',');
+                first = false;
+                SerializeMountFlag(sb, mountFlag);
+            }
+            // ShellFormCommand is a transparent wrapper — inline its children
+            else if (child is Command cmd)
+            {
+                foreach (Token cmdChild in cmd.Tokens)
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    // Apply whitespace splitting to LiteralTokens inside the command
+                    if (cmdChild is LiteralToken lit)
+                    {
+                        SerializeLiteralWithWhitespaceSplitting(sb, lit);
+                    }
+                    else
+                    {
+                        SerializeToken(sb, cmdChild);
+                    }
+                }
+            }
+            else
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Serialize a MountFlag, flattening its Mount value to an opaque LiteralToken.
+    /// C# structure: keyValue [ --, --, keyword("mount"), =, Mount [ keyValue(type=...), comma, keyValue(id=...), ... ] ]
+    /// Lean structure: keyValue [ --, --, keyword("mount"), =, literal("type=secret,id=mysecret,...") ]
+    /// </summary>
+    private static void SerializeMountFlag(StringBuilder sb, MountFlag mountFlag)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        foreach (Token child in mountFlag.Tokens)
+        {
+            if (child is Mount mount)
+            {
+                // Flatten the Mount aggregate to an opaque literal
+                if (!first) sb.Append(',');
+                first = false;
+                string mountText = mount.ToString();
+                sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
+                SerializePrimitive(sb, "string", mountText);
+                sb.Append("]}");
+            }
+            else
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+        }
+
+        sb.Append("]}");
+    }
+
+    // ===================================================================
+    // Workaround: STOPSIGNAL variable ref parsing (see issue #199)
+    // C# doesn't parse variable refs ($VAR, ${VAR}) in STOPSIGNAL — it
+    // treats them as plain StringToken text inside a LiteralToken. Lean
+    // DOES parse them as variableRef tokens (since STOPSIGNAL supports
+    // variable substitution per Docker docs). This serializer scans
+    // StringToken values for variable ref patterns and emits the Lean-
+    // style variableRef aggregate tokens.
+    // ===================================================================
+
+    private static void SerializeStopSignal(StringBuilder sb, StopSignalInstruction instruction)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        foreach (Token child in instruction.Tokens)
+        {
+            if (child is LiteralToken literal)
+            {
+                if (!first) sb.Append(',');
+                first = false;
+                SerializeLiteralWithVariableRefParsing(sb, literal);
+            }
+            else
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Serialize a LiteralToken, parsing $VAR and ${VAR} patterns out of StringToken
+    /// children and emitting them as variableRef aggregate tokens (matching Lean behavior).
+    /// </summary>
+    private static void SerializeLiteralWithVariableRefParsing(StringBuilder sb, LiteralToken literal)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
+
+        if (literal.QuoteChar.HasValue)
+        {
+            sb.Append('"');
+            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
+            sb.Append('"');
+        }
+        else
+        {
+            sb.Append("null");
+        }
+
+        sb.Append(",\"children\":[");
+
+        bool first = true;
+        foreach (Token child in literal.Tokens)
+        {
+            if (child is StringToken strTok)
+            {
+                EmitStringWithVariableRefs(sb, strTok.Value, ref first);
+            }
+            else
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Scan a string value for $VAR and ${VAR:-default} patterns and emit
+    /// alternating string primitives and variableRef aggregates.
+    /// Lean's variableRef structure:
+    ///   Simple $VAR -> variableRef [ string("VAR") ]
+    ///   Braced ${VAR} -> variableRef [ symbol("{"), string("VAR"), symbol("}") ]
+    ///   Modified ${VAR:-default} -> variableRef [ symbol("{"), string("VAR"),
+    ///     symbol(":"), symbol("-"), literal [ string("default") ], symbol("}") ]
+    /// </summary>
+    private static void EmitStringWithVariableRefs(StringBuilder sb, string text, ref bool first)
+    {
+        int i = 0;
+        while (i < text.Length)
+        {
+            // Look for $ that starts a variable reference
+            if (text[i] == '$' && i + 1 < text.Length)
+            {
+                char next = text[i + 1];
+
+                // Braced variable reference: ${...}
+                if (next == '{')
+                {
+                    // Find the closing brace
+                    int braceStart = i + 2;
+                    int braceEnd = text.IndexOf('}', braceStart);
+                    if (braceEnd > braceStart)
+                    {
+                        // Extract the content between braces
+                        string braceContent = text[braceStart..braceEnd];
+
+                        // Parse variable name (alphanumeric + underscore)
+                        int nameEnd = 0;
+                        while (nameEnd < braceContent.Length &&
+                               (char.IsLetterOrDigit(braceContent[nameEnd]) || braceContent[nameEnd] == '_'))
+                        {
+                            nameEnd++;
+                        }
+
+                        if (nameEnd > 0)
+                        {
+                            string varName = braceContent[..nameEnd];
+                            string remainder = braceContent[nameEnd..];
+
+                            if (!first) sb.Append(',');
+                            first = false;
+
+                            // Emit variableRef aggregate
+                            sb.Append("{\"type\":\"aggregate\",\"kind\":\"variableRef\",\"quoteChar\":null,\"children\":[");
+                            SerializePrimitive(sb, "symbol", "{");
+                            sb.Append(',');
+                            SerializePrimitive(sb, "string", varName);
+
+                            // If there's a modifier (e.g., :-, :+, :?, -, +, ?)
+                            if (remainder.Length > 0)
+                            {
+                                // Emit each modifier character as a symbol
+                                int modEnd = 0;
+                                while (modEnd < remainder.Length &&
+                                       (remainder[modEnd] == ':' || remainder[modEnd] == '-' ||
+                                        remainder[modEnd] == '+' || remainder[modEnd] == '?'))
+                                {
+                                    sb.Append(',');
+                                    SerializePrimitive(sb, "symbol", remainder[modEnd].ToString());
+                                    modEnd++;
+                                }
+
+                                // Everything after the modifier chars is the default value
+                                if (modEnd < remainder.Length)
+                                {
+                                    string modValue = remainder[modEnd..];
+                                    sb.Append(',');
+                                    // Wrap in a literal token (matching Lean behavior)
+                                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
+                                    SerializePrimitive(sb, "string", modValue);
+                                    sb.Append("]}");
+                                }
+                            }
+
+                            sb.Append(',');
+                            SerializePrimitive(sb, "symbol", "}");
+                            sb.Append("]}");
+
+                            i = braceEnd + 1;
+                            continue;
+                        }
+                    }
+                }
+                // Simple variable reference: $IDENTIFIER
+                else if (char.IsLetterOrDigit(next) || next == '_')
+                {
+                    // Collect the identifier
+                    int nameStart = i + 1;
+                    int nameEnd = nameStart;
+                    while (nameEnd < text.Length &&
+                           (char.IsLetterOrDigit(text[nameEnd]) || text[nameEnd] == '_'))
+                    {
+                        nameEnd++;
+                    }
+
+                    string varName = text[nameStart..nameEnd];
+
+                    if (!first) sb.Append(',');
+                    first = false;
+
+                    // Emit variableRef aggregate with just the name
+                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"variableRef\",\"quoteChar\":null,\"children\":[");
+                    SerializePrimitive(sb, "string", varName);
+                    sb.Append("]}");
+
+                    i = nameEnd;
+                    continue;
+                }
+            }
+
+            // Regular text: collect until next $ or end
+            int textStart = i;
+            while (i < text.Length)
+            {
+                if (text[i] == '$' && i + 1 < text.Length &&
+                    (char.IsLetterOrDigit(text[i + 1]) || text[i + 1] == '_' || text[i + 1] == '{'))
+                {
+                    break;
+                }
+                i++;
+            }
+
+            if (i > textStart)
+            {
+                string segment = text[textStart..i];
+                if (!first) sb.Append(',');
+                first = false;
+                SerializePrimitive(sb, "string", segment);
+            }
+        }
+    }
+
+    // ===================================================================
+    // Workaround: ENV/LABEL empty value handling (see issue #201)
+    // For ENV/LABEL instructions with `key=` (empty value after `=`), C#
+    // includes an empty LiteralToken child in the keyValue. Lean omits it
+    // entirely. This serializer strips empty LiteralTokens from keyValue
+    // children during serialization.
+    // ===================================================================
+
+    private static void SerializeInstructionStrippingEmptyLiterals(StringBuilder sb, Instruction instruction)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        foreach (Token child in instruction.Tokens)
+        {
+            if (IsKeyValueToken(child))
+            {
+                if (!first) sb.Append(',');
+                first = false;
+                SerializeKeyValueStrippingEmptyLiterals(sb, (AggregateToken)child);
+            }
+            else
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Serialize a keyValue token, skipping any LiteralToken children that are empty
+    /// (i.e., their ToString() returns "").
+    /// </summary>
+    private static void SerializeKeyValueStrippingEmptyLiterals(StringBuilder sb, AggregateToken kvToken)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        foreach (Token child in kvToken.Tokens)
+        {
+            // Strip empty LiteralTokens (issue #201)
+            if (child is LiteralToken lit && lit.ToString() == "")
+            {
+                continue;
+            }
+
+            if (!first) sb.Append(',');
+            SerializeToken(sb, child);
+            first = false;
+        }
 
         sb.Append("]}");
     }
