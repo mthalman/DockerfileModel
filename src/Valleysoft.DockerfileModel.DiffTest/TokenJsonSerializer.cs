@@ -27,7 +27,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   GitHub issue tracking the underlying C# fix.
 ///
 /// Known differences with workarounds:
-///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
 ///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
 ///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
@@ -181,14 +180,6 @@ public static class TokenJsonSerializer
         if (token is IdentifierToken)
         {
             SerializeAggregate(sb, "identifier", token);
-            return;
-        }
-
-        // BooleanFlag: C# has BooleanFlag as AggregateToken but Lean treats it as keyValue.
-        // Must check before generic KeyValueToken and AggregateToken checks.
-        if (token is BooleanFlag)
-        {
-            SerializeAggregate(sb, "keyValue", token);
             return;
         }
 
