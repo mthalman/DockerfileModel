@@ -206,6 +206,48 @@ public static class DockerfileArbitraries
             "key=val");
 
     /// <summary>
+    /// Generates variable refs using exotic POSIX modifiers (##, %%, //, #, %, /).
+    /// These are less common but valid in Dockerfile variable references.
+    /// </summary>
+    private static Gen<string> ExoticVariableRef() =>
+        Gen.OneOf(
+            // Prefix removal: ${VAR#pattern}, ${VAR##pattern}
+            from name in Identifier()
+            from pattern in SimpleAlphaNum()
+            select $"${{{name}#{pattern}}}",
+            from name in Identifier()
+            from pattern in SimpleAlphaNum()
+            select $"${{{name}##{pattern}}}",
+            // Suffix removal: ${VAR%pattern}, ${VAR%%pattern}
+            from name in Identifier()
+            from pattern in SimpleAlphaNum()
+            select $"${{{name}%{pattern}}}",
+            from name in Identifier()
+            from pattern in SimpleAlphaNum()
+            select $"${{{name}%%{pattern}}}",
+            // Substitution: ${VAR/find/replace}, ${VAR//find/replace}
+            from name in Identifier()
+            from find in SimpleAlphaNum()
+            from replace in SimpleAlphaNum()
+            select $"${{{name}/{find}/{replace}}}",
+            from name in Identifier()
+            from find in SimpleAlphaNum()
+            from replace in SimpleAlphaNum()
+            select $"${{{name}//{find}/{replace}}}");
+
+    /// <summary>
+    /// Generates single-quoted strings.
+    /// </summary>
+    private static Gen<string> SingleQuotedString() =>
+        Gen.OneOf(
+            from text in SimpleAlphaNum()
+            select $"'{text}'",
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"'{w1} {w2}'",
+            Gen.Constant("''"));
+
+    /// <summary>
     /// Generates text that may contain variable references mixed with literal text.
     /// </summary>
     private static Gen<string> ValueWithVariables() =>
@@ -383,7 +425,21 @@ public static class DockerfileArbitraries
             // Tab whitespace after keyword
             from ws in FlexibleWhitespace()
             from image in ImageName()
-            select $"FROM{ws}{image}");
+            select $"FROM{ws}{image}",
+            // Line continuation inside platform flag value
+            from image in ImageName()
+            select $"FROM --platform=linux\\\n/amd64 {image}",
+            // Line continuation before --platform flag
+            from image in ImageName()
+            select $"FROM \\\n  --platform=linux/amd64 {image}",
+            // \r\n line continuation
+            from image in ImageName()
+            from stage in StageName()
+            select $"FROM {image} \\\r\n  AS {stage}",
+            // Double line continuation (two in a row)
+            from image in ImageName()
+            from stage in StageName()
+            select $"FROM {image} \\\n\\\n  AS {stage}");
 
     /// <summary>
     /// Generates a valid RUN instruction string (shell form or exec form).
@@ -447,7 +503,27 @@ public static class DockerfileArbitraries
             select $"RUN{ws}{cmd}",
             // Exec form with whitespace in JSON array
             from cmd in ExecFormWithWhitespace()
-            select $"RUN {cmd}");
+            select $"RUN {cmd}",
+            // Shell form with escaped dollar sign (literal $)
+            Gen.Constant("RUN echo \\$HOME is not expanded"),
+            // Shell form with escaped backslash
+            Gen.Constant("RUN echo \\\\hello"),
+            // Shell form with \r\n line continuation
+            from c1 in Gen.Elements("echo hello", "apt-get update")
+            from c2 in Gen.Elements("echo world", "apt-get install -y curl")
+            select $"RUN {c1} &&\\\r\n    {c2}",
+            // Three-line continuation
+            from c1 in Gen.Elements("apt-get update")
+            from c2 in Gen.Elements("apt-get install -y curl")
+            from c3 in Gen.Elements("apt-get clean")
+            select $"RUN {c1} \\\n  && {c2} \\\n  && {c3}",
+            // Line continuation with trailing whitespace before newline
+            Gen.Constant("RUN echo hello \\   \n  && echo world"),
+            // Exec form with empty string element
+            from arg in Gen.Elements("hello", "-c", "test")
+            select $"RUN [\"\", \"{arg}\"]",
+            // Empty exec form array
+            Gen.Constant("RUN []"));
 
     /// <summary>
     /// Generates a valid CMD instruction string.
@@ -487,7 +563,21 @@ public static class DockerfileArbitraries
             // Exec form with varied spacing
             from exe in Gen.Elements("echo", "ls", "cat")
             from arg in Gen.Elements("hello", "-la", "/etc/hosts")
-            select $"CMD [\"{exe}\" ,  \"{arg}\"]");
+            select $"CMD [\"{exe}\" ,  \"{arg}\"]",
+            // Shell form with \r\n line continuation
+            from c1 in Gen.Elements("echo hello", "cat /etc/hosts")
+            from c2 in Gen.Elements("world", "output")
+            select $"CMD {c1} \\\r\n  {c2}",
+            // Exec form with empty string element
+            from arg in Gen.Elements("hello", "world")
+            select $"CMD [\"\", \"{arg}\"]",
+            // Three-line shell form
+            from c1 in Gen.Elements("echo line1")
+            from c2 in Gen.Elements("echo line2")
+            from c3 in Gen.Elements("echo line3")
+            select $"CMD {c1} \\\n  && {c2} \\\n  && {c3}",
+            // Empty exec form array
+            Gen.Constant("CMD []"));
 
     /// <summary>
     /// Generates a valid ENTRYPOINT instruction string.
@@ -526,7 +616,16 @@ public static class DockerfileArbitraries
             // Exec form with varied spacing
             from exe in Gen.Elements("/app/run", "python", "node")
             from arg in Gen.Elements("--config", "--port", "start")
-            select $"ENTRYPOINT [ \"{exe}\" , \"{arg}\" ]");
+            select $"ENTRYPOINT [ \"{exe}\" , \"{arg}\" ]",
+            // Exec form with empty string element
+            from arg in Gen.Elements("/app/run", "--config")
+            select $"ENTRYPOINT [\"\", \"{arg}\"]",
+            // \r\n line continuation
+            from c1 in Gen.Elements("/app/run", "python app.py")
+            from c2 in Gen.Elements("--config /etc/app.conf", "--port 8080")
+            select $"ENTRYPOINT {c1} \\\r\n  {c2}",
+            // Empty exec form array
+            Gen.Constant("ENTRYPOINT []"));
 
     /// <summary>
     /// Generates a valid COPY instruction string.
@@ -610,7 +709,38 @@ public static class DockerfileArbitraries
             from ws in FlexibleWhitespace()
             from src in PathSegment()
             from dst in PathSegment()
-            select $"COPY{ws}{src} {dst}");
+            select $"COPY{ws}{src} {dst}",
+            // Numeric --from (stage index)
+            from idx in Gen.Choose(0, 5)
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from={idx} {src} {dst}",
+            // --chown with user:group
+            from user in Identifier()
+            from grp in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --chown={user}:{grp} {src} {dst}",
+            // Line continuation between flags
+            from stage in StageName()
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from={stage} \\\n  --chown={owner} {src} {dst}",
+            // \r\n line continuation
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY {src} \\\r\n  /{dst}/",
+            // Variable ref in --from flag value
+            from varRef in VariableRef()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from={varRef} {src} {dst}",
+            // --chmod with --link
+            from mode in Gen.Elements("755", "644")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --chmod={mode} --link {src} {dst}");
 
     /// <summary>
     /// Generates a valid ADD instruction string.
@@ -685,7 +815,16 @@ public static class DockerfileArbitraries
             // Glob patterns
             from glob in GlobPattern()
             from dst in PathSegment()
-            select $"ADD {glob} /{dst}/");
+            select $"ADD {glob} /{dst}/",
+            // \r\n line continuation
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD {src} \\\r\n  /{dst}/",
+            // Line continuation between flags
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chown={owner} \\\n  --link {src} {dst}");
 
     /// <summary>
     /// Generates a valid ENV instruction string.
@@ -758,7 +897,34 @@ public static class DockerfileArbitraries
             // Special characters in quoted values
             from key in Identifier()
             from special in SpecialCharValue()
-            select $"ENV {key}=\"{special}\"");
+            select $"ENV {key}=\"{special}\"",
+            // Single-quoted value
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ENV {key}='{value}'",
+            // Single-quoted value with spaces
+            from key in Identifier()
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"ENV {key}='{w1} {w2}'",
+            // Exotic variable ref in value
+            from key in Identifier()
+            from varRef in ExoticVariableRef()
+            select $"ENV {key}={varRef}",
+            // Legacy form with \r\n line continuation
+            from key in Identifier()
+            from v1 in SimpleAlphaNum()
+            from v2 in SimpleAlphaNum()
+            select $"ENV {key} {v1}\\\r\n{v2}",
+            // Value containing equals sign
+            from key in Identifier()
+            select $"ENV {key}=\"key=value\"",
+            // Multiple pairs with single-quoted values
+            from k1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from k2 in Identifier()
+            from v2 in SimpleAlphaNum()
+            select $"ENV {k1}='{v1}' {k2}='{v2}'");
 
     /// <summary>
     /// Generates a valid ARG instruction string.
@@ -810,7 +976,20 @@ public static class DockerfileArbitraries
             from ws in FlexibleWhitespace()
             from name in Identifier()
             from value in SimpleAlphaNum()
-            select $"ARG{ws}{name}={value}");
+            select $"ARG{ws}{name}={value}",
+            // Single-quoted default value
+            from name in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ARG {name}='{value}'",
+            // Exotic variable ref as default
+            from name in Identifier()
+            from varRef in ExoticVariableRef()
+            select $"ARG {name}={varRef}",
+            // \r\n line continuation
+            from n1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from n2 in Identifier()
+            select $"ARG {n1}={v1} \\\r\n  {n2}");
 
     /// <summary>
     /// Generates a valid EXPOSE instruction string.
@@ -909,7 +1088,30 @@ public static class DockerfileArbitraries
             from interval in Duration()
             from timeout in Duration()
             from cmd in ShellCommand()
-            select $"HEALTHCHECK --interval={interval} \\\n  --timeout={timeout} \\\n  CMD {cmd}");
+            select $"HEALTHCHECK --interval={interval} \\\n  --timeout={timeout} \\\n  CMD {cmd}",
+            // \r\n line continuation between flags
+            from interval in Duration()
+            from timeout in Duration()
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --interval={interval} \\\r\n  --timeout={timeout} \\\r\n  CMD {cmd}",
+            // With --start-interval flag
+            from startInterval in Duration()
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --start-interval={startInterval} CMD {cmd}",
+            // All five flags
+            from interval in Duration()
+            from timeout in Duration()
+            from startPeriod in Duration()
+            from startInterval in Duration()
+            from retries in Gen.Choose(1, 10)
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --interval={interval} --timeout={timeout} --start-period={startPeriod} --start-interval={startInterval} --retries={retries} CMD {cmd}",
+            // Three-flag line continuation
+            from interval in Duration()
+            from timeout in Duration()
+            from retries in Gen.Choose(1, 10)
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --interval={interval} \\\n  --timeout={timeout} \\\n  --retries={retries} \\\n  CMD {cmd}");
 
     /// <summary>
     /// Generates a valid LABEL instruction string.
@@ -988,7 +1190,32 @@ public static class DockerfileArbitraries
             // Special characters in quoted values
             from key in Identifier()
             from special in SpecialCharValue()
-            select $"LABEL {key}=\"{special}\"");
+            select $"LABEL {key}=\"{special}\"",
+            // Single-quoted value
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"LABEL {key}='{value}'",
+            // Dotted key without quotes on value
+            from prefix in Gen.Elements("org.opencontainers.image", "com.example")
+            from suffix in Gen.Elements("version", "title")
+            from value in SimpleAlphaNum()
+            select $"LABEL {prefix}.{suffix}={value}",
+            // Exotic variable ref in value
+            from key in Identifier()
+            from varRef in ExoticVariableRef()
+            select $"LABEL {key}={varRef}",
+            // \r\n line continuation
+            from k1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from k2 in Identifier()
+            from v2 in SimpleAlphaNum()
+            select $"LABEL {k1}=\"{v1}\" \\\r\n  {k2}=\"{v2}\"",
+            // Multiple single-quoted values
+            from k1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from k2 in Identifier()
+            from v2 in SimpleAlphaNum()
+            select $"LABEL {k1}='{v1}' {k2}='{v2}'");
 
     /// <summary>
     /// Generates a valid MAINTAINER instruction string.
@@ -1087,7 +1314,19 @@ public static class DockerfileArbitraries
             // Tab whitespace
             from ws in FlexibleWhitespace()
             from cmd in ShellCommand()
-            select $"ONBUILD{ws}RUN {cmd}");
+            select $"ONBUILD{ws}RUN {cmd}",
+            // ONBUILD with exotic variable ref
+            from varRef in ExoticVariableRef()
+            select $"ONBUILD ENV MYVAR={varRef}",
+            // ONBUILD with single-quoted value
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ONBUILD LABEL {key}='{value}'",
+            // ONBUILD COPY with --from
+            from stage in StageName()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ONBUILD COPY --from={stage} {src} {dst}");
 
     /// <summary>
     /// Generates a valid STOPSIGNAL instruction string.
@@ -1110,7 +1349,10 @@ public static class DockerfileArbitraries
             // Tab whitespace
             from ws in FlexibleWhitespace()
             from signal in Signal()
-            select $"STOPSIGNAL{ws}{signal}");
+            select $"STOPSIGNAL{ws}{signal}",
+            // Exotic variable ref
+            from varRef in ExoticVariableRef()
+            select $"STOPSIGNAL {varRef}");
 
     /// <summary>
     /// Generates a valid USER instruction string.
@@ -1152,7 +1394,14 @@ public static class DockerfileArbitraries
             from grp in Identifier()
             select $"USER{ws}{user}:{grp}",
             // Numeric boundary UIDs (root and nobody)
-            Gen.Elements("USER 0", "USER 65534"));
+            Gen.Elements("USER 0", "USER 65534"),
+            // Dual variable refs for user:group
+            from userVar in VariableRef()
+            from grpVar in VariableRef()
+            select $"USER {userVar}:{grpVar}",
+            // Exotic variable ref
+            from varRef in ExoticVariableRef()
+            select $"USER {varRef}");
 
     /// <summary>
     /// Generates a valid VOLUME instruction string (JSON or shell form).
@@ -1202,7 +1451,10 @@ public static class DockerfileArbitraries
             // Tab whitespace
             from ws in FlexibleWhitespace()
             from path in AbsolutePath()
-            select $"VOLUME{ws}{path}");
+            select $"VOLUME{ws}{path}",
+            // Exotic variable ref
+            from varRef in ExoticVariableRef()
+            select $"VOLUME {varRef}");
 
     /// <summary>
     /// Generates a valid WORKDIR instruction string.
@@ -1245,7 +1497,22 @@ public static class DockerfileArbitraries
             // Relative path (subdirectory)
             from s1 in PathSegment()
             from s2 in PathSegment()
-            select $"WORKDIR {s1}/{s2}");
+            select $"WORKDIR {s1}/{s2}",
+            // Line continuation inside path
+            from seg in PathSegment()
+            select $"WORKDIR /app/\\\n{seg}",
+            // Exotic variable ref
+            from varRef in ExoticVariableRef()
+            select $"WORKDIR {varRef}",
+            // Quoted path
+            from seg in PathSegment()
+            select $"WORKDIR \"/app/{seg}\"",
+            // Single-quoted path
+            from seg in PathSegment()
+            select $"WORKDIR '/app/{seg}'",
+            // \r\n line continuation
+            from seg in PathSegment()
+            select $"WORKDIR /app/\\\r\n{seg}");
 
     /// <summary>
     /// Generates a valid SHELL instruction string (exec form only).
