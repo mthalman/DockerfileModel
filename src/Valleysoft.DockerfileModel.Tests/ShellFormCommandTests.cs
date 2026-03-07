@@ -55,7 +55,10 @@ public class ShellFormCommandTests
                 Text = "echo hello",
                 TokenValidators = new Action<Token>[]
                 {
-                    token => ValidateLiteral(token, "echo hello")
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                        token => ValidateString(token, "echo"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateString(token, "hello"))
                 },
                 Validate = result =>
                 {
@@ -71,7 +74,8 @@ public class ShellFormCommandTests
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateQuotableAggregate<LiteralToken>(token, "echo `\n#test comment\nhello", null,
-                        token => ValidateString(token, "echo "),
+                        token => ValidateString(token, "echo"),
+                        token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
@@ -97,9 +101,10 @@ public class ShellFormCommandTests
                     token => ValidateAggregate<LiteralToken>(token, "echo`\n  `\n  hello",
                         token => ValidateString(token, "echo"),
                         token => ValidateLineContinuation(token, '`', "\n"),
-                        token => ValidateString(token, "  "),
+                        token => ValidateWhitespace(token, "  "),
                         token => ValidateLineContinuation(token, '`', "\n"),
-                        token => ValidateString(token, "  hello")),
+                        token => ValidateWhitespace(token, "  "),
+                        token => ValidateString(token, "hello")),
                 }
             },
             new ParseTestScenario<ShellFormCommand>
@@ -113,7 +118,9 @@ public class ShellFormCommandTests
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
-                        token => ValidateString(token, "ho `test"))
+                        token => ValidateString(token, "ho"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateString(token, "`test"))
                 }
             },
             new ParseTestScenario<ShellFormCommand>
@@ -127,7 +134,9 @@ public class ShellFormCommandTests
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
-                        token => ValidateString(token, "h`\"o `test\""))
+                        token => ValidateString(token, "h`\"o"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateString(token, "`test\""))
                 }
             }
         };
@@ -144,7 +153,10 @@ public class ShellFormCommandTests
                 Command = "echo hello",
                 TokenValidators = new Action<Token>[]
                 {
-                    token => ValidateLiteral(token, "echo hello")
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello", null,
+                        token => ValidateString(token, "echo"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateString(token, "hello"))
                 }
             }
         };
