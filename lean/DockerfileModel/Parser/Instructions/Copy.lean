@@ -59,7 +59,7 @@ private def copyFlagParser (escapeChar : Char) : Parser (List Token) :=
                (or' (booleanFlagParser "link" escapeChar)
                (or' (booleanFlagParser "parents" escapeChar)
                     (flagParser "exclude" escapeChar)))))
-    Parser.pure [flag]) escapeChar (excludeTrailingWhitespace := true)
+    Parser.pure [flag]) escapeChar
 
 -- ============================================================
 -- File transfer args (shared pattern for COPY and ADD)
