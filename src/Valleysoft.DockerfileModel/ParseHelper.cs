@@ -616,7 +616,11 @@ internal static class ParseHelper
         if (!tokens.Any())
         {
             // Empty string element (e.g. "" in exec form) — synthesize a LiteralToken
-            // with no children, matching the Lean parser's output for empty quoted strings.
+            // with zero children (Array.Empty<Token>()). This deliberately differs from
+            // the LiteralToken(string) constructor path, which wraps an empty value in a
+            // StringToken(""). The parser uses empty children because that matches the
+            // Lean/BuildKit parser output for empty quoted strings in exec form arrays,
+            // and differential testing confirms byte-identical JSON output this way.
             return new Token[]
             {
                 new LiteralToken(
