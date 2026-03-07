@@ -170,8 +170,10 @@ public class SecretMount : Mount
 
         return
             from type in ArgTokens(
-                KeyValueToken<KeywordToken, LiteralToken>.GetParser(
-                    KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
+                (from kv in KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                    KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar)
+                 where kv.Value.Equals("secret", StringComparison.OrdinalIgnoreCase)
+                 select kv).AsEnumerable(), escapeChar)
             from comma in ArgTokens(Symbol(',').AsEnumerable(), escapeChar)
             from idDest in IdAndDestinationParser(valueParser, escapeChar).Or(IdParser(valueParser, escapeChar))
             select ConcatTokens(type, comma, idDest);

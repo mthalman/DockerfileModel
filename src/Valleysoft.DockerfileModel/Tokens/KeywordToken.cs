@@ -28,7 +28,8 @@ public class KeywordToken : AggregateToken, IValueToken
         select new KeywordToken(tokens);
 
     /// <summary>
-    /// Parses any keyword (one or more letters/digits/underscores/hyphens, not starting with '=').
+    /// Parses any keyword: starts with a letter, digit, underscore, or hyphen, followed by zero or
+    /// more letters, digits, underscores, hyphens, line continuations, or escaped characters.
     /// Used for generic key-value parsing where the key name is not known in advance.
     /// </summary>
     public static Parser<KeywordToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
