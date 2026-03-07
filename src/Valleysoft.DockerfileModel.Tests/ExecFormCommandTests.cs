@@ -211,7 +211,7 @@ public class ExecFormCommandTests
                     Assert.Empty(result.Values);
                 }
             },
-            new ExecFormCommandParseTestScenario
+            new ParseTestScenario<ExecFormCommand>
             {
                 Text = "echo hello",
                 ParseExceptionPosition = new Position(0, 1, 1)

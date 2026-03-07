@@ -141,7 +141,7 @@ public class CmdInstructionTests
                     Assert.Empty(cmd.Values);
                 }
             },
-            new CmdInstructionParseTestScenario
+            new ParseTestScenario<CmdInstruction>
             {
                 Text = "CMD [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
