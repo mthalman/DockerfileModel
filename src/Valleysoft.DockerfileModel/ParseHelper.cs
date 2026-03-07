@@ -616,11 +616,11 @@ internal static class ParseHelper
         if (!tokens.Any())
         {
             // Empty string element (e.g. "" in exec form) — synthesize a LiteralToken
-            // containing a single empty StringToken.
+            // with no children, matching the Lean parser's output for empty quoted strings.
             return new Token[]
             {
                 new LiteralToken(
-                    new Token[] { new StringToken(string.Empty) },
+                    Array.Empty<Token>(),
                     canContainVariables,
                     escapeChar)
                 {

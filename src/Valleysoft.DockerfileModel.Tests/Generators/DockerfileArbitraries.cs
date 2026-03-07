@@ -519,9 +519,8 @@ public static class DockerfileArbitraries
             select $"RUN {c1} \\\n  && {c2} \\\n  && {c3}",
             // Disabled: C# parser treats \<spaces><newline> as regular text, not line continuation
             // Gen.Constant("RUN echo hello \\   \n  && echo world"),
-            // Disabled: C# parser crashes on exec form with empty string element (issue #203)
-            // from arg in Gen.Elements("hello", "-c", "test")
-            // select $"RUN [\"\", \"{arg}\"]",
+            from arg in Gen.Elements("hello", "-c", "test")
+            select $"RUN [\"\", \"{arg}\"]",
             Gen.Constant("RUN []"));
 
     /// <summary>
