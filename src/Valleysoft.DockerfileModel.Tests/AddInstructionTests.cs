@@ -200,11 +200,11 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
     {
         AddInstruction instruction = new(
             new string[] { "src" }, "dst",
-            changeOwner: new UserAccount("user"),
+            changeOwner: "user",
             checksum: "sha256:abc123",
             escapeChar: Dockerfile.DefaultEscapeChar);
         Assert.Equal("sha256:abc123", instruction.Checksum);
-        Assert.Equal("user", instruction.ChangeOwner.User);
+        Assert.Equal("user", instruction.ChangeOwner);
         Assert.Equal("ADD --checksum=sha256:abc123 --chown=user src dst", instruction.ToString());
     }
 
@@ -213,11 +213,11 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
     {
         AddInstruction instruction = new(
             new string[] { "src" }, "dst",
-            changeOwner: new UserAccount("user"),
+            changeOwner: "user",
             keepGitDir: true,
             escapeChar: Dockerfile.DefaultEscapeChar);
         Assert.True(instruction.KeepGitDir);
-        Assert.Equal("user", instruction.ChangeOwner.User);
+        Assert.Equal("user", instruction.ChangeOwner);
         Assert.Equal("ADD --chown=user --keep-git-dir src dst", instruction.ToString());
     }
 
@@ -226,11 +226,11 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
     {
         AddInstruction instruction = new(
             new string[] { "src" }, "dst",
-            changeOwner: new UserAccount("user"),
+            changeOwner: "user",
             link: true,
             escapeChar: Dockerfile.DefaultEscapeChar);
         Assert.True(instruction.Link);
-        Assert.Equal("user", instruction.ChangeOwner.User);
+        Assert.Equal("user", instruction.ChangeOwner);
         Assert.Equal("ADD --chown=user --link src dst", instruction.ToString());
     }
 
@@ -439,8 +439,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "user",
-                            token => ValidateLiteral(token, "user"))),
+                        token => ValidateLiteral(token, "user")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
@@ -449,7 +448,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                 Validate = result =>
                 {
                     Assert.Equal("sha256:abc123", result.Checksum);
-                    Assert.Equal("user", result.ChangeOwner.User);
+                    Assert.Equal("user", result.ChangeOwner);
                     Assert.False(result.KeepGitDir);
                     Assert.False(result.Link);
                 }
@@ -643,8 +642,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "user",
-                            token => ValidateLiteral(token, "user"))),
+                        token => ValidateLiteral(token, "user")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
                         token => ValidateSymbol(token, '-'),
@@ -664,7 +662,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                     Assert.Equal("sha256:abc123", result.Checksum);
                     Assert.True(result.KeepGitDir);
                     Assert.True(result.Link);
-                    Assert.Equal("user", result.ChangeOwner.User);
+                    Assert.Equal("user", result.ChangeOwner);
                     Assert.Equal("755", result.Permissions);
                 }
             },
@@ -804,7 +802,7 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
     {
         public IEnumerable<string> Sources { get; set; }
         public string Destination { get; set; }
-        public UserAccount ChangeOwner { get; set; }
+        public string ChangeOwner { get; set; }
         public string Permissions { get; set; }
         public string Checksum { get; set; }
         public bool KeepGitDir { get; set; }
