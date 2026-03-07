@@ -82,10 +82,15 @@ public class ExposeInstruction : Instruction
             {
                 if (kvp is not null)
                 {
-                    // KeyValueToken exists - unwrap back to a flat port literal
-                    LiteralToken portToken = kvp.KeyToken;
+                    // KeyValueToken exists - unwrap back to a flat port literal,
+                    // preserving any leading tokens (e.g., whitespace, line continuations)
+                    // that precede the key inside the KeyValueToken.
                     int kvpIndex = TokenList.IndexOf(kvp);
-                    TokenList[kvpIndex] = portToken;
+                    var portTokens = kvp.Tokens
+                        .TakeWhile(t => t is not SymbolToken s || s.Value != "/")
+                        .ToList();
+                    TokenList.RemoveAt(kvpIndex);
+                    TokenList.InsertRange(kvpIndex, portTokens);
                 }
                 // else: no KeyValueToken and setting to null - nothing to do
             }
@@ -113,10 +118,13 @@ public class ExposeInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        (from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
+        (from leadingWhitespace in Whitespace()
+        from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar, excludeLeadingWhitespace: true)
         from separator in ArgTokens(Symbol('/').AsEnumerable(), escapeChar)
         from protocol in ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar)
-        select ConcatTokens(new KeyValueToken<LiteralToken, LiteralToken>(ConcatTokens(port, separator, protocol))))
+        select ConcatTokens(
+            leadingWhitespace,
+            ConcatTokens(new KeyValueToken<LiteralToken, LiteralToken>(ConcatTokens(port, separator, protocol)))))
         .Or(
             ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar));
 }

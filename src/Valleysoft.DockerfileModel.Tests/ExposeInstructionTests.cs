@@ -83,6 +83,81 @@ public class ExposeInstructionTests
     }
 
     [Fact]
+    public void ParsedProtocolRemoval()
+    {
+        // Parse an instruction with protocol, then set Protocol to null
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 433/tcp");
+        Assert.Equal("433", result.Port);
+        Assert.Equal("tcp", result.Protocol);
+        Assert.Equal("EXPOSE 433/tcp", result.ToString());
+
+        // Remove protocol by setting to null
+        result.Protocol = null;
+        Assert.Null(result.Protocol);
+        Assert.Null(result.ProtocolToken);
+        Assert.Equal("433", result.Port);
+        Assert.Equal("EXPOSE 433", result.ToString());
+
+        // Verify token structure: should be flat (no KeyValueToken)
+        Assert.Collection(result.Tokens,
+            token => ValidateKeyword(token, "EXPOSE"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "433"));
+
+        // Re-add protocol
+        result.Protocol = "udp";
+        Assert.Equal("udp", result.Protocol);
+        Assert.Equal("EXPOSE 433/udp", result.ToString());
+
+        // Verify token structure: should have KeyValueToken again
+        Assert.Collection(result.Tokens,
+            token => ValidateKeyword(token, "EXPOSE"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "433/udp",
+                token => ValidateLiteral(token, "433"),
+                token => ValidateSymbol(token, '/'),
+                token => ValidateLiteral(token, "udp")));
+    }
+
+    [Fact]
+    public void ParsedProtocolRemovalWithLineContinuation()
+    {
+        // Parse an instruction with line continuation and protocol
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE`\n 80`\n/`\ntcp", '`');
+        Assert.Equal("80", result.Port);
+        Assert.Equal("tcp", result.Protocol);
+
+        // Remove protocol
+        result.Protocol = null;
+        Assert.Null(result.Protocol);
+        Assert.Equal("80", result.Port);
+
+        // The port literal should still be accessible after unwrap
+        Assert.Equal("80", result.PortToken.Value);
+    }
+
+    [Fact]
+    public void ParsedProtocolTokenRemoval()
+    {
+        // Parse and remove via ProtocolToken = null
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 8080/udp");
+        Assert.Equal("8080", result.Port);
+        Assert.Equal("udp", result.Protocol);
+
+        result.ProtocolToken = null;
+        Assert.Null(result.Protocol);
+        Assert.Null(result.ProtocolToken);
+        Assert.Equal("8080", result.Port);
+        Assert.Equal("EXPOSE 8080", result.ToString());
+
+        // Verify flat token structure
+        Assert.Collection(result.Tokens,
+            token => ValidateKeyword(token, "EXPOSE"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "8080"));
+    }
+
+    [Fact]
     public void PortWithVariables()
     {
         ExposeInstruction result = new("$var", "test");
@@ -157,8 +232,8 @@ public class ExposeInstructionTests
                 {
                     token => ValidateKeyword(token, "EXPOSE"),
                     token => ValidateLineContinuation(token, '`', "\n"),
-                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, " 80`\n/`\ntcp",
-                        token => ValidateWhitespace(token, " "),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "80`\n/`\ntcp",
                         token => ValidateLiteral(token, "80"),
                         token => ValidateLineContinuation(token, '`', "\n"),
                         token => ValidateSymbol(token, '/'),
