@@ -141,8 +141,8 @@ public class DockerfileBuilder
     public DockerfileBuilder MaintainerInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.MaintainerInstruction.Parse);
 
-    public DockerfileBuilder OnBuildInstruction(Instruction instruction) =>
-        AddConstruct(new OnBuildInstruction(instruction, EscapeChar));
+    public DockerfileBuilder OnBuildInstruction(string triggerInstruction) =>
+        AddConstruct(new OnBuildInstruction(triggerInstruction, EscapeChar));
 
     public DockerfileBuilder OnBuildInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.OnBuildInstruction.Parse);
