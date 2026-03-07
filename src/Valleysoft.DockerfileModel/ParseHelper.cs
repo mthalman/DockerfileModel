@@ -355,13 +355,9 @@ internal static class ParseHelper
                 from delimiter in JsonArrayElementDelimiter(escapeChar)
                 from nextArg in JsonArrayElement(escapeChar, canContainVariables)
                 select ConcatTokens(delimiter, nextArg)).Many()
-            select ConcatTokens(arg, tail.Flatten())
-        ).Or(
-            from ws in OptionalWhitespaceOrLineContinuation(escapeChar)
-            select ws
-        )
+            select ConcatTokens(arg, tail.Flatten())).Optional()
         from closingBracket in Symbol(']').AsEnumerable()
-        select ConcatTokens(openingBracket, execFormArgs, closingBracket);
+        select ConcatTokens(openingBracket, execFormArgs.GetOrElse(Enumerable.Empty<Token>()), closingBracket);
 
     /// <summary>
     /// Parses a required new line.
