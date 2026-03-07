@@ -20,11 +20,29 @@ import DockerfileModel.Parser.Basic
 import DockerfileModel.Parser.DockerfileParsers
 import DockerfileModel.Parser.Instructions.From
 import DockerfileModel.Parser.Instructions.Arg
+import DockerfileModel.Parser.Instructions.Maintainer
+import DockerfileModel.Parser.Instructions.Workdir
+import DockerfileModel.Parser.Instructions.Stopsignal
+import DockerfileModel.Parser.Instructions.Cmd
+import DockerfileModel.Parser.Instructions.Entrypoint
+import DockerfileModel.Parser.Instructions.Shell
+import DockerfileModel.Parser.Instructions.User
+import DockerfileModel.Parser.Instructions.Expose
+import DockerfileModel.Parser.Instructions.Volume
+import DockerfileModel.Parser.Instructions.Env
+import DockerfileModel.Parser.Instructions.Label
+import DockerfileModel.Parser.Instructions.Run
+import DockerfileModel.Parser.Instructions.Copy
+import DockerfileModel.Parser.Instructions.Add
+import DockerfileModel.Parser.Instructions.Healthcheck
+import DockerfileModel.Parser.Instructions.Onbuild
 
 namespace DockerfileModel
 
 open DockerfileModel.Parser
 open DockerfileModel.Parser.Instructions
+open Maintainer Workdir Stopsignal Cmd Entrypoint Shell User Expose Volume Env Label
+open Run Copy Add Healthcheck Onbuild
 
 -- ============================================================
 -- Core round-trip property
@@ -82,6 +100,142 @@ theorem fromInstruction_roundTrip (text : String) (escapeChar : Char)
 theorem argInstruction_roundTrip (text : String) (escapeChar : Char)
     (tokens : List Token) (pos : Position)
     (h_parse : (argInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+-- ============================================================
+-- Phase F: Round-trip theorems for all 16 remaining instructions
+-- ============================================================
+-- Each theorem states the round-trip obligation: if the parser
+-- successfully consumes all input, then joining the token toString
+-- values reproduces the original text. All proofs are sorry'd —
+-- they require deep parser monad correctness properties.
+
+/-- Round-trip theorem for MAINTAINER instructions. -/
+theorem maintainerInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (maintainerInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for WORKDIR instructions. -/
+theorem workdirInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (workdirInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for STOPSIGNAL instructions. -/
+theorem stopsignalInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (stopsignalInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for CMD instructions. -/
+theorem cmdInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (cmdInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for ENTRYPOINT instructions. -/
+theorem entrypointInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (entrypointInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for SHELL instructions. -/
+theorem shellInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (shellInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for USER instructions. -/
+theorem userInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (userInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for EXPOSE instructions. -/
+theorem exposeInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (exposeInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for VOLUME instructions. -/
+theorem volumeInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (volumeInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for ENV instructions. -/
+theorem envInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (envInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for LABEL instructions. -/
+theorem labelInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (labelInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for RUN instructions. -/
+theorem runInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (runInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for COPY instructions. -/
+theorem copyInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (copyInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for ADD instructions. -/
+theorem addInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (addInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for HEALTHCHECK instructions. -/
+theorem healthcheckInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (healthcheckInstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by
+  sorry
+
+/-- Round-trip theorem for ONBUILD instructions. -/
+theorem onbuildInstruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : (onbuildInstructionParser escapeChar).run text = .ok tokens pos)
     (h_complete : pos.atEnd) :
     String.join (tokens.map Token.toString) = text := by
   sorry

@@ -324,6 +324,84 @@ def testTokenTreeConsistency : IO Unit := do
   verifyTokenTreeConsistency quotedWithVar
   IO.println "  PASS: Quoted literal with variable ref is consistent"
 
+-- ============================================================================
+-- Property 8: Heredoc token toString == concat children
+-- ============================================================================
+
+def testHeredocTokenConcat : IO Unit := do
+  IO.println "Property 8: Heredoc token toString == concat children"
+
+  -- Simple heredoc body
+  let children1 := [Token.mkString "echo hello\n", Token.mkString "EOF", Token.mkNewLine "\n"]
+  let heredoc1 := Token.mkHeredoc children1
+  let expected1 := String.join (children1.map Token.toString)
+  assertEqual (Token.toString heredoc1) expected1 "Heredoc(echo hello) == concat children"
+
+  -- Empty heredoc
+  let heredoc2 := Token.mkHeredoc []
+  assertEqual (Token.toString heredoc2) "" "Empty heredoc == \"\""
+
+  -- Heredoc with multiple lines
+  let children3 := [
+    Token.mkString "line1\n",
+    Token.mkString "line2\n",
+    Token.mkString "MARKER",
+    Token.mkNewLine "\n"
+  ]
+  let heredoc3 := Token.mkHeredoc children3
+  let expected3 := String.join (children3.map Token.toString)
+  assertEqual (Token.toString heredoc3) expected3 "Multi-line heredoc == concat children"
+
+  -- Heredoc with nested variable ref (should concat without $ prefix since heredoc kind)
+  let varRef := Token.mkVariableRef [Token.mkString "HOME"]
+  let children4 := [Token.mkString "echo ", varRef, Token.mkNewLine "\n"]
+  let heredoc4 := Token.mkHeredoc children4
+  let expected4 := String.join (children4.map Token.toString)
+  assertEqual (Token.toString heredoc4) expected4 "Heredoc with variable ref == concat children"
+
+  -- Verify heredoc follows same concatenation rules as other aggregate kinds
+  -- (i.e., no "$" prefix, no quote wrapping — plain concatenation)
+  let litChildren := [Token.mkString "content\n"]
+  let asLiteral := Token.mkLiteral litChildren
+  let asHeredoc := Token.mkHeredoc litChildren
+  assertEqual (Token.toString asLiteral) (Token.toString asHeredoc)
+    "Heredoc and Literal with same children have same toString"
+
+-- ============================================================================
+-- Property 9: Heredoc tokens follow aggregate concatenation rules
+-- ============================================================================
+
+def testHeredocAggregateConsistency : IO Unit := do
+  IO.println "Property 9: Heredoc tokens follow aggregate concatenation rules"
+
+  -- Build a heredoc token tree and verify it via the recursive consistency checker
+  let heredocBody := Token.mkHeredoc [
+    Token.mkString "#!/bin/bash\n",
+    Token.mkString "set -e\n",
+    Token.mkString "echo 'done'\n",
+    Token.mkString "SCRIPT",
+    Token.mkNewLine "\n"
+  ]
+  verifyTokenTreeConsistency heredocBody
+  IO.println "  PASS: Heredoc token tree is consistent"
+
+  -- Heredoc inside an instruction token
+  let instrWithHeredoc := Token.mkInstruction [
+    Token.mkKeyword [Token.mkString "RUN"],
+    Token.mkWhitespace " ",
+    Token.mkString "<<EOF",
+    Token.mkNewLine "\n",
+    heredocBody
+  ]
+  verifyTokenTreeConsistency instrWithHeredoc
+  IO.println "  PASS: Instruction with heredoc is consistent"
+
+  -- Heredoc kind is not variableRef, so no "$" prefix
+  let heredocToken := Token.aggregate .heredoc [Token.mkString "body"] none
+  let expected := "body"
+  assertEqual (Token.toString heredocToken) expected
+    "Heredoc kind does not prepend $ (not variableRef)"
+
 end DockerfileModel.Tests
 
 -- ============================================================================
@@ -347,6 +425,10 @@ def main : IO Unit := do
   testInstructionNames
   IO.println ""
   testTokenTreeConsistency
+  IO.println ""
+  testHeredocTokenConcat
+  IO.println ""
+  testHeredocAggregateConsistency
   IO.println ""
   runParserTests
   IO.println ""

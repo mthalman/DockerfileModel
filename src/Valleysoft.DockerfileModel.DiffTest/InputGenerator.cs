@@ -7,34 +7,63 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 /// <summary>
 /// Wraps the linked FsCheck generators (DockerfileArbitraries) to produce
 /// random test inputs for differential testing. Returns a list of
-/// (InstructionType, Text) tuples split evenly between FROM and ARG,
-/// shuffled with a fixed seed for reproducibility.
+/// (InstructionType, Text, EscapeChar) tuples distributed evenly across all 18
+/// Dockerfile instruction types, shuffled with a fixed seed for reproducibility.
+/// About 10% of inputs use backtick (`) as escape char instead of backslash (\).
 /// </summary>
 public static class InputGenerator
 {
     private const int SampleSize = 50;
 
-    public static List<(string InstructionType, string Text)> Generate(int count, int seed = 42)
+    public static List<(string InstructionType, string Text, char EscapeChar)> Generate(int count, int seed = 42)
     {
-        int fromCount = count / 2;
-        int argCount = count - fromCount;
-
-        List<(string InstructionType, string Text)> inputs = new();
-
-        // Generate FROM instructions using FsCheck 3.x Sample(size, count) extension
-        Gen<string> fromGen = DockerfileArbitraries.FromInstruction();
-        IReadOnlyList<string> fromInputs = fromGen.Sample(SampleSize, fromCount);
-        foreach (string text in fromInputs)
+        // All instruction generators with their type labels
+        var generators = new (string Type, Gen<string> Gen)[]
         {
-            inputs.Add(("FROM", text));
-        }
+            ("FROM", DockerfileArbitraries.FromInstruction()),
+            ("ARG", DockerfileArbitraries.ArgInstruction()),
+            ("RUN", DockerfileArbitraries.RunInstruction()),
+            ("CMD", DockerfileArbitraries.CmdInstruction()),
+            ("ENTRYPOINT", DockerfileArbitraries.EntrypointInstruction()),
+            ("COPY", DockerfileArbitraries.CopyInstruction()),
+            ("ADD", DockerfileArbitraries.AddInstruction()),
+            ("ENV", DockerfileArbitraries.EnvInstruction()),
+            ("EXPOSE", DockerfileArbitraries.ExposeInstruction()),
+            ("VOLUME", DockerfileArbitraries.VolumeInstruction()),
+            ("USER", DockerfileArbitraries.UserInstruction()),
+            ("WORKDIR", DockerfileArbitraries.WorkdirInstruction()),
+            ("LABEL", DockerfileArbitraries.LabelInstruction()),
+            ("STOPSIGNAL", DockerfileArbitraries.StopSignalInstruction()),
+            ("HEALTHCHECK", DockerfileArbitraries.HealthCheckInstruction()),
+            ("SHELL", DockerfileArbitraries.ShellInstruction()),
+            ("MAINTAINER", DockerfileArbitraries.MaintainerInstruction()),
+            ("ONBUILD", DockerfileArbitraries.OnBuildInstruction()),
+        };
 
-        // Generate ARG instructions
-        Gen<string> argGen = DockerfileArbitraries.ArgInstruction();
-        IReadOnlyList<string> argInputs = argGen.Sample(SampleSize, argCount);
-        foreach (string text in argInputs)
+        int perType = count / generators.Length;
+        int remainder = count % generators.Length;
+
+        List<(string InstructionType, string Text, char EscapeChar)> inputs = new();
+        Random escapeRng = new(seed + 1); // separate RNG for escape char selection
+
+        for (int g = 0; g < generators.Length; g++)
         {
-            inputs.Add(("ARG", text));
+            int n = perType + (g < remainder ? 1 : 0);
+            var samples = generators[g].Gen.Sample(SampleSize, n);
+            foreach (string text in samples)
+            {
+                // ~10% of inputs use backtick escape char
+                if (escapeRng.NextDouble() < 0.10)
+                {
+                    // Replace backslash continuations with backtick continuations
+                    string backtickText = text.Replace("\\\n", "`\n").Replace("\\\r\n", "`\r\n");
+                    inputs.Add((generators[g].Type, backtickText, '`'));
+                }
+                else
+                {
+                    inputs.Add((generators[g].Type, text, '\\'));
+                }
+            }
         }
 
         // Shuffle with fixed seed for reproducibility

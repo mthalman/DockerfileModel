@@ -29,14 +29,24 @@ import DockerfileModel.Token
 
 namespace DockerfileModel
 
-/-- The six variable substitution modifier variants. -/
+/-- Variable substitution modifier variants.
+    The first six are the standard Docker modifiers. The remaining six are
+    extended bash-style pattern operations supported by BuildKit. -/
 inductive Modifier where
+  -- Standard Docker modifiers (colon vs non-colon):
   | colonDash      -- :-   use default when unset or empty
   | colonPlus      -- :+   use alt when set and non-empty
   | colonQuestion  -- :?   error when unset or empty
   | dash           -- -    use default when truly unset
   | plus           -- +    use alt when set (even if empty)
   | question       -- ?    error when truly unset
+  -- Extended bash-style pattern modifiers:
+  | hashPattern          -- ${var#pattern}  — remove shortest prefix match
+  | doubleHashPattern    -- ${var##pattern} — remove longest prefix match
+  | percentPattern       -- ${var%pattern}  — remove shortest suffix match
+  | doublePercentPattern -- ${var%%pattern} — remove longest suffix match
+  | slashPattern         -- ${var/pattern/replacement} — replace first match
+  | doubleSlashPattern   -- ${var//pattern/replacement} — replace all matches
   deriving Repr, BEq, Inhabited, DecidableEq
 
 /--
@@ -104,6 +114,49 @@ def isVariableSet (vars : VarMap) (name : String) (mod : Modifier) : Bool :=
   | .dash | .plus | .question =>
       -- Non-colon variants: must simply exist
       vars.contains name
+  | .hashPattern | .doubleHashPattern | .percentPattern | .doublePercentPattern
+  | .slashPattern | .doubleSlashPattern =>
+      -- Pattern modifiers: variable presence
+      vars.contains name
+
+/-- Remove a literal prefix from a string. Returns the string unchanged if the
+    prefix doesn't match. For simple literal patterns only (no glob support). -/
+def removePrefix (s : String) (pattern : String) : String :=
+  if s.startsWith pattern then
+    String.ofList (s.toList.drop pattern.toList.length)
+  else s
+
+/-- Remove a literal suffix from a string. Returns the string unchanged if the
+    suffix doesn't match. For simple literal patterns only (no glob support). -/
+def removeSuffix (s : String) (pattern : String) : String :=
+  if s.endsWith pattern then
+    String.ofList (s.toList.take (s.toList.length - pattern.toList.length))
+  else s
+
+/-- Replace the first occurrence of a literal pattern in a string.
+    Returns the string unchanged if the pattern is not found. -/
+def replaceFirst (s : String) (pattern : String) (replacement : String) : String :=
+  if pattern.isEmpty then s
+  else
+    let sList := s.toList
+    let patList := pattern.toList
+    let patLen := patList.length
+    let rec scan (before : List Char) (remaining : List Char) : String :=
+      match remaining with
+      | [] => s  -- pattern not found
+      | c :: rest =>
+        let candidate := remaining.take patLen
+        if candidate == patList then
+          String.ofList (before.reverse ++ replacement.toList ++ remaining.drop patLen)
+        else
+          scan (c :: before) rest
+    scan [] sList
+
+/-- Replace all occurrences of a literal pattern in a string.
+    Returns the string unchanged if the pattern is not found. -/
+def replaceAll (s : String) (pattern : String) (replacement : String) : String :=
+  if pattern.isEmpty then s
+  else s.replace pattern replacement
 
 /--
   Resolve a variable reference against a variable map.
@@ -137,6 +190,33 @@ def resolve (vars : VarMap) (ref : VariableRef) : Except String String :=
           -- Error when unset; return variable value when set
           if set then .ok currentVal
           else .error s!"Variable '{ref.name}' is not set. Error detail: '{altVal}'."
+      | .hashPattern =>
+          -- ${var#pattern} — remove shortest prefix match (simplified: literal only)
+          .ok (removePrefix currentVal altVal)
+      | .doubleHashPattern =>
+          -- ${var##pattern} — remove longest prefix match (simplified: same as shortest for literals)
+          .ok (removePrefix currentVal altVal)
+      | .percentPattern =>
+          -- ${var%pattern} — remove shortest suffix match (simplified: literal only)
+          .ok (removeSuffix currentVal altVal)
+      | .doublePercentPattern =>
+          -- ${var%%pattern} — remove longest suffix match (simplified: same as shortest for literals)
+          .ok (removeSuffix currentVal altVal)
+      | .slashPattern =>
+          -- ${var/pattern/replacement} — replace first match
+          -- modifierValue holds "pattern", ref has a secondary value for replacement
+          -- For now, modifierValue is the pattern, and we use "" as replacement
+          -- (the parser will need to handle the second value)
+          let parts := altVal.splitOn "/"
+          let pat := parts.head!
+          let repl := if parts.length > 1 then (parts.drop 1 |> String.intercalate "/") else ""
+          .ok (replaceFirst currentVal pat repl)
+      | .doubleSlashPattern =>
+          -- ${var//pattern/replacement} — replace all matches
+          let parts := altVal.splitOn "/"
+          let pat := parts.head!
+          let repl := if parts.length > 1 then (parts.drop 1 |> String.intercalate "/") else ""
+          .ok (replaceAll currentVal pat repl)
 
 /--
   Helper: process escape characters in a character list.

@@ -1171,3 +1171,221 @@ DockerfileModel.lean
 | **Total** | **55** | **4** |
 
 Build: `lake build` — 19 jobs, 0 errors. All 4 sorries are documented obligations.
+
+### 2026-03-05: Phase A — Stage Name Parser Fix
+**Author:** Dallas (Core Dev)
+**Date:** 2026-03-05
+
+#### Context
+BuildKit requires stage names to match `^[a-z][a-z0-9-_.]*$` — lowercase first character, followed by lowercase letters, digits, hyphens, dots, or underscores. Our Lean `stageNameParser` used `c.isAlpha` which accepts uppercase letters, making it more permissive than BuildKit.
+
+#### Decision
+Changed the `stageNameParser` character predicates:
+- **First character:** `c.isAlpha` -> `c.isLower`
+- **Tail characters:** `c.isAlpha` -> `c.isLower` (digits/hyphens/dots/underscores unchanged)
+
+#### Consequences
+- Uppercase stage names (e.g., `FROM ubuntu AS Builder`) are no longer recognized. The FROM instruction parses without the AS clause, matching BuildKit behavior.
+- All existing proofs and tests still pass (19 build jobs, 0 errors).
+- 5 new parser-level tests verify the fix.
+
+#### Files Changed
+- `lean/DockerfileModel/Parser/DockerfileParsers.lean`
+- `lean/DockerfileModel/Tests/ParserTests.lean`
+### 2026-03-05: Phase B — Shared Parser Infrastructure
+**Author:** Dallas (Core Dev)
+**Phase:** B of Lean 4 parser implementation
+
+#### Context
+Building reusable parser components that multiple instruction parsers (Phases C-F) will need: exec form JSON arrays, generic flag parsing, shell form commands, and heredoc token support.
+
+#### Decisions
+
+**1. Generic `flagParser` lives in DockerfileParsers.lean**
+The generic `flagParser` is defined in DockerfileParsers.lean (not Flags.lean) to avoid circular imports. `platformFlagParser` now delegates to `flagParser "platform"`. Flags.lean imports DockerfileParsers.lean and adds `booleanFlagParser`. Instruction parsers should use `DockerfileModel.Parser.flagParser "name" escapeChar` for key-value flags and `DockerfileModel.Parser.Flags.booleanFlagParser "name" escapeChar` for boolean flags.
+
+**2. Exec form preserves raw JSON escapes**
+JSON escape sequences (\n, \t, \uXXXX, etc.) inside double-quoted strings are preserved as literal text, not decoded. This ensures round-trip fidelity. The `jsonArrayParser` in ExecForm.lean is the entry point for CMD, ENTRYPOINT, RUN, SHELL, VOLUME, HEALTHCHECK exec form parsing.
+
+**3. `heredoc` added as AggregateKind**
+Token.lean now has 10 AggregateKind constructors (was 9). The `mkHeredoc` helper follows the existing pattern. All proofs using `cases kind <;> simp_all` handle the new constructor automatically.
+
+**4. Shell form captures rest-of-line with variables**
+`shellFormCommand` in DockerfileParsers.lean parses everything to end-of-line as a LiteralToken with embedded variable references. This is the foundation for RUN, CMD, ENTRYPOINT shell form parsing.
+
+#### Impact
+- Phase C instruction parsers can immediately use `flagParser`, `booleanFlagParser`, `jsonArrayParser`, and `shellFormCommand`
+- No breaking changes to existing APIs
+- All 21 build jobs succeed, all existing + 17 new tests pass
+### 2026-03-05: Phase C — 10 Simple Instruction Parsers
+**Author:** Dallas (Core Dev)
+
+#### Context
+Phase C implements parsers for 10 Dockerfile instruction types in the Lean 4 formal model, following the established pattern from FROM and ARG parsers (Phase 2). These cover single-literal, exec/shell-form, structured-argument, and key-value-pair instruction types.
+
+#### Decisions
+
+1. **Consistent namespace pattern across all parser files:** Every instruction parser file follows the same structure: imports, namespace, args parser function, instruction parser function, parse function with Instruction return, tryParse convenience function. This uniformity makes it easy to add new parsers.
+
+2. **`open Parser` required for inner combinators:** Files using `or'`, `many`, `satisfy`, or `char` directly need `open Parser` to bring the inner `DockerfileModel.Parser.Parser` namespace into scope. Files using only Dockerfile-specific combinators (like `instructionParser`, `argTokens`, `literalWithVariables`) don't need this extra open.
+
+3. **Test runner split at ~140 statements:** Lean 4's `maxRecDepth` limit caps `do` block size. The test runner is now split into 4 sub-functions called by the top-level `runParserTests`. Future phases should add new sub-functions rather than extending existing ones.
+
+4. **ENV modern-before-legacy ordering:** The `or'` combinator tries modern format (key=value pairs) before legacy format (key value). Since `or'` backtracks on failure, if the key doesn't have `=`, the modern parser fails and legacy kicks in.
+
+5. **Main.lean dispatch table uses `dispatchParse` helper:** Extracted the match/output/error pattern into a single function. Each new instruction adds one line to the dispatch table.
+
+#### Impact
+- 10 new parser files under `lean/DockerfileModel/Parser/Instructions/`
+- 54 new tests in `ParserTests.lean`, all passing
+- Dispatch table extended from 2 to 12 instruction types
+- Build: 32 jobs, 0 errors, no new warnings
+
+#### Status
+Complete. Ready for Phase D (6 complex instruction parsers: RUN, COPY, ADD, HEALTHCHECK, ONBUILD, and full Dockerfile-level parser).
+# Phase D: 5 Complex Instruction Parsers
+
+**Date:** 2026-03-05
+**Author:** Dallas (Core Dev)
+**Phase:** D — Complex instruction parsers with flags and validation
+
+## Context
+
+Phase D adds parsers for the remaining 5 complex instruction types: RUN, COPY, ADD, HEALTHCHECK, and ONBUILD. These are more complex than Phase C parsers because they have flags (key-value and boolean), multiple forms (exec vs shell), repeatable flags, and validation rules.
+
+## Decisions
+
+### 1. Flag parsing via `many` + `or'` pattern
+Each instruction defines a private `*FlagParser` function that wraps `or'` chains inside `argTokens (excludeTrailingWhitespace := true)`. The outer `many` combinator consumes zero or more flags in any order. Repeatable flags (mount, exclude) work automatically.
+
+### 2. Mount spec values are opaque
+RUN's `--mount=type=bind,source=/src,target=/app` values are not internally parsed. The `flagParser "mount"` uses `literalWithVariables` which naturally captures commas and equals signs as literal characters.
+
+### 3. COPY and ADD inline the file-args pattern
+Rather than a shared function in DockerfileParsers.lean, each instruction defines `spaceSeparatedFileArgs` privately. The duplication is minimal (8 lines) and avoids cross-file coupling for a pattern used only twice.
+
+### 4. HEALTHCHECK two-branch via `or'`
+NONE form is tried first (simple keyword parse), CMD form is the fallback. This matches the C# parser structure where the simpler branch is tried first.
+
+### 5. ONBUILD post-parse validation
+The trigger instruction is captured as raw text via `shellFormCommand`, then validated against restricted keywords (ONBUILD, FROM, MAINTAINER). If restricted, `Parser.fail` causes the parse to return `none`.
+
+### 6. `String.trimAscii` over deprecated `String.trim`
+Lean 4.27.0 deprecated `String.trim` in favor of `String.trimAscii` which returns `String.Slice`. Added `.toString` for compatibility.
+
+## Impact
+
+- All 18 Dockerfile instruction types now have working Lean 4 parsers
+- Dispatch table in Main.lean is complete (18 instruction types)
+- 30 new tests, all passing
+- Build: 37 jobs, 0 errors
+
+## Files
+
+New: Run.lean, Copy.lean, Add.lean, Healthcheck.lean, Onbuild.lean
+Modified: DockerfileModel.lean, Main.lean, ParserTests.lean
+# Phase E: Heredoc Support and Advanced Variable Modifiers
+
+**Author:** Dallas (Core Dev)
+**Date:** 2026-03-05
+
+## Context
+
+Phase E adds two features to the Lean 4 formal model: heredoc syntax parsing (inline scripts/files in Dockerfiles) and extended bash-style variable modifiers (pattern matching operations).
+
+## Decisions
+
+### 1. Heredoc Two-Pass Architecture
+
+**Decision:** Heredoc parsing uses a two-pass design: marker detection on the instruction line, then body consumption as a separate pass reading lines until the closing delimiter.
+
+**Why:** This mirrors how BuildKit actually processes heredocs. The marker and body are structurally different parsing problems. The marker is part of the instruction syntax; the body is free-form text that can contain anything.
+
+### 2. Extended Modifier Type is Additive (No Breaking Changes)
+
+**Decision:** Six new constructors were added to the `Modifier` inductive type without modifying any existing constructors. All existing match arms in `resolve` and `isVariableSet` remain identical.
+
+**Why:** This is the only way to guarantee that all 25+ existing proofs in `Proofs/VariableResolution.lean` continue to close without modification. The proofs pattern-match on specific constructors, so adding new constructors is safe as long as existing arms don't change.
+
+### 3. Simplified Pattern Matching (No Glob Support)
+
+**Decision:** Pattern operations (`#`, `##`, `%`, `%%`, `/`, `//`) implement only literal string matching. Glob patterns are not supported and return values unchanged.
+
+**Why:** Full glob matching is complex and out of scope for the formal model. The type system correctly represents what BuildKit supports (the `Modifier` constructors exist), and the simplified implementation handles the most common use cases. Glob support can be added later without changing the type.
+
+### 4. Slash Modifier Value Encoding
+
+**Decision:** For `${var/pattern/replacement}`, the modifier value is stored as the combined string `"pattern/replacement"`. The `resolve` function splits on `/` to extract both parts.
+
+**Why:** This avoids adding a second field to `VariableRef.modifierValue`. The encoding is unambiguous because the resolve function splits on the first `/` for single-slash and handles multi-part replacements correctly.
+
+## Impact
+
+- Build: 38 jobs (was 37), 0 errors
+- Proofs: All existing proofs pass unchanged
+- Tests: 16 new tests in Phase E test suite
+### 2026-03-05: Phase F — Final: Round-Trip Theorems + Test Coverage + Differential Testing
+**Author:** Dallas (Core Dev)
+
+#### Context
+Phase F is the final phase of the Lean 4 formal verification project. All 18 instruction parsers are implemented (Phases A-E). This phase adds formal round-trip obligations for every instruction, expands test coverage, and verifies the differential test harness.
+
+#### Decisions
+
+**Round-trip theorem pattern (sorry'd obligations):**
+All 16 new round-trip theorems follow the identical pattern established by `fromInstruction_roundTrip` and `argInstruction_roundTrip`:
+```
+theorem {name}Instruction_roundTrip (text : String) (escapeChar : Char)
+    (tokens : List Token) (pos : Position)
+    (h_parse : ({name}InstructionParser escapeChar).run text = .ok tokens pos)
+    (h_complete : pos.atEnd) :
+    String.join (tokens.map Token.toString) = text := by sorry
+```
+These are intentionally sorry'd — proving them requires deep parser monad correctness properties (showing every consumed character ends up in exactly one token). The theorems serve as formal obligations that the differential testing validates empirically.
+
+**Heredoc AggregateKind compatibility:**
+The `heredoc` AggregateKind (added in Phase E) is automatically handled by existing TokenConcat.lean proofs because `cases kind <;> simp_all` closes all non-variableRef aggregate kinds. No manual proof adjustments were needed. This confirms the design choice to model heredoc as an aggregate kind rather than a separate constructor.
+
+**Test count target:**
+The target of 80-160 parser tests is met with 187 test functions across ParserTests.lean and SlimCheck.lean, each containing multiple assertions. Coverage spans all 18 instruction types with positive tests (basic form, variables, line continuations, lowercase keywords, edge cases) and negative tests (ONBUILD rejects FROM, MAINTAINER, and chaining).
+
+#### Impact
+- 18/18 instructions have round-trip theorem obligations stated
+- 187 test functions, all passing
+- Main.lean dispatch table covers all 18 instructions
+- TokenConcat.lean proofs handle heredoc automatically
+- Build: 38 jobs, 0 errors
+
+### 2026-03-06: Differential Testing — C# Tokenization Alignment Strategy
+
+**Author:** Dallas (Core Dev)
+**Context:** Differential testing of 900 tests (50 per instruction type × 18 types) completed. TokenJsonSerializer.cs with targeted workarounds achieves 0/900 mismatches.
+
+**Finding:** All 480 prior mismatches were serialization discrepancies (token tree structure differences), not parse-correctness bugs. The C# library correctly parses all inputs; the differences are in how tokens are hierarchically organized relative to the Lean 4 spec.
+
+**Decision:** Each C# tokenization difference from Lean shall be filed as a separate GitHub issue documenting the difference, root cause, and suggested C# fix. The Lean spec is authoritative and shall never be modified to match C# behavior. TokenJsonSerializer.cs workarounds are temporary aids for differential testing; they map to corresponding GitHub issues for permanent C# fixes.
+
+**GitHub Issues Filed:**
+- #188: Shell form whitespace tokenization
+- #189: LABEL key token kind (literal vs identifier)
+- #191: EXPOSE port/protocol structure (flat vs keyValue)
+- #193: HEALTHCHECK CMD nesting
+- #195: ONBUILD trigger instruction (recursive vs opaque)
+- #196: COPY/ADD --from flag value kind
+- #197: BooleanFlag token kind (construct vs keyValue)
+- #198: USER user:group as keyValue
+
+**Impact:**
+- Differential test harness passes 900/900 with 0 mismatches
+- No Lean files modified
+- C# developers have clear, itemized fixes to implement
+- Team has complete traceability from workaround → GitHub issue → C# fix
+
+### 2026-03-06: User Directive — Lean is Authoritative Specification
+
+**Author:** Matt Thalman (via Copilot)
+**Decision:** Lean 4 formal specification is the authoritative reference for Dockerfile tokenization grammar. When C# tokenization differs from Lean, the difference shall be logged as a GitHub issue suggesting a C# library change — never shall the Lean spec be changed to match C# behavior.
+
+**Rationale:** The entire purpose of the formal Lean specification is to serve as an oracle for finding bugs in the C# implementation. Changing Lean to match C# defeats this purpose.
+
+**Enforcement:** All agents (Dallas, Lambert, Ripley, Ash) must treat Lean as read-only authoritative. Differential testing harness reports all mismatches as C# issues, not Lean bugs.

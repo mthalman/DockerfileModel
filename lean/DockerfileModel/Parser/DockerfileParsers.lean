@@ -220,8 +220,9 @@ def variableIdentifier : Parser String :=
   many1Chars (satisfy (fun c => c.isAlpha || c.isDigit || c == '_') "alphanumeric or underscore")
 
 /-- Valid variable substitution modifiers, in order of precedence.
+    Longer modifiers must come before shorter ones (## before #, %% before %, // before /).
     Corresponds to VariableRefToken.ValidModifiers -/
-def validModifiers : List String := [":-", ":+", ":?", "-", "+", "?"]
+def validModifiers : List String := [":-", ":+", ":?", "-", "+", "?", "##", "#", "%%", "%", "//", "/"]
 
 /-- Parse any of the variable substitution modifiers.
     Tries each modifier in order. -/
@@ -550,15 +551,22 @@ def instructionParser (instructionName : String) (escapeChar : Char)
   Parser.pure (concatTokens [nameTokens, argTokens])
 
 -- ============================================================
--- Platform flag parser (--platform=value)
+-- Generic key-value flag parser (--name=value)
 -- ============================================================
 
-/-- Parse a --platform=value flag.
-    Corresponds to PlatformFlag.GetParser() -/
-def platformFlagParser (escapeChar : Char) : Parser Token := do
+/-- Parse a generic key-value flag: `--name=value`.
+    The value is parsed via `literalWithVariables` (supports variable substitution).
+    Returns a KeyValueToken containing:
+      SymbolToken('-'), SymbolToken('-'), KeywordToken(name), SymbolToken('='), LiteralToken(value)
+    Corresponds to the C# `KeywordLiteralFlag` pattern.
+
+    This is the shared implementation used by `platformFlagParser` and by
+    `Flags.flagParser`. Defined here to avoid circular imports (since it depends
+    on `keywordParser` and `literalWithVariables` which live in this file). -/
+def flagParser (name : String) (escapeChar : Char) : Parser Token := do
   let dash1 ← char '-'
   let dash2 ← char '-'
-  let kw ← keywordParser "platform" escapeChar
+  let kw ← keywordParser name escapeChar
   let eq ← char '='
   let value ← literalWithVariables escapeChar
   Parser.pure (Token.mkKeyValue [
@@ -570,15 +578,26 @@ def platformFlagParser (escapeChar : Char) : Parser Token := do
   ])
 
 -- ============================================================
+-- Platform flag parser (--platform=value)
+-- ============================================================
+
+/-- Parse a --platform=value flag.
+    Delegates to the generic `flagParser` with name "platform".
+    Corresponds to PlatformFlag.GetParser() -/
+def platformFlagParser (escapeChar : Char) : Parser Token :=
+  flagParser "platform" escapeChar
+
+-- ============================================================
 -- Stage name parser
 -- ============================================================
 
-/-- Parse a stage name (identifier: letter followed by letters/digits/underscores/hyphens/dots).
+/-- Parse a stage name: lowercase letter followed by lowercase letters/digits/hyphens/dots/underscores.
+    BuildKit requires stage names to match `^[a-z][a-z0-9-_.]*$`.
     Corresponds to StageName.GetParser() -/
 def stageNameParser (escapeChar : Char) : Parser Token := do
   let tokens ← identifierString escapeChar
-    (fun c => c.isAlpha)
-    (fun c => c.isAlpha || c.isDigit || c == '_' || c == '-' || c == '.')
+    (fun c => c.isLower)
+    (fun c => c.isLower || c.isDigit || c == '_' || c == '-' || c == '.')
   Parser.pure (Token.mkIdentifier tokens)
 
 -- ============================================================
@@ -616,5 +635,79 @@ def argDeclarationParser (escapeChar : Char) : Parser Token := do
     escapeChar (excludeTrailingWhitespace := true))
   let children := concatTokens [name, assignment.getD []]
   Parser.pure (Token.mkKeyValue children)
+
+-- ============================================================
+-- Shell form command parser (rest-of-line as literal text with variables)
+-- ============================================================
+
+/-- Split a list of single-character tokens into properly typed StringToken and
+    WhitespaceToken runs. Adjacent characters of the same type (whitespace vs
+    non-whitespace) are merged. Line continuation and escaped char tokens are
+    preserved as-is and break any pending run. -/
+private def splitStringWhitespace (tokens : List Token) : List Token :=
+  let rec flush (acc : List Token) (pending : String) (isWs : Bool) : List Token :=
+    if pending.isEmpty then acc
+    else if isWs then (Token.mkWhitespace pending) :: acc
+    else (Token.mkString pending) :: acc
+  let rec loop (acc : List Token) (pending : String) (pendingIsWs : Bool)
+      (rest : List Token) : List Token :=
+    match rest with
+    | [] => (flush acc pending pendingIsWs).reverse
+    | t :: ts =>
+      match t with
+      | .primitive .string val =>
+        -- Classify each character
+        let chars := val.toList
+        let rec charLoop (a : List Token) (p : String) (pWs : Bool)
+            (cs : List Char) : List Token × String × Bool :=
+          match cs with
+          | [] => (a, p, pWs)
+          | c :: cr =>
+            let cIsWs := c == ' ' || c == '\t'
+            if p.isEmpty then
+              charLoop a (String.ofList [c]) cIsWs cr
+            else if cIsWs == pWs then
+              charLoop a (p ++ String.ofList [c]) pWs cr
+            else
+              charLoop (flush a p pWs) (String.ofList [c]) cIsWs cr
+        let (a', p', w') := charLoop acc pending pendingIsWs chars
+        loop a' p' w' ts
+      | _ =>
+        -- Non-string token (e.g., LineContinuationToken): flush pending, emit token
+        loop (t :: (flush acc pending pendingIsWs)) "" false ts
+  loop [] "" false tokens
+
+/-- Parse a shell form command: everything to end-of-line (or end-of-input) as
+    a LiteralToken. This is the "shell form" parser for RUN, CMD, ENTRYPOINT.
+
+    BuildKit does NOT expand variables in shell-form commands — the shell
+    handles variable expansion at runtime. So `$VAR` is treated as opaque
+    text, not decomposed into a VariableRefToken. The result is a single
+    LiteralToken containing only StringToken and WhitespaceToken children.
+
+    Corresponds to the shell-form branch of CommandInstruction.GetCommandParser() -/
+partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
+  -- Parse shell form as opaque text: $ is treated as a regular character.
+  -- Each iteration produces either:
+  --   a) a non-escape, non-newline character → StringToken, or
+  --   b) an escaped char (escape + non-newline) → StringToken, or
+  --   c) a line continuation (escape + newline) → LineContinuationToken.
+  let parts ← many1 (
+    or' (do
+      -- Any non-escape, non-newline character (including $, spaces, tabs)
+      let c ← satisfy (fun c => !isLineTerminator c && c != escapeChar)
+                       "shell form character"
+      Parser.pure (Token.mkString (String.ofList [c])))
+    (or'
+      -- Line continuation (escape + newline)
+      (lineContinuationParser escapeChar)
+      -- Escaped character (escape + non-newline char)
+      (escapedChar escapeChar)))
+  -- Group adjacent chars into string/whitespace runs
+  let tokens := splitStringWhitespace parts
+  if tokens.isEmpty then
+    Parser.fail "expected shell form command"
+  else
+    Parser.pure [Token.mkLiteral tokens]
 
 end DockerfileModel.Parser

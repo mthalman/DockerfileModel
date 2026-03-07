@@ -40,12 +40,28 @@ public class DiffTestRunner
     /// <summary>
     /// Parse an instruction with the C# parser and serialize to canonical JSON.
     /// </summary>
-    public static string ParseCSharp(string instructionType, string input)
+    public static string ParseCSharp(string instructionType, string input, char escapeChar = '\\')
     {
         Token token = instructionType.ToUpperInvariant() switch
         {
-            "FROM" => FromInstruction.Parse(input),
-            "ARG" => ArgInstruction.Parse(input),
+            "FROM" => FromInstruction.Parse(input, escapeChar),
+            "ARG" => ArgInstruction.Parse(input, escapeChar),
+            "RUN" => RunInstruction.Parse(input, escapeChar),
+            "CMD" => CmdInstruction.Parse(input, escapeChar),
+            "ENTRYPOINT" => EntrypointInstruction.Parse(input, escapeChar),
+            "COPY" => CopyInstruction.Parse(input, escapeChar),
+            "ADD" => AddInstruction.Parse(input, escapeChar),
+            "ENV" => EnvInstruction.Parse(input, escapeChar),
+            "EXPOSE" => ExposeInstruction.Parse(input, escapeChar),
+            "VOLUME" => VolumeInstruction.Parse(input, escapeChar),
+            "USER" => UserInstruction.Parse(input, escapeChar),
+            "WORKDIR" => WorkdirInstruction.Parse(input, escapeChar),
+            "LABEL" => LabelInstruction.Parse(input, escapeChar),
+            "STOPSIGNAL" => StopSignalInstruction.Parse(input, escapeChar),
+            "HEALTHCHECK" => HealthCheckInstruction.Parse(input, escapeChar),
+            "SHELL" => ShellInstruction.Parse(input, escapeChar),
+            "MAINTAINER" => MaintainerInstruction.Parse(input, escapeChar),
+            "ONBUILD" => OnBuildInstruction.Parse(input, escapeChar),
             _ => throw new ArgumentException($"Unsupported instruction type: {instructionType}")
         };
         return TokenJsonSerializer.Serialize(token);
@@ -54,7 +70,7 @@ public class DiffTestRunner
     /// <summary>
     /// Parse an instruction with the Lean CLI and capture JSON from stdout.
     /// </summary>
-    public async Task<string> ParseLeanAsync(string input)
+    public async Task<string> ParseLeanAsync(string input, char escapeChar = '\\')
     {
         using Process process = new();
         process.StartInfo = new ProcessStartInfo
@@ -66,6 +82,13 @@ public class DiffTestRunner
             UseShellExecute = false,
             CreateNoWindow = true
         };
+
+        // Pass escape char to Lean CLI when non-default
+        if (escapeChar != '\\')
+        {
+            process.StartInfo.ArgumentList.Add("--escape");
+            process.StartInfo.ArgumentList.Add(escapeChar.ToString());
+        }
 
         // Ensure Lean shared libraries are findable
         if (_leanLibDir != null)
@@ -114,12 +137,12 @@ public class DiffTestRunner
     /// <summary>
     /// Run both parsers on a single input and compare JSON output.
     /// </summary>
-    public async Task<DiffResult> RunSingleAsync(string instructionType, string input)
+    public async Task<DiffResult> RunSingleAsync(string instructionType, string input, char escapeChar = '\\')
     {
         string csharpJson;
         try
         {
-            csharpJson = ParseCSharp(instructionType, input);
+            csharpJson = ParseCSharp(instructionType, input, escapeChar);
         }
         catch (Exception ex)
         {
@@ -130,7 +153,7 @@ public class DiffTestRunner
         string leanJson;
         try
         {
-            leanJson = await ParseLeanAsync(input);
+            leanJson = await ParseLeanAsync(input, escapeChar);
         }
         catch (Exception ex)
         {
@@ -146,7 +169,7 @@ public class DiffTestRunner
     /// Run both parsers on a batch of inputs, reporting progress.
     /// </summary>
     public async Task<List<DiffResult>> RunBatchAsync(
-        List<(string InstructionType, string Text)> inputs,
+        List<(string InstructionType, string Text, char EscapeChar)> inputs,
         Action<int, int, DiffResult>? onProgress = null)
     {
         List<DiffResult> results = new();
@@ -154,8 +177,8 @@ public class DiffTestRunner
 
         for (int i = 0; i < total; i++)
         {
-            (string type, string text) = inputs[i];
-            DiffResult result = await RunSingleAsync(type, text);
+            (string type, string text, char escapeChar) = inputs[i];
+            DiffResult result = await RunSingleAsync(type, text, escapeChar);
             results.Add(result);
             onProgress?.Invoke(i + 1, total, result);
         }
