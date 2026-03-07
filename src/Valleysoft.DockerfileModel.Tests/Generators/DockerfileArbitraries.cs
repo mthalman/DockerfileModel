@@ -522,9 +522,7 @@ public static class DockerfileArbitraries
             // Disabled: C# parser crashes on exec form with empty string element (issue #203)
             // from arg in Gen.Elements("hello", "-c", "test")
             // select $"RUN [\"\", \"{arg}\"]",
-            // Disabled: C# parser parses RUN [] as shell form instead of exec form (issue #204, #205)
-            // Gen.Constant("RUN []")
-            Gen.Constant("RUN echo placeholder"));
+            Gen.Constant("RUN []"));
 
     /// <summary>
     /// Generates a valid CMD instruction string.
@@ -577,9 +575,7 @@ public static class DockerfileArbitraries
             from c2 in Gen.Elements("echo line2")
             from c3 in Gen.Elements("echo line3")
             select $"CMD {c1} \\\n  && {c2} \\\n  && {c3}",
-            // Disabled: C# parser crashes on empty exec form array (issue #204)
-            // Gen.Constant("CMD []")
-            Gen.Constant("CMD echo placeholder"));
+            Gen.Constant("CMD []"));
 
     /// <summary>
     /// Generates a valid ENTRYPOINT instruction string.
@@ -626,9 +622,7 @@ public static class DockerfileArbitraries
             from c1 in Gen.Elements("/app/run", "python app.py")
             from c2 in Gen.Elements("--config /etc/app.conf", "--port 8080")
             select $"ENTRYPOINT {c1} \\\r\n  {c2}",
-            // Disabled: C# parser crashes on empty exec form array (issue #204)
-            // Gen.Constant("ENTRYPOINT []")
-            Gen.Constant("ENTRYPOINT /app/placeholder"));
+            Gen.Constant("ENTRYPOINT []"));
 
     /// <summary>
     /// Generates a valid COPY instruction string.

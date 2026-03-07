@@ -349,13 +349,17 @@ internal static class ParseHelper
     /// <param name="canContainVariables">A value indicating whether variables are allowed to be contained in the strings.</param>
     public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables) =>
         from openingBracket in Symbol('[').AsEnumerable()
-        from execFormArgs in
+        from execFormArgs in (
             from arg in JsonArrayElement(escapeChar, canContainVariables).Once().Flatten()
             from tail in (
                 from delimiter in JsonArrayElementDelimiter(escapeChar)
                 from nextArg in JsonArrayElement(escapeChar, canContainVariables)
                 select ConcatTokens(delimiter, nextArg)).Many()
             select ConcatTokens(arg, tail.Flatten())
+        ).Or(
+            from ws in OptionalWhitespaceOrLineContinuation(escapeChar)
+            select ws
+        )
         from closingBracket in Symbol(']').AsEnumerable()
         select ConcatTokens(openingBracket, execFormArgs, closingBracket);
 
