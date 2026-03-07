@@ -29,7 +29,7 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 /// Known differences with workarounds:
 ///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
 ///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
-///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
+///   - LABEL keys: FIXED — C# now uses LabelKeyToken (IdentifierToken)
 ///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
 ///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
 ///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
@@ -101,12 +101,6 @@ public static class TokenJsonSerializer
             return;
         }
 
-        if (token is LabelInstruction labelInst)
-        {
-            SerializeLabel(sb, labelInst);
-            return;
-        }
-
         // RUN needs whitespace splitting + mount value flattening (issue #200)
         if (token is RunInstruction)
         {
@@ -128,8 +122,8 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // ENV: empty value handling (issue #201)
-        if (token is EnvInstruction)
+        // ENV/LABEL: empty value handling (issue #201)
+        if (token is EnvInstruction || token is LabelInstruction)
         {
             SerializeInstructionStrippingEmptyLiterals(sb, (Instruction)token);
             return;
@@ -424,69 +418,6 @@ public static class TokenJsonSerializer
                 SerializeToken(sb, child);
                 first = false;
             }
-        }
-
-        sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: LABEL instruction
-    // C# uses LiteralToken for label keys, Lean uses IdentifierToken.
-    // We remap the key's kind from "literal" to "identifier" during serialization.
-    // ===================================================================
-
-    private static void SerializeLabel(StringBuilder sb, LabelInstruction label)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in label.Tokens)
-        {
-            if (IsKeyValueToken(child))
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeLabelKeyValue(sb, (AggregateToken)child);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    private static void SerializeLabelKeyValue(StringBuilder sb, AggregateToken kvToken)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        bool isFirstChild = true;
-        foreach (Token child in kvToken.Tokens)
-        {
-            // Strip empty LiteralTokens (issue #201)
-            if (!isFirstChild && child is LiteralToken lit && lit.ToString() == "")
-            {
-                continue;
-            }
-
-            if (!first) sb.Append(',');
-            first = false;
-
-            // The first child of a LABEL KeyValueToken is the key.
-            // C# uses LiteralToken, Lean uses IdentifierToken. Remap.
-            if (isFirstChild && child is LiteralToken)
-            {
-                SerializeAggregate(sb, "identifier", child);
-            }
-            else
-            {
-                SerializeToken(sb, child);
-            }
-            isFirstChild = false;
         }
 
         sb.Append("]}");
