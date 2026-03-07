@@ -517,8 +517,8 @@ public static class DockerfileArbitraries
             from c2 in Gen.Elements("apt-get install -y curl")
             from c3 in Gen.Elements("apt-get clean")
             select $"RUN {c1} \\\n  && {c2} \\\n  && {c3}",
-            // Disabled: Lean parser doesn't treat \<spaces><newline> as continuation (issue #211)
-            // Gen.Constant("RUN echo hello \\   \n  && echo world"),
+            // Shell form with backslash + trailing whitespace + newline as line continuation
+            Gen.Constant("RUN echo hello \\   \n  && echo world"),
             // Disabled: C# parser crashes on exec form with empty string element (issue #203)
             // from arg in Gen.Elements("hello", "-c", "test")
             // select $"RUN [\"\", \"{arg}\"]",

@@ -690,8 +690,12 @@ partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
   -- Parse shell form as opaque text: $ is treated as a regular character.
   -- Each iteration produces either:
   --   a) a non-escape, non-newline character → StringToken, or
-  --   b) an escaped char (escape + non-newline) → StringToken, or
-  --   c) a line continuation (escape + newline) → LineContinuationToken.
+  --   b) a line continuation (escape + optional whitespace + newline) → LineContinuationToken, or
+  --   c) an escaped char (escape + non-newline char, not a line continuation) → StringToken.
+  --
+  -- Line continuation must be tried before escaped char so that
+  -- `\<spaces><newline>` is recognized as a continuation rather than
+  -- `escapedChar` consuming `\<space>` and terminating the instruction.
   let parts ← many1 (
     or' (do
       -- Any non-escape, non-newline character (including $, spaces, tabs)
@@ -699,10 +703,12 @@ partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
                        "shell form character"
       Parser.pure (Token.mkString (String.ofList [c])))
     (or'
-      -- Line continuation (escape + newline)
+      -- Line continuation (escape + optional whitespace + newline) — must be
+      -- tried first so `\<trailing-spaces><newline>` is not consumed by escapedChar
       (lineContinuationParser escapeChar)
-      -- Escaped character (escape + non-newline char)
-      (escapedChar escapeChar)))
+      -- Escaped character, guarded: only match when the escape char is NOT
+      -- followed by optional whitespace + newline (which would be a continuation)
+      (except (escapedChar escapeChar) (lineContinuationParser escapeChar))))
   -- Group adjacent chars into string/whitespace runs
   let tokens := splitStringWhitespace parts
   if tokens.isEmpty then
