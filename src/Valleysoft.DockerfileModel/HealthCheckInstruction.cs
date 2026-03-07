@@ -130,7 +130,7 @@ public class HealthCheckInstruction : Instruction
                 {
                     // Remove CMD keyword, whitespace before command, and the command itself.
                     // Find the CMD keyword (the last KeywordToken before the command).
-                    KeywordToken? cmdKeyword = Tokens.OfType<KeywordToken>().LastOrDefault(k => k.Value == "CMD");
+                    KeywordToken? cmdKeyword = Tokens.OfType<KeywordToken>().LastOrDefault(k => k.Value.Equals("CMD", StringComparison.OrdinalIgnoreCase));
                     if (cmdKeyword is not null)
                     {
                         int cmdKeywordIndex = TokenList.IndexOf(cmdKeyword);
@@ -158,7 +158,7 @@ public class HealthCheckInstruction : Instruction
             else if (value is not null)
             {
                 // Replace NONE keyword with CMD keyword + whitespace + command
-                KeywordToken? noneKeyword = Tokens.OfType<KeywordToken>().LastOrDefault(k => k.Value == "NONE");
+                KeywordToken? noneKeyword = Tokens.OfType<KeywordToken>().LastOrDefault(k => k.Value.Equals("NONE", StringComparison.OrdinalIgnoreCase));
                 if (noneKeyword is not null)
                 {
                     int noneIndex = TokenList.IndexOf(noneKeyword);
@@ -170,11 +170,12 @@ public class HealthCheckInstruction : Instruction
                         noneIndex--; // adjust after removal
                     }
                     TokenList.RemoveAt(noneIndex);
-                    // Add whitespace + CMD keyword + whitespace + command
-                    TokenList.Add(new WhitespaceToken(" "));
-                    TokenList.Add(new KeywordToken("CMD", escapeChar));
-                    TokenList.Add(new WhitespaceToken(" "));
-                    TokenList.Add(value);
+                    // Insert whitespace + CMD keyword + whitespace + command at the position where NONE was
+                    // to preserve ordering of any trailing tokens (comments, newlines)
+                    TokenList.Insert(noneIndex, new WhitespaceToken(" "));
+                    TokenList.Insert(noneIndex + 1, new KeywordToken("CMD", escapeChar));
+                    TokenList.Insert(noneIndex + 2, new WhitespaceToken(" "));
+                    TokenList.Insert(noneIndex + 3, value);
                 }
             }
         }
@@ -224,16 +225,17 @@ public class HealthCheckInstruction : Instruction
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from options in Options(escapeChar)
-        from command in ArgTokens(CmdTokens(escapeChar), escapeChar)
+        from command in CmdTokens(escapeChar)
             .Or(ArgTokens(KeywordToken.GetParser("NONE", escapeChar).AsEnumerable(), escapeChar))
         select ConcatTokens(options, command);
 
     private static Parser<IEnumerable<Token>> CmdTokens(char escapeChar) =>
-        from keyword in KeywordToken.GetParser("CMD", escapeChar)
-        from ws in Whitespace()
-        from cmd in ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Command>()
-            .XOr(ShellFormCommand.GetParser(escapeChar).Cast<ShellFormCommand, Command>())
-        select ConcatTokens(new Token[] { keyword }, ws, new Token[] { cmd });
+        from cmdKeyword in ArgTokens(KeywordToken.GetParser("CMD", escapeChar).AsEnumerable(), escapeChar)
+        from cmd in ArgTokens(
+            ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Token>()
+                .XOr(ShellFormCommand.GetParser(escapeChar).Cast<ShellFormCommand, Token>())
+                .AsEnumerable(), escapeChar)
+        select ConcatTokens(cmdKeyword, cmd);
 
     private static Parser<IEnumerable<Token>> Options(char escapeChar) =>
         ArgTokens(
