@@ -707,11 +707,10 @@ public static class DockerfileArbitraries
             from src in PathSegment()
             from dst in PathSegment()
             select $"COPY{ws}{src} {dst}",
-            // Disabled: C# parser doesn't parse --from with numeric stage index as flag (issue #208)
-            // from idx in Gen.Choose(0, 5)
-            // from src in PathSegment()
-            // from dst in PathSegment()
-            // select $"COPY --from={idx} {src} {dst}",
+            from idx in Gen.Choose(0, 5)
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from={idx} {src} {dst}",
             // Disabled: C# parser over-tokenizes --chown=user:group as nested keyValue (issue #209)
             // from user in Identifier()
             // from grp in Identifier()

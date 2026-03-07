@@ -441,7 +441,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
             token => ValidateSymbol(token, '-'),
             token => ValidateKeyword(token, key),
             token => ValidateSymbol(token, '='),
-            token => ValidateIdentifier<StageName>(token, value));
+            token => ValidateLiteral(token, value));
     }
 
 }

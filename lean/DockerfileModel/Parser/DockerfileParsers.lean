@@ -577,6 +577,23 @@ def flagParser (name : String) (escapeChar : Char) : Parser Token := do
     value
   ])
 
+/-- Parse a --name=value flag where the value is a plain literal (no variable reference parsing).
+    Used for flags like --from where variable references are not supported by BuildKit. -/
+def flagParserNoVars (name : String) (escapeChar : Char) : Parser Token := do
+  let dash1 ← char '-'
+  let dash2 ← char '-'
+  let kw ← keywordParser name escapeChar
+  let eq ← char '='
+  let parts ← literalString escapeChar [] (excludeVariableRefChars := false)
+  let value := Token.mkLiteral (collapseStringTokens parts)
+  Parser.pure (Token.mkKeyValue [
+    Token.mkSymbol dash1,
+    Token.mkSymbol dash2,
+    kw,
+    Token.mkSymbol eq,
+    value
+  ])
+
 -- ============================================================
 -- Platform flag parser (--platform=value)
 -- ============================================================
