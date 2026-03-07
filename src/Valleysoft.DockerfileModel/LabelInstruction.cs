@@ -40,16 +40,7 @@ public class LabelInstruction : Instruction
         Requires.NotNullOrEmpty(variables, nameof(variables));
 
         string[] keyValueAssignments = variables
-            .Select(kvp =>
-            {
-                string value = kvp.Value;
-                if (value[0] != '\"' && value.Last() != '\"' && value.Contains(' ') && !value.Contains("\\ "))
-                {
-                    value = "\"" + value + "\"";
-                }
-
-                return $"{kvp.Key}={value}";
-            })
+            .Select(kvp => StringHelper.FormatKeyValueAssignment(kvp.Key, kvp.Value))
             .ToArray();
 
         return GetTokens($"LABEL {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));

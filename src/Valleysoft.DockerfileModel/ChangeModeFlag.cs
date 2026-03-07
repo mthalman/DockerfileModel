@@ -1,12 +1,13 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
-public class ChangeModeFlag : KeyValueToken<KeywordToken, LiteralToken>
+public class ChangeModeFlag : KeywordLiteralFlag
 {
+    private const string Keyword = "chmod";
+
     public ChangeModeFlag(string permissions, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("chmod", escapeChar), new LiteralToken(permissions, canContainVariables: true, escapeChar), isFlag: true)
+        : base(Keyword, permissions, escapeChar)
     {
     }
 
@@ -15,16 +16,8 @@ public class ChangeModeFlag : KeyValueToken<KeywordToken, LiteralToken>
     }
 
     public static ChangeModeFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Parse(text,
-            KeywordToken.GetParser("chmod", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new ChangeModeFlag(tokens),
-            escapeChar: escapeChar);
+        ParseFlag(text, Keyword, tokens => new ChangeModeFlag(tokens), escapeChar);
 
     public static Parser<ChangeModeFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetParser(
-            KeywordToken.GetParser("chmod", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new ChangeModeFlag(tokens),
-            escapeChar: escapeChar);
+        GetFlagParser(Keyword, tokens => new ChangeModeFlag(tokens), escapeChar);
 }

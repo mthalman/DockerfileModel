@@ -8,23 +8,8 @@ public class UserAccountTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(UserAccountParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            UserAccount result = UserAccount.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => ArgInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<UserAccount> scenario) =>
+        TestHelper.RunParseTest(scenario, UserAccount.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -114,9 +99,9 @@ public class UserAccountTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        UserAccountParseTestScenario[] testInputs = new UserAccountParseTestScenario[]
+        ParseTestScenario<UserAccount>[] testInputs = new ParseTestScenario<UserAccount>[]
         {
-            new UserAccountParseTestScenario
+            new ParseTestScenario<UserAccount>
             {
                 Text = "55:mygroup",
                 TokenValidators = new Action<Token>[]
@@ -131,7 +116,7 @@ public class UserAccountTests
                     Assert.Equal("mygroup", result.Group);
                 }
             },
-            new UserAccountParseTestScenario
+            new ParseTestScenario<UserAccount>
             {
                 Text = "bin",
                 TokenValidators = new Action<Token>[]
@@ -144,7 +129,7 @@ public class UserAccountTests
                     Assert.Null(result.Group);
                 }
             },
-            new UserAccountParseTestScenario
+            new ParseTestScenario<UserAccount>
             {
                 EscapeChar = '`',
                 Text = "us`\ner`\n:`\ngr`\noup",
@@ -171,7 +156,7 @@ public class UserAccountTests
                     Assert.Equal("us`\ner`\n", result.ToString());
                 }
             },
-            new UserAccountParseTestScenario
+            new ParseTestScenario<UserAccount>
             {
                 Text = "$user:group$var",
                 TokenValidators = new Action<Token>[]
@@ -186,12 +171,12 @@ public class UserAccountTests
                             token => ValidateString(token, "var")))
                 }
             },
-            new UserAccountParseTestScenario
+            new ParseTestScenario<UserAccount>
             {
                 Text = "user:",
-                ParseExceptionPosition = new Position(1, 1, 1)
+                ParseExceptionPosition = new Position(1, 1, 5)
             },
-            new UserAccountParseTestScenario
+            new ParseTestScenario<UserAccount>
             {
                 Text = ":group",
                 ParseExceptionPosition = new Position(1, 1, 1)
@@ -238,11 +223,6 @@ public class UserAccountTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class UserAccountParseTestScenario : ParseTestScenario<UserAccount>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<UserAccount>

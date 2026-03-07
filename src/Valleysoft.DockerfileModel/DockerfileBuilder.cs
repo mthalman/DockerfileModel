@@ -37,8 +37,9 @@ public class DockerfileBuilder
         AddConstruct(new Whitespace(DefaultNewLine));
 
     public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, UserAccount? changeOwnerFlag = null,
-        string? permissions = null) =>
-        AddConstruct(new AddInstruction(sources, destination, changeOwnerFlag, permissions, EscapeChar));
+        string? permissions = null, string? checksum = null, bool keepGitDir = false, bool link = false) =>
+        AddConstruct(new AddInstruction(sources, destination, changeOwner: changeOwnerFlag, permissions: permissions,
+            checksum: checksum, keepGitDir: keepGitDir, link: link, escapeChar: EscapeChar));
 
     public DockerfileBuilder AddInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.AddInstruction.Parse);
@@ -71,8 +72,8 @@ public class DockerfileBuilder
         ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
     public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination,
-        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null) =>
-        AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, permissions, EscapeChar));
+        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null, bool link = false) =>
+        AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, permissions, link, EscapeChar));
 
     public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.CopyInstruction.Parse);
@@ -155,14 +156,16 @@ public class DockerfileBuilder
     public DockerfileBuilder RunInstruction(string command) =>
         RunInstruction(command, Enumerable.Empty<Mount>());
 
-    public DockerfileBuilder RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts) =>
-        AddConstruct(new RunInstruction(commandWithArgs, mounts, EscapeChar));
+    public DockerfileBuilder RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts,
+        string? network = null, string? security = null) =>
+        AddConstruct(new RunInstruction(commandWithArgs, mounts, network, security, EscapeChar));
 
     public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args) =>
         RunInstruction(command, args, Enumerable.Empty<Mount>());
 
-    public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts) =>
-        AddConstruct(new RunInstruction(command, args, mounts, EscapeChar));
+    public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts,
+        string? network = null, string? security = null) =>
+        AddConstruct(new RunInstruction(command, args, mounts, network, security, EscapeChar));
 
     public DockerfileBuilder RunInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.RunInstruction.Parse);

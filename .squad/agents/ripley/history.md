@@ -1,0 +1,264 @@
+# Project Context
+
+- **Owner:** Matt Thalman
+- **Project:** Valleysoft.DockerfileModel — a .NET library for parsing and generating Dockerfiles with full fidelity. Parsed content round-trips character-for-character, including whitespace.
+- **Stack:** C# (.NET Standard 2.0 / .NET 6.0), Sprache parser combinator, xUnit, NuGet
+- **Created:** 2026-03-04
+
+## Key Architecture
+
+- Token-based model: Dockerfile > DockerfileConstruct > Instruction > Token
+- Parser: Sprache-based combinators in ParseHelper.cs
+- Builder: DockerfileBuilder for fluent construction
+- Stages: StagesView/Stage for multi-stage build organization
+- ImageName: Parses image references into components
+- Variable resolution: Dockerfile.ResolveVariables() with optional inline update
+- Tests: xUnit with Theory/InlineData, per-instruction test files
+
+## Key Paths
+
+- `src/Valleysoft.DockerfileModel/` — library (netstandard2.0, net6.0)
+- `src/Valleysoft.DockerfileModel.Tests/` — tests (net8.0)
+- `src/Directory.Build.props` — shared MSBuild properties
+
+## Learnings
+
+<!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+### 2026-03-05: Refactor Branch Analysis
+
+**Flag class hierarchy (established pattern):**
+- `BooleanFlag` (new base in `BooleanFlag.cs`) — for valueless flags like `--link`, `--keep-git-dir`. Extends `AggregateToken` with `--keyword` token structure. Concrete subclasses are 23 lines each: one `const string Keyword`, two constructors, static `Parse`, static `GetParser`.
+- `KeywordLiteralFlag` (new base in `KeywordLiteralFlag.cs`) — for `--key=value` flags where value is a literal. Extends `KeyValueToken<KeywordToken, LiteralToken>`. Same thin-subclass pattern. Covers: `PlatformFlag`, `IntervalFlag`, `TimeoutFlag`, `StartPeriodFlag`, `RetriesFlag`, `ChangeModeFlag`, `NetworkFlag`, `SecurityFlag`, `ChecksumFlag`.
+- Flags NOT yet migrated to `KeywordLiteralFlag`: `ChangeOwnerFlag` (uses `KeyValueToken<KeywordToken, UserAccount>`, different value type — correct, should not migrate), `FromFlag` (uses `KeyValueToken<KeywordToken, StageName>`, same reason).
+
+**CommandInstruction base class (new in `CommandInstruction.cs`):**
+- `CmdInstruction`, `EntrypointInstruction`, `ShellInstruction`, `RunInstruction` all extend `CommandInstruction`.
+- Centralizes: `Command` property and `ResolveVariables` override (returns `ToString()` — no variable resolution).
+- `RunInstruction` still has `GetArgsParser` with mount parsing hardcoded; only the SHELL/CMD/ENTRYPOINT pattern is fully symmetric (no-mounts args, exec/shell form).
+
+**Key file paths for flag patterns:**
+- `src/Valleysoft.DockerfileModel/BooleanFlag.cs` — boolean flag base
+- `src/Valleysoft.DockerfileModel/KeywordLiteralFlag.cs` — key=value flag base
+- `src/Valleysoft.DockerfileModel/CommandInstruction.cs` — command instruction base
+- `src/Valleysoft.DockerfileModel/ParseHelper.cs` — all combinator infrastructure (GetLeadingWhitespaceToken moved here from GenericInstruction)
+
+**3-tier property pattern on optional-flag instructions:**
+- Private `XFlag?` property (token type, `Tokens.OfType<XFlag>().FirstOrDefault()` getter, `SetOptionalFlagToken` setter)
+- Public `XToken?` property (LiteralToken, routes through XFlag)
+- Public `string? X` property (string, routes through XToken)
+- Used in: `HealthCheckInstruction` (4 flags), `RunInstruction` (2 flags), `AddInstruction` (1 flag + 2 boolean flags), `CopyInstruction` (1 flag + 1 boolean flag).
+
+**Duplicate `SetOptionalFlagToken` self-reference bug in `AddInstruction`:**
+- `KeepGitDirFlagToken.set` calls `SetOptionalFlagToken(KeepGitDirFlag, value)`, but `KeepGitDirFlag` private property setter also calls `SetOptionalFlagToken(KeepGitDirFlag, value)`. This is correct by design — the public token property routes through the private property setter consistently.
+
+**Naming inconsistency in `AddInstruction`:**
+- Private property is `KeepGitDirFlag` / `LinkFlag` but public token property is `KeepGitDirFlagToken` / `LinkFlagToken`. In `CopyInstruction`, the private is `LinkFlag`, public is `LinkFlagToken` — same pattern. Consistent across both files.
+
+**StringHelper.FormatKeyValueAssignment:**
+- The inline quote-wrapping logic in ARG, ENV, LABEL was extracted to `StringHelper.FormatKeyValueAssignment`. Three callers consolidated.
+
+**`GetLeadingWhitespaceToken` moved from `GenericInstruction` to `ParseHelper`:**
+- Was a private static in `GenericInstruction`, moved to `internal static` in `ParseHelper`. Makes it available without duplication if needed elsewhere.
+
+### 2026-03-05: Refactor branch analysis session
+
+**Cross-file refactoring analysis completed (2026-03-05T15:16:02Z)**: Reviewed all 5 merged commits on refactor branch (d855eb7 through b06ba15). Confirmed 3 major architectural changes are production-ready: BooleanFlag base (2 subclasses), KeywordLiteralFlag base (9 subclasses), CommandInstruction base (4 subclasses). Analyzed 6 cross-file patterns; 3 are already optimal, 3 flagged for documentation/cleanup. Key finding: dead MountFlag parser in CmdInstruction/EntrypointInstruction should be removed pre-ship (low-medium risk). Token hierarchy stable, round-trip fidelity maintained, ParseHelper changes additive. FileTransferInstruction flag ordering design sufficient. Verdict: refactor branch ready to ship with minor cleanup. Dallas and Lambert performed parallel analyses: 5 implementation code smells identified (P1-P5), 6 test refactoring opportunities identified (T1-T6), 599 tests all passing. All findings documented with appropriateness gates in decisions.md.
+
+### 2026-03-05: Dallas L1+L2+L3 and Lambert T1+T2+BugFix Review — APPROVED
+
+**Review completed (2026-03-05)**: All working-tree changes reviewed against the last committed state (b06ba15). 599 tests pass, 0 build warnings.
+
+**Dallas L1+L2 (CommandInstruction parser extraction):** Confirmed correct. `GetArgsParser` and `GetCommandParser` extracted to `CommandInstruction` as `protected static`, using `.XOr` (matching original CMD/ENTRYPOINT behavior). Dead `MountFlag.GetParser().Many()` combinator removed from both CMD and ENTRYPOINT — this was the cleanup I had flagged earlier. `RunInstruction` annotated with `private new static` for both `GetArgsParser` and `GetCommandParser`; `ShellInstruction` annotated for `GetArgsParser` only. These annotations suppress CS0108 and correctly document intentional hiding — zero build warnings confirm this. RunInstruction's `.Or` vs `.XOr` difference is a pre-existing behavioral distinction, correctly preserved. ShellInstruction's exec-form-only parser is correctly preserved.
+
+**Dallas L3 (FileTransferInstruction dead code):** Confirmed correct. The `TokenBuilder builder = new(); builder.Keyword(...); builder.Whitespace(...); if (changeOwner) { builder.Tokens.Add(...); }` block was genuinely dead — the variable was never referenced in the return statements. Removal is zero risk.
+
+**Lambert T2 (EscapeChar to ParseTestScenario base):** Clean. Single property added to `ParseTestScenario<T>`. Three subclasses retained that had additional properties beyond `EscapeChar`: `LiteralTokenParseTestScenario`, `KeyValueTokenParseTestScenario`, `FileTransferInstructionTests<T>` internal class (replaced with direct `ParseTestScenario<TInstruction>`). All subclass removals and call-site updates verified.
+
+**Lambert T1 (RunParseTest in TestHelper):** Clean. `where T : AggregateToken` constraint is correct — all callers satisfy it through `Instruction > DockerfileConstruct > AggregateToken`, `IdentifierToken > AggregateToken`, and direct `AggregateToken` subclasses. The five exclusion cases (GenericInstruction, KeywordToken, LiteralToken, KeyValueToken, Comment/Whitespace/Dockerfile/ParserDirective tests) are correctly documented and left as-is.
+
+**Lambert bug fix (UserAccount.Parse + UserAccountTests):** Sound. Root cause: the original error-path test called `ArgInstruction.Parse` instead of `UserAccount.Parse` — masking the silent-success bug. Fix: `.End()` added to standalone `Parse` only, not to `GetParser()`. Position change from `(1,1,1)` to `(1,1,5)` is correct — with `.End()`, Sprache fails at column 5 (the `:` that cannot be consumed after `user` is matched by the user-only branch). `GetParser()` composability is unaffected.
+
+**Key Sprache patterns confirmed:**
+- `.XOr` vs `.Or` distinction: base uses `.XOr` (CMD/ENTRYPOINT); RunInstruction retains `.Or` (pre-existing). Both correct for their context.
+- `.End()` on standalone `Parse()` only — established as the project pattern for full-input enforcement without breaking composition.
+- `private new static` is the correct C# idiom for intentional member hiding without polymorphism.
+
+### 2026-03-05 — Refactoring execution session complete
+
+Team update (2026-03-05T16:04:05Z): Ripley completed review verdict approving Dallas L1+L2+L3 and Lambert T1+T2+BugFix. Dallas and Lambert completed assigned work tasks. All 599 tests passing, 0 warnings, 0 errors. Code review determined all changes production-ready. Changes documented in .squad/decisions.md. Session logs created in .squad/log/ and .squad/orchestration-log/. Ready to merge and ship.
+
+### 2026-03-05 — Formal verification PRD decomposition
+
+**Branch:** formal-verification
+
+**Phase 0 decomposition completed.** 8 work items defined (P0-1 through P0-8) for property-based testing with FsCheck. Key architecture decisions:
+
+1. **Generators produce strings, not tokens.** Tests exercise the public Parse API to catch real parser bugs. Generating token trees directly would bypass the parser.
+2. **P0-2 (generators) is the critical path and bottleneck.** It's the only L-sized item. All 5 property tests (P0-3 through P0-7) depend on it and can run in parallel once generators are ready.
+3. **Two-level round-trip testing:** Dockerfile-level (full text) and instruction-level (per-instruction). Both are necessary — they catch different bug classes.
+4. **Escape character variants are first-class concerns.** Generators must test both `\` and `` ` `` escape chars. The backtick escape (Windows Dockerfiles) has historically been an edge-case source.
+5. **VariableRefToken.GetUnderlyingValue adds `$` prefix** — token tree consistency property (P0-4) must account for this override. Same for IQuotableToken quote wrapping.
+6. **Variable modifier semantics have a `:` prefix distinction** — `:` changes "unset" semantics to "unset or empty". Six modifiers total: `:-`, `:+`, `:?`, `-`, `+`, `?`.
+
+**Key file paths for Phase 0:**
+- `src/Valleysoft.DockerfileModel.Tests/Valleysoft.DockerfileModel.Tests.csproj` — add FsCheck packages
+- `src/Valleysoft.DockerfileModel.Tests/PropertyTests.cs` — all 5 property tests (create)
+- `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` — FsCheck generators (create)
+- `src/Valleysoft.DockerfileModel/Instruction.cs` — instruction name registry (18 instruction types)
+- `src/Valleysoft.DockerfileModel/Tokens/VariableRefToken.cs` — modifier syntax and resolution logic
+- `src/Valleysoft.DockerfileModel/DockerfileParser.cs` — construct splitting logic (parse isolation property)
+- `src/Valleysoft.DockerfileModel/Dockerfile.cs` — Parse/ToString/ResolveVariables
+
+**Phase 1 (Lean 4 scaffold) — 5 future work items sketched (P1-1 through P1-5).** Not starting yet. Requires Lean 4 expertise not currently on team.
+
+**Decision document:** `.squad/decisions/inbox/ripley-formal-verification-decomposition.md`
+
+### 2026-03-05 — Phase 0 Review Gate (P0-8) — APPROVE WITH NOTES
+
+**Branch:** formal-verification
+
+**Review completed.** 649 tests pass (599 existing + 50 new property tests). 0 build warnings, 0 errors.
+
+**Files reviewed:**
+- `src/Valleysoft.DockerfileModel.Tests/Valleysoft.DockerfileModel.Tests.csproj` — FsCheck 3.1.0 + FsCheck.Xunit 3.1.0 correctly added
+- `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` — 645 lines, 18 instruction generators + helpers
+- `src/Valleysoft.DockerfileModel.Tests/PropertyTests.cs` — 742 lines, 50 [Fact] test methods
+
+**Test count breakdown:**
+- P0-3: 22 round-trip tests (18 instruction types + Dockerfile + VariableRef + 2 line continuation variants)
+- P0-4: 7 token tree consistency tests (Dockerfile + 5 instruction types + VariableRef)
+- P0-5: 3 variable resolution non-mutation tests (default, with overrides, explicit false)
+- P0-6: 16 modifier semantics tests (all 6 modifiers x set/unset/empty combinations)
+- P0-7: 2 parse isolation tests (first and second instruction independence)
+
+**Sample counts:** 200 samples per test (round-trip, token tree, isolation), 50 samples per modifier test. Total: ~6000 random inputs per test run.
+
+**Findings noted for future improvement:**
+1. Generator diversity for escape chars — only the line continuation generators test backtick escape. Instruction-level generators all use default backslash. Expanding escape char coverage to all 18 instruction generators would catch more edge cases.
+2. HEALTHCHECK generator does not exercise `--start-period` option. Low risk since the pattern is identical to `--interval`/`--timeout`/`--retries`.
+3. Token tree consistency tests cover 5 of 18 instruction types plus Dockerfile and VariableRef. Expanding to all 18 would improve coverage.
+4. The `[Fact]` + `Gen.Sample()` pattern trades FsCheck's built-in shrinking for simplicity. When a failure occurs, identifying the minimal failing input requires manual bisection. For a project this size, acceptable — but worth noting if flaky failures appear.
+5. `DockerfileWithVariables` generator (P0-5) only produces `$VAR` references, not braced `${VAR}` or modifier forms. Expanding would strengthen the non-mutation property.
+
+**Architecture patterns confirmed:**
+- `Gen.Sample(size, count)` with `[Fact]` is the correct FsCheck 3.x C# pattern for custom generators
+- LINQ query syntax for generators preserves shrinkability through FsCheck's `Gen` combinators
+- `BodyInstruction()` correctly excludes STOPSIGNAL/MAINTAINER/SHELL for Dockerfile-level composition (excludeTrailingWhitespace issue)
+- Token tree consistency assertion correctly handles both `VariableRefToken.$` prefix and `IQuotableToken` quote wrapping — verified these are mutually exclusive in the type hierarchy
+- Parse isolation test correctly uses `Instruction.CreateInstruction` (internal, exposed via InternalsVisibleTo) for standalone parsing and trims trailing `\n` from Dockerfile-level parse for comparison
+
+**Decision document:** `.squad/decisions/inbox/ripley-phase0-review.md`
+
+### 2026-03-05 — Phase 1 Review Gate (Lean 4 Token Model Specification) — APPROVE
+
+**Branch:** formal-verification-lean
+
+**Review completed.** All 8 formal theorems are sound. Token type mapping faithfully mirrors the C# hierarchy. All 18 instruction types present with correct keyword mappings. CI integration properly structured.
+
+**Files reviewed:**
+- `lean/lakefile.lean` — Lake project config, `autoImplicit := false`, `lean_lib` target
+- `lean/lean-toolchain` — Pinned to leanprover/lean4:v4.27.0 (stable January 2026 release)
+- `lean/DockerfileModel/Token.lean` — 181 lines. Two-constructor inductive: `primitive (kind, value)` and `aggregate (kind, children, quoteInfo)`. 4 PrimitiveKinds, 9 AggregateKinds. Single recursive `toString` combining C#'s `GetUnderlyingValue` + `ToString`.
+- `lean/DockerfileModel/Instruction.lean` — 130 lines. 18-variant `InstructionName` inductive with `toKeyword` mapping. `all_length` theorem proves count = 18 via `native_decide`.
+- `lean/DockerfileModel/Dockerfile.lean` — 124 lines. `ConstructType` (4 variants), `DockerfileConstruct` structure, `Dockerfile` structure with `toString` as concat of constructs.
+- `lean/DockerfileModel/Proofs/TokenConcat.lean` — 146 lines. 8 formal theorems + 2 auxiliary. All proved by `unfold + rfl` or `unfold + cases + simp_all`.
+- `lean/DockerfileModel/Tests/SlimCheck.lean` — 349 lines. 7 IO-based test suites (NOT SlimCheck property tests). Type-checked but not executed during `lake build` (no `lean_exe` target).
+- `.github/workflows/ci.yml` — Added independent `lean` job with elan install and `lake build`.
+
+**Key architecture patterns confirmed:**
+- Two-constructor `Token` with kind tags mirrors C# two-level hierarchy (PrimitiveToken / AggregateToken)
+- Single recursive `toString` combining `GetUnderlyingValue` + `ToString` avoids mutual recursion and simplifies termination checking
+- `Option QuoteInfo` on aggregate constructor correctly models C# `IQuotableToken` interface with nullable `QuoteChar`
+- `variableRef` kind handles `$` prefix in the `toString` match, not as a separate constructor
+- Proofs use `unfold + rfl` for definitional equalities and `cases + simp_all` for case-split reasoning
+
+**Key finding:** Tests in `SlimCheck.lean` are type-checked but not executed in CI. The lakefile defines `lean_lib` only; a `lean_exe` target would be needed to run the `main` function. Not a blocker because formal proofs ARE verified during elaboration.
+
+**Team update (2026-03-05T22:00:00Z)**: Ripley approved Phase 1 Lean 4 implementation. Dallas completed all work. Decision documents merged to .squad/decisions.md. Ready to ship formal-verification-lean branch.
+
+### 2026-03-05 — Phase 2 Lean Parser Architecture Decision
+
+**Branch:** dev (architecture decision only, no code changes)
+
+**Architecture decision completed for Phase 2 — Lean 4 parser combinators.** Analyzed all 877 lines of `ParseHelper.cs`, `DockerfileParser.cs`, `FromInstruction.cs`, `ArgInstruction.cs`, plus token-level parsers (`KeywordToken.cs`, `LineContinuationToken.cs`, `VariableRefToken.cs`). Cross-referenced against existing Lean 4 model in `Token.lean`, `Instruction.lean`, `Dockerfile.lean`.
+
+**8 architecture decisions made:**
+
+1. **Parser monad: `Lean.Parsec` (built-in)**. No external dependencies. Type is `String.Iterator -> ParseResult a` — clean for proofs. Rejected lean4-parser (unnecessary dependency), Megaparsec.lean (over-engineered), custom monad (duplicate effort).
+
+2. **Output type: Existing `Token` inductive directly**. No intermediate AST. Parsers return `Parsec Token` or `Parsec (List Token)`, assembled into `Token.aggregate` at instruction level.
+
+3. **Module structure: `lean/DockerfileModel/Parser/` directory**. 12 files: `Basic.lean` (core combinators), `Tokens.lean` (token parsers), `From.lean`, `Arg.lean`, `Run.lean`, `SimpleInstructions.lean`, `Command.lean`, `FileTransfer.lean`, `HealthCheck.lean`, `Instruction.lean` (dispatch), `Dockerfile.lean` (top-level).
+
+4. **Combinator mapping: Sprache LINQ -> Lean `do` notation**. Systematic mapping: `.Or` -> `attempt p <|> q`, `.XOr` -> `p <|> q`, `.Optional()` -> custom `optional`, `.Many()` -> `many`, `.AtLeastOnce()` -> `many1`, `.Except()` -> custom `except`, `ConcatTokens` -> `List.join`.
+
+5. **Escape char threading: Explicit `ParserConfig` parameter**, not reader monad. Simpler for proofs.
+
+6. **Round-trip theorem strategy: Bottom-up, per-combinator**. Four proof levels: primitive parsers, composite combinators, instruction parsers, Dockerfile parser. Helper `consumed` function bridges iterator state to string equality.
+
+7. **Implementation order: Basic.lean -> Tokens.lean -> From.lean -> RoundTrip proofs -> SimpleInstructions -> Arg -> Command -> FileTransfer -> HealthCheck -> Run -> Instruction dispatch -> Dockerfile**.
+
+8. **No lakefile changes needed**: `lean_lib` auto-discovers modules. No new Lake dependencies.
+
+**Key risk identified:** Termination checking on mutually recursive parsers (`literalWithVariables` <-> `variableRef`). Mitigation: use `partial` initially, address termination later.
+
+**Key insight:** The hard work is in `Basic.lean` — whitespace/line-continuation/quoting combinators. Get those right and per-instruction parsers are mechanical translations from C#.
+
+**Decision document:** `.squad/decisions/inbox/ripley-lean-parser-architecture.md`
+
+**Key file paths for Phase 2 implementation:**
+- `lean/DockerfileModel/Parser/Basic.lean` — core combinators (to create)
+- `lean/DockerfileModel/Parser/Tokens.lean` — token-level parsers (to create)
+- `lean/DockerfileModel/Parser/From.lean` — FROM instruction parser (to create)
+- `lean/DockerfileModel/Proofs/RoundTrip.lean` — round-trip theorem (to create)
+- `src/Valleysoft.DockerfileModel/ParseHelper.cs` — C# reference (877 lines)
+- `src/Valleysoft.DockerfileModel/DockerfileParser.cs` — C# top-level parser reference
+- `src/Valleysoft.DockerfileModel/Tokens/VariableRefToken.cs` — variable ref parser reference
+- `src/Valleysoft.DockerfileModel/Tokens/LineContinuationToken.cs` — line continuation parser reference
+
+### 2026-03-05T20:00:00Z — Phase 2 Parser Combinator Architecture Adopted
+
+Team update (2026-03-05T20:00:00Z): Phase 2 Lean 4 parser combinator architecture design completed and adopted by team. 8 architecture decisions finalized, decision document (21.3KB) merged to .squad/decisions.md. Dallas implemented parser combinator library (1462 lines, 6 modules); Lambert created test suite (1180 lines, 48 active tests + 18 stubs); both follow architecture recommendations. Orchestration logs and session log created.
+
+**Architecture (8 decisions) highlights:**
+- Use `Lean.Parsec` built-in (zero external dependencies)
+- Produce existing `Token` type directly, not intermediate AST
+- Flat module structure under `Parser/`, one file per concern
+- Systematic Sprache → Lean combinator mapping
+- Thread escape char as explicit `ParserConfig` parameter
+- Bottom-up round-trip theorem strategy, FROM first
+- Implementation order: Basic.lean → Tokens.lean → From/Arg with proofs
+- No lakefile changes; auto-discovery sufficient
+
+**Deliverables from this team session:**
+- **Ripley:** 8 architecture decisions, Lean parser design specification
+- **Dallas:** 6 Lean modules (Basic, Combinators, DockerfileParsers, FromParser, ArgParser, RoundTripProofs), parseFrom/parseArg API
+- **Lambert:** ParserTests.lean with 48 active token-tree tests + 18 parser stubs
+
+**Status:** Foundation complete; ready for Phase 2 execution (remaining 16 instructions, expanded proof work).
+Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new theorems in Capstone.lean, token_concat_length fixed in RoundTrip.lean, proof coverage documented. Total: 55 proved, 4 documented sorries. Build: 19 jobs, 0 errors. — decided by Dallas
+
+### 2026-03-06 — Differential Testing Mismatch Analysis (4 categories, 91+ mismatches)
+
+**Branch:** grammar
+
+**Analysis completed for Dallas's generator expansion findings.** 91+ mismatches across 4 categories analyzed against BuildKit authoritative behavior.
+
+**Key findings:**
+
+1. **STOPSIGNAL variable refs (HIGH severity, P0):** C# uses `LiteralToken` (no variable decomposition) but BuildKit explicitly expands variables in STOPSIGNAL. This is a real C# bug. Fix: one-line change from `LiteralToken(escapeChar, ...)` to `LiteralWithVariables(escapeChar)` in `StopSignalInstruction.GetArgsParser`. 38 of 91 mismatches.
+
+2. **Shell-form variable refs (LOW severity):** RUN/CMD/ENTRYPOINT shell-form commands: C# treats `$VAR` as opaque text (`canContainVariables: false`), Lean decomposes them. Both are valid -- C# is semantically faithful (BuildKit doesn't expand vars in these), Lean is structurally complete. Resolution: serializer workaround, flatten Lean variableRef tokens for comparison.
+
+3. **Mount flag structure (MEDIUM severity for parse failures):** Lean uses opaque `flagParser "mount"`, C# uses structured `SecretMount.GetParser`. The opaque approach is more robust. Sub-pattern (b) where C# mount parser fails on valid inputs is a real bug needing fix.
+
+4. **Empty values in key=value (LOW-MEDIUM):** C# synthesizes empty `literal[""]` via `.GetOrElse(new LiteralToken(""))`, Lean omits the value token. Resolution: serializer workaround (strip empty literals from C# tree before comparison).
+
+5. **Single-quoted `$` in shell form (LOW):** Subset of category 1. Lean's shellFormCommand doesn't model shell quoting, so `$1` inside `'{print $1}'` becomes a variableRef. Acceptable limitation.
+
+**Architectural insight:** Fundamental tension between semantic faithfulness (C# parses only what will be resolved) vs structural completeness (Lean parses all recognizable syntax). Lean's context-free approach is the better spec. C#'s `CommandInstruction.ResolveVariables` override correctly handles runtime semantics regardless.
+
+**Priority order:** P0 = STOPSIGNAL fix (C#), P1 = mount parser robustness (C#), P2 = serializer normalizations (test infra).
+
+**Decision document:** `.squad/decisions/inbox/ripley-mismatch-analysis.md`

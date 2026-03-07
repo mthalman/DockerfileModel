@@ -52,37 +52,9 @@ public class ArgInstruction : Instruction
         Requires.NotNullOrEmpty(args, nameof(args));
 
         string[] keyValueAssignments = args
-            .Select(kvp =>
-            {
-                StringBuilder builder = new(kvp.Key);
-
-                string? value = kvp.Value;
-                if (value is not null)
-                {
-                    builder.Append('=');
-
-                    bool requiresQuotes =
-                        value.Length > 0 &&
-                        value[0] != '\"' &&
-                        value.Last() != '\"' &&
-                        value.Contains(' ') &&
-                        !value.Contains("\\ ");
-
-                    if (requiresQuotes)
-                    {
-                        builder.Append('\"');
-                    }
-
-                    builder.Append(value);
-
-                    if (requiresQuotes)
-                    {
-                        builder.Append('\"');
-                    }
-                }
-
-                return builder.ToString();
-            })
+            .Select(kvp => kvp.Value is not null
+                ? StringHelper.FormatKeyValueAssignment(kvp.Key, kvp.Value)
+                : kvp.Key)
             .ToArray();
 
         return GetTokens($"ARG {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));

@@ -8,23 +8,8 @@ public class LabelInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(LabelInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            LabelInstruction result = LabelInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => LabelInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<LabelInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, LabelInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -81,9 +66,9 @@ public class LabelInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        LabelInstructionParseTestScenario[] testInputs = new LabelInstructionParseTestScenario[]
+        ParseTestScenario<LabelInstruction>[] testInputs = new ParseTestScenario<LabelInstruction>[]
         {
-            new LabelInstructionParseTestScenario
+            new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL MY_NAME=",
                 TokenValidators = new Action<Token>[]
@@ -109,7 +94,7 @@ public class LabelInstructionTests
                     });
                 }
             },
-            new LabelInstructionParseTestScenario
+            new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL MY_NAME=\"\"",
                 TokenValidators = new Action<Token>[]
@@ -135,7 +120,7 @@ public class LabelInstructionTests
                     });
                 }
             },
-            new LabelInstructionParseTestScenario
+            new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL MY_NAME=John",
                 TokenValidators = new Action<Token>[]
@@ -161,7 +146,7 @@ public class LabelInstructionTests
                     });
                 }
             },
-            new LabelInstructionParseTestScenario
+            new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL $var1-$var2=$var3",
                 TokenValidators = new Action<Token>[]
@@ -181,7 +166,7 @@ public class LabelInstructionTests
                                 token => ValidateString(token, "var3"))))
                 }
             },
-            new LabelInstructionParseTestScenario
+            new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL MY_NAME=\"John Doe\"",
                 TokenValidators = new Action<Token>[]
@@ -207,7 +192,7 @@ public class LabelInstructionTests
                     });
                 }
             },
-            new LabelInstructionParseTestScenario
+            new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL MY_NAME=\"John `\nDoe\"",
                 EscapeChar = '`',
@@ -237,7 +222,7 @@ public class LabelInstructionTests
                     });
                 }
             },
-            new LabelInstructionParseTestScenario
+            new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL \"MY_NAME\"=John",
                 TokenValidators = new Action<Token>[]
@@ -263,7 +248,7 @@ public class LabelInstructionTests
                     });
                 }
             },
-            new LabelInstructionParseTestScenario
+            new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL MY_NAME=\"John Doe\" MY_DOG=Rex` The` Dog ` \n MY_CAT=fluffy",
                 EscapeChar = '`',
@@ -381,11 +366,6 @@ public class LabelInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class LabelInstructionParseTestScenario : ParseTestScenario<LabelInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<LabelInstruction>

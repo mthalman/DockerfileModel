@@ -40,16 +40,7 @@ public class EnvInstruction : Instruction
         Requires.NotNullOrEmpty(variables, nameof(variables));
 
         string[] keyValueAssignments = variables
-            .Select(kvp =>
-            {
-                string value = kvp.Value;
-                if (value[0] != '\"' && value.Last() != '\"' && value.Contains(' ') && !value.Contains("\\ "))
-                {
-                    value = "\"" + value + "\"";
-                }
-
-                return $"{kvp.Key}={value}";
-            })
+            .Select(kvp => StringHelper.FormatKeyValueAssignment(kvp.Key, kvp.Value))
             .ToArray();
 
         return GetTokens($"ENV {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));

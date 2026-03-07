@@ -8,23 +8,8 @@ public class UserInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(UserInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            UserInstruction result = UserInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => UserInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<UserInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, UserInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -52,9 +37,9 @@ public class UserInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        UserInstructionParseTestScenario[] testInputs = new UserInstructionParseTestScenario[]
+        ParseTestScenario<UserInstruction>[] testInputs = new ParseTestScenario<UserInstruction>[]
         {
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER name",
                 TokenValidators = new Action<Token>[]
@@ -71,7 +56,7 @@ public class UserInstructionTests
                     Assert.Equal("name", result.UserAccount.ToString());
                 }
             },
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER name\n",
                 TokenValidators = new Action<Token>[]
@@ -89,7 +74,7 @@ public class UserInstructionTests
                     Assert.Equal("name", result.UserAccount.ToString());
                 }
             },
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER user:group",
                 TokenValidators = new Action<Token>[]
@@ -108,7 +93,7 @@ public class UserInstructionTests
                     Assert.Equal("user:group", result.UserAccount.ToString());
                 }
             },
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER $var",
                 TokenValidators = new Action<Token>[]
@@ -127,7 +112,7 @@ public class UserInstructionTests
                     Assert.Equal("$var", result.UserAccount.ToString());
                 }
             },
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER `\n name",
                 EscapeChar = '`',
@@ -184,11 +169,6 @@ public class UserInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class UserInstructionParseTestScenario : ParseTestScenario<UserInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<UserInstruction>

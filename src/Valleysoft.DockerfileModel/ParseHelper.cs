@@ -145,6 +145,25 @@ internal static class ParseHelper
     }
 
     /// <summary>
+    /// Returns a whitespace token for any leading whitespace in the given string.
+    /// </summary>
+    /// <param name="text">String to parse.</param>
+    public static WhitespaceToken? GetLeadingWhitespaceToken(string text)
+    {
+        string? whitespace = new(
+            text
+                .TakeWhile(ch => Char.IsWhiteSpace(ch))
+                .ToArray());
+
+        if (whitespace == String.Empty)
+        {
+            return null;
+        }
+
+        return new WhitespaceToken(whitespace);
+    }
+
+    /// <summary>
     /// Tokenizes an argument of an instruction. This handles the parsing of whitespace and line continuations.
     /// </summary>
     /// <param name="tokenParser">Parser for the argument.</param>
@@ -292,7 +311,8 @@ internal static class ParseHelper
     public static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> IdentifierTokens(Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar) =>
         WrappedInOptionalQuotes(
             (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
-                WrappedInQuotesIdentifier(escapeChar, firstCharacterParser, tailCharacterParser),
+                WrappedInQuotesIdentifier(escapeChar, firstCharacterParser, tailCharacterParser,
+                    wrappingQuoteChar: tokenWrapper.OpeningString[0]),
             (char escapeChar, IEnumerable<char> excludedChars) =>
                 IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser),
             escapeChar,
@@ -389,7 +409,8 @@ internal static class ParseHelper
                         WrappedInQuotesLiteralString(
                             escapeChar,
                             excludedChars.Union(additionalExcludedChars),
-                            whitespaceMode == WhitespaceMode.AllowedInQuotes || whitespaceMode == WhitespaceMode.Allowed),
+                            whitespaceMode == WhitespaceMode.AllowedInQuotes || whitespaceMode == WhitespaceMode.Allowed,
+                            wrappingQuoteChar: tokenWrapper.OpeningString[0]),
                     excludedChars)
                     .Many()
                     .Flatten()
@@ -429,7 +450,8 @@ internal static class ParseHelper
         char escapeChar, bool excludeVariableRefChars) =>
         WrappedInOptionalQuotes(
             (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
-                WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true, excludeVariableRefChars: excludeVariableRefChars),
+                WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true,
+                    excludeVariableRefChars: excludeVariableRefChars, wrappingQuoteChar: tokenWrapper.OpeningString[0]),
             (char escapeChar, IEnumerable<char> excludedChars) =>
                 from tokens in LiteralString(escapeChar, excludedChars, excludeVariableRefChars: excludeVariableRefChars)
                     .Or(Whitespace()).Many().Flatten()
@@ -606,13 +628,14 @@ internal static class ParseHelper
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="firstCharacterParser">Parser of the first character of the identifier.</param>
     /// <param name="tailCharacterParser">Parser of the rest of the characters of the identifier.</param>
+    /// <param name="wrappingQuoteChar">The quote character wrapping this identifier. Only this quote is excluded from content.</param>
     /// <returns>Parser for an identifier string wrapped in quotes.</returns>
     private static Parser<IEnumerable<Token>> WrappedInQuotesIdentifier(char escapeChar, Parser<char> firstCharacterParser,
-        Parser<char> tailCharacterParser) =>
+        Parser<char> tailCharacterParser, char? wrappingQuoteChar = null) =>
         IdentifierString(
             escapeChar,
-            ExceptQuotes(firstCharacterParser),
-            ExceptQuotes(tailCharacterParser));
+            ExceptQuote(firstCharacterParser, wrappingQuoteChar),
+            ExceptQuote(tailCharacterParser, wrappingQuoteChar));
 
     /// <summary>
     /// Parses an identifier string.
@@ -646,11 +669,12 @@ internal static class ParseHelper
     /// <param name="excludedChars">Characters to exclude from the parsing.</param>
     /// <param name="isWhitespaceAllowed">A value indicating whether whitespace is allowed in the string.</param>
     /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
+    /// <param name="wrappingQuoteChar">The quote character wrapping this string. Only this quote is excluded from content.</param>
     /// <returns>Parser for a literal string wrapped in quotes.</returns>
     private static Parser<IEnumerable<Token>> WrappedInQuotesLiteralString(char escapeChar, IEnumerable<char> excludedChars,
-        bool isWhitespaceAllowed = false, bool excludeVariableRefChars = true)
+        bool isWhitespaceAllowed = false, bool excludeVariableRefChars = true, char? wrappingQuoteChar = null)
     {
-        Parser<char> parser = ExceptQuotes(LiteralChar(escapeChar, excludedChars, isWhitespaceAllowed, excludeVariableRefChars));
+        Parser<char> parser = ExceptQuote(LiteralChar(escapeChar, excludedChars, isWhitespaceAllowed, excludeVariableRefChars), wrappingQuoteChar);
         return
             from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
             from rest in OrConcat(
@@ -771,6 +795,17 @@ internal static class ParseHelper
         parser.ExceptChars(Quotes);
 
     /// <summary>
+    /// Parses a character that excludes only the specified wrapping quote character.
+    /// If no wrapping quote is specified, falls back to excluding both quote types.
+    /// </summary>
+    /// <param name="parser">A character parser to exclude the quote from.</param>
+    /// <param name="wrappingQuoteChar">The wrapping quote character to exclude, or null to exclude both.</param>
+    private static Parser<char> ExceptQuote(Parser<char> parser, char? wrappingQuoteChar) =>
+        wrappingQuoteChar.HasValue
+            ? parser.Except(Parse.Char(wrappingQuoteChar.Value))
+            : ExceptQuotes(parser);
+
+    /// <summary>
     /// Parses a token that is wrapped by a set of characters.
     /// </summary>
     /// <param name="createParser">A delegate that creates a token parser.</param>
@@ -832,8 +867,8 @@ internal static class ParseHelper
     {
         public TokenWrapper(string openingString, string closingString)
         {
-            this.OpeningString = openingString;
-            this.ClosingString = closingString;
+            OpeningString = openingString;
+            ClosingString = closingString;
         }
 
         public string OpeningString { get; }

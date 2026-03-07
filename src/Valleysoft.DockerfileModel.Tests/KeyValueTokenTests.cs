@@ -156,7 +156,6 @@ public class KeyValueTokenTests
 
     public class KeyValueTokenParseTestScenario : ParseTestScenario<KeyValueToken<KeywordToken, LiteralToken>>
     {
-        public char EscapeChar { get; set; }
         public string Key { get; set; }
     }
 
