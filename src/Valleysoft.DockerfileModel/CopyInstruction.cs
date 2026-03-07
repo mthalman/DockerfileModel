@@ -22,10 +22,10 @@ public class CopyInstruction : FileTransferInstruction
     {
         get => FromStageNameToken?.Value;
         set => SetOptionalTokenValue(
-            FromStageNameToken, value, val => new StageName(val, EscapeChar), token => FromStageNameToken = token);
+            FromStageNameToken, value, val => new LiteralToken(val, canContainVariables: true, EscapeChar), token => FromStageNameToken = token);
     }
 
-    public StageName? FromStageNameToken
+    public LiteralToken? FromStageNameToken
     {
         get => FromFlag?.ValueToken;
         set => SetOptionalKeyValueTokenValue(
