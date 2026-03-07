@@ -896,6 +896,8 @@ public static class TokenJsonSerializer
     ///   Braced ${VAR} -> variableRef [ symbol("{"), string("VAR"), symbol("}") ]
     ///   Modified ${VAR:-default} -> variableRef [ symbol("{"), string("VAR"),
     ///     symbol(":"), symbol("-"), literal [ string("default") ], symbol("}") ]
+    ///   POSIX ${VAR##pattern} -> variableRef [ symbol("{"), string("VAR"),
+    ///     symbol("#"), symbol("#"), literal [ string("pattern") ], symbol("}") ]
     /// </summary>
     private static void EmitStringWithVariableRefs(StringBuilder sb, string text, ref bool first)
     {
@@ -940,14 +942,16 @@ public static class TokenJsonSerializer
                             sb.Append(',');
                             SerializePrimitive(sb, "string", varName);
 
-                            // If there's a modifier (e.g., :-, :+, :?, -, +, ?)
+                            // If there's a modifier (e.g., :-, :+, :?, -, +, ?, ##, #, %%, %, //, /)
                             if (remainder.Length > 0)
                             {
                                 // Emit each modifier character as a symbol
                                 int modEnd = 0;
                                 while (modEnd < remainder.Length &&
                                        (remainder[modEnd] == ':' || remainder[modEnd] == '-' ||
-                                        remainder[modEnd] == '+' || remainder[modEnd] == '?'))
+                                        remainder[modEnd] == '+' || remainder[modEnd] == '?' ||
+                                        remainder[modEnd] == '#' || remainder[modEnd] == '%' ||
+                                        remainder[modEnd] == '/'))
                                 {
                                     sb.Append(',');
                                     SerializePrimitive(sb, "symbol", remainder[modEnd].ToString());
