@@ -59,6 +59,28 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
         Assert.Equal($"COPY`\n`\n src dst", instruction.ToString());
     }
 
+    [Theory]
+    [InlineData("COPY --from=$VAR src dst", "$VAR")]
+    [InlineData("COPY --from=${VAR} src dst", "${VAR}")]
+    public void FromFlag_NoVariableExpansion(string text, string expectedFlagValue)
+    {
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        // The --from flag should be parsed as a FromFlag
+        FromFlag fromFlag = instruction.Tokens.OfType<FromFlag>().Single();
+
+        // The flag value should be a LiteralToken
+        LiteralToken valueToken = fromFlag.ValueToken;
+        Assert.NotNull(valueToken);
+        Assert.Equal(expectedFlagValue, valueToken.Value);
+
+        // The literal should contain NO VariableRefToken children — $VAR is plain string text
+        Assert.Empty(valueToken.Tokens.OfType<VariableRefToken>());
+
+        // Round-trip fidelity
+        Assert.Equal(text, instruction.ToString());
+    }
+
     [Fact]
     public void Link()
     {
