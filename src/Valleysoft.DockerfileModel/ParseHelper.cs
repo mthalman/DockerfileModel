@@ -599,8 +599,37 @@ internal static class ParseHelper
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
                 leading,
-                CollapseLiteralTokens(argValue.Flatten(), canContainVariables, escapeChar, DoubleQuote),
+                CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
+    }
+
+    /// <summary>
+    /// Creates a literal token for a JSON array element, handling the empty string case
+    /// where the element is just "" with no content between the quotes.
+    /// </summary>
+    /// <param name="tokens">Content tokens parsed from between the quotes.</param>
+    /// <param name="canContainVariables">A value indicating whether the element can contain variables.</param>
+    /// <param name="escapeChar">Escape character.</param>
+    private static IEnumerable<Token> CreateJsonArrayElementLiteral(IEnumerable<Token> tokens,
+        bool canContainVariables, char escapeChar)
+    {
+        if (!tokens.Any())
+        {
+            // Empty string element (e.g. "" in exec form) — synthesize a LiteralToken
+            // containing a single empty StringToken.
+            return new Token[]
+            {
+                new LiteralToken(
+                    new Token[] { new StringToken(string.Empty) },
+                    canContainVariables,
+                    escapeChar)
+                {
+                    QuoteChar = DoubleQuote
+                }
+            };
+        }
+
+        return CollapseLiteralTokens(tokens, canContainVariables, escapeChar, DoubleQuote);
     }
 
 
