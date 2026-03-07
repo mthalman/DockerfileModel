@@ -210,17 +210,17 @@ can try `\ <spaces> <newline>`.
 
 ## Summary
 
-| # | Parser | Type | Description |
-|---|--------|------|-------------|
-| 1 | C# | Error | HEALTHCHECK `--start-interval` flag not supported |
-| 2 | C# | Error | Exec form with empty string `""` element crashes |
-| 3 | C# | Error | Empty exec form `[]` not supported in CMD/ENTRYPOINT |
-| 4 | C# | Mismatch | `RUN []` parsed as shell form instead of exec form |
-| 5 | C# | Mismatch | Variable ref modifiers `#`/`##`/`%`/`%%`/`/`/`//` not tokenized as symbols |
-| 6 | C# | Mismatch | COPY/ADD `--from` with variable ref not parsed as flag |
-| 7 | C# | Mismatch | COPY/ADD `--from` with numeric stage index not parsed as flag |
-| 8 | C# | Mismatch | COPY/ADD `--chown=user:group` over-tokenized as nested keyValue |
-| 9 | Lean | Error | Line continuation between COPY/ADD flags fails |
-| 10 | Lean | Mismatch | Shell form `\<spaces><newline>` not treated as continuation |
+| # | Issue | Parser | Type | Description |
+|---|-------|--------|------|-------------|
+| 1 | [#202](https://github.com/mthalman/DockerfileModel/issues/202) | C# | Error | HEALTHCHECK `--start-interval` flag not supported |
+| 2 | [#203](https://github.com/mthalman/DockerfileModel/issues/203) | C# | Error | Exec form with empty string `""` element crashes |
+| 3 | [#204](https://github.com/mthalman/DockerfileModel/issues/204) | C# | Error | Empty exec form `[]` not supported in CMD/ENTRYPOINT |
+| 4 | [#205](https://github.com/mthalman/DockerfileModel/issues/205) | C# | Mismatch | `RUN []` parsed as shell form instead of exec form |
+| 5 | [#206](https://github.com/mthalman/DockerfileModel/issues/206) | C# | Mismatch | Variable ref modifiers `#`/`##`/`%`/`%%`/`/`/`//` not tokenized as symbols |
+| 6 | [#207](https://github.com/mthalman/DockerfileModel/issues/207) | C# | Mismatch | COPY/ADD `--from` with variable ref not parsed as flag |
+| 7 | [#208](https://github.com/mthalman/DockerfileModel/issues/208) | C# | Mismatch | COPY/ADD `--from` with numeric stage index not parsed as flag |
+| 8 | [#209](https://github.com/mthalman/DockerfileModel/issues/209) | C# | Mismatch | COPY/ADD `--chown=user:group` over-tokenized as nested keyValue |
+| 9 | [#210](https://github.com/mthalman/DockerfileModel/issues/210) | Lean | Error | Line continuation between COPY/ADD flags fails |
+| 10 | [#211](https://github.com/mthalman/DockerfileModel/issues/211) | Lean | Mismatch | Shell form `\<spaces><newline>` not treated as continuation |
 
 **Total: 10 distinct bugs (8 C#, 2 Lean)**
