@@ -52,5 +52,5 @@ public class StopSignalInstruction : Instruction
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(
-            LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true);
+            LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar);
 }
