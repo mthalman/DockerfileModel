@@ -8,7 +8,7 @@ public class GenericInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(InstructionParseTestScenario scenario)
+    public void Parse(ParseTestScenario<GenericInstruction> scenario)
     {
         if (scenario.ParseExceptionPosition is null)
         {
@@ -36,9 +36,9 @@ public class GenericInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        InstructionParseTestScenario[] testInputs = new InstructionParseTestScenario[]
+        ParseTestScenario<GenericInstruction>[] testInputs = new ParseTestScenario<GenericInstruction>[]
         {
-            new InstructionParseTestScenario
+            new ParseTestScenario<GenericInstruction>
             {
                 Text = @"run echo ""hello world""",
                 TokenValidators = new Action<Token>[]
@@ -53,7 +53,7 @@ public class GenericInstructionTests
                     Assert.Equal(@"echo ""hello world""", result.ArgLines.Single());
                 }
             },
-            new InstructionParseTestScenario
+            new ParseTestScenario<GenericInstruction>
             {
                 Text = "run echo \"hello world\"\n",
                 TokenValidators = new Action<Token>[]
@@ -69,7 +69,7 @@ public class GenericInstructionTests
                     Assert.Equal(@"echo ""hello world""", result.ArgLines.Single());
                 }
             },
-            new InstructionParseTestScenario
+            new ParseTestScenario<GenericInstruction>
             {
                 Text = $"run echo \"hello world\"  \\\r\n  && ls -a",
                 EscapeChar = '\\',
@@ -94,7 +94,7 @@ public class GenericInstructionTests
                     Assert.Equal(@"&& ls -a", argLines[1]);
                 }
             },
-            new InstructionParseTestScenario
+            new ParseTestScenario<GenericInstruction>
             {
                 Text = $"run echo \"hello world\"  \\\r\n \\\n  && ls -a",
                 EscapeChar = '\\',
@@ -123,13 +123,13 @@ public class GenericInstructionTests
                     Assert.Equal(@"&& ls -a", argLines[1]);
                 }
             },
-            new InstructionParseTestScenario
+            new ParseTestScenario<GenericInstruction>
             {
                 Text = "echo hello",
                 EscapeChar = '\\',
                 ParseExceptionPosition = new Position(1, 1, 2)
             },
-            new InstructionParseTestScenario
+            new ParseTestScenario<GenericInstruction>
             {
                 Text = $"ENV \\\n  # comment1\n  # comment 2\n  VAR=value",
                 EscapeChar = '\\',
@@ -164,7 +164,7 @@ public class GenericInstructionTests
                         argLine => Assert.Equal("VAR=value", argLine));
                 }
             },
-            new InstructionParseTestScenario
+            new ParseTestScenario<GenericInstruction>
             {
                 Text = $"ENV \\ \n  VAR=value",
                 EscapeChar = '\\',
@@ -211,11 +211,6 @@ public class GenericInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class InstructionParseTestScenario : ParseTestScenario<GenericInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<GenericInstruction>

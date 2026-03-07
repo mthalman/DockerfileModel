@@ -8,23 +8,8 @@ public class WorkdirInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(WorkdirInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            WorkdirInstruction result = WorkdirInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => WorkdirInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<WorkdirInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, WorkdirInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -72,9 +57,9 @@ public class WorkdirInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        WorkdirInstructionParseTestScenario[] testInputs = new WorkdirInstructionParseTestScenario[]
+        ParseTestScenario<WorkdirInstruction>[] testInputs = new ParseTestScenario<WorkdirInstruction>[]
         {
-            new WorkdirInstructionParseTestScenario
+            new ParseTestScenario<WorkdirInstruction>
             {
                 Text = "WORKDIR /test",
                 TokenValidators = new Action<Token>[]
@@ -90,7 +75,7 @@ public class WorkdirInstructionTests
                     Assert.Equal("/test", result.Path);
                 }
             },
-            new WorkdirInstructionParseTestScenario
+            new ParseTestScenario<WorkdirInstruction>
             {
                 Text = "WORKDIR $TEST",
                 TokenValidators = new Action<Token>[]
@@ -102,7 +87,7 @@ public class WorkdirInstructionTests
                             token => ValidateString(token, "TEST")))
                 }
             },
-            new WorkdirInstructionParseTestScenario
+            new ParseTestScenario<WorkdirInstruction>
             {
                 Text = "WORKDIR`\n /test",
                 EscapeChar = '`',
@@ -136,11 +121,6 @@ public class WorkdirInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class WorkdirInstructionParseTestScenario : ParseTestScenario<WorkdirInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<WorkdirInstruction>

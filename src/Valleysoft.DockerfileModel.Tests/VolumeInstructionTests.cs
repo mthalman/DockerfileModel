@@ -8,23 +8,8 @@ public class VolumeInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(VolumeInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            VolumeInstruction result = VolumeInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => VolumeInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<VolumeInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, VolumeInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -78,9 +63,9 @@ public class VolumeInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        VolumeInstructionParseTestScenario[] testInputs = new VolumeInstructionParseTestScenario[]
+        ParseTestScenario<VolumeInstruction>[] testInputs = new ParseTestScenario<VolumeInstruction>[]
         {
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME /var/log",
                 TokenValidators = new Action<Token>[]
@@ -99,7 +84,7 @@ public class VolumeInstructionTests
                     });
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME /var/log /var/db",
                 TokenValidators = new Action<Token>[]
@@ -121,7 +106,7 @@ public class VolumeInstructionTests
                     });
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME [\"/var/log\"]",
                 TokenValidators = new Action<Token>[]
@@ -142,7 +127,7 @@ public class VolumeInstructionTests
                     });
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME [\"/var/log\", \"/var/db\"]",
                 TokenValidators = new Action<Token>[]
@@ -167,7 +152,7 @@ public class VolumeInstructionTests
                     });
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME $TEST",
                 TokenValidators = new Action<Token>[]
@@ -179,7 +164,7 @@ public class VolumeInstructionTests
                             token => ValidateString(token, "TEST")))
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME /var/log `\n#test comment\n/var/db",
                 EscapeChar = '`',
@@ -254,11 +239,6 @@ public class VolumeInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class VolumeInstructionParseTestScenario : ParseTestScenario<VolumeInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<VolumeInstruction>

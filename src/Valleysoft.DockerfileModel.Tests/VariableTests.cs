@@ -8,23 +8,8 @@ public class VariableTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(VariableParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            Variable result = new(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => new Variable(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<Variable> scenario) =>
+        TestHelper.RunParseTest(scenario, (text, escapeChar) => new Variable(text, escapeChar));
 
     [Fact]
     public void Value()
@@ -38,9 +23,9 @@ public class VariableTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        VariableParseTestScenario[] testInputs = new VariableParseTestScenario[]
+        ParseTestScenario<Variable>[] testInputs = new ParseTestScenario<Variable>[]
         {
-            new VariableParseTestScenario
+            new ParseTestScenario<Variable>
             {
                 Text = "test",
                 TokenValidators = new Action<Token>[]
@@ -52,7 +37,7 @@ public class VariableTests
                     Assert.Equal("test", result.Value);
                 }
             },
-            new VariableParseTestScenario
+            new ParseTestScenario<Variable>
             {
                 Text = "test_x",
                 TokenValidators = new Action<Token>[]
@@ -64,7 +49,7 @@ public class VariableTests
                     Assert.Equal("test_x", result.Value);
                 }
             },
-            new VariableParseTestScenario
+            new ParseTestScenario<Variable>
             {
                 Text = "te`\nst",
                 EscapeChar = '`',
@@ -79,7 +64,7 @@ public class VariableTests
                     Assert.Equal("test", result.Value);
                 }
             },
-            new VariableParseTestScenario
+            new ParseTestScenario<Variable>
             {
                 Text = "_test",
                 TokenValidators = new Action<Token>[]
@@ -96,8 +81,4 @@ public class VariableTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class VariableParseTestScenario : ParseTestScenario<Variable>
-    {
-        public char EscapeChar { get; set; }
-    }
 }

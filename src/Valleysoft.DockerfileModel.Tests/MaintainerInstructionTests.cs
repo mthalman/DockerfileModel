@@ -8,23 +8,8 @@ public class MaintainerInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(MaintainerInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            MaintainerInstruction result = MaintainerInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => MaintainerInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<MaintainerInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, MaintainerInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -70,9 +55,9 @@ public class MaintainerInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        MaintainerInstructionParseTestScenario[] testInputs = new MaintainerInstructionParseTestScenario[]
+        ParseTestScenario<MaintainerInstruction>[] testInputs = new ParseTestScenario<MaintainerInstruction>[]
         {
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER name",
                 TokenValidators = new Action<Token>[]
@@ -88,7 +73,7 @@ public class MaintainerInstructionTests
                     Assert.Equal("name", result.Maintainer);
                 }
             },
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER \"name\"",
                 TokenValidators = new Action<Token>[]
@@ -104,7 +89,7 @@ public class MaintainerInstructionTests
                     Assert.Equal("name", result.Maintainer);
                 }
             },
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER \"\"",
                 TokenValidators = new Action<Token>[]
@@ -120,7 +105,7 @@ public class MaintainerInstructionTests
                     Assert.Equal("", result.Maintainer);
                 }
             },
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER $var",
                 TokenValidators = new Action<Token>[]
@@ -138,7 +123,7 @@ public class MaintainerInstructionTests
                     Assert.Equal("$var", result.Maintainer);
                 }
             },
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER `\n name",
                 EscapeChar = '`',
@@ -189,11 +174,6 @@ public class MaintainerInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class MaintainerInstructionParseTestScenario : ParseTestScenario<MaintainerInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<MaintainerInstruction>

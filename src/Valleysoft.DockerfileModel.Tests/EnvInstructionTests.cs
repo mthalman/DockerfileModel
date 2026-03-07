@@ -8,23 +8,8 @@ public class EnvInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(EnvInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            EnvInstruction result = EnvInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => EnvInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<EnvInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, EnvInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -93,9 +78,9 @@ public class EnvInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        EnvInstructionParseTestScenario[] testInputs = new EnvInstructionParseTestScenario[]
+        ParseTestScenario<EnvInstruction>[] testInputs = new ParseTestScenario<EnvInstruction>[]
         {
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=",
                 TokenValidators = new Action<Token>[]
@@ -121,7 +106,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV VAR1= VAR2=foo",
                 TokenValidators = new Action<Token>[]
@@ -157,7 +142,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=\"\"",
                 TokenValidators = new Action<Token>[]
@@ -183,7 +168,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME John\r\n",
                 TokenValidators = new Action<Token>[]
@@ -198,7 +183,7 @@ public class EnvInstructionTests
                             token => ValidateNewLine(token, "\r\n")))
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=John",
                 TokenValidators = new Action<Token>[]
@@ -224,7 +209,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=\"John Doe\"",
                 TokenValidators = new Action<Token>[]
@@ -250,7 +235,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=John` Doe",
                 EscapeChar = '`',
@@ -277,7 +262,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=\"John Doe\" MY_DOG=Rex` The` Dog ` \n MY_CAT=fluffy",
                 EscapeChar = '`',
@@ -329,7 +314,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME John",
                 TokenValidators = new Action<Token>[]
@@ -355,7 +340,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME \"John Doe\"",
                 TokenValidators = new Action<Token>[]
@@ -381,7 +366,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_`\nNAME `\nJo`\nhn",
                 EscapeChar = '`',
@@ -415,7 +400,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV VAR1`\n  foo=`\n  bar",
                 EscapeChar = '`',
@@ -500,11 +485,6 @@ public class EnvInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class EnvInstructionParseTestScenario : ParseTestScenario<EnvInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<EnvInstruction>

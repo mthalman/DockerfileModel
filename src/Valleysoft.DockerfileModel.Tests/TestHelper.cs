@@ -9,6 +9,25 @@ public static class TestHelper
     public static string ConcatLines(IEnumerable<string> lines, string lineEnding = "\n") =>
         string.Join(lineEnding, lines.ToArray());
 
+    public static void RunParseTest<T>(ParseTestScenario<T> scenario, Func<string, char, T> parseFunc)
+        where T : AggregateToken
+    {
+        if (scenario.ParseExceptionPosition is null)
+        {
+            T result = parseFunc(scenario.Text, scenario.EscapeChar);
+            Assert.Equal(scenario.Text, result.ToString());
+            Assert.Collection(result.Tokens, scenario.TokenValidators);
+            scenario.Validate?.Invoke(result);
+        }
+        else
+        {
+            ParseException exception = Assert.Throws<ParseException>(
+                () => parseFunc(scenario.Text, scenario.EscapeChar));
+            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
+            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
+        }
+    }
+
     public static void TestVariablesWithLiteral(Func<LiteralToken> getLiteral, string initialValue, bool canContainVariables) =>
         TestVariablesWithLiteral(getLiteral, initialValue, canContainVariables, null, null);
 

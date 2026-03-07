@@ -351,3 +351,13 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+# Lean 4 build output
+lean/.lake/
+
+# Squad: ignore generated/runtime files
+.squad/orchestration-log/
+.squad/log/
+.squad/sessions/
+
+# Claude Code local settings
+.claude/settings.local.json
