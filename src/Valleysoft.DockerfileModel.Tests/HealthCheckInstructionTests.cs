@@ -352,7 +352,7 @@ public class HealthCheckInstructionTests
                     Assert.Equal("5s", result.StartInterval);
                 }
             },
-            new HealthCheckInstructionParseTestScenario
+            new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK --interval=1m --start-period=10s --start-interval=5s --retries=5 --timeout=1h CMD /bin/check-running",
                 TokenValidators = new Action<Token>[]
@@ -388,7 +388,7 @@ public class HealthCheckInstructionTests
                     Assert.Equal("1h", result.Timeout);
                 }
             },
-            new HealthCheckInstructionParseTestScenario
+            new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK --interval=1m --start-period=10s --retries=5 --timeout=1h CMD /bin/check-running",
                 TokenValidators = new Action<Token>[]
