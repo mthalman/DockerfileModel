@@ -141,7 +141,7 @@ public class EntrypointInstructionTests
                     Assert.Empty(cmd.Values);
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
