@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -15,54 +15,49 @@ public class UserInstructionTests
     [MemberData(nameof(CreateTestInput))]
     public void Create(CreateTestScenario scenario)
     {
-        UserInstruction result = new(scenario.User, scenario.Group);
+        UserInstruction result = new(scenario.User);
 
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
     }
 
     [Fact]
-    public void Maintainer()
+    public void UserProperty()
     {
         UserInstruction result = new("test");
-        Assert.Equal("test", result.UserAccount.ToString());
+        Assert.Equal("test", result.User);
         Assert.Equal("USER test", result.ToString());
 
-        result.UserAccount = new UserAccount("testa", "testb");
-        Assert.Equal("testa:testb", result.UserAccount.ToString());
-        Assert.Equal("USER testa:testb", result.ToString());
+        result.User = "root:root";
+        Assert.Equal("root:root", result.User);
+        Assert.Equal("USER root:root", result.ToString());
 
-        Assert.Throws<ArgumentNullException>(() => result.UserAccount = null);
+        Assert.Throws<ArgumentNullException>(() => result.User = null);
+        Assert.Throws<ArgumentException>(() => result.User = "");
     }
 
     [Fact]
-    public void UserAccountWithGroupIsKeyValueToken()
-    {
-        UserInstruction result = UserInstruction.Parse("USER alice:staff");
-        UserAccount account = result.UserAccount;
-
-        // UserAccount with group should be a KeyValueToken
-        Assert.IsAssignableFrom<KeyValueToken<LiteralToken, LiteralToken>>(account);
-
-        // IKeyValuePair should expose user as key and group as value
-        IKeyValuePair kvp = (IKeyValuePair)account;
-        Assert.Equal("alice", kvp.Key);
-        Assert.Equal("staff", kvp.Value);
-    }
-
-    [Fact]
-    public void UserAccountWithoutGroupIsKeyValueToken()
+    public void UserTokenProperty()
     {
         UserInstruction result = UserInstruction.Parse("USER alice");
-        UserAccount account = result.UserAccount;
+        LiteralToken token = result.UserToken;
+        Assert.Equal("alice", token.Value);
 
-        // UserAccount without group is still a KeyValueToken (base class)
-        Assert.IsAssignableFrom<KeyValueToken<LiteralToken, LiteralToken>>(account);
+        result.UserToken = new LiteralToken("bob");
+        Assert.Equal("bob", result.User);
+        Assert.Equal("USER bob", result.ToString());
 
-        // IKeyValuePair should expose user as key and null for value
-        IKeyValuePair kvp = (IKeyValuePair)account;
-        Assert.Equal("alice", kvp.Key);
-        Assert.Null(kvp.Value);
+        Assert.Throws<ArgumentNullException>(() => result.UserToken = null);
+    }
+
+    [Fact]
+    public void UserGroupIsOpaqueLiteral()
+    {
+        UserInstruction result = UserInstruction.Parse("USER alice:staff");
+
+        // The entire "alice:staff" is a single opaque LiteralToken
+        Assert.Equal("alice:staff", result.User);
+        Assert.IsType<LiteralToken>(result.UserToken);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -76,14 +71,13 @@ public class UserInstructionTests
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "name",
-                        token => ValidateLiteral(token, "name"))
+                    token => ValidateLiteral(token, "name")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("name", result.UserAccount.ToString());
+                    Assert.Equal("name", result.User);
                 }
             },
             new ParseTestScenario<UserInstruction>
@@ -93,15 +87,14 @@ public class UserInstructionTests
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "name",
-                        token => ValidateLiteral(token, "name")),
+                    token => ValidateLiteral(token, "name"),
                     token => ValidateNewLine(token, "\n")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("name", result.UserAccount.ToString());
+                    Assert.Equal("name", result.User);
                 }
             },
             new ParseTestScenario<UserInstruction>
@@ -111,16 +104,13 @@ public class UserInstructionTests
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "user:group",
-                        token => ValidateLiteral(token, "user"),
-                        token => ValidateSymbol(token, ':'),
-                        token => ValidateLiteral(token, "group"))
+                    token => ValidateLiteral(token, "user:group")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("user:group", result.UserAccount.ToString());
+                    Assert.Equal("user:group", result.User);
                 }
             },
             new ParseTestScenario<UserInstruction>
@@ -130,16 +120,15 @@ public class UserInstructionTests
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "$var",
-                        token => ValidateQuotableAggregate<LiteralToken>(token, "$var", null,
-                            token => ValidateAggregate<VariableRefToken>(token, "$var",
-                                token => ValidateString(token, "var"))))
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "$var", null,
+                        token => ValidateAggregate<VariableRefToken>(token, "$var",
+                            token => ValidateString(token, "var")))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("$var", result.UserAccount.ToString());
+                    Assert.Equal("$var", result.User);
                 }
             },
             new ParseTestScenario<UserInstruction>
@@ -152,14 +141,13 @@ public class UserInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLineContinuation(token, '`', "\n"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "name",
-                        token => ValidateLiteral(token, "name"))
+                    token => ValidateLiteral(token, "name")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("name", result.UserAccount.ToString());
+                    Assert.Equal("name", result.User);
                 }
             }
         };
@@ -178,22 +166,17 @@ public class UserInstructionTests
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "name",
-                        token => ValidateLiteral(token, "name"))
+                    token => ValidateLiteral(token, "name")
                 }
             },
             new CreateTestScenario
             {
-                User = "user",
-                Group = "group",
+                User = "user:group",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "user:group",
-                        token => ValidateLiteral(token, "user"),
-                        token => ValidateSymbol(token, ':'),
-                        token => ValidateLiteral(token, "group"))
+                    token => ValidateLiteral(token, "user:group")
                 }
             }
         };
@@ -204,6 +187,5 @@ public class UserInstructionTests
     public class CreateTestScenario : TestScenario<UserInstruction>
     {
         public string User { get; set; }
-        public string Group { get; set; }
     }
 }

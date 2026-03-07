@@ -185,11 +185,8 @@ public class DockerfileBuilder
     public DockerfileBuilder StopSignalInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.StopSignalInstruction.Parse);
 
-    public DockerfileBuilder UserInstruction(string user, string? group = null) =>
-        AddConstruct(new UserInstruction(user, group, EscapeChar));
-
-    public DockerfileBuilder UserInstruction(UserAccount userAccount) =>
-        AddConstruct(new UserInstruction(userAccount, EscapeChar));
+    public DockerfileBuilder UserInstruction(string user) =>
+        AddConstruct(new UserInstruction(user, EscapeChar));
 
     public DockerfileBuilder UserInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.UserInstruction.Parse);

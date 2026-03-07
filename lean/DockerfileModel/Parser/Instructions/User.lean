@@ -2,30 +2,20 @@
   Parser/Instructions/User.lean -- USER instruction parser.
 
   Parses the USER instruction:
-    USER <username>[:<group>]
+    USER <value>
 
-  The username is parsed as a literal (excluding ':' from valid chars).
-  If ':' is present, the group name follows. When ':' is present, the
-  result is wrapped as a KeyValueToken; otherwise just a LiteralToken.
+  BuildKit stores the USER value as a plain string — it does NOT decompose
+  `user:group` at parse time. The entire value (including any `:`) is treated
+  as a single opaque LiteralToken, matching BuildKit's behavior. Variable
+  references are still supported since USER is on BuildKit's variable
+  expansion list.
 
-  Token structure produced (without group):
+  Token structure produced:
     InstructionToken [
       WhitespaceToken?,        -- leading whitespace
       KeywordToken("USER"),    -- instruction keyword
       WhitespaceToken(" "),    -- separator
-      LiteralToken(username)   -- username
-    ]
-
-  Token structure produced (with group):
-    InstructionToken [
-      WhitespaceToken?,          -- leading whitespace
-      KeywordToken("USER"),      -- instruction keyword
-      WhitespaceToken(" "),      -- separator
-      KeyValueToken [            -- user:group pair
-        LiteralToken(username),  -- username
-        SymbolToken(':'),        -- separator
-        LiteralToken(group)      -- group name
-      ]
+      LiteralToken(value)      -- opaque user value (may contain ':')
     ]
 -/
 
@@ -44,20 +34,12 @@ open DockerfileModel.Parser
 -- USER args parser
 -- ============================================================
 
-/-- Parse the arguments of a USER instruction: username[:group].
+/-- Parse the arguments of a USER instruction: the entire value as an opaque literal.
     Corresponds to UserInstruction.GetArgsParser() -/
 def userArgsParser (escapeChar : Char) : Parser (List Token) :=
   argTokens (do
-    let username ← literalWithVariables escapeChar [':']
-    let groupPart ← Parser.optional (do
-      let colon ← symbolParser ':'
-      let group ← literalWithVariables escapeChar
-      Parser.pure (colon, group))
-    match groupPart with
-    | some (colon, group) =>
-      Parser.pure [Token.mkKeyValue [username, colon, group]]
-    | none =>
-      Parser.pure [username]
+    let value ← literalWithVariables escapeChar
+    Parser.pure [value]
   ) escapeChar
 
 -- ============================================================
