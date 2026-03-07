@@ -1091,18 +1091,18 @@ public static class DockerfileArbitraries
             from timeout in Duration()
             from cmd in ShellCommand()
             select $"HEALTHCHECK --interval={interval} \\\r\n  --timeout={timeout} \\\r\n  CMD {cmd}",
-            // Disabled: C# parser crashes on --start-interval flag (issue #202)
-            // from startInterval in Duration()
-            // from cmd in ShellCommand()
-            // select $"HEALTHCHECK --start-interval={startInterval} CMD {cmd}",
-            // Disabled: C# parser crashes on --start-interval flag (issue #202)
-            // from interval in Duration()
-            // from timeout in Duration()
-            // from startPeriod in Duration()
-            // from startInterval in Duration()
-            // from retries in Gen.Choose(1, 10)
-            // from cmd in ShellCommand()
-            // select $"HEALTHCHECK --interval={interval} --timeout={timeout} --start-period={startPeriod} --start-interval={startInterval} --retries={retries} CMD {cmd}",
+            // Only --start-interval
+            from startInterval in Duration()
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --start-interval={startInterval} CMD {cmd}",
+            // All flags
+            from interval in Duration()
+            from timeout in Duration()
+            from startPeriod in Duration()
+            from startInterval in Duration()
+            from retries in Gen.Choose(1, 10)
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --interval={interval} --timeout={timeout} --start-period={startPeriod} --start-interval={startInterval} --retries={retries} CMD {cmd}",
             // Three-flag line continuation
             from interval in Duration()
             from timeout in Duration()
