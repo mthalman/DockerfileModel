@@ -256,7 +256,7 @@ public class SecretMountTests
             new ParseTestScenario<SecretMount>
             {
                 Text = "type=foo",
-                ParseExceptionPosition = new Position(1, 1, 9)
+                ParseExceptionPosition = new Position(1, 1, 1)
             },
             new ParseTestScenario<SecretMount>
             {

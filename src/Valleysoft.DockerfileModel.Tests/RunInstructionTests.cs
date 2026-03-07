@@ -441,6 +441,123 @@ public class RunInstructionTests
                     Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
                 }
             },
+            // --mount with type=cache
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=cache,target=/var/cache echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=cache,target=/var/cache",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<GenericMount>(token, "type=cache,target=/var/cache",
+                            token => ValidateKeyValue(token, "type", "cache"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "target", "/var/cache"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<GenericMount>(result.Mounts.First());
+                    Assert.Equal("cache", result.Mounts.First().Type);
+                    Assert.Equal("type=cache,target=/var/cache", result.Mounts.First().ToString());
+                }
+            },
+            // --mount with type=tmpfs
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=tmpfs,target=/tmp echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=tmpfs,target=/tmp",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<GenericMount>(token, "type=tmpfs,target=/tmp",
+                            token => ValidateKeyValue(token, "type", "tmpfs"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "target", "/tmp"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<GenericMount>(result.Mounts.First());
+                    Assert.Equal("tmpfs", result.Mounts.First().Type);
+                }
+            },
+            // --mount with type=bind
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=bind,source=/src,target=/tgt echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=bind,source=/src,target=/tgt",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<GenericMount>(token, "type=bind,source=/src,target=/tgt",
+                            token => ValidateKeyValue(token, "type", "bind"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "source", "/src"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "target", "/tgt"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<GenericMount>(result.Mounts.First());
+                    Assert.Equal("bind", result.Mounts.First().Type);
+                }
+            },
+            // --mount with type=cache + --network flag
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=cache,target=/path --network=host echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=cache,target=/path",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<GenericMount>(token, "type=cache,target=/path",
+                            token => ValidateKeyValue(token, "type", "cache"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "target", "/path"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<GenericMount>(result.Mounts.First());
+                    Assert.Equal("host", result.Network);
+                }
+            },
             // --network flag with shell form command
             new ParseTestScenario<RunInstruction>
             {
