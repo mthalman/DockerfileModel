@@ -1,12 +1,13 @@
 using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public class StartIntervalFlag : KeyValueToken<KeywordToken, LiteralToken>
+public class StartIntervalFlag : KeywordLiteralFlag
 {
+    private const string Keyword = "start-interval";
+
     public StartIntervalFlag(string startInterval, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("start-interval", escapeChar), new LiteralToken(startInterval, canContainVariables: true, escapeChar), isFlag: true)
+        : base(Keyword, startInterval, escapeChar)
     {
     }
 
@@ -15,17 +16,8 @@ public class StartIntervalFlag : KeyValueToken<KeywordToken, LiteralToken>
     }
 
     public static StartIntervalFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Parse(
-            text,
-            KeywordToken.GetParser("start-interval", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new StartIntervalFlag(tokens),
-            escapeChar: escapeChar);
+        ParseFlag(text, Keyword, tokens => new StartIntervalFlag(tokens), escapeChar);
 
     public static Parser<StartIntervalFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetParser(
-            KeywordToken.GetParser("start-interval", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new StartIntervalFlag(tokens),
-            escapeChar: escapeChar);
+        GetFlagParser(Keyword, tokens => new StartIntervalFlag(tokens), escapeChar);
 }
