@@ -5,7 +5,7 @@
     COPY [CopyFlags] FileArgs
 
   CopyFlags (optional, any order):
-    --from=StageOrImageOrContext — string flag via flagParserNoVars "from"
+    --from=StageOrImageOrContext — string flag via flagParserNoVars "from" (no variable expansion)
     --chown=UserGroupSpec       — string flag via flagParser "chown"
     --chmod=PermissionSpec      — string flag via flagParser "chmod"
     --link                      — boolean flag via booleanFlagParser "link"
