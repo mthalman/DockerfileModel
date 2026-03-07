@@ -9,12 +9,12 @@ public abstract class FileTransferInstructionTests<TInstruction>
 {
     private readonly string instructionName;
     private readonly Func<string, char, TInstruction> parse;
-    private readonly Func<IEnumerable<string>, string, UserAccount, string, char, TInstruction> create;
+    private readonly Func<IEnumerable<string>, string, string, string, char, TInstruction> create;
 
     public FileTransferInstructionTests(
         string instructionName,
         Func<string, char, TInstruction> parse,
-        Func<IEnumerable<string>, string, UserAccount, string, char, TInstruction> create)
+        Func<IEnumerable<string>, string, string, string, char, TInstruction> create)
     {
         this.instructionName = instructionName;
         this.parse = parse;
@@ -82,17 +82,16 @@ public abstract class FileTransferInstructionTests<TInstruction>
     [Fact]
     public void ChangeOwner()
     {
-        void Validate(TInstruction instruction, string user)
+        void Validate(TInstruction instruction, string owner)
         {
-            Assert.Equal(user, instruction.ChangeOwner.User);
-            Assert.Equal($"{instructionName} --chown={user} src dst", instruction.ToString());
+            Assert.Equal(owner, instruction.ChangeOwner);
+            Assert.Equal($"{instructionName} --chown={owner} src dst", instruction.ToString());
         }
 
-        UserAccount changeOwner = new("user");
-        TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, null, Dockerfile.DefaultEscapeChar);
+        TInstruction instruction = this.create(new string[] { "src" }, "dst", "user", null, Dockerfile.DefaultEscapeChar);
         Validate(instruction, "user");
 
-        instruction.ChangeOwner = new UserAccount("user2");
+        instruction.ChangeOwner = "user2";
         Validate(instruction, "user2");
 
         instruction.ChangeOwner = null;
@@ -100,8 +99,8 @@ public abstract class FileTransferInstructionTests<TInstruction>
         Assert.Equal($"{instructionName} src dst", instruction.ToString());
 
         instruction = this.parse($"{instructionName}`\n src dst", '`');
-        instruction.ChangeOwner = new UserAccount("user");
-        Assert.Equal("user", instruction.ChangeOwner.User);
+        instruction.ChangeOwner = "user";
+        Assert.Equal("user", instruction.ChangeOwner);
         Assert.Equal($"{instructionName} --chown=user`\n src dst", instruction.ToString());
 
         instruction = this.parse($"{instructionName}`\n --chown=user`\n src dst", '`');
@@ -113,8 +112,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
     [Fact]
     public void ChangeOwner_ResolveVariable()
     {
-        UserAccount changeOwner = new("$var");
-        TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, null, Dockerfile.DefaultEscapeChar);
+        TInstruction instruction = this.create(new string[] { "src" }, "dst", "$var", null, Dockerfile.DefaultEscapeChar);
 
         Assert.Collection(instruction.Tokens, new Action<Token>[]
         {
@@ -125,10 +123,9 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, "chown"),
                 token => ValidateSymbol(token, '='),
-                token => ValidateAggregate<UserAccount>(token, "$var",
-                    token => ValidateAggregate<LiteralToken>(token, "$var",
-                        token => ValidateAggregate<VariableRefToken>(token, "$var",
-                            token => ValidateString(token, "var"))))),
+                token => ValidateAggregate<LiteralToken>(token, "$var",
+                    token => ValidateAggregate<VariableRefToken>(token, "$var",
+                        token => ValidateString(token, "var")))),
             token => ValidateWhitespace(token, " "),
             token => ValidateLiteral(token, "src"),
             token => ValidateWhitespace(token, " "),
@@ -152,8 +149,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, "chown"),
                 token => ValidateSymbol(token, '='),
-                token => ValidateAggregate<UserAccount>(token, "user",
-                    token => ValidateLiteral(token, "user"))),
+                token => ValidateLiteral(token, "user")),
             token => ValidateWhitespace(token, " "),
             token => ValidateLiteral(token, "src"),
             token => ValidateWhitespace(token, " "),
@@ -238,10 +234,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "1:2",
-                            token => ValidateLiteral(token, "1"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "2"))),
+                        token => ValidateLiteral(token, "1:2")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
@@ -294,10 +287,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "1:2",
-                            token => ValidateLiteral(token, "1"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "2"))),
+                        token => ValidateLiteral(token, "1:2")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
                         token => ValidateSymbol(token, '-'),
@@ -315,8 +305,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Empty(result.Comments);
                     Assert.Equal(instructionName, result.InstructionName);
                     Assert.Equal("755", result.Permissions);
-                    Assert.Equal("1", result.ChangeOwner.User);
-                    Assert.Equal("2", result.ChangeOwner.Group);
+                    Assert.Equal("1:2", result.ChangeOwner);
                     Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
                     Assert.Equal("dst", result.Destination);
                 }
@@ -340,10 +329,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "1:2",
-                            token => ValidateLiteral(token, "1"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "2"))),
+                        token => ValidateLiteral(token, "1:2")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
@@ -354,8 +340,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Empty(result.Comments);
                     Assert.Equal(instructionName, result.InstructionName);
                     Assert.Equal("755", result.Permissions);
-                    Assert.Equal("1", result.ChangeOwner.User);
-                    Assert.Equal("2", result.ChangeOwner.Group);
+                    Assert.Equal("1:2", result.ChangeOwner);
                     Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
                     Assert.Equal("dst", result.Destination);
                 }
@@ -587,7 +572,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     "src2"
                 },
                 Destination = "dst",
-                ChangeOwner = new UserAccount("user", "group"),
+                ChangeOwner = "user:group",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, instructionName),
@@ -597,10 +582,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "user:group",
-                            token => ValidateLiteral(token, "user"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "group"))),
+                        token => ValidateLiteral(token, "user:group")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src1"),
                     token => ValidateWhitespace(token, " "),
@@ -645,7 +627,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 },
                 Destination = "dst",
                 Permissions = "777",
-                ChangeOwner = new UserAccount("user", "group"),
+                ChangeOwner = "user:group",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, instructionName),
@@ -655,10 +637,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "user:group",
-                            token => ValidateLiteral(token, "user"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "group"))),
+                        token => ValidateLiteral(token, "user:group")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=777",
                         token => ValidateSymbol(token, '-'),
@@ -683,7 +662,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
     {
         public string Destination { get; set; }
         public IEnumerable<string> Sources { get; set; }
-        public UserAccount ChangeOwner { get; set; }
+        public string ChangeOwner { get; set; }
         public string Permissions { get; set; }
         public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
     }

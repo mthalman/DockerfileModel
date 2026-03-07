@@ -9,7 +9,7 @@ public class AddInstruction : FileTransferInstruction
     private readonly char escapeChar;
 
     public AddInstruction(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner = null, string? permissions = null,
+        string? changeOwner = null, string? permissions = null,
         string? checksum = null, bool keepGitDir = false, bool link = false,
         char escapeChar = Dockerfile.DefaultEscapeChar)
         : base(GetTokens(sources, destination, changeOwner, permissions, checksum, keepGitDir, link, escapeChar), escapeChar)
@@ -111,7 +111,7 @@ public class AddInstruction : FileTransferInstruction
                 .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner, string? permissions, string? checksum, bool keepGitDir, bool link, char escapeChar)
+        string? changeOwner, string? permissions, string? checksum, bool keepGitDir, bool link, char escapeChar)
     {
         string checksumFlag = checksum is null ? "" : new ChecksumFlag(checksum, escapeChar).ToString() + " ";
         string keepGitDirFlag = keepGitDir ? new KeepGitDirFlag(escapeChar).ToString() + " " : "";

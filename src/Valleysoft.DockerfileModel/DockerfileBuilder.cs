@@ -36,7 +36,7 @@ public class DockerfileBuilder
     public DockerfileBuilder NewLine() =>
         AddConstruct(new Whitespace(DefaultNewLine));
 
-    public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, UserAccount? changeOwnerFlag = null,
+    public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, string? changeOwnerFlag = null,
         string? permissions = null, string? checksum = null, bool keepGitDir = false, bool link = false) =>
         AddConstruct(new AddInstruction(sources, destination, changeOwner: changeOwnerFlag, permissions: permissions,
             checksum: checksum, keepGitDir: keepGitDir, link: link, escapeChar: EscapeChar));
@@ -72,7 +72,7 @@ public class DockerfileBuilder
         ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
     public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination,
-        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null, bool link = false) =>
+        string? fromStageName = null, string? changeOwner = null, string? permissions = null, bool link = false) =>
         AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, permissions, link, EscapeChar));
 
     public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
