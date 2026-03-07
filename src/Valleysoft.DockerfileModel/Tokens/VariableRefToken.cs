@@ -5,7 +5,7 @@ namespace Valleysoft.DockerfileModel.Tokens;
 
 public class VariableRefToken : AggregateToken
 {
-    private static readonly string[] ValidModifiers = new string[] { ":-", ":+", ":?", "-", "+", "?" };
+    private static readonly string[] ValidModifiers = new string[] { ":-", ":+", ":?", "-", "+", "?", "##", "#", "%%", "%", "//", "/" };
 
     /// <summary>
     /// Parsers for all of the variable substitution modifiers.
