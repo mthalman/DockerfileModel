@@ -121,6 +121,28 @@ public class CmdInstructionTests
             },
             new ParseTestScenario<CmdInstruction>
             {
+                Text = "CMD []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("CMD", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.Equal("[]", result.Command.ToString());
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            new CmdInstructionParseTestScenario
+            {
                 Text = "CMD [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
                 {
@@ -173,6 +195,25 @@ public class CmdInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
                         token => ValidateLiteral(token, "echo hello"))
+                }
+            },
+            new CreateTestScenario
+            {
+                Commands = Array.Empty<string>(),
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
                 }
             },
             new CreateTestScenario

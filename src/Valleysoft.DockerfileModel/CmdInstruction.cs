@@ -42,7 +42,7 @@ public class CmdInstruction : CommandInstruction
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> defaultArgs, char escapeChar)
     {
-        Requires.NotNullEmptyOrNullElements(defaultArgs, nameof(defaultArgs));
+        Requires.NotNull(defaultArgs, nameof(defaultArgs));
         return GetTokens($"CMD {StringHelper.FormatAsJson(defaultArgs)}", GetInnerParser(escapeChar));
     }
 

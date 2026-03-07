@@ -4,7 +4,7 @@ internal static class StringHelper
 {
     public static string FormatAsJson(IEnumerable<string> values)
     {
-        Requires.NotNullEmptyOrNullElements(values, nameof(values));
+        Requires.NotNull(values, nameof(values));
         return $"[{String.Join(", ", values.Select(val => $"\"{val}\"").ToArray())}]";
     }
 
