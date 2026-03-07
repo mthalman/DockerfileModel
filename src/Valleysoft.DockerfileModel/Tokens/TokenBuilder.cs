@@ -8,9 +8,6 @@ public class TokenBuilder
 
     public IList<Token> Tokens { get; } = new List<Token>();
 
-    public TokenBuilder UserAccount(string user, string? group = null) =>
-        AddToken(new UserAccount(user, group, EscapeChar));
-
     public TokenBuilder Comment(string comment) =>
         AddToken(new CommentToken(comment));
 

@@ -11,7 +11,6 @@ public class TokenBuilderTests
     {
         TokenBuilder builder = new();
         builder
-            .UserAccount("user")
             .Comment("comment")
             .ExecFormCommand("cmd1", "cmd2")
             .FromFlag("stage")
@@ -37,8 +36,6 @@ public class TokenBuilderTests
 
         Assert.Collection(builder.Tokens, new Action<Token>[]
         {
-            token => ValidateAggregate<UserAccount>(token, "user",
-                token => ValidateLiteral(token, "user")),
             token => ValidateAggregate<CommentToken>(token, "#comment",
                 token => ValidateSymbol(token, '#'),
                 token => ValidateString(token, "comment")),
@@ -98,7 +95,6 @@ public class TokenBuilderTests
         });
 
         string expectedResult =
-            "user" +
             "#comment" +
             "[\"cmd1\", \"cmd2\"]" +
             "--from=stage" +

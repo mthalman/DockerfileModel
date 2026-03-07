@@ -27,7 +27,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   GitHub issue tracking the underlying C# fix.
 ///
 /// Known differences with workarounds:
-///   - UserAccount user:group: C# uses flat wrapper; Lean wraps in keyValue
 ///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
 ///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
@@ -51,21 +50,6 @@ public static class TokenJsonSerializer
     /// </summary>
     private static bool IsTransparentWrapper(Token token) =>
         token is Command;       // ShellFormCommand, ExecFormCommand
-
-    /// <summary>
-    /// Check whether a token is a UserAccount with a group (user:group pattern).
-    /// Lean wraps user:group in a keyValue, but C# uses a UserAccount wrapper.
-    /// When UserAccount has a group, serialize as keyValue; when no group, inline.
-    /// </summary>
-    private static bool IsUserAccountWithGroup(Token token) =>
-        token is UserAccount ua && ua.Tokens.OfType<SymbolToken>().Any(s => s.Value == ":");
-
-    /// <summary>
-    /// Check whether a token is a UserAccount without a group (just username).
-    /// This is treated as a transparent wrapper (inline the children).
-    /// </summary>
-    private static bool IsUserAccountWithoutGroup(Token token) =>
-        token is UserAccount ua && !ua.Tokens.OfType<SymbolToken>().Any(s => s.Value == ":");
 
     private static void SerializeToken(StringBuilder sb, Token token)
     {
@@ -281,12 +265,12 @@ public static class TokenJsonSerializer
     }
 
     /// <summary>
-    /// Emit a single child token, handling transparent wrappers and UserAccount mapping.
+    /// Emit a single child token, handling transparent wrappers.
     /// </summary>
     private static void EmitChild(StringBuilder sb, Token child, ref bool first)
     {
         // Transparent wrappers: inline their children into parent
-        if (IsTransparentWrapper(child) || IsUserAccountWithoutGroup(child))
+        if (IsTransparentWrapper(child))
         {
             foreach (Token grandchild in ((AggregateToken)child).Tokens)
             {
@@ -294,13 +278,6 @@ public static class TokenJsonSerializer
                 SerializeToken(sb, grandchild);
                 first = false;
             }
-        }
-        // UserAccount with group: serialize as keyValue (matching Lean)
-        else if (IsUserAccountWithGroup(child))
-        {
-            if (!first) sb.Append(',');
-            SerializeAggregate(sb, "keyValue", child);
-            first = false;
         }
         else
         {

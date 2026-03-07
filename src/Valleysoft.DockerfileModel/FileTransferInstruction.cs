@@ -7,7 +7,7 @@ namespace Valleysoft.DockerfileModel;
 public abstract class FileTransferInstruction : Instruction
 {
     protected FileTransferInstruction(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName)
+        string? changeOwner, string? permissions, char escapeChar, string instructionName)
         : this(GetTokens(sources, destination, changeOwner, permissions, escapeChar, instructionName), escapeChar)
     {
     }
@@ -49,23 +49,17 @@ public abstract class FileTransferInstruction : Instruction
         }
     }
 
-    public UserAccount? ChangeOwner
+    public string? ChangeOwner
+    {
+        get => ChangeOwnerFlagToken?.Value;
+        set => SetOptionalLiteralTokenValue(ChangeOwnerToken, value, token => ChangeOwnerToken = token, canContainVariables: true, EscapeChar);
+    }
+
+    public LiteralToken? ChangeOwnerToken
     {
         get => ChangeOwnerFlagToken?.ValueToken;
-        set
-        {
-            ChangeOwnerFlag? changeOwnerToken = ChangeOwnerFlagToken;
-            if (changeOwnerToken is not null && value is not null)
-            {
-                changeOwnerToken.ValueToken = value;
-            }
-            else
-            {
-                ChangeOwnerFlagToken = value is null ?
-                    null :
-                    new ChangeOwnerFlag(value, EscapeChar);
-            }
-        }
+        set => SetOptionalKeyValueTokenValue(
+            ChangeOwnerFlagToken, value, val => new ChangeOwnerFlag(val, EscapeChar), token => ChangeOwnerFlagToken = token);
     }
 
     private ChangeOwnerFlag? ChangeOwnerFlagToken
@@ -98,14 +92,14 @@ public abstract class FileTransferInstruction : Instruction
         Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName)
+        string? changeOwner, string? permissions, char escapeChar, string instructionName)
     {
         string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, instructionName, null);
         return GetTokens(text, GetInnerParser(escapeChar, instructionName));
     }
 
     protected static string CreateInstructionString(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag,
+        string? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag,
         string? trailingOptionalFlag = null)
     {
         Requires.NotNullEmptyOrNullElements(sources, nameof(sources));

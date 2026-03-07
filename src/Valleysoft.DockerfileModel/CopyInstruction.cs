@@ -8,7 +8,7 @@ public class CopyInstruction : FileTransferInstruction
     private const string Name = "COPY";
 
     public CopyInstruction(IEnumerable<string> sources, string destination,
-        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null,
+        string? fromStageName = null, string? changeOwner = null, string? permissions = null,
         bool link = false, char escapeChar = Dockerfile.DefaultEscapeChar)
         : base(GetTokens(sources, destination, fromStageName, changeOwner, permissions, link, escapeChar), escapeChar)
     {
@@ -79,7 +79,7 @@ public class CopyInstruction : FileTransferInstruction
                 .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-        string? fromStageName, UserAccount? changeOwner, string? permissions, bool link, char escapeChar)
+        string? fromStageName, string? changeOwner, string? permissions, bool link, char escapeChar)
     {
         string fromFlag = fromStageName is null ? "" : new FromFlag(fromStageName, escapeChar).ToString() + " ";
         string linkFlag = link ? new LinkFlag(escapeChar).ToString() + " " : "";

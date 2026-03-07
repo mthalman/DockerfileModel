@@ -129,7 +129,7 @@ public class DockerfileBuilderTests
             DisableAutoNewLines = true
         };
 
-        builder.AddInstruction(new string[] { "src" }, "dst", changeOwnerFlag: new UserAccount("myuser"), checksum: "sha256:abc123");
+        builder.AddInstruction(new string[] { "src" }, "dst", changeOwnerFlag: "myuser", checksum: "sha256:abc123");
         Assert.Equal("ADD --checksum=sha256:abc123 --chown=myuser src dst", builder.ToString());
     }
 
@@ -166,7 +166,7 @@ public class DockerfileBuilderTests
             DisableAutoNewLines = true
         };
 
-        builder.CopyInstruction(new string[] { "src" }, "dst", changeOwner: new UserAccount("myuser"), link: true);
+        builder.CopyInstruction(new string[] { "src" }, "dst", changeOwner: "myuser", link: true);
         Assert.Equal("COPY --chown=myuser --link src dst", builder.ToString());
     }
 

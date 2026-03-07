@@ -116,11 +116,11 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
         // --link and --chown together
         CopyInstruction instruction = new(
             new string[] { "src" }, "dst",
-            changeOwner: new UserAccount("user"),
+            changeOwner: "user",
             link: true,
             escapeChar: Dockerfile.DefaultEscapeChar);
         Assert.True(instruction.Link);
-        Assert.Equal("user", instruction.ChangeOwner.User);
+        Assert.Equal("user", instruction.ChangeOwner);
         Assert.Equal("COPY --chown=user --link src dst", instruction.ToString());
     }
 
@@ -183,8 +183,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "id",
-                            token => ValidateLiteral(token, "id"))),
+                        token => ValidateLiteral(token, "id")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
@@ -197,7 +196,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                     Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
                     Assert.Equal("dst", result.Destination);
                     Assert.Equal("stage", result.FromStageName);
-                    Assert.Equal("id", result.ChangeOwner.User);
+                    Assert.Equal("id", result.ChangeOwner);
                     Assert.False(result.Link);
                 }
             },
@@ -292,10 +291,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "user:group",
-                            token => ValidateLiteral(token, "user"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "group"))),
+                        token => ValidateLiteral(token, "user:group")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
@@ -304,8 +300,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 Validate = result =>
                 {
                     Assert.True(result.Link);
-                    Assert.Equal("user", result.ChangeOwner.User);
-                    Assert.Equal("group", result.ChangeOwner.Group);
+                    Assert.Equal("user:group", result.ChangeOwner);
                 }
             },
             // --link with --chmod
@@ -352,8 +347,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "user",
-                            token => ValidateLiteral(token, "user"))),
+                        token => ValidateLiteral(token, "user")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
                         token => ValidateSymbol(token, '-'),
@@ -370,7 +364,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                 {
                     Assert.True(result.Link);
                     Assert.Equal("stage", result.FromStageName);
-                    Assert.Equal("user", result.ChangeOwner.User);
+                    Assert.Equal("user", result.ChangeOwner);
                     Assert.Equal("755", result.Permissions);
                 }
             },
