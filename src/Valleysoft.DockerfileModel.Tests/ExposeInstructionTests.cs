@@ -124,9 +124,10 @@ public class ExposeInstructionTests
                 {
                     token => ValidateKeyword(token, "EXPOSE"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "433"),
-                    token => ValidateSymbol(token, '/'),
-                    token => ValidateLiteral(token, "tcp")
+                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "433/tcp",
+                        token => ValidateLiteral(token, "433"),
+                        token => ValidateSymbol(token, '/'),
+                        token => ValidateLiteral(token, "tcp"))
                 },
                 Validate = result =>
                 {
@@ -156,12 +157,13 @@ public class ExposeInstructionTests
                 {
                     token => ValidateKeyword(token, "EXPOSE"),
                     token => ValidateLineContinuation(token, '`', "\n"),
-                    token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "80"),
-                    token => ValidateLineContinuation(token, '`', "\n"),
-                    token => ValidateSymbol(token, '/'),
-                    token => ValidateLineContinuation(token, '`', "\n"),
-                    token => ValidateLiteral(token, "tcp")
+                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, " 80`\n/`\ntcp",
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "80"),
+                        token => ValidateLineContinuation(token, '`', "\n"),
+                        token => ValidateSymbol(token, '/'),
+                        token => ValidateLineContinuation(token, '`', "\n"),
+                        token => ValidateLiteral(token, "tcp"))
                 }
             }
         };
@@ -191,9 +193,10 @@ public class ExposeInstructionTests
                 {
                     token => ValidateKeyword(token, "EXPOSE"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "80"),
-                    token => ValidateSymbol(token, '/'),
-                    token => ValidateLiteral(token, "udp")
+                    token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "80/udp",
+                        token => ValidateLiteral(token, "80"),
+                        token => ValidateSymbol(token, '/'),
+                        token => ValidateLiteral(token, "udp"))
                 }
             }
         };
