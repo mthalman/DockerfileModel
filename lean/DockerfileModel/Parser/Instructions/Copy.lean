@@ -5,7 +5,7 @@
     COPY [CopyFlags] FileArgs
 
   CopyFlags (optional, any order):
-    --from=StageOrImageOrContext — string flag via flagParser "from"
+    --from=StageOrImageOrContext — string flag via flagParserNoVars "from"
     --chown=UserGroupSpec       — string flag via flagParser "chown"
     --chmod=PermissionSpec      — string flag via flagParser "chmod"
     --link                      — boolean flag via booleanFlagParser "link"
@@ -53,7 +53,7 @@ open DockerfileModel.Parser.Heredoc
     Returns the flag token wrapped in argTokens. -/
 private def copyFlagParser (escapeChar : Char) : Parser (List Token) :=
   argTokens (do
-    let flag ← or' (flagParser "from" escapeChar)
+    let flag ← or' (flagParserNoVars "from" escapeChar)
                (or' (flagParser "chown" escapeChar)
                (or' (flagParser "chmod" escapeChar)
                (or' (booleanFlagParser "link" escapeChar)

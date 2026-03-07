@@ -22,7 +22,7 @@ public class CopyInstruction : FileTransferInstruction
     {
         get => FromStageNameToken?.Value;
         set => SetOptionalLiteralTokenValue(
-            FromStageNameToken, value, token => FromStageNameToken = token, canContainVariables: true, EscapeChar);
+            FromStageNameToken, value, token => FromStageNameToken = token, canContainVariables: false, EscapeChar);
     }
 
     public LiteralToken? FromStageNameToken
