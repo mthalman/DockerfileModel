@@ -657,26 +657,6 @@ def argDeclarationParser (escapeChar : Char) : Parser Token := do
 -- Shell form command parser (rest-of-line as literal text with variables)
 -- ============================================================
 
-/-- Collapse a list of per-character StringToken tokens and non-string tokens
-    (e.g., LineContinuationToken) into a minimal list where adjacent string
-    tokens are merged into a single StringToken. Non-string tokens (like
-    LineContinuationToken) break the merge and are preserved as-is. -/
-private def collapseToOpaqueString (tokens : List Token) : List Token :=
-  let rec flush (acc : List Token) (pending : String) : List Token :=
-    if pending.isEmpty then acc
-    else (Token.mkString pending) :: acc
-  let rec loop (acc : List Token) (pending : String) (rest : List Token) : List Token :=
-    match rest with
-    | [] => (flush acc pending).reverse
-    | t :: ts =>
-      match t with
-      | .primitive .string val =>
-        loop acc (pending ++ val) ts
-      | _ =>
-        -- Non-string token (e.g., LineContinuationToken): flush pending, emit token
-        loop (t :: (flush acc pending)) "" ts
-  loop [] "" tokens
-
 /-- Parse a shell form command: everything to end-of-line (or end-of-input) as
     a LiteralToken. This is the "shell form" parser for RUN, CMD, ENTRYPOINT.
 
@@ -716,7 +696,7 @@ partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
       (except (escapedChar escapeChar) (lineContinuationParser escapeChar))))
   -- Collapse adjacent string tokens into a single opaque StringToken.
   -- LineContinuationTokens are preserved as-is.
-  let tokens := collapseToOpaqueString parts
+  let tokens := collapseStringTokens parts
   if tokens.isEmpty then
     Parser.fail "expected shell form command"
   else
