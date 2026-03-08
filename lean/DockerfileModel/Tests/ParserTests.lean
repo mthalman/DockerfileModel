@@ -1441,6 +1441,35 @@ def testShellFormOpaqueWithLineContinuation : IO Unit := do
   | none =>
     throw (IO.Error.userError "Parse failed: shell form with line continuation should parse")
 
+/-- Test: shell form with trailing whitespace between escape char and newline
+    in a line continuation (backslash + space + newline). -/
+def testShellFormOpaqueWithTrailingWhitespace : IO Unit := do
+  IO.println "ShellForm: opaque structure with trailing whitespace in line continuation"
+  let parser := DockerfileModel.Parser.shellFormCommand '\\'
+  match parser.tryParse "echo hello \\ \nworld foo" with
+  | some tokens =>
+    assertTrue (tokens.length == 1) "shell form produces single token"
+    let lit := tokens.head!
+    assertAggregateKind lit .literal "shell form token is LiteralToken"
+    -- LiteralToken should contain: StringToken("echo hello "), LineContinuationToken, StringToken("world foo")
+    assertChildCount lit 3 "LiteralToken has 3 children (string, lineCont, string)"
+    let child0 := lit.children[0]!
+    match child0 with
+    | .primitive .string val =>
+      assertEqual val "echo hello " "first StringToken contains text before continuation"
+    | _ => throw (IO.Error.userError "Expected StringToken as first child")
+    let child1 := lit.children[1]!
+    assertAggregateKind child1 .lineContinuation "second child is LineContinuationToken"
+    -- LineContinuationToken should have 3 children: symbol(\), whitespace( ), newLine(\n)
+    assertChildCount child1 3 "LineContinuationToken has 3 children (symbol, whitespace, newLine)"
+    let child2 := lit.children[2]!
+    match child2 with
+    | .primitive .string val =>
+      assertEqual val "world foo" "third StringToken contains text after continuation"
+    | _ => throw (IO.Error.userError "Expected StringToken as third child")
+  | none =>
+    throw (IO.Error.userError "Parse failed: shell form with trailing whitespace in line continuation should parse")
+
 -- ============================================================================
 -- MAINTAINER Instruction Tests
 -- ============================================================================
@@ -2870,6 +2899,7 @@ def runParserTests_Infrastructure : IO Unit := do
   testShellFormWithBracedVariable
   testShellFormOpaqueStructure
   testShellFormOpaqueWithLineContinuation
+  testShellFormOpaqueWithTrailingWhitespace
   IO.println ""
 
 open DockerfileModel.Tests.ParserTests in
