@@ -37,9 +37,7 @@ import DockerfileModel.Instruction
 import DockerfileModel.Parser.Basic
 import DockerfileModel.Parser.Combinators
 import DockerfileModel.Parser.DockerfileParsers
-import DockerfileModel.Parser.Instructions.From
 import DockerfileModel.Parser.Instructions.Arg
-import DockerfileModel.Parser.Instructions.Maintainer
 import DockerfileModel.Parser.Instructions.Workdir
 import DockerfileModel.Parser.Instructions.Stopsignal
 import DockerfileModel.Parser.Instructions.Cmd
@@ -61,7 +59,7 @@ open DockerfileModel
 open DockerfileModel.Parser
 open DockerfileModel.Parser.Instructions
 open Parser
-open Maintainer Workdir Stopsignal Cmd Entrypoint Shell User Expose Volume Env Label
+open Workdir Stopsignal Cmd Entrypoint Shell User Expose Volume Env Label
 open Run Copy Add Healthcheck
 
 -- ============================================================
@@ -73,17 +71,14 @@ open Run Copy Add Healthcheck
     and calls the appropriate instruction-specific parser.
 
     Each instruction parser starts with its keyword, so `or'` naturally dispatches
-    based on the first token. All instruction types except ONBUILD (17 types) are
-    included — ONBUILD is intentionally excluded because BuildKit explicitly
-    rejects `ONBUILD ONBUILD` chaining. By omitting the ONBUILD parser from the
-    dispatch, nested `ONBUILD ONBUILD` fails to parse.
+    based on the first token. Of the 18 instruction types, 15 are included here.
+    Three are excluded because BuildKit explicitly rejects them as ONBUILD triggers:
+    ONBUILD (no chaining), FROM, and MAINTAINER.
 
     Returns an InstructionToken wrapping the fully parsed trigger instruction. -/
 partial def triggerInstructionParser (escapeChar : Char) : Parser Token := do
   let tokens ←
-    or' (fromInstructionParser escapeChar)
-    (or' (argInstructionParser escapeChar)
-    (or' (maintainerInstructionParser escapeChar)
+    or' (argInstructionParser escapeChar)
     (or' (workdirInstructionParser escapeChar)
     (or' (stopsignalInstructionParser escapeChar)
     (or' (cmdInstructionParser escapeChar)
@@ -97,7 +92,7 @@ partial def triggerInstructionParser (escapeChar : Char) : Parser Token := do
     (or' (runInstructionParser escapeChar)
     (or' (copyInstructionParser escapeChar)
     (or' (addInstructionParser escapeChar)
-         (healthcheckInstructionParser escapeChar))))))))))))))))
+         (healthcheckInstructionParser escapeChar))))))))))))))
   Parser.pure (Token.mkInstruction tokens)
 
 -- ============================================================
