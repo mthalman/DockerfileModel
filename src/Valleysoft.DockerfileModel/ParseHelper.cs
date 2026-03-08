@@ -352,13 +352,15 @@ internal static class ParseHelper
     /// reject empty arrays to avoid runtime errors when accessing destination tokens.</param>
     public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false) =>
         from openingBracket in Symbol('[').AsEnumerable()
-        // Consume optional whitespace after '[' at the array level (not inside
-        // the element parser) so the empty-array fallback works correctly.
-        // Without this, JsonArrayFirstElement would consume whitespace and then
-        // fail at the opening quote, preventing backtracking to the empty-array
-        // case (e.g. "[ ]" would fail). This matches the Lean/BuildKit parser
-        // structure, which parses interElementSpace before attempting the optional
-        // first element.
+        // Consume optional whitespace after '[' at the array level, before
+        // attempting to parse elements. JsonArrayFirstElement intentionally does
+        // NOT consume leading whitespace (unlike JsonArrayElement for subsequent
+        // elements), so that if the array is empty (e.g. "[ ]"), no input is
+        // consumed before the empty-array XOr fallback. Consuming whitespace
+        // here at the array level ensures it is captured in the token stream
+        // regardless of whether elements follow. This matches the Lean/BuildKit
+        // parser structure, which parses interElementSpace before attempting the
+        // optional first element.
         from leadingWs in OptionalWhitespaceOrLineContinuation(escapeChar)
         from execFormArgs in (
             from firstArg in JsonArrayFirstElement(escapeChar, canContainVariables).Once().Flatten()
