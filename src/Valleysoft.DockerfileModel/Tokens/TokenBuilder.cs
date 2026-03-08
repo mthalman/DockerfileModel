@@ -97,6 +97,7 @@ public class TokenBuilder
     [Obsolete("Use Mount() instead.")]
     public TokenBuilder SecretMount(string id, string? destinationPath = null, string? environmentVariable = null)
     {
+        Requires.NotNullOrEmpty(id, nameof(id));
         string mountText = $"type=secret,id={id}";
         if (!string.IsNullOrEmpty(destinationPath))
         {
