@@ -10,6 +10,11 @@ public class EntrypointInstruction : CommandInstruction
     {
     }
 
+    public EntrypointInstruction(IEnumerable<string> execArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : this(GetTokens(execArgs, escapeChar))
+    {
+    }
+
     public EntrypointInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(command, args, escapeChar))
     {
@@ -30,6 +35,17 @@ public class EntrypointInstruction : CommandInstruction
     {
         Requires.NotNullOrEmpty(commandWithArgs, nameof(commandWithArgs));
         return GetTokens($"ENTRYPOINT {commandWithArgs}", GetInnerParser(escapeChar));
+    }
+
+    private static IEnumerable<Token> GetTokens(IEnumerable<string> execArgs, char escapeChar)
+    {
+        Requires.NotNull(execArgs, nameof(execArgs));
+        if (execArgs.Any(v => v is null))
+        {
+            throw new ArgumentNullException(nameof(execArgs), "Collection must not contain null elements.");
+        }
+
+        return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(execArgs)}", GetInnerParser(escapeChar));
     }
 
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)

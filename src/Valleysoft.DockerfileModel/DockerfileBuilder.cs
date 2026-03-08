@@ -81,6 +81,9 @@ public class DockerfileBuilder
     public DockerfileBuilder EntrypointInstruction(string commandWithArgs) =>
         AddConstruct(new EntrypointInstruction(commandWithArgs, EscapeChar));
 
+    public DockerfileBuilder EntrypointInstruction(IEnumerable<string> execArgs) =>
+        AddConstruct(new EntrypointInstruction(execArgs, EscapeChar));
+
     public DockerfileBuilder EntrypointInstruction(string command, IEnumerable<string> args) =>
         AddConstruct(new EntrypointInstruction(command, args, EscapeChar));
 

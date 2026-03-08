@@ -16,7 +16,11 @@ public class EntrypointInstructionTests
     public void Create(CreateTestScenario scenario)
     {
         EntrypointInstruction result;
-        if (scenario.Args is null)
+        if (scenario.ExecArgs is not null)
+        {
+            result = new EntrypointInstruction(scenario.ExecArgs);
+        }
+        else if (scenario.Args is null)
         {
             result = new EntrypointInstruction(scenario.Command);
         }
@@ -199,6 +203,25 @@ public class EntrypointInstructionTests
             },
             new CreateTestScenario
             {
+                ExecArgs = Array.Empty<string>(),
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            new CreateTestScenario
+            {
                 Command = "/bin/bash",
                 Args = new string[]
                 {
@@ -229,6 +252,7 @@ public class EntrypointInstructionTests
     public class CreateTestScenario : TestScenario<EntrypointInstruction>
     {
         public string Command { get; set; }
+        public IEnumerable<string> ExecArgs { get; set; }
         public IEnumerable<string> Args { get; set; }
     }
 }
