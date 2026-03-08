@@ -352,15 +352,12 @@ internal static class ParseHelper
     /// reject empty arrays to avoid runtime errors when accessing destination tokens.</param>
     public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false) =>
         from openingBracket in Symbol('[').AsEnumerable()
-        // Consume optional whitespace after '[' at the array level, before
-        // attempting to parse elements. JsonArrayFirstElement intentionally does
-        // NOT consume leading whitespace (unlike JsonArrayElement for subsequent
-        // elements), so that if the array is empty (e.g. "[ ]"), no input is
-        // consumed before the empty-array XOr fallback. Consuming whitespace
-        // here at the array level ensures it is captured in the token stream
-        // regardless of whether elements follow. This matches the Lean/BuildKit
-        // parser structure, which parses interElementSpace before attempting the
-        // optional first element.
+        // Consume optional whitespace after '[' at the array level (not inside
+        // the element parser) so the empty-array fallback works correctly.
+        // Without this, JsonArrayElement would consume whitespace and then fail
+        // at the opening quote, preventing backtracking to the empty-array case.
+        // This matches the Lean/BuildKit parser structure, which parses
+        // interElementSpace before attempting the optional first element.
         from leadingWs in OptionalWhitespaceOrLineContinuation(escapeChar)
         from execFormArgs in JsonArrayElements(escapeChar, canContainVariables, allowEmpty)
         from closingBracket in Symbol(']').AsEnumerable()
@@ -606,7 +603,7 @@ internal static class ParseHelper
     private static Parser<IEnumerable<Token>> JsonArrayElements(char escapeChar, bool canContainVariables, bool allowEmpty)
     {
         var elements =
-            from firstArg in JsonArrayFirstElement(escapeChar, canContainVariables).Once().Flatten()
+            from firstArg in JsonArrayElement(escapeChar, canContainVariables, consumeLeadingWhitespace: false).Once().Flatten()
             from tail in (
                 from delimiter in JsonArrayElementDelimiter(escapeChar)
                 from nextArg in JsonArrayElement(escapeChar, canContainVariables)
@@ -635,17 +632,33 @@ internal static class ParseHelper
             trailing);
 
     /// <summary>
-    /// Parses the first JSON array string element. Unlike <see cref="JsonArrayElement"/>,
-    /// this does NOT consume leading whitespace, because the caller (<see cref="JsonArray"/>)
-    /// already consumed it. This avoids consuming input before the empty-array fallback.
+    /// Parses a JSON array string element. When <paramref name="consumeLeadingWhitespace"/> is
+    /// <c>false</c> (used for the first element), leading whitespace is not consumed because the
+    /// caller (<see cref="JsonArray"/>) already handled it. When <c>true</c> (used for subsequent
+    /// elements), leading whitespace is consumed as part of the element.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
-    private static Parser<IEnumerable<Token>> JsonArrayFirstElement(char escapeChar, bool canContainVariables)
+    /// <param name="consumeLeadingWhitespace">Whether to consume leading whitespace before the element.</param>
+    private static Parser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables, bool consumeLeadingWhitespace = true)
     {
         Parser<LiteralToken> literalParser = canContainVariables ?
             LiteralWithVariables(escapeChar, new char[] { DoubleQuote }) :
             LiteralToken(escapeChar, new char[] { DoubleQuote });
+
+        if (consumeLeadingWhitespace)
+        {
+            return
+                from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
+                from openingQuote in Symbol(DoubleQuote)
+                from argValue in ArgTokens(literalParser.AsEnumerable(), escapeChar).Many()
+                from closingQuote in Symbol(DoubleQuote)
+                from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
+                select ConcatTokens(
+                    leading,
+                    CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
+                    trailing);
+        }
 
         return
             from openingQuote in Symbol(DoubleQuote)
@@ -653,29 +666,6 @@ internal static class ParseHelper
             from closingQuote in Symbol(DoubleQuote)
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
-                CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
-                trailing);
-    }
-
-    /// <summary>
-    /// Parses a JSON array string element (for second and subsequent elements).
-    /// </summary>
-    /// <param name="escapeChar">Escape character.</param>
-    /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
-    private static Parser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables)
-    {
-        Parser<LiteralToken> literalParser = canContainVariables ?
-            LiteralWithVariables(escapeChar, new char[] { DoubleQuote }) :
-            LiteralToken(escapeChar, new char[] { DoubleQuote });
-
-        return
-            from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
-            from openingQuote in Symbol(DoubleQuote)
-            from argValue in ArgTokens(literalParser.AsEnumerable(), escapeChar).Many()
-            from closingQuote in Symbol(DoubleQuote)
-            from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
-            select ConcatTokens(
-                leading,
                 CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
     }

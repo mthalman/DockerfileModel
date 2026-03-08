@@ -575,6 +575,7 @@ public static class DockerfileArbitraries
             from c2 in Gen.Elements("echo line2")
             from c3 in Gen.Elements("echo line3")
             select $"CMD {c1} \\\n  && {c2} \\\n  && {c3}",
+            // Empty exec form array
             Gen.Constant("CMD []"));
 
     /// <summary>
@@ -622,6 +623,7 @@ public static class DockerfileArbitraries
             from c1 in Gen.Elements("/app/run", "python app.py")
             from c2 in Gen.Elements("--config /etc/app.conf", "--port 8080")
             select $"ENTRYPOINT {c1} \\\r\n  {c2}",
+            // Empty exec form array
             Gen.Constant("ENTRYPOINT []"));
 
     /// <summary>

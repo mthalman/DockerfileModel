@@ -253,6 +253,21 @@ public class ExecFormCommandTests
         {
             new CreateTestScenario
             {
+                Commands = Array.Empty<string>(),
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.CommandType);
+                    Assert.Equal("[]", result.ToString());
+                    Assert.Empty(result.Values);
+                }
+            },
+            new CreateTestScenario
+            {
                 Commands = new string[]
                 {
                     "/bin/bash",
