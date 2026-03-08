@@ -347,14 +347,18 @@ internal static class ParseHelper
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether variables are allowed to be contained in the strings.</param>
-    public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables) =>
+    /// <param name="allowEmpty">When true, allows parsing an empty array (e.g. [] or [ ]). Defaults to false.
+    /// Only exec-form command parsers should pass true; file transfer instructions (COPY/ADD) should
+    /// reject empty arrays to avoid runtime errors when accessing destination tokens.</param>
+    public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false) =>
         from openingBracket in Symbol('[').AsEnumerable()
         // Consume optional whitespace after '[' at the array level (not inside
         // the element parser) so the empty-array fallback works correctly.
-        // Without this, JsonArrayElement would consume whitespace and then fail
-        // at the opening quote, preventing backtracking to the empty-array case
-        // (e.g. "[ ]" would fail). This matches the Lean/BuildKit parser structure,
-        // which parses interElementSpace before attempting the optional first element.
+        // Without this, JsonArrayFirstElement would consume whitespace and then
+        // fail at the opening quote, preventing backtracking to the empty-array
+        // case (e.g. "[ ]" would fail). This matches the Lean/BuildKit parser
+        // structure, which parses interElementSpace before attempting the optional
+        // first element.
         from leadingWs in OptionalWhitespaceOrLineContinuation(escapeChar)
         from execFormArgs in (
             from firstArg in JsonArrayFirstElement(escapeChar, canContainVariables).Once().Flatten()
@@ -364,7 +368,8 @@ internal static class ParseHelper
                 select ConcatTokens(delimiter, nextArg)).Many()
             select ConcatTokens(firstArg, tail.Flatten()))
             // Empty array: no elements found after optional whitespace (e.g. "[]" or "[ ]").
-            .XOr(Parse.Return(Enumerable.Empty<Token>()))
+            // Only allowed when allowEmpty is true (exec-form commands).
+            .XOr(allowEmpty ? Parse.Return(Enumerable.Empty<Token>()) : Parse.Return(Enumerable.Empty<Token>()).Where(_ => false))
         from closingBracket in Symbol(']').AsEnumerable()
         select ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
 

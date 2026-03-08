@@ -39,5 +39,5 @@ public class ExecFormCommand : Command
     public override CommandType CommandType => CommandType.ExecForm;
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-        ArgTokens(JsonArray(escapeChar, canContainVariables: false), escapeChar);
+        ArgTokens(JsonArray(escapeChar, canContainVariables: false, allowEmpty: true), escapeChar);
 }
