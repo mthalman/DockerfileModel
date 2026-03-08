@@ -1,12 +1,12 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
 public class FromFlag : KeyValueToken<KeywordToken, LiteralToken>
 {
-    public FromFlag(string stageName, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("from", escapeChar), new LiteralToken(stageName, canContainVariables: false, escapeChar), isFlag: true)
+    public FromFlag(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(new KeywordToken("from", escapeChar), new LiteralToken(value, canContainVariables: false, escapeChar), isFlag: true)
     {
     }
 
