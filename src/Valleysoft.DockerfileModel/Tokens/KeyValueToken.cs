@@ -125,14 +125,15 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
                 },
                 removeToken: token =>
                 {
-                    // Remove any whitespace tokens between the separator and the value token
+                    // Remove any whitespace, line continuation, and newline tokens between the separator and the value token.
+                    // Line continuations (e.g., backslash + newline) can appear between the separator and value when
+                    // the instruction spans multiple lines. Leaving them behind would break round-tripping.
                     Token? separator = Tokens.After(KeyToken).OfType<SymbolToken>().FirstOrDefault();
                     int startIndex = separator is not null ? TokenList.IndexOf(separator) + 1 : TokenList.IndexOf(KeyToken) + 1;
                     int endIndex = TokenList.IndexOf(token);
-                    // Remove whitespace tokens that precede the value token (between separator and value)
                     for (int i = endIndex - 1; i >= startIndex; i--)
                     {
-                        if (TokenList[i] is WhitespaceToken)
+                        if (TokenList[i] is WhitespaceToken or LineContinuationToken)
                         {
                             TokenList.RemoveAt(i);
                         }
