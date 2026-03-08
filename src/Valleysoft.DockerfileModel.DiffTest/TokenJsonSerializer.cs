@@ -28,7 +28,7 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///
 /// Known differences with workarounds:
 ///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
-///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
+///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
 ///   - EXPOSE port/protocol: C# splits into literal+symbol+literal; Lean uses one flat literal.
 ///     Workaround merges the three tokens back into a single literal during serialization.
 /// </summary>
@@ -88,12 +88,6 @@ public static class TokenJsonSerializer
             return;
         }
 
-        if (token is LabelInstruction labelInst)
-        {
-            SerializeLabel(sb, labelInst);
-            return;
-        }
-
         // RUN needs mount value flattening (issue #200) + shell form VariableRefToken validation (fail-fast)
         if (token is RunInstruction)
         {
@@ -107,14 +101,6 @@ public static class TokenJsonSerializer
             SerializeShellFormInstruction(sb, (Instruction)token);
             return;
         }
-
-        // STOPSIGNAL: C# doesn't parse variable refs (issue #199)
-        if (token is StopSignalInstruction)
-        {
-            SerializeStopSignal(sb, (StopSignalInstruction)token);
-            return;
-        }
-
 
         if (token is Instruction)
         {
@@ -336,63 +322,6 @@ public static class TokenJsonSerializer
                 SerializeToken(sb, child);
                 first = false;
             }
-        }
-
-        sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: LABEL instruction
-    // C# uses LiteralToken for label keys, Lean uses IdentifierToken.
-    // We remap the key's kind from "literal" to "identifier" during serialization.
-    // ===================================================================
-
-    private static void SerializeLabel(StringBuilder sb, LabelInstruction label)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in label.Tokens)
-        {
-            if (IsKeyValueToken(child))
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeLabelKeyValue(sb, (AggregateToken)child);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    private static void SerializeLabelKeyValue(StringBuilder sb, AggregateToken kvToken)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        bool isFirstChild = true;
-        foreach (Token child in kvToken.Tokens)
-        {
-            if (!first) sb.Append(',');
-            first = false;
-
-            // The first child of a LABEL KeyValueToken is the key.
-            // C# uses LiteralToken, Lean uses IdentifierToken. Remap.
-            if (isFirstChild && child is LiteralToken)
-            {
-                SerializeAggregate(sb, "identifier", child);
-            }
-            else
-            {
-                SerializeToken(sb, child);
-            }
-            isFirstChild = false;
         }
 
         sb.Append("]}");
@@ -836,221 +765,6 @@ public static class TokenJsonSerializer
         }
 
         sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: STOPSIGNAL variable ref parsing (see issue #199)
-    // C# doesn't parse variable refs ($VAR, ${VAR}) in STOPSIGNAL — it
-    // treats them as plain StringToken text inside a LiteralToken. Lean
-    // DOES parse them as variableRef tokens (since STOPSIGNAL supports
-    // variable substitution per Docker docs). This serializer scans
-    // StringToken values for variable ref patterns and emits the Lean-
-    // style variableRef aggregate tokens.
-    // ===================================================================
-
-    private static void SerializeStopSignal(StringBuilder sb, StopSignalInstruction instruction)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in instruction.Tokens)
-        {
-            if (child is LiteralToken literal)
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeLiteralWithVariableRefParsing(sb, literal);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Serialize a LiteralToken, parsing $VAR and ${VAR} patterns out of StringToken
-    /// children and emitting them as variableRef aggregate tokens (matching Lean behavior).
-    /// </summary>
-    private static void SerializeLiteralWithVariableRefParsing(StringBuilder sb, LiteralToken literal)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
-
-        if (literal.QuoteChar.HasValue)
-        {
-            sb.Append('"');
-            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
-            sb.Append('"');
-        }
-        else
-        {
-            sb.Append("null");
-        }
-
-        sb.Append(",\"children\":[");
-
-        bool first = true;
-        foreach (Token child in literal.Tokens)
-        {
-            if (child is StringToken strTok)
-            {
-                EmitStringWithVariableRefs(sb, strTok.Value, ref first);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Scan a string value for $VAR and ${VAR...} patterns and emit
-    /// alternating string primitives and variableRef aggregates.
-    /// Supports all modifier types: default-value (:-, :+, :?, -, +, ?)
-    /// and POSIX pattern (##, #, %%, %, //, /).
-    /// Lean's variableRef structure:
-    ///   Simple $VAR -> variableRef [ string("VAR") ]
-    ///   Braced ${VAR} -> variableRef [ symbol("{"), string("VAR"), symbol("}") ]
-    ///   Modified ${VAR:-value} -> variableRef [ symbol("{"), string("VAR"),
-    ///     symbol(":"), symbol("-"), literal [ string("value") ], symbol("}") ]
-    ///   POSIX ${VAR##pattern} -> variableRef [ symbol("{"), string("VAR"),
-    ///     symbol("#"), symbol("#"), literal [ string("pattern") ], symbol("}") ]
-    /// </summary>
-    private static void EmitStringWithVariableRefs(StringBuilder sb, string text, ref bool first)
-    {
-        int i = 0;
-        while (i < text.Length)
-        {
-            // Look for $ that starts a variable reference
-            if (text[i] == '$' && i + 1 < text.Length)
-            {
-                char next = text[i + 1];
-
-                // Braced variable reference: ${...}
-                if (next == '{')
-                {
-                    // Find the closing brace
-                    int braceStart = i + 2;
-                    int braceEnd = text.IndexOf('}', braceStart);
-                    if (braceEnd > braceStart)
-                    {
-                        // Extract the content between braces
-                        string braceContent = text[braceStart..braceEnd];
-
-                        // Parse variable name (alphanumeric + underscore)
-                        int nameEnd = 0;
-                        while (nameEnd < braceContent.Length &&
-                               (char.IsLetterOrDigit(braceContent[nameEnd]) || braceContent[nameEnd] == '_'))
-                        {
-                            nameEnd++;
-                        }
-
-                        if (nameEnd > 0)
-                        {
-                            string varName = braceContent[..nameEnd];
-                            string remainder = braceContent[nameEnd..];
-
-                            if (!first) sb.Append(',');
-                            first = false;
-
-                            // Emit variableRef aggregate
-                            sb.Append("{\"type\":\"aggregate\",\"kind\":\"variableRef\",\"quoteChar\":null,\"children\":[");
-                            SerializePrimitive(sb, "symbol", "{");
-                            sb.Append(',');
-                            SerializePrimitive(sb, "string", varName);
-
-                            // If there's a modifier (e.g., :-, :+, :?, -, +, ?, ##, #, %%, %, //, /)
-                            if (remainder.Length > 0)
-                            {
-                                // Emit each modifier character as a symbol
-                                int modEnd = 0;
-                                while (modEnd < remainder.Length &&
-                                       (remainder[modEnd] == ':' || remainder[modEnd] == '-' ||
-                                        remainder[modEnd] == '+' || remainder[modEnd] == '?' ||
-                                        remainder[modEnd] == '#' || remainder[modEnd] == '%' ||
-                                        remainder[modEnd] == '/'))
-                                {
-                                    sb.Append(',');
-                                    SerializePrimitive(sb, "symbol", remainder[modEnd].ToString());
-                                    modEnd++;
-                                }
-
-                                // Everything after the modifier chars is the modifier value (e.g., default, pattern, replacement)
-                                if (modEnd < remainder.Length)
-                                {
-                                    string modValue = remainder[modEnd..];
-                                    sb.Append(',');
-                                    // Wrap in a literal token (matching Lean behavior)
-                                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-                                    SerializePrimitive(sb, "string", modValue);
-                                    sb.Append("]}");
-                                }
-                            }
-
-                            sb.Append(',');
-                            SerializePrimitive(sb, "symbol", "}");
-                            sb.Append("]}");
-
-                            i = braceEnd + 1;
-                            continue;
-                        }
-                    }
-                }
-                // Simple variable reference: $IDENTIFIER
-                else if (char.IsLetterOrDigit(next) || next == '_')
-                {
-                    // Collect the identifier
-                    int nameStart = i + 1;
-                    int nameEnd = nameStart;
-                    while (nameEnd < text.Length &&
-                           (char.IsLetterOrDigit(text[nameEnd]) || text[nameEnd] == '_'))
-                    {
-                        nameEnd++;
-                    }
-
-                    string varName = text[nameStart..nameEnd];
-
-                    if (!first) sb.Append(',');
-                    first = false;
-
-                    // Emit variableRef aggregate with just the name
-                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"variableRef\",\"quoteChar\":null,\"children\":[");
-                    SerializePrimitive(sb, "string", varName);
-                    sb.Append("]}");
-
-                    i = nameEnd;
-                    continue;
-                }
-            }
-
-            // Regular text: collect until next $ or end
-            int textStart = i;
-            while (i < text.Length)
-            {
-                if (text[i] == '$' && i + 1 < text.Length &&
-                    (char.IsLetterOrDigit(text[i + 1]) || text[i + 1] == '_' || text[i + 1] == '{'))
-                {
-                    break;
-                }
-                i++;
-            }
-
-            if (i > textStart)
-            {
-                string segment = text[textStart..i];
-                if (!first) sb.Append(',');
-                first = false;
-                SerializePrimitive(sb, "string", segment);
-            }
-        }
     }
 
     /// <summary>

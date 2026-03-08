@@ -319,6 +319,26 @@ internal static class ParseHelper
             Enumerable.Empty<char>());
 
     /// <summary>
+    /// Parses the tokens within a LABEL key. Unquoted keys use identifier character
+    /// restrictions; quoted keys allow characters like whitespace and special characters
+    /// (e.g. apostrophes) that aren't valid in unquoted keys, but still exclude variable
+    /// reference characters (<c>$</c>), the key-value separator (<c>=</c>), and treat
+    /// the escape character specially.
+    /// </summary>
+    /// <param name="firstCharacterParser">Parser of the first character of an unquoted identifier.</param>
+    /// <param name="tailCharacterParser">Parser of the rest of the characters of an unquoted identifier.</param>
+    /// <param name="escapeChar">Escape character.</param>
+    public static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> LabelKeyTokens(Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar) =>
+        WrappedInOptionalQuotes(
+            (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
+                WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true,
+                    excludeVariableRefChars: true, wrappingQuoteChar: tokenWrapper.OpeningString[0]),
+            (char escapeChar, IEnumerable<char> excludedChars) =>
+                IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser),
+            escapeChar,
+            new[] { '=' });
+
+    /// <summary>
     /// Parses a literal string that is not wrapped in quotes.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
@@ -818,7 +838,7 @@ internal static class ParseHelper
     /// Parses variable ref characters.
     /// </summary>
     private static Parser<char> VariableRefChars() =>
-        Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{')));
+        Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{')).Or(Parse.Char('_')));
 
     /// <summary>
     /// Parses an escaped character.

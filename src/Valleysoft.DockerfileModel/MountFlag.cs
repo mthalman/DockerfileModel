@@ -29,5 +29,5 @@ public class MountFlag : KeyValueToken<KeywordToken, Mount>
             escapeChar: escapeChar);
 
     private static Parser<Mount> MountParser(char escapeChar) =>
-        SecretMount.GetParser(escapeChar);
+        Mount.GetParser(escapeChar);
 }
