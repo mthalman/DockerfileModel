@@ -28,11 +28,28 @@ public class OnBuildInstructionTests
         Assert.Equal("CMD test", result.TriggerInstruction);
         Assert.Equal("ONBUILD CMD test", result.ToString());
 
+        // Verify initial parse preserves StringToken/WhitespaceToken structure
+        Token[] initialTokens = result.TriggerInstructionToken.Tokens.ToArray();
+        Assert.Collection(initialTokens,
+            token => ValidateString(token, "CMD"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateString(token, "test"));
+
         result.TriggerInstruction = "RUN test2";
         Assert.Equal("RUN test2", result.TriggerInstruction);
         Assert.Equal("ONBUILD RUN test2", result.ToString());
 
+        // After mutation, LiteralToken.Value setter re-parses through
+        // WrappedInOptionalQuotesLiteralStringWithSpaces, which collapses
+        // WhitespaceTokens into StringTokens. The token structure changes
+        // from [String, Whitespace, String] to [String("RUN test2")].
+        Token[] mutatedTokens = result.TriggerInstructionToken.Tokens.ToArray();
+        Assert.Single(mutatedTokens);
+        Assert.IsType<StringToken>(mutatedTokens[0]);
+        Assert.Equal("RUN test2", ((StringToken)mutatedTokens[0]).Value);
+
         Assert.Throws<ArgumentNullException>(() => result.TriggerInstruction = null);
+        Assert.Throws<ArgumentException>(() => result.TriggerInstruction = "");
     }
 
     public static IEnumerable<object[]> ParseTestInput()

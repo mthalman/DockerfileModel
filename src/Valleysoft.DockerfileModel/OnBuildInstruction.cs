@@ -14,12 +14,20 @@ public class OnBuildInstruction : Instruction
     {
     }
 
+    /// <summary>
+    /// Gets or sets the trigger instruction text.
+    /// Note: The setter re-parses the value through LiteralToken.Value, which uses
+    /// WrappedInOptionalQuotesLiteralStringWithSpaces. This collapses the
+    /// StringToken/WhitespaceToken child structure into merged StringTokens.
+    /// The parsed token structure (with separate WhitespaceTokens) is only
+    /// preserved on the initial parse path, not through mutation.
+    /// </summary>
     public string TriggerInstruction
     {
         get => TriggerInstructionToken.Value;
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Requires.NotNullOrEmpty(value, nameof(value));
             TriggerInstructionToken.Value = value;
         }
     }
@@ -43,7 +51,7 @@ public class OnBuildInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string triggerInstruction, char escapeChar)
     {
-        Requires.NotNull(triggerInstruction, nameof(triggerInstruction));
+        Requires.NotNullOrEmpty(triggerInstruction, nameof(triggerInstruction));
         return GetTokens($"ONBUILD {triggerInstruction}", GetInnerParser(escapeChar));
     }
 
