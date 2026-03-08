@@ -63,18 +63,22 @@ public class Mount : AggregateToken
             keyValueParser.Cast<KeyValueToken<KeywordToken, LiteralToken>, Token>()
             .Or(KeywordToken.GetParser(escapeChar).Cast<KeywordToken, Token>());
 
-        // Parse: type=X followed by zero or more comma-separated entries
-        // Line continuations can appear between comma-separated pairs
+        // Parse: type=X followed by zero or more comma-separated entries.
+        // Line continuations can appear between comma-separated pairs.
+        // Whitespace() after each LineContinuations() handles indentation that may
+        // appear on the next line after a line continuation (e.g., "type=bind,\\\n  readonly").
         return
             from type in ArgTokens(
                 KeyValueToken<KeywordToken, LiteralToken>.GetParser(
                     KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
             from rest in (
                 from lineCont1 in LineContinuations(escapeChar)
+                from ws1 in Whitespace()
                 from comma in Symbol(',')
                 from lineCont2 in LineContinuations(escapeChar)
+                from ws2 in Whitespace()
                 from entry in entryParser
-                select ConcatTokens(lineCont1, new Token[] { comma }, lineCont2, new Token[] { entry })).Many()
+                select ConcatTokens(lineCont1, ws1, new Token[] { comma }, lineCont2, ws2, new Token[] { entry })).Many()
             select ConcatTokens(type, rest.SelectMany(t => t));
     }
 }

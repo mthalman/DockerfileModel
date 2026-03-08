@@ -228,6 +228,52 @@ public class MountTests
                     Assert.Equal("type=secret,id=mysecret,required,mode=0400", result.ToString());
                 }
             },
+            // Bare keyword after line continuation with indentation whitespace
+            new ParseTestScenario<Mount>
+            {
+                EscapeChar = '\\',
+                Text = "type=bind,source=/src,target=/app,\\\n  readonly",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyValue(token, "type", "bind"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyValue(token, "source", "/src"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyValue(token, "target", "/app"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateKeyword(token, "readonly"),
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("bind", result.Type);
+                    Assert.Equal("type=bind,source=/src,target=/app,\\\n  readonly", result.ToString());
+                }
+            },
+            // Key-value pair after line continuation with indentation whitespace
+            new ParseTestScenario<Mount>
+            {
+                EscapeChar = '\\',
+                Text = "type=secret,\\\n  id=mysecret,\\\n  required",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyValue(token, "type", "secret"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateKeyValue(token, "id", "mysecret"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateKeyword(token, "required"),
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("secret", result.Type);
+                    Assert.Equal("type=secret,\\\n  id=mysecret,\\\n  required", result.ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
