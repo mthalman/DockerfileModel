@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -15,24 +15,41 @@ public class OnBuildInstructionTests
     [MemberData(nameof(CreateTestInput))]
     public void Create(CreateTestScenario scenario)
     {
-        OnBuildInstruction result = new(scenario.Instruction);
+        OnBuildInstruction result = new(scenario.TriggerInstruction);
 
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
     }
 
     [Fact]
-    public void Instruction()
+    public void TriggerInstruction()
     {
-        OnBuildInstruction result = new(new CmdInstruction("test"));
-        Assert.Equal("CMD test", result.Instruction.ToString());
+        OnBuildInstruction result = new("CMD test");
+        Assert.Equal("CMD test", result.TriggerInstruction);
         Assert.Equal("ONBUILD CMD test", result.ToString());
 
-        result.Instruction = new RunInstruction("test2");
-        Assert.Equal("RUN test2", result.Instruction.ToString());
+        // Verify initial parse preserves StringToken/WhitespaceToken structure
+        Token[] initialTokens = result.TriggerInstructionToken.Tokens.ToArray();
+        Assert.Collection(initialTokens,
+            token => ValidateString(token, "CMD"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateString(token, "test"));
+
+        result.TriggerInstruction = "RUN test2";
+        Assert.Equal("RUN test2", result.TriggerInstruction);
         Assert.Equal("ONBUILD RUN test2", result.ToString());
 
-        Assert.Throws<ArgumentNullException>(() => result.Instruction = null);
+        // After mutation, LiteralToken.Value setter re-parses through
+        // WrappedInOptionalQuotesLiteralStringWithSpaces, which collapses
+        // WhitespaceTokens into StringTokens. The token structure changes
+        // from [String, Whitespace, String] to [String("RUN test2")].
+        Token[] mutatedTokens = result.TriggerInstructionToken.Tokens.ToArray();
+        Assert.Single(mutatedTokens);
+        Assert.IsType<StringToken>(mutatedTokens[0]);
+        Assert.Equal("RUN test2", ((StringToken)mutatedTokens[0]).Value);
+
+        Assert.Throws<ArgumentNullException>(() => result.TriggerInstruction = null);
+        Assert.Throws<ArgumentException>(() => result.TriggerInstruction = "");
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -46,17 +63,16 @@ public class OnBuildInstructionTests
                 {
                     token => ValidateKeyword(token, "ONBUILD"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<ArgInstruction>(token, "ARG name",
-                        token => ValidateKeyword(token, "ARG"),
+                    token => ValidateAggregate<LiteralToken>(token, "ARG name",
+                        token => ValidateString(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ArgDeclaration>(token, "name",
-                            token => ValidateIdentifier<Variable>(token, "name")))
+                        token => ValidateString(token, "name"))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("ONBUILD", result.InstructionName);
-                    Assert.Equal("ARG name", result.Instruction.ToString());
+                    Assert.Equal("ARG name", result.TriggerInstruction);
                 }
             },
             new ParseTestScenario<OnBuildInstruction>
@@ -69,17 +85,16 @@ public class OnBuildInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLineContinuation(token, '`', "\n"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<ArgInstruction>(token, "ARG name",
-                        token => ValidateKeyword(token, "ARG"),
+                    token => ValidateAggregate<LiteralToken>(token, "ARG name",
+                        token => ValidateString(token, "ARG"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ArgDeclaration>(token, "name",
-                            token => ValidateIdentifier<Variable>(token, "name")))
+                        token => ValidateString(token, "name"))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("ONBUILD", result.InstructionName);
-                    Assert.Equal("ARG name", result.Instruction.ToString());
+                    Assert.Equal("ARG name", result.TriggerInstruction);
                 }
             }
         };
@@ -93,17 +108,17 @@ public class OnBuildInstructionTests
         {
             new CreateTestScenario
             {
-                Instruction = new CopyInstruction(new string[] { "." }, "."),
+                TriggerInstruction = "COPY . .",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "ONBUILD"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CopyInstruction>(token, "COPY . .",
-                        token => ValidateKeyword(token, "COPY"),
+                    token => ValidateAggregate<LiteralToken>(token, "COPY . .",
+                        token => ValidateString(token, "COPY"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "."),
+                        token => ValidateString(token, "."),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "."))
+                        token => ValidateString(token, "."))
                 }
             }
         };
@@ -113,6 +128,6 @@ public class OnBuildInstructionTests
 
     public class CreateTestScenario : TestScenario<OnBuildInstruction>
     {
-        public Instruction Instruction { get; set; }
+        public string TriggerInstruction { get; set; }
     }
 }

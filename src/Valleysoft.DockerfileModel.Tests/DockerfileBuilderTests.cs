@@ -35,7 +35,7 @@ public class DockerfileBuilderTests
             })
             .MaintainerInstruction("name")
             .NewLine()
-            .OnBuildInstruction(new ExposeInstruction("333"))
+            .OnBuildInstruction("EXPOSE 333")
             .ParserDirective("escape", "\\")
             .RunInstruction("echo hi")
             .ShellInstruction("cmd")
