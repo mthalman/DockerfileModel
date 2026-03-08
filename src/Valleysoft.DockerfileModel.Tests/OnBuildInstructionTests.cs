@@ -79,6 +79,33 @@ public class OnBuildInstructionTests
                     Assert.Equal("ONBUILD", result.InstructionName);
                     Assert.Equal("ARG name", result.TriggerInstruction);
                 }
+            },
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD ARG `\n# my comment\nname",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "ARG `\n# my comment\nname",
+                        token => ValidateString(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, '`', "\n"),
+                        token => ValidateAggregate<CommentToken>(token, "# my comment\n",
+                            token => ValidateSymbol(token, '#'),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "my comment"),
+                            token => ValidateNewLine(token, "\n")),
+                        token => ValidateString(token, "name"))
+                },
+                Validate = result =>
+                {
+                    Assert.Collection(result.Comments,
+                        comment => Assert.Equal("my comment", comment));
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    Assert.Equal("ARG name", result.TriggerInstruction);
+                }
             }
         };
 

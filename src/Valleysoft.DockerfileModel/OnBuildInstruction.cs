@@ -56,9 +56,15 @@ public class OnBuildInstruction : Instruction
 
     // ONBUILD trigger text is opaque — BuildKit does not expand variables in it.
     // The $ character is treated as a regular character, not a variable reference.
+    // After a line continuation, any comment lines (# ...) are parsed as CommentTokens
+    // so they don't leak into the trigger string value (LiteralToken.Value excludes comments).
     private static Parser<LiteralToken> LiteralTokenWithSpaces(char escapeChar) =>
         from literal in LiteralString(escapeChar, Enumerable.Empty<char>(), excludeVariableRefChars: false)
-            .Or(Whitespace()).Or(LineContinuations(escapeChar)).Many().Flatten()
+            .Or(Whitespace())
+            .Or(from lc in LineContinuations(escapeChar)
+                from comments in CommentText().Many()
+                select ConcatTokens(lc, comments.Flatten()))
+            .Many().Flatten()
         where literal.Any()
         select new LiteralToken(TokenHelper.CollapseStringTokens(literal), canContainVariables: false, escapeChar);
 }
