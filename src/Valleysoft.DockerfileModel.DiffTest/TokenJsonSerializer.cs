@@ -331,16 +331,16 @@ public static class TokenJsonSerializer
 
         // Merge adjacent string-like tokens (StringToken + flattened VariableRefToken)
         bool first = true;
-        string pending = "";
+        StringBuilder pending = new();
         foreach (Token child in literal.Tokens)
         {
             if (child is VariableRefToken varRef)
             {
-                pending += varRef.ToString();
+                pending.Append(varRef.ToString());
             }
             else if (child is StringToken strTok)
             {
-                pending += strTok.Value;
+                pending.Append(strTok.Value);
             }
             else
             {
@@ -349,8 +349,8 @@ public static class TokenJsonSerializer
                 {
                     if (!first) sb.Append(',');
                     first = false;
-                    SerializePrimitive(sb, "string", pending);
-                    pending = "";
+                    SerializePrimitive(sb, "string", pending.ToString());
+                    pending.Clear();
                 }
                 if (!first) sb.Append(',');
                 first = false;
@@ -361,7 +361,7 @@ public static class TokenJsonSerializer
         if (pending.Length > 0)
         {
             if (!first) sb.Append(',');
-            SerializePrimitive(sb, "string", pending);
+            SerializePrimitive(sb, "string", pending.ToString());
         }
 
         sb.Append("]}");
