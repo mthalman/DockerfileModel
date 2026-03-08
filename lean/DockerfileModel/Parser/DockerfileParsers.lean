@@ -666,9 +666,11 @@ def argDeclarationParser (escapeChar : Char) : Parser Token := do
     whitespace within the command is preserved as part of a single StringToken
     (not split into separate WhitespaceToken children).
 
-    The result is a single LiteralToken containing one StringToken with the
-    full command text (plus any LineContinuationToken nodes for line
-    continuations within the command).
+    The result is a single LiteralToken whose children are:
+      - a single StringToken with the full command text when there are no
+        line continuations, or
+      - multiple StringTokens (one per text segment) separated by
+        LineContinuationToken node(s) when line continuations occur.
 
     Corresponds to the shell-form branch of CommandInstruction.GetCommandParser() -/
 partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
