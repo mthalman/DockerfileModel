@@ -35,7 +35,7 @@ public class LabelKeyToken : IdentifierToken
         GetTokens(value, GetInnerParser(escapeChar)).Tokens;
 
     private static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> GetInnerParser(char escapeChar) =>
-        IdentifierTokens(FirstCharParser(), TailCharParser(), escapeChar);
+        LabelKeyTokens(FirstCharParser(), TailCharParser(), escapeChar);
 
     // Digits are intentionally excluded from the first-character set.
     // BuildKit's parser (and the Lean formal spec) only allow alphabetic

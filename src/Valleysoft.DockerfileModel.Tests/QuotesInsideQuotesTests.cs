@@ -294,6 +294,24 @@ public class QuotesInsideQuotesTests
     #region Edge cases
 
     /// <summary>
+    /// Single quote inside double-quoted key (keys can be quoted too).
+    /// </summary>
+    [Fact]
+    public void Label_SingleQuoteInsideDoubleQuotedKey()
+    {
+        string text = "LABEL \"it's\"=value";
+        LabelInstruction result = LabelInstruction.Parse(text);
+
+        // Round-trip fidelity
+        Assert.Equal(text, result.ToString());
+
+        // Semantic validation
+        Assert.Single(result.Labels);
+        Assert.Equal("it's", result.Labels[0].Key);
+        Assert.Equal("value", result.Labels[0].Value);
+    }
+
+    /// <summary>
     /// Multiple single quotes inside a double-quoted value.
     /// </summary>
     [Fact]

@@ -319,6 +319,24 @@ internal static class ParseHelper
             Enumerable.Empty<char>());
 
     /// <summary>
+    /// Parses the tokens within a LABEL key. Unquoted keys use identifier character
+    /// restrictions; quoted keys allow any characters (matching Docker/BuildKit behavior
+    /// where quoted LABEL keys can contain special characters like apostrophes).
+    /// </summary>
+    /// <param name="firstCharacterParser">Parser of the first character of an unquoted identifier.</param>
+    /// <param name="tailCharacterParser">Parser of the rest of the characters of an unquoted identifier.</param>
+    /// <param name="escapeChar">Escape character.</param>
+    public static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> LabelKeyTokens(Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar) =>
+        WrappedInOptionalQuotes(
+            (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
+                WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true,
+                    excludeVariableRefChars: true, wrappingQuoteChar: tokenWrapper.OpeningString[0]),
+            (char escapeChar, IEnumerable<char> excludedChars) =>
+                IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser),
+            escapeChar,
+            Enumerable.Empty<char>());
+
+    /// <summary>
     /// Parses a literal string that is not wrapped in quotes.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>

@@ -341,7 +341,28 @@ public class LabelInstructionTests
             new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL \"it's\"=value",
-                ParseExceptionPosition = new Position(9, 1, 10)
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "LABEL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "\"it's\"=value",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "it's", '\"'),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "value"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("LABEL", result.InstructionName);
+                    Assert.Collection(result.Labels, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("it's", pair.Key);
+                            Assert.Equal("value", pair.Value);
+                        }
+                    });
+                }
             },
             new ParseTestScenario<LabelInstruction>
             {
