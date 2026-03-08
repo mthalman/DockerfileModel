@@ -281,97 +281,40 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Shell form literal flattening
-    // C# decomposes $VAR in shell form commands into VariableRefToken, but
-    // Lean (matching BuildKit) treats the entire command text as opaque —
-    // $VAR is just a regular character sequence inside a single StringToken.
-    // This serializer flattens VariableRefTokens back to plain StringToken
-    // text to match Lean's output.
+    // Shell form literal serialization
+    // Shell form commands are parsed as opaque text without variable
+    // expansion — $VAR is treated as a regular character sequence inside
+    // a StringToken, not decomposed into a VariableRefToken. If a
+    // VariableRefToken is ever encountered here, it indicates a parsing
+    // regression that should be investigated.
     // ===================================================================
 
     /// <summary>
-    /// Serialize a shell form LiteralToken, flattening any VariableRefToken
-    /// children back to plain StringToken text (matching Lean/BuildKit behavior).
+    /// Serialize a shell form LiteralToken. Shell form commands should never
+    /// contain VariableRefToken children; encountering one is a fail-fast error.
     /// </summary>
     private static void SerializeShellFormLiteral(StringBuilder sb, LiteralToken literal)
     {
-        // Check if any children need flattening
-        bool hasVarRefs = false;
+        // Fail fast if a VariableRefToken is encountered — shell form commands
+        // are parsed as opaque text and should never produce variable ref nodes.
         foreach (Token child in literal.Tokens)
         {
             if (child is VariableRefToken)
             {
-                hasVarRefs = true;
-                break;
+                throw new InvalidOperationException(
+                    "Unexpected VariableRefToken in shell form LiteralToken. " +
+                    "Shell form commands should be parsed as opaque text without variable expansion.");
             }
         }
 
-        if (!hasVarRefs)
-        {
-            // No variable refs to flatten — serialize normally
-            SerializeAggregate(sb, "literal", literal);
-            return;
-        }
-
-        // Flatten VariableRefTokens to plain text
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
-
-        if (literal.QuoteChar.HasValue)
-        {
-            sb.Append('"');
-            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
-            sb.Append('"');
-        }
-        else
-        {
-            sb.Append("null");
-        }
-
-        sb.Append(",\"children\":[");
-
-        // Merge adjacent string-like tokens (StringToken + flattened VariableRefToken)
-        bool first = true;
-        StringBuilder pending = new();
-        foreach (Token child in literal.Tokens)
-        {
-            if (child is VariableRefToken varRef)
-            {
-                pending.Append(varRef.ToString());
-            }
-            else if (child is StringToken strTok)
-            {
-                pending.Append(strTok.Value);
-            }
-            else
-            {
-                // Non-string token (e.g., LineContinuationToken): flush pending, emit token
-                if (pending.Length > 0)
-                {
-                    if (!first) sb.Append(',');
-                    first = false;
-                    SerializePrimitive(sb, "string", pending.ToString());
-                    pending.Clear();
-                }
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeToken(sb, child);
-            }
-        }
-
-        if (pending.Length > 0)
-        {
-            if (!first) sb.Append(',');
-            SerializePrimitive(sb, "string", pending.ToString());
-        }
-
-        sb.Append("]}");
+        SerializeAggregate(sb, "literal", literal);
     }
 
     // ===================================================================
     // Shell form instructions (CMD, ENTRYPOINT)
-    // These need variable ref flattening inside their shell form LiteralTokens.
-    // The Command wrapper (ShellFormCommand) is transparent, so the LiteralToken
-    // appears after inlining.
+    // Shell form commands are parsed as opaque text. The Command wrapper
+    // (ShellFormCommand) is transparent, so the LiteralToken appears
+    // after inlining.
     // ===================================================================
 
     private static void SerializeShellFormInstruction(StringBuilder sb, Instruction instruction)
