@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
@@ -10,19 +10,19 @@ public class HealthCheckInstruction : Instruction
 
     public HealthCheckInstruction(string commandWithArgs, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(new CmdInstruction(commandWithArgs), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
+        : this(GetTokens(ValidateNotNullOrEmpty(commandWithArgs, nameof(commandWithArgs)), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
     public HealthCheckInstruction(IEnumerable<string> defaultArgs, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(new CmdInstruction(defaultArgs), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
+        : this(GetTokens(ValidateAndFormatAsJson(defaultArgs, nameof(defaultArgs)), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
     public HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(new CmdInstruction(command, args), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
+        : this(GetTokens(ValidateAndFormatAsJson(command, args), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
@@ -137,24 +137,72 @@ public class HealthCheckInstruction : Instruction
         set => SetOptionalFlagToken(RetriesFlag, value);
     }
 
-    public CmdInstruction? CmdInstruction
+    public Command? Command
     {
-        get => Tokens.OfType<CmdInstruction>().FirstOrDefault();
+        get => Tokens.OfType<Command>().FirstOrDefault();
         set
         {
-            SetToken(CmdInstruction, value,
-                addToken: token =>
+            Command? current = Command;
+            if (current is not null)
+            {
+                if (value is null)
                 {
-                    // Replace the existing NONE keyword
-                    int index = TokenList.IndexOf(Tokens.OfType<KeywordToken>().Last());
-                    TokenList[index] = token;
-                },
-                removeToken: token =>
+                    // Remove CMD keyword, whitespace before command, and the command itself.
+                    // Find the CMD keyword (the last KeywordToken before the command).
+                    KeywordToken? cmdKeyword = Tokens.OfType<KeywordToken>().LastOrDefault(k => k.Value.Equals("CMD", StringComparison.OrdinalIgnoreCase));
+                    if (cmdKeyword is not null)
+                    {
+                        int cmdKeywordIndex = TokenList.IndexOf(cmdKeyword);
+                        int commandIndex = TokenList.IndexOf(current);
+                        // Remove from CMD keyword up to and including the command token,
+                        // preserving any trailing tokens (comments, newlines) after the command.
+                        if (cmdKeywordIndex >= 0 && commandIndex >= cmdKeywordIndex)
+                        {
+                            int removeCount = commandIndex - cmdKeywordIndex + 1;
+                            for (int i = 0; i < removeCount; i++)
+                            {
+                                TokenList.RemoveAt(cmdKeywordIndex);
+                            }
+                            // Also remove the whitespace before CMD keyword
+                            if (cmdKeywordIndex > 0 && TokenList[cmdKeywordIndex - 1] is WhitespaceToken)
+                            {
+                                TokenList.RemoveAt(cmdKeywordIndex - 1);
+                                cmdKeywordIndex--;
+                            }
+                            // Insert NONE keyword with preceding whitespace at the original CMD position
+                            TokenList.Insert(cmdKeywordIndex, new WhitespaceToken(" "));
+                            TokenList.Insert(cmdKeywordIndex + 1, new KeywordToken("NONE", escapeChar));
+                        }
+                    }
+                }
+                else
                 {
-                    // Replace the CMD instruction
-                    int index = TokenList.IndexOf(token);
-                    TokenList[index] = new KeywordToken("NONE", escapeChar);
-                });
+                    TokenList[TokenList.IndexOf(current)] = value;
+                }
+            }
+            else if (value is not null)
+            {
+                // Replace NONE keyword with CMD keyword + whitespace + command
+                KeywordToken? noneKeyword = Tokens.OfType<KeywordToken>().LastOrDefault(k => k.Value.Equals("NONE", StringComparison.OrdinalIgnoreCase));
+                if (noneKeyword is not null)
+                {
+                    int noneIndex = TokenList.IndexOf(noneKeyword);
+                    // Also remove whitespace before NONE
+                    int wsIndex = noneIndex - 1;
+                    if (wsIndex >= 0 && TokenList[wsIndex] is WhitespaceToken)
+                    {
+                        TokenList.RemoveAt(wsIndex);
+                        noneIndex--; // adjust after removal
+                    }
+                    TokenList.RemoveAt(noneIndex);
+                    // Insert whitespace + CMD keyword + whitespace + command at the position where NONE was
+                    // to preserve ordering of any trailing tokens (comments, newlines)
+                    TokenList.Insert(noneIndex, new WhitespaceToken(" "));
+                    TokenList.Insert(noneIndex + 1, new KeywordToken("CMD", escapeChar));
+                    TokenList.Insert(noneIndex + 2, new WhitespaceToken(" "));
+                    TokenList.Insert(noneIndex + 3, value);
+                }
+            }
         }
     }
 
@@ -165,12 +213,12 @@ public class HealthCheckInstruction : Instruction
         from tokens in GetInnerParser(escapeChar)
         select new HealthCheckInstruction(tokens, escapeChar);
 
-    private static IEnumerable<Token> GetTokens(CmdInstruction commandInstruction, string? interval, string? timeout,
+    private static IEnumerable<Token> GetTokens(string commandBody, string? interval, string? timeout,
         string? startPeriod, string? startInterval, string? retries, char escapeChar)
     {
-        Requires.NotNull(commandInstruction, nameof(commandInstruction));
+        Requires.NotNullOrEmpty(commandBody, nameof(commandBody));
         return GetTokens(
-            $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, startInterval, retries, escapeChar)}{commandInstruction}", GetInnerParser(escapeChar));
+            $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, startInterval, retries, escapeChar)}CMD {commandBody}", GetInnerParser(escapeChar));
     }
 
     private static string GetOptionArgs(string? interval, string? timeout, string? startPeriod, string? startInterval, string? retries, char escapeChar)
@@ -206,9 +254,17 @@ public class HealthCheckInstruction : Instruction
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from options in Options(escapeChar)
-        from command in ArgTokens(CmdInstruction.GetParser(escapeChar).AsEnumerable(), escapeChar)
+        from command in CmdTokens(escapeChar)
             .Or(ArgTokens(KeywordToken.GetParser("NONE", escapeChar).AsEnumerable(), escapeChar))
         select ConcatTokens(options, command);
+
+    private static Parser<IEnumerable<Token>> CmdTokens(char escapeChar) =>
+        from cmdKeyword in ArgTokens(KeywordToken.GetParser("CMD", escapeChar).AsEnumerable(), escapeChar)
+        from cmd in ArgTokens(
+            ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Token>()
+                .XOr(ShellFormCommand.GetParser(escapeChar).Cast<ShellFormCommand, Token>())
+                .AsEnumerable(), escapeChar)
+        select ConcatTokens(cmdKeyword, cmd);
 
     private static Parser<IEnumerable<Token>> Options(char escapeChar) =>
         ArgTokens(
@@ -219,4 +275,23 @@ public class HealthCheckInstruction : Instruction
                 .Or(RetriesFlag.GetParser(escapeChar)).AsEnumerable(),
             escapeChar)
             .Many().Flatten();
+
+    private static string ValidateNotNullOrEmpty(string value, string paramName)
+    {
+        Requires.NotNullOrEmpty(value, paramName);
+        return value;
+    }
+
+    private static string ValidateAndFormatAsJson(IEnumerable<string> defaultArgs, string paramName)
+    {
+        Requires.NotNull(defaultArgs, paramName);
+        return StringHelper.FormatAsJson(defaultArgs);
+    }
+
+    private static string ValidateAndFormatAsJson(string command, IEnumerable<string> args)
+    {
+        Requires.NotNullOrEmpty(command, nameof(command));
+        Requires.NotNull(args, nameof(args));
+        return StringHelper.FormatAsJson(new string[] { command }.Concat(args));
+    }
 }
