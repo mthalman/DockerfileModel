@@ -58,12 +58,14 @@ public class OnBuildInstruction : Instruction
     // The $ character is treated as a regular character, not a variable reference.
     // After a line continuation, any comment lines (# ...) are parsed as CommentTokens
     // so they don't leak into the trigger string value (LiteralToken.Value excludes comments).
+    // Leading whitespace before comments is also filtered out so it doesn't leak into Value.
     private static Parser<LiteralToken> LiteralTokenWithSpaces(char escapeChar) =>
         from literal in LiteralString(escapeChar, Enumerable.Empty<char>(), excludeVariableRefChars: false)
             .Or(Spaces())
             .Or(from lc in LineContinuations(escapeChar)
                 from comments in CommentText().Many()
-                select ConcatTokens(lc, comments.Flatten()))
+                let filteredComments = comments.Flatten().SkipWhile(token => token is WhitespaceToken)
+                select ConcatTokens(lc, filteredComments))
             .Many().Flatten()
         where literal.Any()
         select new LiteralToken(TokenHelper.CollapseStringTokens(literal), canContainVariables: false, escapeChar);

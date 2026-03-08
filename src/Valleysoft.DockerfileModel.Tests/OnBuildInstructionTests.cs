@@ -44,6 +44,15 @@ public class OnBuildInstructionTests
         Assert.Throws<ArgumentException>(() => new OnBuildInstruction(" "));
     }
 
+    [Fact]
+    public void TriggerInstruction_IndentedCommentWhitespaceExcludedFromValue()
+    {
+        OnBuildInstruction result = OnBuildInstruction.Parse("ONBUILD ARG `\n  # indented comment\nname", '`');
+        Assert.Equal("ARG name", result.TriggerInstruction);
+        Assert.Collection(result.Comments,
+            comment => Assert.Equal("indented comment", comment));
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<OnBuildInstruction>[] testInputs = new ParseTestScenario<OnBuildInstruction>[]
