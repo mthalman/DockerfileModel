@@ -674,7 +674,7 @@ def argDeclarationParser (escapeChar : Char) : Parser Token := do
 partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
   -- Parse shell form as opaque text: $ is treated as a regular character.
   -- Each iteration produces either:
-  --   a) a non-escape, non-newline character → StringToken, or
+  --   a) a maximal run of non-escape, non-newline characters → single StringToken, or
   --   b) a line continuation (escape + optional whitespace + newline) → LineContinuationToken, or
   --   c) an escaped char (escape + non-newline char, not a line continuation) → StringToken.
   --
@@ -683,10 +683,10 @@ partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
   -- `escapedChar` consuming `\<space>` and terminating the instruction.
   let parts ← many1 (
     or' (do
-      -- Any non-escape, non-newline character (including $, spaces, tabs)
-      let c ← satisfy (fun c => !isLineTerminator c && c != escapeChar)
-                       "shell form character"
-      Parser.pure (Token.mkString (String.ofList [c])))
+      -- Maximal run of non-escape, non-newline characters (including $, spaces, tabs)
+      let s ← many1Chars (satisfy (fun c => !isLineTerminator c && c != escapeChar)
+                       "shell form character")
+      Parser.pure (Token.mkString s))
     (or'
       -- Line continuation (escape + optional whitespace + newline) — must be
       -- tried first so `\<trailing-spaces><newline>` is not consumed by escapedChar
