@@ -1,10 +1,17 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
+using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public abstract class Mount : AggregateToken
+/// <summary>
+/// Represents a mount specification for RUN --mount flags.
+/// Handles all BuildKit mount types (bind, cache, tmpfs, secret, ssh) by parsing
+/// the mount value as a type=X prefix followed by zero or more comma-separated entries,
+/// where each entry is either a key=value pair or a bare keyword (e.g., required, readonly).
+/// </summary>
+public class Mount : AggregateToken
 {
-    protected Mount(IEnumerable<Token> tokens) : base(tokens)
+    internal Mount(IEnumerable<Token> tokens) : base(tokens)
     {
     }
 
@@ -28,5 +35,55 @@ public abstract class Mount : AggregateToken
             Requires.NotNull(value, nameof(value));
             SetToken(TypeToken, value);
         }
+    }
+
+    public static Mount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        new(GetTokens(text, GetInnerParser(escapeChar)));
+
+    public static Parser<Mount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        from tokens in GetInnerParser(escapeChar)
+        select new Mount(tokens);
+
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar)
+    {
+        Parser<LiteralToken> valueParser = LiteralWithVariables(
+            escapeChar, new char[] { ',' });
+
+        Parser<KeyValueToken<KeywordToken, LiteralToken>> keyValueParser =
+            KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                KeywordToken.GetParser(escapeChar), valueParser, escapeChar: escapeChar);
+
+        // Each comma-separated entry is either a key=value pair or a bare keyword (e.g. "required", "readonly").
+        // Note: .Or() is correct here, not .XOr(). In Sprache, .Or() always backtracks to the original
+        // input position when the first parser fails, even if it consumed input. When the keyValueParser
+        // consumes a keyword like "required" but then fails on the missing '=', .Or() retries from the
+        // original position so the bare KeywordToken parser can succeed. Using .XOr() would break this
+        // because it does NOT backtrack when input has been consumed (committed choice).
+        Parser<Token> entryParser =
+            keyValueParser.Cast<KeyValueToken<KeywordToken, LiteralToken>, Token>()
+            .Or(KeywordToken.GetParser(escapeChar).Cast<KeywordToken, Token>());
+
+        // Parse: type=X followed by zero or more comma-separated entries.
+        // Line continuations can appear between comma-separated pairs.
+        // Whitespace() after each LineContinuations() handles indentation that may
+        // appear on the next line after a line continuation (e.g., "type=bind,\\\n  readonly").
+        // CommentText() handles comment lines that can appear after line continuations
+        // (e.g., "type=bind,\\\n# comment\nreadonly").
+        return
+            from type in ArgTokens(
+                KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                    KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
+            from rest in (
+                from lineCont1 in LineContinuations(escapeChar)
+                from comments1 in CommentText().Many()
+                from ws1 in Whitespace()
+                from comma in Symbol(',')
+                from wsAfterComma in Whitespace()
+                from lineCont2 in LineContinuations(escapeChar)
+                from comments2 in CommentText().Many()
+                from ws2 in Whitespace()
+                from entry in entryParser
+                select ConcatTokens(lineCont1, comments1.SelectMany(c => c), ws1, new Token[] { comma }, wsAfterComma, lineCont2, comments2.SelectMany(c => c), ws2, new Token[] { entry })).Many()
+            select ConcatTokens(type, rest.SelectMany(t => t));
     }
 }

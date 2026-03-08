@@ -820,8 +820,8 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Workaround: RUN instruction — mount value flattening (see issue #200)
-    // C# over-parses mount flag values into structured KeyValueToken children
+    // RUN instruction — mount value flattening for diff test normalization.
+    // C# parses mount flag values into structured KeyValueToken children
     // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
     // value as an opaque literal string. This serializer flattens the Mount
     // aggregate back to a single LiteralToken containing the opaque text.
