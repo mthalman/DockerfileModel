@@ -78,11 +78,12 @@ public class Mount : AggregateToken
                 from comments1 in CommentText().Many()
                 from ws1 in Whitespace()
                 from comma in Symbol(',')
+                from wsAfterComma in Whitespace()
                 from lineCont2 in LineContinuations(escapeChar)
                 from comments2 in CommentText().Many()
                 from ws2 in Whitespace()
                 from entry in entryParser
-                select ConcatTokens(lineCont1, comments1.SelectMany(c => c), ws1, new Token[] { comma }, lineCont2, comments2.SelectMany(c => c), ws2, new Token[] { entry })).Many()
+                select ConcatTokens(lineCont1, comments1.SelectMany(c => c), ws1, new Token[] { comma }, wsAfterComma, lineCont2, comments2.SelectMany(c => c), ws2, new Token[] { entry })).Many()
             select ConcatTokens(type, rest.SelectMany(t => t));
     }
 }
