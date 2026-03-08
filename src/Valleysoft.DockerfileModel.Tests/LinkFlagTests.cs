@@ -4,39 +4,57 @@ using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
 namespace Valleysoft.DockerfileModel.Tests;
 
-public class KeepGitDirFlagTests
+public class LinkFlagTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ParseTestScenario<KeepGitDirFlag> scenario) =>
-        TestHelper.RunParseTest(scenario, KeepGitDirFlag.Parse);
+    public void Parse(ParseTestScenario<LinkFlag> scenario) =>
+        TestHelper.RunParseTest(scenario, LinkFlag.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
     public void Create(CreateTestScenario scenario)
     {
-        KeepGitDirFlag result = new();
+        LinkFlag result = new();
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
     }
 
+    [Fact]
+    public void ValueProperty()
+    {
+        LinkFlag result = LinkFlag.Parse("--link");
+
+        // Value getter returns null (via null! on the non-nullable override)
+        Assert.Null(result.Value);
+
+        // Value setter throws NotSupportedException
+        Assert.Throws<NotSupportedException>(() => result.Value = "test");
+
+        // IKeyValuePair.Value getter returns null
+        Assert.Null(((IKeyValuePair)result).Value);
+
+        // IKeyValuePair.Value setter throws NotSupportedException
+        Assert.Throws<NotSupportedException>(() => ((IKeyValuePair)result).Value = "test");
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ParseTestScenario<KeepGitDirFlag>[] testInputs = new ParseTestScenario<KeepGitDirFlag>[]
+        ParseTestScenario<LinkFlag>[] testInputs = new ParseTestScenario<LinkFlag>[]
         {
-            new ParseTestScenario<KeepGitDirFlag>
+            new ParseTestScenario<LinkFlag>
             {
-                Text = "--keep-git-dir",
+                Text = "--link",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateSymbol(token, '-'),
                     token => ValidateSymbol(token, '-'),
-                    token => ValidateKeyword(token, "keep-git-dir")
+                    token => ValidateKeyword(token, "link")
                 },
                 Validate = result =>
                 {
-                    Assert.Equal("--keep-git-dir", result.ToString());
-                    Assert.Equal("keep-git-dir", result.Key);
+                    Assert.Equal("--link", result.ToString());
+                    Assert.Equal("link", result.Key);
                     Assert.Null(((IKeyValuePair)result).Value);
                 }
             },
@@ -55,12 +73,12 @@ public class KeepGitDirFlagTests
                 {
                     token => ValidateSymbol(token, '-'),
                     token => ValidateSymbol(token, '-'),
-                    token => ValidateKeyword(token, "keep-git-dir")
+                    token => ValidateKeyword(token, "link")
                 },
                 Validate = result =>
                 {
-                    Assert.Equal("--keep-git-dir", result.ToString());
-                    Assert.Equal("keep-git-dir", result.Key);
+                    Assert.Equal("--link", result.ToString());
+                    Assert.Equal("link", result.Key);
                     Assert.Null(((IKeyValuePair)result).Value);
                 }
             },
@@ -69,7 +87,7 @@ public class KeepGitDirFlagTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class CreateTestScenario : TestScenario<KeepGitDirFlag>
+    public class CreateTestScenario : TestScenario<LinkFlag>
     {
     }
 }

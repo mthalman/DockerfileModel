@@ -5,9 +5,12 @@ namespace Valleysoft.DockerfileModel;
 
 /// <summary>
 /// Base class for standalone boolean flags (e.g., --link, --keep-git-dir) that have no value.
+/// Extends KeyValueToken so that the token maps to the "keyValue" kind,
+/// consistent with the Lean specification where boolean flags are keyValue tokens.
+/// The separator and value are both absent; IKeyValuePair.Value returns null.
 /// Subclasses only need to specify their keyword string and provide static Parse/GetParser wrappers.
 /// </summary>
-public abstract class BooleanFlag : AggregateToken
+public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
 {
     protected BooleanFlag(string keyword, char escapeChar)
         : base(GetTokens($"--{keyword}", GetInnerParser(keyword, escapeChar)))
@@ -16,6 +19,23 @@ public abstract class BooleanFlag : AggregateToken
 
     protected BooleanFlag(IEnumerable<Token> tokens) : base(tokens)
     {
+    }
+
+    /// <summary>
+    /// Boolean flags have no value; always returns null.
+    /// Setting a value is not supported.
+    /// </summary>
+    /// <returns>Always returns <c>null</c>. Boolean flags have no value.</returns>
+    /// <remarks>
+    /// Overrides the base class <see cref="KeyValueToken{TKey, TValue}.Value"/> property
+    /// to prevent callers from accidentally reading <see cref="string.Empty"/> or
+    /// inserting a <see cref="LiteralToken"/> via the setter, which would create a
+    /// structurally invalid boolean flag.
+    /// </remarks>
+    public override string Value
+    {
+        get => null!;
+        set => throw new NotSupportedException("Boolean flags do not support a value.");
     }
 
     protected static TFlag ParseFlag<TFlag>(string text, string keyword,

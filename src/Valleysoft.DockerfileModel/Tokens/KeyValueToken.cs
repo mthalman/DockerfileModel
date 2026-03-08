@@ -52,7 +52,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         set => Value = value!;
     }
 
-    public string Value
+    public virtual string Value
     {
         get
         {
@@ -182,10 +182,10 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
             optionalValue: optionalValue)
         select createToken(tokens);
 
-    // The two branches of the optionalValue conditional share the same flag/keyword/separatorToken
-    // parsing pipeline but differ in whether the value is required or optional. Sprache's LINQ query
-    // syntax does not allow factoring out the common prefix without losing the required-vs-optional
-    // distinction on the value parser, so the duplication is intentional for clarity.
+    // The two branches share the same flag/keyword parsing pipeline but differ in whether the
+    // value is required or optional. Sprache's LINQ query syntax does not allow factoring out
+    // the common prefix without losing the required-vs-optional distinction, so the duplication
+    // is intentional for clarity.
     private static Parser<IEnumerable<Token>> GetInnerParser(char separator, Parser<TKey> keyTokenParser,
         Parser<TValue> valueTokenParser, char escapeChar, bool excludeLeadingWhitespaceInValue, bool excludeTrailingWhitespaceInSeparator,
         bool optionalValue = false) =>
