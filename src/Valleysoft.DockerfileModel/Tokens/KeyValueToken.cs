@@ -83,6 +83,11 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
                 // insert a ValueToken manually.
                 if (typeof(TValue) == typeof(LiteralToken))
                 {
+                    // Limitation: This LiteralToken is constructed with the default escape char
+                    // because the original instruction's escapeChar is not available here. This is
+                    // correct for the vast majority of Dockerfiles (which use backslash). A full
+                    // fix would require threading escapeChar through the property chain, which is
+                    // a larger refactor.
                     ValueToken = (TValue)(Token)new LiteralToken(value, canContainVariables: true);
                     return;
                 }
