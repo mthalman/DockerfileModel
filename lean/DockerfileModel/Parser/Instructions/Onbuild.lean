@@ -4,19 +4,31 @@
   Parses the ONBUILD instruction:
     ONBUILD TriggerInstruction
 
-  After parsing the ONBUILD keyword, the rest of the line is captured as
-  raw text (a LiteralToken). The trigger instruction is NOT recursively
-  parsed — it's treated as opaque text.
+  After parsing the ONBUILD keyword, the trigger instruction is RECURSIVELY
+  parsed as a full instruction using the same dispatch as top-level
+  instructions. This matches BuildKit's `parseSubCommand` which calls
+  `newNodeFromLine(rest, d)` to fully parse the trigger.
 
-  Validation: The trigger must not start with a restricted keyword
-  (case-insensitive): ONBUILD (no chaining), FROM, MAINTAINER.
+  The result is:
+    ONBUILD InstructionToken [ ... trigger instruction tokens ... ]
+
+  For example, `ONBUILD RUN echo hello` produces:
+    InstructionToken [
+      KeywordToken("ONBUILD"),
+      WhitespaceToken(" "),
+      InstructionToken [
+        KeywordToken("RUN"),
+        WhitespaceToken(" "),
+        LiteralToken("echo hello")
+      ]
+    ]
 
   Token structure produced:
     InstructionToken [
       WhitespaceToken?,           -- leading whitespace
       KeywordToken("ONBUILD"),    -- instruction keyword
       WhitespaceToken(" "),       -- separator
-      LiteralToken(trigger)       -- trigger instruction text
+      InstructionToken(trigger)   -- recursively parsed trigger instruction
     ]
 -/
 
@@ -25,41 +37,78 @@ import DockerfileModel.Instruction
 import DockerfileModel.Parser.Basic
 import DockerfileModel.Parser.Combinators
 import DockerfileModel.Parser.DockerfileParsers
+import DockerfileModel.Parser.Instructions.From
+import DockerfileModel.Parser.Instructions.Arg
+import DockerfileModel.Parser.Instructions.Maintainer
+import DockerfileModel.Parser.Instructions.Workdir
+import DockerfileModel.Parser.Instructions.Stopsignal
+import DockerfileModel.Parser.Instructions.Cmd
+import DockerfileModel.Parser.Instructions.Entrypoint
+import DockerfileModel.Parser.Instructions.Shell
+import DockerfileModel.Parser.Instructions.User
+import DockerfileModel.Parser.Instructions.Expose
+import DockerfileModel.Parser.Instructions.Volume
+import DockerfileModel.Parser.Instructions.Env
+import DockerfileModel.Parser.Instructions.Label
+import DockerfileModel.Parser.Instructions.Run
+import DockerfileModel.Parser.Instructions.Copy
+import DockerfileModel.Parser.Instructions.Add
+import DockerfileModel.Parser.Instructions.Healthcheck
 
 namespace DockerfileModel.Parser.Instructions.Onbuild
 
 open DockerfileModel
 open DockerfileModel.Parser
+open DockerfileModel.Parser.Instructions
 open Parser
+open Maintainer Workdir Stopsignal Cmd Entrypoint Shell User Expose Volume Env Label
+open Run Copy Add Healthcheck
 
 -- ============================================================
--- Trigger instruction validation
+-- Trigger instruction dispatch parser
 -- ============================================================
 
-/-- Check if a trigger instruction text starts with a restricted keyword.
-    Restricted triggers: ONBUILD (no chaining), FROM, MAINTAINER. -/
-def isRestrictedTrigger (text : String) : Bool :=
-  let upper := text.trimAscii.toString.toUpper
-  upper.startsWith "ONBUILD" || upper.startsWith "FROM" || upper.startsWith "MAINTAINER"
+/-- Parse a trigger instruction by dispatching to all known instruction parsers.
+    This mirrors C#'s `Instruction.CreateInstruction()` which detects the keyword
+    and calls the appropriate instruction-specific parser.
+
+    Each instruction parser starts with its keyword, so `or'` naturally dispatches
+    based on the first token. All 18 instruction types are included — C# does not
+    restrict triggers at parse time (validation happens at a higher layer).
+
+    Returns an InstructionToken wrapping the fully parsed trigger instruction. -/
+partial def triggerInstructionParser (escapeChar : Char) : Parser Token := do
+  let tokens ←
+    or' (fromInstructionParser escapeChar)
+    (or' (argInstructionParser escapeChar)
+    (or' (maintainerInstructionParser escapeChar)
+    (or' (workdirInstructionParser escapeChar)
+    (or' (stopsignalInstructionParser escapeChar)
+    (or' (cmdInstructionParser escapeChar)
+    (or' (entrypointInstructionParser escapeChar)
+    (or' (shellInstructionParser escapeChar)
+    (or' (userInstructionParser escapeChar)
+    (or' (exposeInstructionParser escapeChar)
+    (or' (volumeInstructionParser escapeChar)
+    (or' (envInstructionParser escapeChar)
+    (or' (labelInstructionParser escapeChar)
+    (or' (runInstructionParser escapeChar)
+    (or' (copyInstructionParser escapeChar)
+    (or' (addInstructionParser escapeChar)
+         (healthcheckInstructionParser escapeChar))))))))))))))))
+  Parser.pure (Token.mkInstruction tokens)
 
 -- ============================================================
 -- ONBUILD args parser
 -- ============================================================
 
-/-- Parse the arguments of an ONBUILD instruction: rest of line as literal text.
-    Validates that the trigger is not a restricted keyword.
+/-- Parse the arguments of an ONBUILD instruction: a recursively parsed trigger
+    instruction.
     Corresponds to OnBuildInstruction.GetArgsParser() -/
 partial def onbuildArgsParser (escapeChar : Char) : Parser (List Token) :=
   argTokens (do
-    -- Parse rest of line as literal text (shell form captures everything)
-    let triggerTokens ← shellFormCommand escapeChar
-    -- Extract the trigger text for validation
-    let triggerText := String.join (triggerTokens.map Token.toString)
-    -- Validate: reject restricted triggers
-    if isRestrictedTrigger triggerText then
-      Parser.fail s!"ONBUILD does not support {triggerText.trimAscii.toString.toUpper.takeWhile (!·.isWhitespace)} as a trigger instruction"
-    else
-      Parser.pure triggerTokens) escapeChar
+    let triggerToken ← triggerInstructionParser escapeChar
+    Parser.pure [triggerToken]) escapeChar
 
 -- ============================================================
 -- ONBUILD instruction parser

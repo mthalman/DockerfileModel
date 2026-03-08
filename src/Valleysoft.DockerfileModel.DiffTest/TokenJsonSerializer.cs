@@ -32,7 +32,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
 ///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
 ///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
-///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
 /// </summary>
 public static class TokenJsonSerializer
 {
@@ -83,12 +82,6 @@ public static class TokenJsonSerializer
         // Instruction : DockerfileConstruct : AggregateToken
 
         // Special instruction handlers for workarounds
-        if (token is OnBuildInstruction onBuild)
-        {
-            SerializeOnBuild(sb, onBuild);
-            return;
-        }
-
         if (token is HealthCheckInstruction healthCheck)
         {
             SerializeHealthCheck(sb, healthCheck);
@@ -595,137 +588,6 @@ public static class TokenJsonSerializer
         }
 
         sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: ONBUILD inner instruction
-    // C# recursively parses the inner instruction as a full Instruction node.
-    // Lean treats the trigger text as an opaque LiteralToken containing
-    // string and whitespace primitives.
-    // We detect the inner Instruction and convert it to a LiteralToken.
-    // ===================================================================
-
-    private static void SerializeOnBuild(StringBuilder sb, OnBuildInstruction onBuild)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in onBuild.Tokens)
-        {
-            if (child is Instruction innerInst)
-            {
-                // Convert the inner instruction to an opaque literal token
-                // matching Lean's format: LiteralToken containing string/whitespace primitives
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeInstructionAsLiteral(sb, innerInst);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Convert an Instruction token tree to a flat LiteralToken containing
-    /// string, whitespace, and lineContinuation tokens, matching Lean's opaque
-    /// text representation for ONBUILD triggers.
-    /// </summary>
-    private static void SerializeInstructionAsLiteral(StringBuilder sb, Instruction instruction)
-    {
-        // Get the full text of the instruction
-        string text = instruction.ToString();
-
-        // Build the literal token with string, whitespace, and lineContinuation children,
-        // matching Lean's shell form parser output
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-
-        bool firstChild = true;
-        SplitByWhitespaceAndLineContinuation(sb, text, ref firstChild);
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Split a string value into alternating string/whitespace/lineContinuation tokens.
-    /// Handles both backslash and backtick escape chars before newlines.
-    /// </summary>
-    private static void SplitByWhitespaceAndLineContinuation(StringBuilder sb, string text, ref bool first)
-    {
-        int i = 0;
-        while (i < text.Length)
-        {
-            // Check for line continuation: escape char + newline
-            if ((text[i] == '\\' || text[i] == '`') && i + 1 < text.Length)
-            {
-                char escChar = text[i];
-                // \n or \r\n following the escape char
-                if (text[i + 1] == '\n')
-                {
-                    if (!first) sb.Append(',');
-                    first = false;
-                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"lineContinuation\",\"quoteChar\":null,\"children\":[");
-                    SerializePrimitive(sb, "symbol", escChar.ToString());
-                    sb.Append(',');
-                    SerializePrimitive(sb, "newLine", "\n");
-                    sb.Append("]}");
-                    i += 2;
-                    continue;
-                }
-                else if (text[i + 1] == '\r' && i + 2 < text.Length && text[i + 2] == '\n')
-                {
-                    if (!first) sb.Append(',');
-                    first = false;
-                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"lineContinuation\",\"quoteChar\":null,\"children\":[");
-                    SerializePrimitive(sb, "symbol", escChar.ToString());
-                    sb.Append(',');
-                    SerializePrimitive(sb, "newLine", "\r\n");
-                    sb.Append("]}");
-                    i += 3;
-                    continue;
-                }
-            }
-
-            // Check for whitespace (spaces and tabs)
-            if (text[i] == ' ' || text[i] == '\t')
-            {
-                int start = i;
-                while (i < text.Length && (text[i] == ' ' || text[i] == '\t'))
-                    i++;
-
-                if (!first) sb.Append(',');
-                first = false;
-                SerializePrimitive(sb, "whitespace", text[start..i]);
-                continue;
-            }
-
-            // Regular text: collect until next whitespace, line continuation, or end
-            {
-                int start = i;
-                while (i < text.Length)
-                {
-                    if (text[i] == ' ' || text[i] == '\t')
-                        break;
-                    // Check for escape char + newline
-                    if ((text[i] == '\\' || text[i] == '`') && i + 1 < text.Length &&
-                        (text[i + 1] == '\n' || text[i + 1] == '\r'))
-                        break;
-                    i++;
-                }
-
-                if (i > start)
-                {
-                    if (!first) sb.Append(',');
-                    first = false;
-                    SerializePrimitive(sb, "string", text[start..i]);
-                }
-            }
-        }
     }
 
     // ===================================================================
