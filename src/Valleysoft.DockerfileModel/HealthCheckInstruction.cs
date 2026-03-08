@@ -134,20 +134,26 @@ public class HealthCheckInstruction : Instruction
                     if (cmdKeyword is not null)
                     {
                         int cmdKeywordIndex = TokenList.IndexOf(cmdKeyword);
-                        // Remove from CMD keyword to end (CMD keyword + whitespace + command)
-                        int removeCount = TokenList.Count - cmdKeywordIndex;
-                        for (int i = 0; i < removeCount; i++)
+                        int commandIndex = TokenList.IndexOf(current);
+                        // Remove from CMD keyword up to and including the command token,
+                        // preserving any trailing tokens (comments, newlines) after the command.
+                        if (cmdKeywordIndex >= 0 && commandIndex >= cmdKeywordIndex)
                         {
-                            TokenList.RemoveAt(cmdKeywordIndex);
+                            int removeCount = commandIndex - cmdKeywordIndex + 1;
+                            for (int i = 0; i < removeCount; i++)
+                            {
+                                TokenList.RemoveAt(cmdKeywordIndex);
+                            }
+                            // Also remove the whitespace before CMD keyword
+                            if (cmdKeywordIndex > 0 && TokenList[cmdKeywordIndex - 1] is WhitespaceToken)
+                            {
+                                TokenList.RemoveAt(cmdKeywordIndex - 1);
+                                cmdKeywordIndex--;
+                            }
+                            // Insert NONE keyword with preceding whitespace at the original CMD position
+                            TokenList.Insert(cmdKeywordIndex, new WhitespaceToken(" "));
+                            TokenList.Insert(cmdKeywordIndex + 1, new KeywordToken("NONE", escapeChar));
                         }
-                        // Also remove the whitespace before CMD keyword
-                        if (cmdKeywordIndex > 0 && TokenList[cmdKeywordIndex - 1] is WhitespaceToken)
-                        {
-                            TokenList.RemoveAt(cmdKeywordIndex - 1);
-                        }
-                        // Add NONE keyword with preceding whitespace
-                        TokenList.Add(new WhitespaceToken(" "));
-                        TokenList.Add(new KeywordToken("NONE", escapeChar));
                     }
                 }
                 else
