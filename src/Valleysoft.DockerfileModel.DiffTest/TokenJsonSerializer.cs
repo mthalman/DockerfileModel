@@ -750,14 +750,6 @@ public static class TokenJsonSerializer
                 }
             }
 
-            // Emit post-slash LineContinuationTokens (between slash and protocol)
-            foreach (LineContinuationToken lc in postSlashLCs)
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, lc);
-                first = false;
-            }
-
             // Emit protocol content. When pre-slash LCs exist and no post-slash
             // LCs, the slash is adjacent to the protocol: prepend "/" to first
             // proto string.
@@ -792,10 +784,18 @@ public static class TokenJsonSerializer
             else if (hasPreSlashLCs && hasPostSlashLCs)
             {
                 // Both pre-slash and post-slash LCs: the "/" is a separate
-                // string segment between the two LC groups. Emit it explicitly.
+                // string segment between the two LC groups. Emit "/" first,
+                // then post-slash LCs, then protocol children.
                 if (!first) sb.Append(',');
                 SerializePrimitive(sb, "string", "/");
                 first = false;
+
+                foreach (LineContinuationToken lc in postSlashLCs)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, lc);
+                    first = false;
+                }
 
                 foreach (Token protoChild in protoChildren)
                 {
@@ -807,7 +807,14 @@ public static class TokenJsonSerializer
             else
             {
                 // Only post-slash LCs (slash already emitted with port above).
-                // Emit protocol directly.
+                // Emit post-slash LCs then protocol directly.
+                foreach (LineContinuationToken lc in postSlashLCs)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, lc);
+                    first = false;
+                }
+
                 foreach (Token protoChild in protoChildren)
                 {
                     if (!first) sb.Append(',');
