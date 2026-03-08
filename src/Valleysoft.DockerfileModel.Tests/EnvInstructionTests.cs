@@ -113,6 +113,27 @@ public class EnvInstructionTests
     }
 
     [Fact]
+    public void SetValueOnEmptyEnvVarWithNonDefaultEscapeChar()
+    {
+        // Parse "ENV key=" with a non-default escape char (backtick)
+        EnvInstruction result = EnvInstruction.Parse("ENV key=", escapeChar: '`');
+        Assert.Equal("key", result.Variables[0].Key);
+        Assert.Equal("", result.Variables[0].Value);
+        Assert.Null(result.VariableTokens[0].ValueToken);
+
+        // Set a value and verify round-trip
+        result.Variables[0].Value = "myval";
+        Assert.Equal("myval", result.Variables[0].Value);
+        Assert.NotNull(result.VariableTokens[0].ValueToken);
+        Assert.Equal("ENV key=myval", result.ToString());
+
+        // Subsequent value changes should also round-trip
+        result.Variables[0].Value = "updated";
+        Assert.Equal("updated", result.Variables[0].Value);
+        Assert.Equal("ENV key=updated", result.ToString());
+    }
+
+    [Fact]
     public void EnvVarWithVariables()
     {
         EnvInstruction result = new(
