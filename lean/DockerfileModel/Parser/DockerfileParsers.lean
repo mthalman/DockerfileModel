@@ -654,59 +654,29 @@ def argDeclarationParser (escapeChar : Char) : Parser Token := do
   Parser.pure (Token.mkKeyValue children)
 
 -- ============================================================
--- Shell form command parser (rest-of-line as literal text with variables)
+-- Shell form command parser (rest-of-line as opaque literal text)
 -- ============================================================
-
-/-- Split a list of single-character tokens into properly typed StringToken and
-    WhitespaceToken runs. Adjacent characters of the same type (whitespace vs
-    non-whitespace) are merged. Line continuation and escaped char tokens are
-    preserved as-is and break any pending run. -/
-private def splitStringWhitespace (tokens : List Token) : List Token :=
-  let rec flush (acc : List Token) (pending : String) (isWs : Bool) : List Token :=
-    if pending.isEmpty then acc
-    else if isWs then (Token.mkWhitespace pending) :: acc
-    else (Token.mkString pending) :: acc
-  let rec loop (acc : List Token) (pending : String) (pendingIsWs : Bool)
-      (rest : List Token) : List Token :=
-    match rest with
-    | [] => (flush acc pending pendingIsWs).reverse
-    | t :: ts =>
-      match t with
-      | .primitive .string val =>
-        -- Classify each character
-        let chars := val.toList
-        let rec charLoop (a : List Token) (p : String) (pWs : Bool)
-            (cs : List Char) : List Token × String × Bool :=
-          match cs with
-          | [] => (a, p, pWs)
-          | c :: cr =>
-            let cIsWs := c == ' ' || c == '\t'
-            if p.isEmpty then
-              charLoop a (String.ofList [c]) cIsWs cr
-            else if cIsWs == pWs then
-              charLoop a (p ++ String.ofList [c]) pWs cr
-            else
-              charLoop (flush a p pWs) (String.ofList [c]) cIsWs cr
-        let (a', p', w') := charLoop acc pending pendingIsWs chars
-        loop a' p' w' ts
-      | _ =>
-        -- Non-string token (e.g., LineContinuationToken): flush pending, emit token
-        loop (t :: (flush acc pending pendingIsWs)) "" false ts
-  loop [] "" false tokens
 
 /-- Parse a shell form command: everything to end-of-line (or end-of-input) as
     a LiteralToken. This is the "shell form" parser for RUN, CMD, ENTRYPOINT.
 
-    BuildKit does NOT expand variables in shell-form commands — the shell
-    handles variable expansion at runtime. So `$VAR` is treated as opaque
-    text, not decomposed into a VariableRefToken. The result is a single
-    LiteralToken containing only StringToken and WhitespaceToken children.
+    BuildKit treats shell form command text as completely opaque — it passes
+    the full command text to `sh -c` without any parsing. So `$VAR` is treated
+    as a regular character (not decomposed into a VariableRefToken), and
+    whitespace within the command is preserved as part of a single StringToken
+    (not split into separate WhitespaceToken children).
+
+    The result is a single LiteralToken whose children are:
+      - a single StringToken with the full command text when there are no
+        line continuations, or
+      - multiple StringTokens (one per text segment) separated by
+        LineContinuationToken node(s) when line continuations occur.
 
     Corresponds to the shell-form branch of CommandInstruction.GetCommandParser() -/
 partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
   -- Parse shell form as opaque text: $ is treated as a regular character.
   -- Each iteration produces either:
-  --   a) a non-escape, non-newline character → StringToken, or
+  --   a) a maximal run of non-escape, non-newline characters → single StringToken, or
   --   b) a line continuation (escape + optional whitespace + newline) → LineContinuationToken, or
   --   c) an escaped char (escape + non-newline char, not a line continuation) → StringToken.
   --
@@ -715,10 +685,10 @@ partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
   -- `escapedChar` consuming `\<space>` and terminating the instruction.
   let parts ← many1 (
     or' (do
-      -- Any non-escape, non-newline character (including $, spaces, tabs)
-      let c ← satisfy (fun c => !isLineTerminator c && c != escapeChar)
-                       "shell form character"
-      Parser.pure (Token.mkString (String.ofList [c])))
+      -- Maximal run of non-escape, non-newline characters (including $, spaces, tabs)
+      let s ← many1Chars (satisfy (fun c => !isLineTerminator c && c != escapeChar)
+                       "shell form character")
+      Parser.pure (Token.mkString s))
     (or'
       -- Line continuation (escape + optional whitespace + newline) — must be
       -- tried first so `\<trailing-spaces><newline>` is not consumed by escapedChar
@@ -726,8 +696,9 @@ partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
       -- Escaped character, guarded: only match when the escape char is NOT
       -- followed by optional whitespace + newline (which would be a continuation)
       (except (escapedChar escapeChar) (lineContinuationParser escapeChar))))
-  -- Group adjacent chars into string/whitespace runs
-  let tokens := splitStringWhitespace parts
+  -- Collapse adjacent string tokens into a single opaque StringToken.
+  -- LineContinuationTokens are preserved as-is.
+  let tokens := collapseStringTokens parts
   if tokens.isEmpty then
     Parser.fail "expected shell form command"
   else
