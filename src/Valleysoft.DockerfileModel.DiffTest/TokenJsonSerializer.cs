@@ -31,7 +31,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
 ///   - EXPOSE port/protocol: C# splits into literal+symbol+literal; Lean uses one flat literal.
 ///     Workaround merges the three tokens back into a single literal during serialization.
-///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
 /// </summary>
 public static class TokenJsonSerializer
 {
@@ -82,11 +81,6 @@ public static class TokenJsonSerializer
         // Instruction : DockerfileConstruct : AggregateToken
 
         // Special instruction handlers for workarounds
-        if (token is OnBuildInstruction onBuild)
-        {
-            SerializeOnBuild(sb, onBuild);
-            return;
-        }
 
         if (token is ExposeInstruction expose)
         {
@@ -687,141 +681,8 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Workaround: ONBUILD inner instruction
-    // C# recursively parses the inner instruction as a full Instruction node.
-    // Lean treats the trigger text as an opaque LiteralToken containing a
-    // single opaque StringToken (plus LineContinuationTokens if any).
-    // We detect the inner Instruction and convert it to a LiteralToken.
-    // ===================================================================
-
-    private static void SerializeOnBuild(StringBuilder sb, OnBuildInstruction onBuild)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in onBuild.Tokens)
-        {
-            if (child is Instruction innerInst)
-            {
-                // Convert the inner instruction to an opaque literal token
-                // matching Lean's format: LiteralToken containing a single opaque string
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeInstructionAsLiteral(sb, innerInst);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Convert an Instruction token tree to a flat LiteralToken containing
-    /// a single opaque StringToken (plus LineContinuationTokens if any),
-    /// matching Lean's opaque text representation for ONBUILD triggers.
-    /// </summary>
-    private static void SerializeInstructionAsLiteral(StringBuilder sb, Instruction instruction)
-    {
-        // Get the full text of the instruction
-        string text = instruction.ToString();
-
-        // Build the literal token with a single opaque StringToken (plus any
-        // LineContinuationTokens), matching Lean's shell form parser output.
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-
-        bool firstChild = true;
-        EmitOpaqueStringWithLineContinuations(sb, text, ref firstChild);
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Emit a string as a single opaque StringToken, except for line
-    /// continuations (escape char + optional whitespace + newline) which
-    /// become LineContinuationTokens.
-    /// Handles both backslash and backtick escape chars before newlines.
-    /// </summary>
-    private static void EmitOpaqueStringWithLineContinuations(StringBuilder sb, string text, ref bool first)
-    {
-        int i = 0;
-        StringBuilder pending = new();
-
-        while (i < text.Length)
-        {
-            // Check for line continuation: escape char + optional whitespace + newline
-            if ((text[i] == '\\' || text[i] == '`') && i + 1 < text.Length)
-            {
-                char escChar = text[i];
-                // Scan past optional whitespace (spaces/tabs) after escape char
-                int j = i + 1;
-                while (j < text.Length && (text[j] == ' ' || text[j] == '\t'))
-                    j++;
-
-                string trailingWs = text.Substring(i + 1, j - (i + 1));
-                string? newLine = null;
-                int consumed = 0;
-
-                if (j < text.Length && text[j] == '\n')
-                {
-                    newLine = "\n";
-                    consumed = j + 1 - i;
-                }
-                else if (j + 1 < text.Length && text[j] == '\r' && text[j + 1] == '\n')
-                {
-                    newLine = "\r\n";
-                    consumed = j + 2 - i;
-                }
-
-                if (newLine != null)
-                {
-                    // Flush pending string
-                    if (pending.Length > 0)
-                    {
-                        if (!first) sb.Append(',');
-                        first = false;
-                        SerializePrimitive(sb, "string", pending.ToString());
-                        pending.Clear();
-                    }
-
-                    if (!first) sb.Append(',');
-                    first = false;
-                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"lineContinuation\",\"quoteChar\":null,\"children\":[");
-                    SerializePrimitive(sb, "symbol", escChar.ToString());
-                    if (trailingWs.Length > 0)
-                    {
-                        sb.Append(',');
-                        SerializePrimitive(sb, "whitespace", trailingWs);
-                    }
-                    sb.Append(',');
-                    SerializePrimitive(sb, "newLine", newLine);
-                    sb.Append("]}");
-                    i += consumed;
-                    continue;
-                }
-            }
-
-            // Regular character: accumulate into pending string
-            pending.Append(text[i]);
-            i++;
-        }
-
-        // Flush any remaining pending text
-        if (pending.Length > 0)
-        {
-            if (!first) sb.Append(',');
-            first = false;
-            SerializePrimitive(sb, "string", pending.ToString());
-        }
-    }
-
-    // ===================================================================
-    // RUN instruction — mount value flattening for diff test normalization.
-    // C# parses mount flag values into structured KeyValueToken children
+    // Workaround: RUN instruction — mount value flattening (see issue #200)
+    // C# over-parses mount flag values into structured KeyValueToken children
     // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
     // value as an opaque literal string. This serializer flattens the Mount
     // aggregate back to a single LiteralToken containing the opaque text.
