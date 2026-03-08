@@ -789,10 +789,25 @@ public static class TokenJsonSerializer
                     first = false;
                 }
             }
+            else if (hasPreSlashLCs && hasPostSlashLCs)
+            {
+                // Both pre-slash and post-slash LCs: the "/" is a separate
+                // string segment between the two LC groups. Emit it explicitly.
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", "/");
+                first = false;
+
+                foreach (Token protoChild in protoChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, protoChild);
+                    first = false;
+                }
+            }
             else
             {
-                // Both pre-slash and post-slash LCs, or only post-slash LCs
-                // (slash already emitted with port above). Emit protocol directly.
+                // Only post-slash LCs (slash already emitted with port above).
+                // Emit protocol directly.
                 foreach (Token protoChild in protoChildren)
                 {
                     if (!first) sb.Append(',');
