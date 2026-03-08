@@ -32,7 +32,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
 ///   - EXPOSE port/protocol: C# splits into literal+symbol+literal; Lean uses one flat literal.
 ///     Workaround merges the three tokens back into a single literal during serialization.
-///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
 ///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
 /// </summary>
 public static class TokenJsonSerializer
@@ -90,12 +89,6 @@ public static class TokenJsonSerializer
             return;
         }
 
-        if (token is HealthCheckInstruction healthCheck)
-        {
-            SerializeHealthCheck(sb, healthCheck);
-            return;
-        }
-
         if (token is ExposeInstruction expose)
         {
             SerializeExpose(sb, expose);
@@ -115,8 +108,8 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // CMD, ENTRYPOINT need whitespace splitting
-        if (token is CmdInstruction || token is EntrypointInstruction)
+        // CMD, ENTRYPOINT, HEALTHCHECK need whitespace splitting
+        if (token is CmdInstruction || token is EntrypointInstruction || token is HealthCheckInstruction)
         {
             SerializeShellFormInstruction(sb, (Instruction)token);
             return;
@@ -382,7 +375,7 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Shell form instructions (RUN, CMD, ENTRYPOINT)
+    // Shell form instructions (RUN, CMD, ENTRYPOINT, HEALTHCHECK)
     // These need whitespace splitting inside their shell form LiteralTokens.
     // The Command wrapper (ShellFormCommand) is transparent, so the LiteralToken
     // appears after inlining.
@@ -806,63 +799,6 @@ public static class TokenJsonSerializer
                     SerializeToken(sb, protoChild);
                     first = false;
                 }
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: HEALTHCHECK CMD nesting
-    // C# nests CmdInstruction as a child Instruction inside HealthCheckInstruction.
-    // Lean keeps everything flat: flags, KeywordToken("CMD"), whitespace, command tokens.
-    // We detect the nested CmdInstruction and inline its children, also applying
-    // shell form whitespace splitting.
-    // ===================================================================
-
-    private static void SerializeHealthCheck(StringBuilder sb, HealthCheckInstruction healthCheck)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in healthCheck.Tokens)
-        {
-            // When we hit the nested CmdInstruction, inline its children
-            if (child is CmdInstruction cmdInst)
-            {
-                foreach (Token cmdChild in cmdInst.Tokens)
-                {
-                    // Handle Command wrapper (ShellFormCommand is transparent)
-                    if (cmdChild is Command cmd)
-                    {
-                        foreach (Token cmdGrandchild in cmd.Tokens)
-                        {
-                            if (!first) sb.Append(',');
-                            first = false;
-                            // Apply whitespace splitting to LiteralTokens
-                            if (cmdGrandchild is LiteralToken lit)
-                            {
-                                SerializeLiteralWithWhitespaceSplitting(sb, lit);
-                            }
-                            else
-                            {
-                                SerializeToken(sb, cmdGrandchild);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (!first) sb.Append(',');
-                        SerializeToken(sb, cmdChild);
-                        first = false;
-                    }
-                }
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
             }
         }
 

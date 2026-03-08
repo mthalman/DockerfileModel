@@ -5,12 +5,19 @@ internal static class StringHelper
     public static string FormatAsJson(IEnumerable<string> values)
     {
         Requires.NotNull(values, nameof(values));
-        if (values.Any(v => v is null))
+
+        // Materialize the sequence once to avoid double enumeration, then
+        // validate that no element is null.
+        var materializedValues = values as IList<string> ?? values.ToList();
+        foreach (string? value in materializedValues)
         {
-            throw new ArgumentNullException(nameof(values), "Collection must not contain null elements.");
+            if (value is null)
+            {
+                throw new ArgumentException("Sequence cannot contain null values.", nameof(values));
+            }
         }
 
-        return $"[{String.Join(", ", values.Select(val => $"\"{val}\"").ToArray())}]";
+        return $"[{String.Join(", ", materializedValues.Select(val => $"\"{val}\""))}]";
     }
 
     /// <summary>
