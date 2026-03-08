@@ -4,7 +4,12 @@ internal static class StringHelper
 {
     public static string FormatAsJson(IEnumerable<string> values)
     {
-        Requires.NotNullEmptyOrNullElements(values, nameof(values));
+        Requires.NotNull(values, nameof(values));
+        if (values.Any(v => v is null))
+        {
+            throw new ArgumentNullException(nameof(values), "Collection must not contain null elements.");
+        }
+
         return $"[{String.Join(", ", values.Select(val => $"\"{val}\"").ToArray())}]";
     }
 
