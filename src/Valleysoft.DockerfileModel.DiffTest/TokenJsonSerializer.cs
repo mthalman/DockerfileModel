@@ -525,24 +525,25 @@ public static class TokenJsonSerializer
                         if (!first) sb.Append(',');
                         first = false;
 
-                        // Collect any intervening LineContinuationTokens (between port
-                        // and slash, and between slash and protocol) so they can be
-                        // included in the merged literal, matching Lean's representation.
-                        var lineContinuations = new List<LineContinuationToken>();
+                        // Collect LineContinuationTokens separately for before
+                        // the slash (port→slash) and after the slash (slash→protocol)
+                        // so their relative position is preserved in the merged literal.
+                        var preSlashLCs = new List<LineContinuationToken>();
                         for (int k = i + 1; k < slashIdx; k++)
                         {
                             if (tokens[k] is LineContinuationToken lc)
-                                lineContinuations.Add(lc);
+                                preSlashLCs.Add(lc);
                         }
+                        var postSlashLCs = new List<LineContinuationToken>();
                         for (int k = slashIdx + 1; k < protoIdx; k++)
                         {
                             if (tokens[k] is LineContinuationToken lc)
-                                lineContinuations.Add(lc);
+                                postSlashLCs.Add(lc);
                         }
 
                         // Merge the port/slash/protocol tokens into a single literal,
-                        // including any intervening LineContinuationTokens
-                        SerializeMergedPortProtocolLiteral(sb, portLiteral, protoLiteral, lineContinuations);
+                        // preserving relative positions of LineContinuationTokens
+                        SerializeMergedPortProtocolLiteral(sb, portLiteral, protoLiteral, preSlashLCs, postSlashLCs);
 
                         i = protoIdx; // skip all consumed tokens (including line continuations)
                         continue;
@@ -562,21 +563,22 @@ public static class TokenJsonSerializer
     /// Merge a port LiteralToken and protocol LiteralToken (separated by '/') into
     /// a single literal, matching Lean's flat representation.
     ///
-    /// Strategy: emit all children of the port literal, then any intervening
-    /// LineContinuationTokens, then append the protocol content prefixed with '/'.
     /// The merge behavior for the boundary tokens depends on their types:
     /// - Both strings: merge into one (e.g., string["80"] + "/" + string["tcp"] -> string["80/tcp"])
     /// - Port ends with string, proto starts with non-string (e.g., variable): append "/" to port string
     /// - Port ends with non-string, proto starts with string: prepend "/" to proto string
     /// - Neither is string: add a separate "/" string node between them
     ///
-    /// Any LineContinuationTokens that appeared between the port, slash, and protocol
-    /// tokens in the original instruction are emitted between the port children and
-    /// the "/" string, matching Lean's literalWithVariables representation.
+    /// LineContinuationTokens are tracked separately for before vs after the slash
+    /// to preserve their relative position. Lean's literalStringWithoutSpaces parses
+    /// char-by-char: "80/\\\ntcp" -> string["80/"], LC, string["tcp"] while
+    /// "80\\\n/tcp" -> string["80"], LC, string["/tcp"]. The slash is part of
+    /// whichever string segment it is adjacent to, and LCs stay in their original
+    /// position relative to it.
     /// </summary>
     private static void SerializeMergedPortProtocolLiteral(
         StringBuilder sb, LiteralToken portLiteral, LiteralToken protoLiteral,
-        List<LineContinuationToken> lineContinuations)
+        List<LineContinuationToken> preSlashLCs, List<LineContinuationToken> postSlashLCs)
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
 
@@ -597,7 +599,9 @@ public static class TokenJsonSerializer
         List<Token> protoChildren = protoLiteral.Tokens.ToList();
 
         bool first = true;
-        bool hasLineContinuations = lineContinuations.Count > 0;
+        bool hasPreSlashLCs = preSlashLCs.Count > 0;
+        bool hasPostSlashLCs = postSlashLCs.Count > 0;
+        bool hasLineContinuations = hasPreSlashLCs || hasPostSlashLCs;
 
         // Check if we can merge the last port child with the first proto child
         bool lastPortIsString = portChildren.Count > 0 && portChildren[^1] is StringToken;
@@ -694,29 +698,78 @@ public static class TokenJsonSerializer
         }
         else
         {
-            // Line continuations present: emit all port children, then line
-            // continuations, then "/" merged with the protocol content.
-            // This matches Lean's literalWithVariables which includes line
-            // continuation tokens as children of the literal.
-            foreach (Token portChild in portChildren)
+            // Line continuations present: preserve their position relative to
+            // the slash. Lean parses char-by-char, so the slash is part of
+            // whichever string segment it is adjacent to:
+            //   "80\\\n/tcp" -> port["80"], preSlashLC, string["/tcp"]
+            //   "80/\\\ntcp" -> port["80/"], postSlashLC, string["tcp"]
+            //   "80\\\n/\\\ntcp" -> port["80"], preSlashLC, string["/"], postSlashLC, string["tcp"]
+
+            // Emit port children. When post-slash LCs exist (slash is adjacent
+            // to port text), append "/" to the last port string.
+            if (hasPostSlashLCs && !hasPreSlashLCs && lastPortIsString)
             {
+                // Slash is adjacent to port: append "/" to last port string
+                for (int j = 0; j < portChildren.Count - 1; j++)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, portChildren[j]);
+                    first = false;
+                }
+
+                string portWithSlash = ((StringToken)portChildren[^1]).Value + "/";
                 if (!first) sb.Append(',');
-                SerializeToken(sb, portChild);
+                SerializePrimitive(sb, "string", portWithSlash);
                 first = false;
             }
+            else if (hasPostSlashLCs && !hasPreSlashLCs)
+            {
+                // Slash is adjacent to port but last port child is not a string
+                foreach (Token portChild in portChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, portChild);
+                    first = false;
+                }
 
-            // Emit intervening LineContinuationTokens
-            foreach (LineContinuationToken lc in lineContinuations)
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", "/");
+                first = false;
+            }
+            else
+            {
+                // Pre-slash LCs exist: slash is separated from port by LCs.
+                // Emit port children, then pre-slash LCs, then "/" merged
+                // with protocol content.
+                foreach (Token portChild in portChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, portChild);
+                    first = false;
+                }
+
+                // Emit pre-slash LineContinuationTokens
+                foreach (LineContinuationToken lc in preSlashLCs)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, lc);
+                    first = false;
+                }
+            }
+
+            // Emit post-slash LineContinuationTokens (between slash and protocol)
+            foreach (LineContinuationToken lc in postSlashLCs)
             {
                 if (!first) sb.Append(',');
                 SerializeToken(sb, lc);
                 first = false;
             }
 
-            // Emit "/" merged with protocol content
-            if (firstProtoIsString)
+            // Emit protocol content. When pre-slash LCs exist and no post-slash
+            // LCs, the slash is adjacent to the protocol: prepend "/" to first
+            // proto string.
+            if (hasPreSlashLCs && !hasPostSlashLCs && firstProtoIsString)
             {
-                // Prepend "/" to the first proto string
                 string slashProto = "/" + ((StringToken)protoChildren[0]).Value;
                 if (!first) sb.Append(',');
                 SerializePrimitive(sb, "string", slashProto);
@@ -729,13 +782,24 @@ public static class TokenJsonSerializer
                     first = false;
                 }
             }
-            else
+            else if (hasPreSlashLCs && !hasPostSlashLCs)
             {
-                // Add "/" as a separate string, then all proto children
+                // Pre-slash LCs, no post-slash LCs, first proto is not string
                 if (!first) sb.Append(',');
                 SerializePrimitive(sb, "string", "/");
                 first = false;
 
+                foreach (Token protoChild in protoChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, protoChild);
+                    first = false;
+                }
+            }
+            else
+            {
+                // Both pre-slash and post-slash LCs, or only post-slash LCs
+                // (slash already emitted with port above). Emit protocol directly.
                 foreach (Token protoChild in protoChildren)
                 {
                     if (!first) sb.Append(',');
