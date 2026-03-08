@@ -594,8 +594,13 @@ internal static class ParseHelper
 
     /// <summary>
     /// Parses the elements of a JSON array. When <paramref name="allowEmpty"/> is true,
-    /// an empty array (no elements) is accepted via an XOr fallback. When false, at least
-    /// one element is required and no empty fallback is added, giving clearer error messages.
+    /// an empty array (no elements) is accepted via a lookahead-guarded fallback that
+    /// checks for <c>]</c> before returning an empty result. The <c>.Or()</c> combinator
+    /// (as opposed to <c>.XOr()</c>) is used so that even if the element parser partially
+    /// consumes whitespace before failing, it backtracks cleanly to the empty-array path
+    /// for inputs like <c>[ ]</c> or <c>[\n]</c>.
+    /// When false, at least one element is required and no empty fallback is added,
+    /// giving clearer error messages.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
@@ -621,6 +626,10 @@ internal static class ParseHelper
                 where preview.IsDefined
                 select Enumerable.Empty<Token>();
 
+            // Use .Or() (not .XOr()) so that the empty-array lookahead is attempted
+            // even if the element parser partially consumed input before failing.
+            // This ensures whitespace-only empty arrays like [ ] or [\n] backtrack
+            // correctly to the empty-array path.
             elements = elements.Or(emptyArrayLookahead);
         }
 
