@@ -621,7 +621,7 @@ internal static class ParseHelper
     }
 
     /// <summary>
-    /// Parses a JSON aray element delimiter (i.e. comma) with optional whitespace.
+    /// Parses a JSON array element delimiter (i.e. comma) with optional whitespace.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     private static Parser<IEnumerable<Token>> JsonArrayElementDelimiter(char escapeChar) =>
