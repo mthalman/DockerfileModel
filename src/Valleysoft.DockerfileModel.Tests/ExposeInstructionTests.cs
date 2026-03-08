@@ -134,6 +134,10 @@ public class ExposeInstructionTests
 
         // The port literal should still be accessible after unwrap
         Assert.Equal("80", result.PortToken.Value);
+
+        // ToString should not include trailing escape+newline from line continuation
+        // that bridged the port to the '/' separator
+        Assert.Equal("EXPOSE`\n 80", result.ToString());
     }
 
     [Fact]

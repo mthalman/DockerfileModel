@@ -82,13 +82,30 @@ public class ExposeInstruction : Instruction
             {
                 if (kvp is not null)
                 {
-                    // KeyValueToken exists - unwrap back to a flat port literal,
-                    // preserving any leading tokens (e.g., whitespace, line continuations)
-                    // that precede the key inside the KeyValueToken.
+                    // KeyValueToken exists - unwrap back to a flat port literal.
+                    // Only preserve any leading whitespace tokens that precede the key
+                    // inside the KeyValueToken, and the key (port) literal itself.
+                    // Tokens between the port and the '/' separator (such as line
+                    // continuations used to bridge to the protocol segment) are
+                    // intentionally dropped to avoid leaving a trailing escape+newline.
                     int kvpIndex = TokenList.IndexOf(kvp);
-                    var portTokens = kvp.Tokens
-                        .TakeWhile(t => t is not SymbolToken s || s.Value != "/")
-                        .ToList();
+                    var kvpTokens = kvp.Tokens.ToList();
+                    int keyIndex = kvpTokens.IndexOf(kvp.KeyToken);
+
+                    var portTokens = new List<Token>();
+
+                    // Preserve leading whitespace before the key literal, if any.
+                    for (int i = 0; i < keyIndex; i++)
+                    {
+                        if (kvpTokens[i] is WhitespaceToken)
+                        {
+                            portTokens.Add(kvpTokens[i]);
+                        }
+                    }
+
+                    // Always include the key (port) literal itself.
+                    portTokens.Add(kvp.KeyToken);
+
                     TokenList.RemoveAt(kvpIndex);
                     TokenList.InsertRange(kvpIndex, portTokens);
                 }
