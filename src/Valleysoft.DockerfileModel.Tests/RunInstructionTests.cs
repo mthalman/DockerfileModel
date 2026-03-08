@@ -728,6 +728,53 @@ public class RunInstructionTests
                         cmd.Values.ToArray());
                 }
             },
+            // Empty exec form array with no whitespace
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // Empty exec form array with interior whitespace
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[ ]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                    Assert.Empty(result.Mounts);
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
