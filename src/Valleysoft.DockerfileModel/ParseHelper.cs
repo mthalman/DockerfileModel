@@ -347,7 +347,10 @@ internal static class ParseHelper
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether variables are allowed to be contained in the strings.</param>
-    public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables) =>
+    /// <param name="allowEmpty">When true, allows parsing an empty array (e.g. [] or [ ]). Defaults to false.
+    /// Only exec-form command parsers should pass true; file transfer instructions (COPY/ADD) should
+    /// reject empty arrays to avoid runtime errors when accessing destination tokens.</param>
+    public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false) =>
         from openingBracket in Symbol('[').AsEnumerable()
         // Consume optional whitespace after '[' at the array level (not inside
         // the element parser) so the empty-array fallback works correctly.
@@ -356,15 +359,7 @@ internal static class ParseHelper
         // This matches the Lean/BuildKit parser structure, which parses
         // interElementSpace before attempting the optional first element.
         from leadingWs in OptionalWhitespaceOrLineContinuation(escapeChar)
-        from execFormArgs in (
-            from firstArg in JsonArrayElement(escapeChar, canContainVariables, consumeLeadingWhitespace: false).Once().Flatten()
-            from tail in (
-                from delimiter in JsonArrayElementDelimiter(escapeChar)
-                from nextArg in JsonArrayElement(escapeChar, canContainVariables)
-                select ConcatTokens(delimiter, nextArg)).Many()
-            select ConcatTokens(firstArg, tail.Flatten()))
-            // Empty array: no elements found after optional whitespace (e.g. "[]" or "[ ]").
-            .XOr(Parse.Return(Enumerable.Empty<Token>()))
+        from execFormArgs in JsonArrayElements(escapeChar, canContainVariables, allowEmpty)
         from closingBracket in Symbol(']').AsEnumerable()
         select ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
 
@@ -573,7 +568,76 @@ internal static class ParseHelper
     }
 
     /// <summary>
-    /// Parses a JSON aray element delimiter (i.e. comma) with optional whitespace.
+    /// Creates a <see cref="LiteralToken"/> for a JSON array element from its parsed tokens.
+    /// When the element is an empty string (e.g. ""), the token sequence is empty and
+    /// <see cref="CollapseLiteralTokens"/> cannot be used because it requires non-empty input.
+    /// In that case, a zero-length <see cref="LiteralToken"/> with <see cref="LiteralToken.QuoteChar"/>
+    /// set to double-quote is returned directly.
+    /// </summary>
+    private static IEnumerable<Token> CreateJsonArrayElementLiteral(IEnumerable<Token> tokens,
+        bool canContainVariables, char escapeChar)
+    {
+        var materializedTokens = tokens.ToList();
+        if (!materializedTokens.Any())
+        {
+            return new Token[]
+            {
+                new LiteralToken(Enumerable.Empty<Token>(), canContainVariables, escapeChar)
+                {
+                    QuoteChar = DoubleQuote
+                }
+            };
+        }
+
+        return CollapseLiteralTokens(materializedTokens, canContainVariables, escapeChar, DoubleQuote);
+    }
+
+    /// <summary>
+    /// Parses the elements of a JSON array. When <paramref name="allowEmpty"/> is true,
+    /// an empty array (no elements) is accepted via a lookahead-guarded fallback that
+    /// checks for <c>]</c> before returning an empty result. The <c>.Or()</c> combinator
+    /// (as opposed to <c>.XOr()</c>) is used so that even if the element parser partially
+    /// consumes whitespace before failing, it backtracks cleanly to the empty-array path
+    /// for inputs like <c>[ ]</c> or <c>[\n]</c>.
+    /// When false, at least one element is required and no empty fallback is added,
+    /// giving clearer error messages.
+    /// </summary>
+    /// <param name="escapeChar">Escape character.</param>
+    /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
+    /// <param name="allowEmpty">A value indicating whether an empty array is allowed.</param>
+    private static Parser<IEnumerable<Token>> JsonArrayElements(char escapeChar, bool canContainVariables, bool allowEmpty)
+    {
+        var elements =
+            from firstArg in JsonArrayElement(escapeChar, canContainVariables, consumeLeadingWhitespace: false).Once().Flatten()
+            from tail in (
+                from delimiter in JsonArrayElementDelimiter(escapeChar)
+                from nextArg in JsonArrayElement(escapeChar, canContainVariables)
+                select ConcatTokens(delimiter, nextArg)).Many()
+            select ConcatTokens(firstArg, tail.Flatten());
+
+        if (allowEmpty)
+        {
+            // Use a lookahead for ']' so only truly empty arrays (e.g. [] or [ ]) take
+            // the empty path. Without this, inputs like [foo] would silently fall through
+            // to the empty branch (because the element parser fails without consuming
+            // input) and report "expected ']'" instead of "expected opening quote".
+            var emptyArrayLookahead =
+                from preview in Symbol(']').Preview()
+                where preview.IsDefined
+                select Enumerable.Empty<Token>();
+
+            // Use .Or() (not .XOr()) so that the empty-array lookahead is attempted
+            // even if the element parser partially consumed input before failing.
+            // This ensures whitespace-only empty arrays like [ ] or [\n] backtrack
+            // correctly to the empty-array path.
+            elements = elements.Or(emptyArrayLookahead);
+        }
+
+        return elements;
+    }
+
+    /// <summary>
+    /// Parses a JSON array element delimiter (i.e. comma) with optional whitespace.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     private static Parser<IEnumerable<Token>> JsonArrayElementDelimiter(char escapeChar) =>
@@ -622,39 +686,6 @@ internal static class ParseHelper
             select ConcatTokens(
                 CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
-    }
-
-    /// <summary>
-    /// Creates a literal token for a JSON array element, handling the empty string case
-    /// where the element is just "" with no content between the quotes.
-    /// </summary>
-    /// <param name="tokens">Content tokens parsed from between the quotes.</param>
-    /// <param name="canContainVariables">A value indicating whether the element can contain variables.</param>
-    /// <param name="escapeChar">Escape character.</param>
-    private static IEnumerable<Token> CreateJsonArrayElementLiteral(IEnumerable<Token> tokens,
-        bool canContainVariables, char escapeChar)
-    {
-        if (!tokens.Any())
-        {
-            // Empty string element (e.g. "" in exec form) — synthesize a LiteralToken
-            // with zero children (Array.Empty<Token>()). This deliberately differs from
-            // the LiteralToken(string) constructor path, which wraps an empty value in a
-            // StringToken(""). The parser uses empty children because that matches the
-            // Lean/BuildKit parser output for empty quoted strings in exec form arrays,
-            // and differential testing confirms byte-identical JSON output this way.
-            return new Token[]
-            {
-                new LiteralToken(
-                    Array.Empty<Token>(),
-                    canContainVariables,
-                    escapeChar)
-                {
-                    QuoteChar = DoubleQuote
-                }
-            };
-        }
-
-        return CollapseLiteralTokens(tokens, canContainVariables, escapeChar, DoubleQuote);
     }
 
     /// <summary>
