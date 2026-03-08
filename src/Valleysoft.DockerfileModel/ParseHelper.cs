@@ -636,7 +636,6 @@ internal static class ParseHelper
         return CollapseLiteralTokens(tokens, canContainVariables, escapeChar, DoubleQuote);
     }
 
-
     /// <summary>
     /// Enumerates the tokens while extracting the contents of any literal tokens encountered.
     /// </summary>
