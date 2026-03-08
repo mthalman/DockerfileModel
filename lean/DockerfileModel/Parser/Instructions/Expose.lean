@@ -2,22 +2,23 @@
   Parser/Instructions/Expose.lean -- EXPOSE instruction parser.
 
   Parses the EXPOSE instruction:
-    EXPOSE <port>[/<protocol>] [<port>[/<protocol>] ...]
+    EXPOSE <port-spec> [<port-spec> ...]
 
-  Port is a literal (can contain variables). Protocol is optional: 'tcp' or 'udp'
-  after '/'. Multiple port specs are separated by whitespace.
-
-  BuildKit treats port/protocol specs (e.g., 80/tcp) as single opaque values,
-  not key-value pairs. The '/' is part of the port specification syntax.
+  Each port spec is parsed as a single opaque literal that may include an
+  optional protocol suffix (e.g., "80", "80/tcp", "443/udp"). The entire
+  port/protocol string, including the '/', is captured as one literal token
+  — it is not split into separate port, separator, and protocol tokens.
+  Port specs can contain variable references (e.g., "$PORT/$PROTO").
+  Multiple port specs are separated by whitespace.
 
   Token structure produced:
     InstructionToken [
       WhitespaceToken?,          -- leading whitespace
       KeywordToken("EXPOSE"),    -- instruction keyword
       WhitespaceToken(" "),      -- separator
-      LiteralToken(port),        -- port spec (flat, e.g., "80" or "80/tcp")
+      LiteralToken(port-spec),   -- port spec (flat, e.g., "80" or "80/tcp")
       WhitespaceToken?,          -- separator between port specs
-      LiteralToken(port),        -- additional port spec
+      LiteralToken(port-spec),   -- additional port spec
       ...
     ]
 -/
