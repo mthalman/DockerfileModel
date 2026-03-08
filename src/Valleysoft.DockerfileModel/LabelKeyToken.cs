@@ -37,6 +37,10 @@ public class LabelKeyToken : IdentifierToken
     private static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> GetInnerParser(char escapeChar) =>
         IdentifierTokens(FirstCharParser(), TailCharParser(), escapeChar);
 
+    // Digits are intentionally excluded from the first-character set.
+    // BuildKit's parser (and the Lean formal spec) only allow alphabetic
+    // characters, underscores, and dots as the first character of a LABEL
+    // key, even though digits are permitted in subsequent characters.
     private static Parser<char> FirstCharParser() =>
         Sprache.Parse.Letter
             .Or(Sprache.Parse.Char('_'))
