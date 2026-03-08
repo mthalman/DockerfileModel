@@ -388,6 +388,11 @@ public class LabelInstructionTests
             {
                 Text = "LABEL $var=1",
                 ParseExceptionPosition = new Position(6, 1, 7)
+            },
+            new ParseTestScenario<LabelInstruction>
+            {
+                Text = "LABEL \"$_var\"=value",
+                ParseExceptionPosition = new Position(7, 1, 8)
             }
         };
 

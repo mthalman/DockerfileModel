@@ -807,7 +807,7 @@ internal static class ParseHelper
     /// Parses variable ref characters.
     /// </summary>
     private static Parser<char> VariableRefChars() =>
-        Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{')));
+        Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{')).Or(Parse.Char('_')));
 
     /// <summary>
     /// Parses an escaped character.
