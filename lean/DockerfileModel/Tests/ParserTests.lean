@@ -2580,6 +2580,28 @@ def testRunLowercase : IO Unit := do
 -- Additional COPY tests
 
 open DockerfileModel.Parser.Instructions.Copy in
+/-- Test: COPY --from=$VAR src dst — variable ref in --from is treated as plain text -/
+def testCopyFromVarNoExpansion : IO Unit := do
+  IO.println "Copy: --from with dollar-sign variable (no expansion)"
+  match parseCopy "COPY --from=$VAR src dst" with
+  | some inst =>
+    assertEqual (Token.toString inst.token) "COPY --from=$VAR src dst"
+      "copy --from=$VAR round-trip"
+  | none =>
+    throw (IO.Error.userError "Parse failed: COPY --from=$VAR should parse")
+
+open DockerfileModel.Parser.Instructions.Copy in
+/-- Test: COPY --from=${VAR} src dst — braced variable ref in --from is treated as plain text -/
+def testCopyFromBracedVarNoExpansion : IO Unit := do
+  IO.println "Copy: --from with braced variable (no expansion)"
+  match parseCopy "COPY --from=${VAR} src dst" with
+  | some inst =>
+    assertEqual (Token.toString inst.token) "COPY --from=${VAR} src dst"
+      "copy --from=${VAR} round-trip"
+  | none =>
+    throw (IO.Error.userError "Parse failed: COPY --from=${VAR} should parse")
+
+open DockerfileModel.Parser.Instructions.Copy in
 /-- Test: COPY with variable -/
 def testCopyVariable : IO Unit := do
   IO.println "Copy: with variable"
@@ -2938,6 +2960,8 @@ def runParserTests_PhaseD : IO Unit := do
   testCopyWithLink
   testCopyExecForm
   testCopyWithChmod
+  testCopyFromVarNoExpansion
+  testCopyFromBracedVarNoExpansion
   testCopyVariable
   testCopyLowercase
   IO.println ""
