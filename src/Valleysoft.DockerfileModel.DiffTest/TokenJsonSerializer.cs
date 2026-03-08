@@ -504,24 +504,40 @@ public static class TokenJsonSerializer
             Token child = tokens[i];
 
             // Detect the port/protocol pattern: LiteralToken, SymbolToken('/'), LiteralToken
-            if (child is LiteralToken portLiteral
-                && i + 1 < tokens.Count && tokens[i + 1] is SymbolToken slashSym && slashSym.Value == "/"
-                && i + 2 < tokens.Count && tokens[i + 2] is LiteralToken protoLiteral)
+            // with optional LineContinuationTokens between them (e.g., "80\\\n/tcp").
+            if (child is LiteralToken portLiteral)
             {
-                if (!first) sb.Append(',');
-                first = false;
+                // Scan forward past any LineContinuationTokens to find the slash
+                int slashIdx = i + 1;
+                while (slashIdx < tokens.Count && tokens[slashIdx] is LineContinuationToken)
+                    slashIdx++;
 
-                // Merge the three tokens into a single literal
-                SerializeMergedPortProtocolLiteral(sb, portLiteral, protoLiteral);
+                if (slashIdx < tokens.Count
+                    && tokens[slashIdx] is SymbolToken slashSym && slashSym.Value == "/")
+                {
+                    // Scan forward past any LineContinuationTokens to find the protocol literal
+                    int protoIdx = slashIdx + 1;
+                    while (protoIdx < tokens.Count && tokens[protoIdx] is LineContinuationToken)
+                        protoIdx++;
 
-                i += 2; // skip the slash and protocol tokens, already consumed
+                    if (protoIdx < tokens.Count && tokens[protoIdx] is LiteralToken protoLiteral)
+                    {
+                        if (!first) sb.Append(',');
+                        first = false;
+
+                        // Merge the port/slash/protocol tokens into a single literal,
+                        // skipping any intervening LineContinuationTokens
+                        SerializeMergedPortProtocolLiteral(sb, portLiteral, protoLiteral);
+
+                        i = protoIdx; // skip all consumed tokens (including line continuations)
+                        continue;
+                    }
+                }
             }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
+
+            if (!first) sb.Append(',');
+            SerializeToken(sb, child);
+            first = false;
         }
 
         sb.Append("]}");
