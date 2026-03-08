@@ -612,7 +612,16 @@ internal static class ParseHelper
 
         if (allowEmpty)
         {
-            elements = elements.XOr(Parse.Return(Enumerable.Empty<Token>()));
+            // Use a lookahead for ']' so only truly empty arrays (e.g. [] or [ ]) take
+            // the empty path. Without this, inputs like [foo] would silently fall through
+            // to the empty branch (because the element parser fails without consuming
+            // input) and report "expected ']'" instead of "expected opening quote".
+            var emptyArrayLookahead =
+                from preview in Symbol(']').Preview()
+                where preview.IsDefined
+                select Enumerable.Empty<Token>();
+
+            elements = elements.Or(emptyArrayLookahead);
         }
 
         return elements;
