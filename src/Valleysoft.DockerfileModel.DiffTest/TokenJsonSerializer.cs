@@ -30,7 +30,7 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
 ///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
-///   - EXPOSE port/protocol: (resolved) Both now use flat LiteralTokens
+///   - EXPOSE port/protocol: C# splits into literal+symbol+literal; Lean uses one flat literal
 ///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
 ///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
 /// </summary>
@@ -95,8 +95,11 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // EXPOSE: C# and Lean both use flat tokens for port/protocol specs.
-        // No workaround needed — falls through to generic Instruction handling.
+        if (token is ExposeInstruction expose)
+        {
+            SerializeExpose(sb, expose);
+            return;
+        }
 
         if (token is LabelInstruction labelInst)
         {
@@ -477,9 +480,165 @@ public static class TokenJsonSerializer
         sb.Append("]}");
     }
 
-    // EXPOSE: No workaround needed — both C# and Lean use flat tokens
-    // for port/protocol specs (e.g., 80/tcp). The generic Instruction
-    // serialization handles EXPOSE correctly.
+    // ===================================================================
+    // Workaround: EXPOSE port/protocol merging
+    // C# tokenizes port/protocol specs as separate tokens at the instruction
+    // level: LiteralToken(port) + SymbolToken('/') + LiteralToken(protocol).
+    // BuildKit (and hence Lean) treats the entire port/protocol spec as a
+    // single opaque literal value, e.g., "80/tcp" becomes one LiteralToken
+    // containing StringToken("80/tcp"). This serializer detects the
+    // literal + '/' + literal pattern and merges them into a single literal,
+    // appending "/" and the protocol text into the port literal's children.
+    // ===================================================================
+
+    private static void SerializeExpose(StringBuilder sb, ExposeInstruction expose)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
+
+        List<Token> tokens = expose.Tokens.ToList();
+        bool first = true;
+
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            Token child = tokens[i];
+
+            // Detect the port/protocol pattern: LiteralToken, SymbolToken('/'), LiteralToken
+            if (child is LiteralToken portLiteral
+                && i + 1 < tokens.Count && tokens[i + 1] is SymbolToken slashSym && slashSym.Value == "/"
+                && i + 2 < tokens.Count && tokens[i + 2] is LiteralToken protoLiteral)
+            {
+                if (!first) sb.Append(',');
+                first = false;
+
+                // Merge the three tokens into a single literal
+                SerializeMergedPortProtocolLiteral(sb, portLiteral, protoLiteral);
+
+                i += 2; // skip the slash and protocol tokens, already consumed
+            }
+            else
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Merge a port LiteralToken and protocol LiteralToken (separated by '/') into
+    /// a single literal, matching Lean's flat representation.
+    ///
+    /// Strategy: emit all children of the port literal, then append the protocol
+    /// content prefixed with '/'. If the port literal's last child and the protocol
+    /// literal's first child are both StringTokens, they merge into one string node
+    /// (e.g., string["80"] + "/" + string["tcp"] -> string["80/tcp"]).
+    /// Otherwise a new string node is added for the slash+protocol prefix.
+    /// </summary>
+    private static void SerializeMergedPortProtocolLiteral(
+        StringBuilder sb, LiteralToken portLiteral, LiteralToken protoLiteral)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
+
+        if (portLiteral.QuoteChar.HasValue)
+        {
+            sb.Append('"');
+            JsonEscapeString(sb, portLiteral.QuoteChar.Value.ToString());
+            sb.Append('"');
+        }
+        else
+        {
+            sb.Append("null");
+        }
+
+        sb.Append(",\"children\":[");
+
+        List<Token> portChildren = portLiteral.Tokens.ToList();
+        List<Token> protoChildren = protoLiteral.Tokens.ToList();
+
+        bool first = true;
+
+        // Check if we can merge the last port child with the first proto child
+        bool lastPortIsString = portChildren.Count > 0 && portChildren[^1] is StringToken;
+        bool firstProtoIsString = protoChildren.Count > 0 && protoChildren[0] is StringToken;
+
+        if (lastPortIsString && firstProtoIsString)
+        {
+            // Emit all port children except the last
+            for (int j = 0; j < portChildren.Count - 1; j++)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, portChildren[j]);
+                first = false;
+            }
+
+            // Merge: lastPortString + "/" + firstProtoString
+            string mergedValue = ((StringToken)portChildren[^1]).Value
+                + "/"
+                + ((StringToken)protoChildren[0]).Value;
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", mergedValue);
+            first = false;
+
+            // Emit remaining proto children
+            for (int j = 1; j < protoChildren.Count; j++)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, protoChildren[j]);
+                first = false;
+            }
+        }
+        else if (firstProtoIsString)
+        {
+            // Emit all port children
+            foreach (Token portChild in portChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, portChild);
+                first = false;
+            }
+
+            // Add "/" prepended to the first proto string
+            string slashProto = "/" + ((StringToken)protoChildren[0]).Value;
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", slashProto);
+            first = false;
+
+            // Emit remaining proto children
+            for (int j = 1; j < protoChildren.Count; j++)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, protoChildren[j]);
+                first = false;
+            }
+        }
+        else
+        {
+            // Emit all port children
+            foreach (Token portChild in portChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, portChild);
+                first = false;
+            }
+
+            // Add a "/" string node
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", "/");
+            first = false;
+
+            // Emit all proto children
+            foreach (Token protoChild in protoChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, protoChild);
+                first = false;
+            }
+        }
+
+        sb.Append("]}");
+    }
 
     // ===================================================================
     // Workaround: HEALTHCHECK CMD nesting
