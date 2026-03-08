@@ -362,16 +362,7 @@ internal static class ParseHelper
         // parser structure, which parses interElementSpace before attempting the
         // optional first element.
         from leadingWs in OptionalWhitespaceOrLineContinuation(escapeChar)
-        from execFormArgs in (
-            from firstArg in JsonArrayFirstElement(escapeChar, canContainVariables).Once().Flatten()
-            from tail in (
-                from delimiter in JsonArrayElementDelimiter(escapeChar)
-                from nextArg in JsonArrayElement(escapeChar, canContainVariables)
-                select ConcatTokens(delimiter, nextArg)).Many()
-            select ConcatTokens(firstArg, tail.Flatten()))
-            // Empty array: no elements found after optional whitespace (e.g. "[]" or "[ ]").
-            // Only allowed when allowEmpty is true (exec-form commands).
-            .XOr(allowEmpty ? Parse.Return(Enumerable.Empty<Token>()) : Parse.Return(Enumerable.Empty<Token>()).Where(_ => false))
+        from execFormArgs in JsonArrayElements(escapeChar, canContainVariables, allowEmpty)
         from closingBracket in Symbol(']').AsEnumerable()
         select ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
 
@@ -601,6 +592,32 @@ internal static class ParseHelper
         }
 
         return CollapseLiteralTokens(tokens, canContainVariables, escapeChar, DoubleQuote);
+    }
+
+    /// <summary>
+    /// Parses the elements of a JSON array. When <paramref name="allowEmpty"/> is true,
+    /// an empty array (no elements) is accepted via an XOr fallback. When false, at least
+    /// one element is required and no empty fallback is added, giving clearer error messages.
+    /// </summary>
+    /// <param name="escapeChar">Escape character.</param>
+    /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
+    /// <param name="allowEmpty">A value indicating whether an empty array is allowed.</param>
+    private static Parser<IEnumerable<Token>> JsonArrayElements(char escapeChar, bool canContainVariables, bool allowEmpty)
+    {
+        var elements =
+            from firstArg in JsonArrayFirstElement(escapeChar, canContainVariables).Once().Flatten()
+            from tail in (
+                from delimiter in JsonArrayElementDelimiter(escapeChar)
+                from nextArg in JsonArrayElement(escapeChar, canContainVariables)
+                select ConcatTokens(delimiter, nextArg)).Many()
+            select ConcatTokens(firstArg, tail.Flatten());
+
+        if (allowEmpty)
+        {
+            elements = elements.XOr(Parse.Return(Enumerable.Empty<Token>()));
+        }
+
+        return elements;
     }
 
     /// <summary>
