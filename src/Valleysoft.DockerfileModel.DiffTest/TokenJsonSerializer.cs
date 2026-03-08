@@ -30,7 +30,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
 ///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
-///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
 ///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
 /// </summary>
 public static class TokenJsonSerializer
@@ -88,12 +87,6 @@ public static class TokenJsonSerializer
             return;
         }
 
-        if (token is HealthCheckInstruction healthCheck)
-        {
-            SerializeHealthCheck(sb, healthCheck);
-            return;
-        }
-
         if (token is ExposeInstruction expose)
         {
             SerializeExpose(sb, expose);
@@ -113,8 +106,8 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // CMD, ENTRYPOINT need shell form VariableRefToken validation (fail-fast)
-        if (token is CmdInstruction || token is EntrypointInstruction)
+        // CMD, ENTRYPOINT, HEALTHCHECK need shell form VariableRefToken validation (fail-fast)
+        if (token is CmdInstruction || token is EntrypointInstruction || token is HealthCheckInstruction)
         {
             SerializeShellFormInstruction(sb, (Instruction)token);
             return;
@@ -311,10 +304,10 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Shell form instructions (CMD, ENTRYPOINT)
+    // Shell form instructions (CMD, ENTRYPOINT, HEALTHCHECK)
     // Shell form commands are parsed as opaque text. The Command wrapper
     // (ShellFormCommand) is transparent, so the LiteralToken appears
-    // after inlining.
+    // after inlining. Validates shell form LiteralTokens (fail-fast on VariableRefToken).
     // ===================================================================
 
     private static void SerializeShellFormInstruction(StringBuilder sb, Instruction instruction)
@@ -446,63 +439,6 @@ public static class TokenJsonSerializer
                 sb.Append("]}");
 
                 i += 2; // skip the next two tokens, already consumed
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: HEALTHCHECK CMD nesting
-    // C# nests CmdInstruction as a child Instruction inside HealthCheckInstruction.
-    // Lean keeps everything flat: flags, KeywordToken("CMD"), whitespace, command tokens.
-    // We detect the nested CmdInstruction and inline its children, also validating
-    // shell form literals (fail-fast on VariableRefToken).
-    // ===================================================================
-
-    private static void SerializeHealthCheck(StringBuilder sb, HealthCheckInstruction healthCheck)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in healthCheck.Tokens)
-        {
-            // When we hit the nested CmdInstruction, inline its children
-            if (child is CmdInstruction cmdInst)
-            {
-                foreach (Token cmdChild in cmdInst.Tokens)
-                {
-                    // Handle Command wrapper (ShellFormCommand is transparent)
-                    if (cmdChild is Command cmd)
-                    {
-                        foreach (Token cmdGrandchild in cmd.Tokens)
-                        {
-                            if (!first) sb.Append(',');
-                            first = false;
-                            // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
-                            if (cmdGrandchild is LiteralToken lit)
-                            {
-                                SerializeShellFormLiteral(sb, lit);
-                            }
-                            else
-                            {
-                                SerializeToken(sb, cmdGrandchild);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (!first) sb.Append(',');
-                        SerializeToken(sb, cmdChild);
-                        first = false;
-                    }
-                }
             }
             else
             {
