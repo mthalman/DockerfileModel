@@ -108,6 +108,9 @@ partial def triggerInstructionParser (escapeChar : Char) : Parser Token := do
     | "COPY"        => copyInstructionParser escapeChar
     | "ADD"         => addInstructionParser escapeChar
     | "HEALTHCHECK" => healthcheckInstructionParser escapeChar
+    | "ONBUILD"     => Parser.fail "ONBUILD ONBUILD is not allowed"
+    | "FROM"        => Parser.fail "ONBUILD FROM is not allowed"
+    | "MAINTAINER"  => Parser.fail "ONBUILD MAINTAINER is not allowed"
     | other         => Parser.fail s!"unknown or unsupported ONBUILD trigger instruction: {other}"
   Parser.pure (Token.mkInstruction tokens)
 
