@@ -77,6 +77,16 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
                     return;
                 }
 
+                // When TValue is LiteralToken, auto-insert a new LiteralToken so that
+                // mutation paths (e.g. IKeyValuePair.Value setter on ENV/LABEL instructions
+                // parsed with optionalValue: true) work without requiring callers to first
+                // insert a ValueToken manually.
+                if (typeof(TValue) == typeof(LiteralToken))
+                {
+                    ValueToken = (TValue)(Token)new LiteralToken(value, canContainVariables: true);
+                    return;
+                }
+
                 throw new InvalidOperationException(
                     $"No value token exists. Use the {nameof(ValueToken)} setter to insert a new value token.");
             }
