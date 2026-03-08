@@ -118,13 +118,35 @@ public class ExposeInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        (from leadingWhitespace in Whitespace()
-        from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar, excludeLeadingWhitespace: true)
+        (from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
         from separator in ArgTokens(Symbol('/').AsEnumerable(), escapeChar)
         from protocol in ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar)
-        select ConcatTokens(
-            leadingWhitespace,
-            ConcatTokens(new KeyValueToken<LiteralToken, LiteralToken>(ConcatTokens(port, separator, protocol)))))
+        select SplitLeadingWhitespace(port, separator, protocol))
         .Or(
             ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar));
+
+    /// <summary>
+    /// Splits leading whitespace tokens from the port tokens so they remain siblings
+    /// of the KeyValueToken rather than children. ArgTokens may include leading whitespace
+    /// (e.g., indentation after a line continuation) that should not be wrapped inside the
+    /// KeyValueToken.
+    /// </summary>
+    private static IEnumerable<Token> SplitLeadingWhitespace(
+        IEnumerable<Token> port, IEnumerable<Token> separator, IEnumerable<Token> protocol)
+    {
+        var portTokens = port.ToList();
+        int firstNonWhitespace = 0;
+        while (firstNonWhitespace < portTokens.Count && portTokens[firstNonWhitespace] is WhitespaceToken)
+        {
+            firstNonWhitespace++;
+        }
+
+        var leadingWhitespace = portTokens.Take(firstNonWhitespace);
+        var portCore = portTokens.Skip(firstNonWhitespace);
+
+        return ConcatTokens(
+            leadingWhitespace,
+            ConcatTokens(new KeyValueToken<LiteralToken, LiteralToken>(
+                ConcatTokens(portCore, separator, protocol))));
+    }
 }
