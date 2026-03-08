@@ -349,19 +349,24 @@ internal static class ParseHelper
     /// <param name="canContainVariables">A value indicating whether variables are allowed to be contained in the strings.</param>
     public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables) =>
         from openingBracket in Symbol('[').AsEnumerable()
+        // Consume optional whitespace after '[' at the array level (not inside
+        // the element parser) so the empty-array fallback works correctly.
+        // Without this, JsonArrayElement would consume whitespace and then fail
+        // at the opening quote, preventing backtracking to the empty-array case.
+        // This matches the Lean/BuildKit parser structure, which parses
+        // interElementSpace before attempting the optional first element.
+        from leadingWs in OptionalWhitespaceOrLineContinuation(escapeChar)
         from execFormArgs in (
-            from arg in JsonArrayElement(escapeChar, canContainVariables).Once().Flatten()
+            from firstArg in JsonArrayElement(escapeChar, canContainVariables, consumeLeadingWhitespace: false).Once().Flatten()
             from tail in (
                 from delimiter in JsonArrayElementDelimiter(escapeChar)
                 from nextArg in JsonArrayElement(escapeChar, canContainVariables)
                 select ConcatTokens(delimiter, nextArg)).Many()
-            select ConcatTokens(arg, tail.Flatten())
-        ).Or(
-            from ws in OptionalWhitespaceOrLineContinuation(escapeChar)
-            select ws
-        )
+            select ConcatTokens(firstArg, tail.Flatten()))
+            // Empty array: no elements found after optional whitespace (e.g. "[]" or "[ ]").
+            .XOr(Parse.Return(Enumerable.Empty<Token>()))
         from closingBracket in Symbol(']').AsEnumerable()
-        select ConcatTokens(openingBracket, execFormArgs, closingBracket);
+        select ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
 
     /// <summary>
     /// Parses a required new line.
@@ -581,24 +586,40 @@ internal static class ParseHelper
             trailing);
 
     /// <summary>
-    /// Parses a JSON array string element.
+    /// Parses a JSON array string element. When <paramref name="consumeLeadingWhitespace"/> is
+    /// <c>false</c> (used for the first element), leading whitespace is not consumed because the
+    /// caller (<see cref="JsonArray"/>) already handled it. When <c>true</c> (used for subsequent
+    /// elements), leading whitespace is consumed as part of the element.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
-    private static Parser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables)
+    /// <param name="consumeLeadingWhitespace">Whether to consume leading whitespace before the element.</param>
+    private static Parser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables, bool consumeLeadingWhitespace = true)
     {
         Parser<LiteralToken> literalParser = canContainVariables ?
             LiteralWithVariables(escapeChar, new char[] { DoubleQuote }) :
             LiteralToken(escapeChar, new char[] { DoubleQuote });
 
+        if (consumeLeadingWhitespace)
+        {
+            return
+                from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
+                from openingQuote in Symbol(DoubleQuote)
+                from argValue in ArgTokens(literalParser.AsEnumerable(), escapeChar).Many()
+                from closingQuote in Symbol(DoubleQuote)
+                from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
+                select ConcatTokens(
+                    leading,
+                    CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
+                    trailing);
+        }
+
         return
-            from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
             from openingQuote in Symbol(DoubleQuote)
             from argValue in ArgTokens(literalParser.AsEnumerable(), escapeChar).Many()
             from closingQuote in Symbol(DoubleQuote)
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
-                leading,
                 CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
     }
