@@ -7,22 +7,18 @@
   Port is a literal (can contain variables). Protocol is optional: 'tcp' or 'udp'
   after '/'. Multiple port specs are separated by whitespace.
 
+  BuildKit treats port/protocol specs (e.g., 80/tcp) as single opaque values,
+  not key-value pairs. The '/' is part of the port specification syntax.
+
   Token structure produced:
     InstructionToken [
       WhitespaceToken?,          -- leading whitespace
       KeywordToken("EXPOSE"),    -- instruction keyword
       WhitespaceToken(" "),      -- separator
-      LiteralToken(port),        -- port spec (may be KeyValueToken if /proto)
+      LiteralToken(port),        -- port spec (flat, e.g., "80" or "80/tcp")
       WhitespaceToken?,          -- separator between port specs
       LiteralToken(port),        -- additional port spec
       ...
-    ]
-
-  A port spec with protocol produces:
-    KeyValueToken [
-      LiteralToken(port),
-      SymbolToken('/'),
-      LiteralToken(protocol)
     ]
 -/
 
@@ -43,18 +39,10 @@ open Parser
 -- ============================================================
 
 /-- Parse a single port specification: port[/protocol].
-    Port is a literal (excluding '/' and whitespace). Protocol is optional. -/
-def portSpecParser (escapeChar : Char) : Parser Token := do
-  let port ← literalWithVariables escapeChar ['/']
-  let protoPart ← Parser.optional (do
-    let slash ← symbolParser '/'
-    let proto ← literalWithVariables escapeChar
-    Parser.pure (slash, proto))
-  match protoPart with
-  | some (slash, proto) =>
-    Parser.pure (Token.mkKeyValue [port, slash, proto])
-  | none =>
-    Parser.pure port
+    BuildKit treats the entire port/protocol spec (e.g., "80/tcp") as a single
+    opaque value. The '/' is part of the literal text, not a key-value separator. -/
+def portSpecParser (escapeChar : Char) : Parser Token :=
+  literalWithVariables escapeChar
 
 -- ============================================================
 -- EXPOSE args parser

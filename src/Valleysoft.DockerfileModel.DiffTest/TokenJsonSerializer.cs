@@ -30,7 +30,7 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
 ///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
-///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
+///   - EXPOSE port/protocol: (resolved) Both now use flat LiteralTokens
 ///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
 ///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
 /// </summary>
@@ -95,11 +95,8 @@ public static class TokenJsonSerializer
             return;
         }
 
-        if (token is ExposeInstruction expose)
-        {
-            SerializeExpose(sb, expose);
-            return;
-        }
+        // EXPOSE: C# and Lean both use flat tokens for port/protocol specs.
+        // No workaround needed — falls through to generic Instruction handling.
 
         if (token is LabelInstruction labelInst)
         {
@@ -480,53 +477,9 @@ public static class TokenJsonSerializer
         sb.Append("]}");
     }
 
-    // ===================================================================
-    // Workaround: EXPOSE instruction
-    // C# has flat tokens (literal, symbol('/'), literal) for port/protocol.
-    // Lean wraps port/protocol in a KeyValueToken.
-    // We detect the flat pattern and re-wrap during serialization.
-    // ===================================================================
-
-    private static void SerializeExpose(StringBuilder sb, ExposeInstruction expose)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        List<Token> tokens = expose.Tokens.ToList();
-        bool first = true;
-
-        for (int i = 0; i < tokens.Count; i++)
-        {
-            Token child = tokens[i];
-
-            // Detect the port/protocol pattern: LiteralToken, SymbolToken('/'), LiteralToken
-            if (child is LiteralToken
-                && i + 1 < tokens.Count && tokens[i + 1] is SymbolToken slashSym && slashSym.Value == "/"
-                && i + 2 < tokens.Count && tokens[i + 2] is LiteralToken)
-            {
-                if (!first) sb.Append(',');
-                first = false;
-
-                // Wrap the three tokens as a keyValue
-                sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-                SerializeToken(sb, tokens[i]);     // port literal
-                sb.Append(',');
-                SerializeToken(sb, tokens[i + 1]); // slash symbol
-                sb.Append(',');
-                SerializeToken(sb, tokens[i + 2]); // protocol literal
-                sb.Append("]}");
-
-                i += 2; // skip the next two tokens, already consumed
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
+    // EXPOSE: No workaround needed — both C# and Lean use flat tokens
+    // for port/protocol specs (e.g., 80/tcp). The generic Instruction
+    // serialization handles EXPOSE correctly.
 
     // ===================================================================
     // Workaround: HEALTHCHECK CMD nesting
