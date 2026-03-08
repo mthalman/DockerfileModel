@@ -10,7 +10,7 @@ public class HealthCheckInstruction : Instruction
 
     public HealthCheckInstruction(string commandWithArgs, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(commandWithArgs, interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
+        : this(GetTokens(ValidateNotNullOrEmpty(commandWithArgs, nameof(commandWithArgs)), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
@@ -275,6 +275,12 @@ public class HealthCheckInstruction : Instruction
                 .Or(RetriesFlag.GetParser(escapeChar)).AsEnumerable(),
             escapeChar)
             .Many().Flatten();
+
+    private static string ValidateNotNullOrEmpty(string value, string paramName)
+    {
+        Requires.NotNullOrEmpty(value, paramName);
+        return value;
+    }
 
     private static string ValidateAndFormatAsJson(IEnumerable<string> defaultArgs, string paramName)
     {
