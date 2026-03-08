@@ -106,6 +106,12 @@ public class TokenBuilder
     public TokenBuilder StageName(Action<TokenBuilder> configureBuilder) =>
         AddToken(new StageName(GetTokens(configureBuilder), EscapeChar));
 
+    public TokenBuilder StartIntervalFlag(string startInterval) =>
+        AddToken(new StartIntervalFlag(startInterval, EscapeChar));
+
+    public TokenBuilder StartIntervalFlag(Action<TokenBuilder> configureBuilder) =>
+        AddToken(new StartIntervalFlag(GetTokens(configureBuilder)));
+
     public TokenBuilder StartPeriodFlag(string startPeriod) =>
         AddToken(new StartPeriodFlag(startPeriod, EscapeChar));
 

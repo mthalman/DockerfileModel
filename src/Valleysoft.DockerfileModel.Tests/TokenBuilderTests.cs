@@ -27,6 +27,7 @@ public class TokenBuilderTests
             .Mount("type=secret,id=id")
             .ShellFormCommand("cmd")
             .StageName("stage")
+            .StartIntervalFlag("5s")
             .StartPeriodFlag("1s")
             .Symbol('-')
             .TimeoutFlag("2h")
@@ -85,6 +86,7 @@ public class TokenBuilderTests
             token => ValidateAggregate<ShellFormCommand>(token, "cmd",
                 token => ValidateLiteral(token, "cmd")),
             token => ValidateIdentifier<StageName>(token, "stage"),
+            token => ValidateKeyValueFlag<StartIntervalFlag>(token, "start-interval", "5s"),
             token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "1s"),
             token => ValidateSymbol(token, '-'),
             token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "2h"),
@@ -111,6 +113,7 @@ public class TokenBuilderTests
             "type=secret,id=id" +
             "cmd" +
             "stage" +
+            "--start-interval=5s" +
             "--start-period=1s" +
             "-" +
             "--timeout=2h" +

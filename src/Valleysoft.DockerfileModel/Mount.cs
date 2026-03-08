@@ -20,7 +20,9 @@ public class Mount : AggregateToken
         set
         {
             Requires.NotNullOrEmpty(value, nameof(value));
-            TypeToken.ValueToken.Value = value;
+            var valueToken = TypeToken.ValueToken
+                ?? throw new InvalidOperationException("Mount.TypeToken.ValueToken cannot be null when setting Mount.Type.");
+            valueToken.Value = value;
         }
     }
 

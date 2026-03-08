@@ -54,12 +54,9 @@ public class LabelInstruction : Instruction
             from whitespace in Whitespace().Optional()
             from variable in KeyValueToken<LiteralToken, LiteralToken>.GetParser(
                 LiteralWithVariables(escapeChar, excludedChars: new char[] { '=' }, whitespaceMode: WhitespaceMode.AllowedInQuotes),
-                ValueParser(escapeChar),
-                escapeChar: escapeChar).AsEnumerable()
+                LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes),
+                escapeChar: escapeChar,
+                optionalValue: true).AsEnumerable()
             select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
         ).AtLeastOnce().Flatten();
-
-    private static Parser<LiteralToken> ValueParser(char escapeChar) =>
-        from literal in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).Optional()
-        select literal.GetOrElse(new LiteralToken(""));
 }
