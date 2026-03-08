@@ -118,12 +118,14 @@ public class ExposeInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        (from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
-        from separator in ArgTokens(Symbol('/').AsEnumerable(), escapeChar)
-        from protocol in ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar)
-        select SplitLeadingWhitespace(port, separator, protocol))
-        .Or(
-            ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar));
+        from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
+        from protocolPart in (
+            from separator in ArgTokens(Symbol('/').AsEnumerable(), escapeChar)
+            from protocol in ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar)
+            select ConcatTokens(separator, protocol)).Optional()
+        select protocolPart.IsDefined
+            ? SplitLeadingWhitespace(port, protocolPart.Get())
+            : port;
 
     /// <summary>
     /// Splits leading whitespace tokens from the port tokens so they remain siblings
@@ -132,7 +134,7 @@ public class ExposeInstruction : Instruction
     /// KeyValueToken.
     /// </summary>
     private static IEnumerable<Token> SplitLeadingWhitespace(
-        IEnumerable<Token> port, IEnumerable<Token> separator, IEnumerable<Token> protocol)
+        IEnumerable<Token> port, IEnumerable<Token> protocolPart)
     {
         var portTokens = port.ToList();
         int firstNonWhitespace = 0;
@@ -147,6 +149,6 @@ public class ExposeInstruction : Instruction
         return ConcatTokens(
             leadingWhitespace,
             ConcatTokens(new KeyValueToken<LiteralToken, LiteralToken>(
-                ConcatTokens(portCore, separator, protocol))));
+                ConcatTokens(portCore, protocolPart))));
     }
 }
