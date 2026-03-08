@@ -26,14 +26,14 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>, I
     /// Setting a value is not supported.
     /// </summary>
     /// <remarks>
-    /// Hides the base class <see cref="KeyValueToken{TKey, TValue}.Value"/> property
+    /// Overrides the base class <see cref="KeyValueToken{TKey, TValue}.Value"/> property
     /// to prevent callers from accidentally reading <see cref="string.Empty"/> or
     /// inserting a <see cref="LiteralToken"/> via the setter, which would create a
     /// structurally invalid boolean flag.
     /// </remarks>
-    public new string? Value
+    public override string Value
     {
-        get => null;
+        get => null!;
         set => throw new NotSupportedException("Boolean flags do not support a value.");
     }
 

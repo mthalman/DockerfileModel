@@ -52,7 +52,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         set => Value = value!;
     }
 
-    public string Value
+    public virtual string Value
     {
         get
         {
