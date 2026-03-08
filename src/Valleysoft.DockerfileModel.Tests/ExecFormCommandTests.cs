@@ -83,6 +83,15 @@ public class ExecFormCommandTests
     }
 
     [Fact]
+    public void CreateEmptyExecForm()
+    {
+        ExecFormCommand result = new(Array.Empty<string>());
+        Assert.Equal("[]", result.ToString());
+        Assert.Empty(result.Values);
+        Assert.Equal(CommandType.ExecForm, result.CommandType);
+    }
+
+    [Fact]
     public void CommandArgsWithVariablesNotParsed()
     {
         ExecFormCommand result = new(new string[]
