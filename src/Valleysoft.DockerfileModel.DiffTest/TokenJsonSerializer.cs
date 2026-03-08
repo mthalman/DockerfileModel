@@ -29,7 +29,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 /// Known differences with workarounds:
 ///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
 ///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
-///   - LABEL keys: FIXED — C# now uses LabelKeyToken (IdentifierToken)
 ///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
 ///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
 ///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
