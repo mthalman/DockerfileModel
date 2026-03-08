@@ -35,7 +35,8 @@ public class RunInstruction : CommandInstruction
         this.escapeChar = escapeChar;
         Mounts = new ProjectedItemList<MountFlag, Mount>(
             new TokenList<MountFlag>(TokenList),
-            flag => flag.ValueToken!,
+            flag => flag.ValueToken
+                ?? throw new InvalidOperationException("ValueToken cannot be null for this operation."),
             (flag, mount) => flag.ValueToken = mount);
     }
 
