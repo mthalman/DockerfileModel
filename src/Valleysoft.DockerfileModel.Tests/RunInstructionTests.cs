@@ -775,6 +775,40 @@ public class RunInstructionTests
                     Assert.Empty(result.Mounts);
                 }
             },
+            // Mount with bare key (required)
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=secret,id=mysecret,required echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=mysecret,required",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=mysecret,required",
+                            token => ValidateKeyValue(token, "type", "secret"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "id", "mysecret"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyword(token, "required"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo hello", result.Command.ToString());
+                    Assert.Single(result.Mounts);
+                    Assert.Equal("secret", result.Mounts.First().Type);
+                    Assert.Equal("type=secret,id=mysecret,required", result.Mounts.First().ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });

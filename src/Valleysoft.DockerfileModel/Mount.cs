@@ -50,7 +50,12 @@ public class Mount : AggregateToken
             KeyValueToken<KeywordToken, LiteralToken>.GetParser(
                 KeywordToken.GetParser(escapeChar), valueParser, escapeChar: escapeChar);
 
-        // Parse: type=X followed by zero or more ,key=value pairs
+        // Each comma-separated entry is either a key=value pair or a bare keyword (e.g. "required", "readonly")
+        Parser<Token> entryParser =
+            keyValueParser.Cast<KeyValueToken<KeywordToken, LiteralToken>, Token>()
+            .Or(KeywordToken.GetParser(escapeChar).Cast<KeywordToken, Token>());
+
+        // Parse: type=X followed by zero or more comma-separated entries
         // Line continuations can appear between comma-separated pairs
         return
             from type in ArgTokens(
@@ -60,8 +65,8 @@ public class Mount : AggregateToken
                 from lineCont1 in LineContinuations(escapeChar)
                 from comma in Symbol(',')
                 from lineCont2 in LineContinuations(escapeChar)
-                from kv in keyValueParser
-                select ConcatTokens(lineCont1, new Token[] { comma }, lineCont2, new Token[] { kv })).Many()
+                from entry in entryParser
+                select ConcatTokens(lineCont1, new Token[] { comma }, lineCont2, new Token[] { entry })).Many()
             select ConcatTokens(type, rest.SelectMany(t => t));
     }
 }

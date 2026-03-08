@@ -157,6 +157,77 @@ public class MountTests
                     Assert.Equal("type=tmpfs,target=/tmp", result.ToString());
                 }
             },
+            // Bare key tests
+            new ParseTestScenario<Mount>
+            {
+                Text = "type=secret,id=mysecret,required",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyValue(token, "type", "secret"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyValue(token, "id", "mysecret"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyword(token, "required"),
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("secret", result.Type);
+                    Assert.Equal("type=secret,id=mysecret,required", result.ToString());
+                }
+            },
+            new ParseTestScenario<Mount>
+            {
+                Text = "type=bind,source=/src,target=/app,readonly",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyValue(token, "type", "bind"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyValue(token, "source", "/src"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyValue(token, "target", "/app"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyword(token, "readonly"),
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("bind", result.Type);
+                    Assert.Equal("type=bind,source=/src,target=/app,readonly", result.ToString());
+                }
+            },
+            new ParseTestScenario<Mount>
+            {
+                Text = "type=ssh,required",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyValue(token, "type", "ssh"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyword(token, "required"),
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("ssh", result.Type);
+                    Assert.Equal("type=ssh,required", result.ToString());
+                }
+            },
+            new ParseTestScenario<Mount>
+            {
+                Text = "type=secret,id=mysecret,required,mode=0400",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyValue(token, "type", "secret"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyValue(token, "id", "mysecret"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyword(token, "required"),
+                    token => ValidateSymbol(token, ','),
+                    token => ValidateKeyValue(token, "mode", "0400"),
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("secret", result.Type);
+                    Assert.Equal("type=secret,id=mysecret,required,mode=0400", result.ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
