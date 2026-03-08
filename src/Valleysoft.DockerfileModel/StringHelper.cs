@@ -17,7 +17,7 @@ internal static class StringHelper
             }
         }
 
-        return $"[{String.Join(", ", materializedValues.Select(val => $"\"{val}\"").ToArray())}]";
+        return $"[{String.Join(", ", materializedValues.Select(val => $"\"{val}\""))}]";
     }
 
     /// <summary>
