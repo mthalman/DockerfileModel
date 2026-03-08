@@ -654,7 +654,7 @@ def argDeclarationParser (escapeChar : Char) : Parser Token := do
   Parser.pure (Token.mkKeyValue children)
 
 -- ============================================================
--- Shell form command parser (rest-of-line as literal text with variables)
+-- Shell form command parser (rest-of-line as opaque literal text)
 -- ============================================================
 
 /-- Parse a shell form command: everything to end-of-line (or end-of-input) as
