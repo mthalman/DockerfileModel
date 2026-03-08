@@ -25,6 +25,7 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>, I
     /// Boolean flags have no value; always returns null.
     /// Setting a value is not supported.
     /// </summary>
+    /// <returns>Always returns <c>null</c>. Boolean flags have no value.</returns>
     /// <remarks>
     /// Overrides the base class <see cref="KeyValueToken{TKey, TValue}.Value"/> property
     /// to prevent callers from accidentally reading <see cref="string.Empty"/> or
