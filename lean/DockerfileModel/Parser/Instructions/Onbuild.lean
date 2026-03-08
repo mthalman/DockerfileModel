@@ -73,8 +73,10 @@ open Run Copy Add Healthcheck
     and calls the appropriate instruction-specific parser.
 
     Each instruction parser starts with its keyword, so `or'` naturally dispatches
-    based on the first token. All 18 instruction types are included — C# does not
-    restrict triggers at parse time (validation happens at a higher layer).
+    based on the first token. All instruction types except ONBUILD (17 types) are
+    included — ONBUILD is intentionally excluded because BuildKit explicitly
+    rejects `ONBUILD ONBUILD` chaining. By omitting the ONBUILD parser from the
+    dispatch, nested `ONBUILD ONBUILD` fails to parse.
 
     Returns an InstructionToken wrapping the fully parsed trigger instruction. -/
 partial def triggerInstructionParser (escapeChar : Char) : Parser Token := do
