@@ -628,7 +628,8 @@ public static class TokenJsonSerializer
 
     /// <summary>
     /// Emit a string as a single opaque StringToken, except for line
-    /// continuations (escape char + newline) which become LineContinuationTokens.
+    /// continuations (escape char + optional whitespace + newline) which
+    /// become LineContinuationTokens.
     /// Handles both backslash and backtick escape chars before newlines.
     /// </summary>
     private static void EmitOpaqueStringWithLineContinuations(StringBuilder sb, string text, ref bool first)
@@ -638,34 +639,31 @@ public static class TokenJsonSerializer
 
         while (i < text.Length)
         {
-            // Check for line continuation: escape char + newline
+            // Check for line continuation: escape char + optional whitespace + newline
             if ((text[i] == '\\' || text[i] == '`') && i + 1 < text.Length)
             {
                 char escChar = text[i];
-                // \n following the escape char
-                if (text[i + 1] == '\n')
-                {
-                    // Flush pending string
-                    if (pending.Length > 0)
-                    {
-                        if (!first) sb.Append(',');
-                        first = false;
-                        SerializePrimitive(sb, "string", pending.ToString());
-                        pending.Clear();
-                    }
+                // Scan past optional whitespace (spaces/tabs) after escape char
+                int j = i + 1;
+                while (j < text.Length && (text[j] == ' ' || text[j] == '\t'))
+                    j++;
 
-                    if (!first) sb.Append(',');
-                    first = false;
-                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"lineContinuation\",\"quoteChar\":null,\"children\":[");
-                    SerializePrimitive(sb, "symbol", escChar.ToString());
-                    sb.Append(',');
-                    SerializePrimitive(sb, "newLine", "\n");
-                    sb.Append("]}");
-                    i += 2;
-                    continue;
+                string trailingWs = text.Substring(i + 1, j - (i + 1));
+                string newLine = null;
+                int consumed = 0;
+
+                if (j < text.Length && text[j] == '\n')
+                {
+                    newLine = "\n";
+                    consumed = j + 1 - i;
                 }
-                // \r\n following the escape char
-                else if (text[i + 1] == '\r' && i + 2 < text.Length && text[i + 2] == '\n')
+                else if (j + 1 < text.Length && text[j] == '\r' && text[j + 1] == '\n')
+                {
+                    newLine = "\r\n";
+                    consumed = j + 2 - i;
+                }
+
+                if (newLine != null)
                 {
                     // Flush pending string
                     if (pending.Length > 0)
@@ -680,10 +678,15 @@ public static class TokenJsonSerializer
                     first = false;
                     sb.Append("{\"type\":\"aggregate\",\"kind\":\"lineContinuation\",\"quoteChar\":null,\"children\":[");
                     SerializePrimitive(sb, "symbol", escChar.ToString());
+                    if (trailingWs.Length > 0)
+                    {
+                        sb.Append(',');
+                        SerializePrimitive(sb, "whitespace", trailingWs);
+                    }
                     sb.Append(',');
-                    SerializePrimitive(sb, "newLine", "\r\n");
+                    SerializePrimitive(sb, "newLine", newLine);
                     sb.Append("]}");
-                    i += 3;
+                    i += consumed;
                     continue;
                 }
             }
