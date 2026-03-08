@@ -519,8 +519,8 @@ public static class TokenJsonSerializer
     // Workaround: HEALTHCHECK CMD nesting
     // C# nests CmdInstruction as a child Instruction inside HealthCheckInstruction.
     // Lean keeps everything flat: flags, KeywordToken("CMD"), whitespace, command tokens.
-    // We detect the nested CmdInstruction and inline its children, also applying
-    // shell form whitespace splitting.
+    // We detect the nested CmdInstruction and inline its children, also flattening
+    // VariableRefToken in shell form literals.
     // ===================================================================
 
     private static void SerializeHealthCheck(StringBuilder sb, HealthCheckInstruction healthCheck)
