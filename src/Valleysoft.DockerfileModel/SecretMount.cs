@@ -3,7 +3,7 @@ using Valleysoft.DockerfileModel.Tokens;
 namespace Valleysoft.DockerfileModel;
 
 /// <summary>
-/// Backward-compatible wrapper for secret mount specifications.
+/// Preserves type identity and parsing entry point for backward compatibility.
 /// Use <see cref="Mount"/> directly for new code.
 /// </summary>
 [Obsolete("Use Mount instead.")]
