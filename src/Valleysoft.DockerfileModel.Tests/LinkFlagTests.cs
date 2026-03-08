@@ -20,6 +20,24 @@ public class LinkFlagTests
         scenario.Validate?.Invoke(result);
     }
 
+    [Fact]
+    public void ValueProperty()
+    {
+        LinkFlag result = LinkFlag.Parse("--link");
+
+        // Value getter returns null (via null! on the non-nullable override)
+        Assert.Null(result.Value);
+
+        // Value setter throws NotSupportedException
+        Assert.Throws<NotSupportedException>(() => result.Value = "test");
+
+        // IKeyValuePair.Value getter returns null
+        Assert.Null(((IKeyValuePair)result).Value);
+
+        // IKeyValuePair.Value setter throws NotSupportedException
+        Assert.Throws<NotSupportedException>(() => ((IKeyValuePair)result).Value = "test");
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<LinkFlag>[] testInputs = new ParseTestScenario<LinkFlag>[]
