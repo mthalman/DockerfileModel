@@ -52,7 +52,12 @@ public class Mount : AggregateToken
             KeyValueToken<KeywordToken, LiteralToken>.GetParser(
                 KeywordToken.GetParser(escapeChar), valueParser, escapeChar: escapeChar);
 
-        // Each comma-separated entry is either a key=value pair or a bare keyword (e.g. "required", "readonly")
+        // Each comma-separated entry is either a key=value pair or a bare keyword (e.g. "required", "readonly").
+        // Note: .Or() is correct here, not .XOr(). In Sprache, .Or() always backtracks to the original
+        // input position when the first parser fails, even if it consumed input. When the keyValueParser
+        // consumes a keyword like "required" but then fails on the missing '=', .Or() retries from the
+        // original position so the bare KeywordToken parser can succeed. Using .XOr() would break this
+        // because it does NOT backtrack when input has been consumed (committed choice).
         Parser<Token> entryParser =
             keyValueParser.Cast<KeyValueToken<KeywordToken, LiteralToken>, Token>()
             .Or(KeywordToken.GetParser(escapeChar).Cast<KeywordToken, Token>());
