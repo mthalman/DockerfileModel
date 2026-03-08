@@ -28,7 +28,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///
 /// Known differences with workarounds:
 ///   - BooleanFlag: C# AggregateToken with no kind mapping; Lean uses keyValue
-///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
 ///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
 /// </summary>
@@ -94,14 +93,14 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // RUN needs whitespace splitting + mount value flattening (issue #200)
+        // RUN needs mount value flattening (issue #200) + shell form VariableRefToken validation (fail-fast)
         if (token is RunInstruction)
         {
             SerializeRunInstruction(sb, (RunInstruction)token);
             return;
         }
 
-        // CMD, ENTRYPOINT, HEALTHCHECK need whitespace splitting
+        // CMD, ENTRYPOINT, HEALTHCHECK need shell form VariableRefToken validation (fail-fast)
         if (token is CmdInstruction || token is EntrypointInstruction || token is HealthCheckInstruction)
         {
             SerializeShellFormInstruction(sb, (Instruction)token);
@@ -269,109 +268,40 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Shell form whitespace splitting
-    // C# collapses shell form command text into a single StringToken inside
-    // a LiteralToken ("echo hello"). Lean preserves whitespace as separate
-    // WhitespaceToken children inside the LiteralToken.
-    // Workaround: split StringToken children that contain whitespace.
+    // Shell form literal serialization
+    // Shell form commands are parsed as opaque text without variable
+    // expansion — $VAR is treated as a regular character sequence inside
+    // a StringToken, not decomposed into a VariableRefToken. If a
+    // VariableRefToken is ever encountered here, it indicates a parsing
+    // regression that should be investigated.
     // ===================================================================
 
     /// <summary>
-    /// Serialize a LiteralToken, splitting any StringToken children that contain
-    /// whitespace into alternating string/whitespace runs (matching Lean behavior).
-    /// Also flattens VariableRefTokens back to plain text — Lean's shell form parser
-    /// treats $VAR as opaque text (matching BuildKit), while C# still decomposes it.
-    /// Only applied to unquoted literals with embedded whitespace.
+    /// Serialize a shell form LiteralToken. Shell form commands should never
+    /// contain VariableRefToken children; encountering one is a fail-fast error.
     /// </summary>
-    private static void SerializeLiteralWithWhitespaceSplitting(StringBuilder sb, LiteralToken literal)
+    private static void SerializeShellFormLiteral(StringBuilder sb, LiteralToken literal)
     {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
-
-        if (literal.QuoteChar.HasValue)
-        {
-            sb.Append('"');
-            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
-            sb.Append('"');
-        }
-        else
-        {
-            sb.Append("null");
-        }
-
-        sb.Append(",\"children\":[");
-
-        bool first = true;
+        // Fail fast if a VariableRefToken is encountered — shell form commands
+        // are parsed as opaque text and should never produce variable ref nodes.
         foreach (Token child in literal.Tokens)
         {
-            if (literal.QuoteChar.HasValue)
+            if (child is VariableRefToken)
             {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-            // Flatten VariableRefTokens to plain text (Lean treats $VAR as opaque text
-            // in shell form commands, matching BuildKit behavior)
-            else if (child is VariableRefToken varRef)
-            {
-                SplitStringByWhitespace(sb, varRef.ToString(), ref first);
-            }
-            // Split StringTokens that contain whitespace (spaces/tabs)
-            else if (child is StringToken strTok && ContainsWhitespace(strTok.Value))
-            {
-                SplitStringByWhitespace(sb, strTok.Value, ref first);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
+                throw new InvalidOperationException(
+                    "Unexpected VariableRefToken in shell form LiteralToken. " +
+                    "Shell form commands should be parsed as opaque text without variable expansion.");
             }
         }
 
-        sb.Append("]}");
-    }
-
-    private static bool ContainsWhitespace(string s) =>
-        s.IndexOfAny(new[] { ' ', '\t' }) >= 0;
-
-    /// <summary>
-    /// Split a string value into alternating string/whitespace primitive tokens.
-    /// </summary>
-    private static void SplitStringByWhitespace(StringBuilder sb, string text, ref bool first)
-    {
-        int i = 0;
-        while (i < text.Length)
-        {
-            bool isWs = text[i] == ' ' || text[i] == '\t';
-            int start = i;
-            while (i < text.Length)
-            {
-                bool curIsWs = text[i] == ' ' || text[i] == '\t';
-                if (curIsWs != isWs) break;
-                i++;
-            }
-
-            string segment = text[start..i];
-
-            if (!first) sb.Append(',');
-            first = false;
-
-            if (isWs)
-            {
-                SerializePrimitive(sb, "whitespace", segment);
-            }
-            else
-            {
-                SerializePrimitive(sb, "string", segment);
-            }
-        }
+        SerializeAggregate(sb, "literal", literal);
     }
 
     // ===================================================================
-    // Shell form instructions (RUN, CMD, ENTRYPOINT, HEALTHCHECK)
-    // These need whitespace splitting inside their shell form LiteralTokens.
-    // The Command wrapper (ShellFormCommand) is transparent, so the LiteralToken
-    // appears after inlining.
+    // Shell form instructions (CMD, ENTRYPOINT, HEALTHCHECK)
+    // Shell form commands are parsed as opaque text. The Command wrapper
+    // (ShellFormCommand) is transparent, so the LiteralToken appears
+    // after inlining. Validates shell form LiteralTokens (fail-fast on VariableRefToken).
     // ===================================================================
 
     private static void SerializeShellFormInstruction(StringBuilder sb, Instruction instruction)
@@ -388,10 +318,10 @@ public static class TokenJsonSerializer
                 {
                     if (!first) sb.Append(',');
                     first = false;
-                    // Apply whitespace splitting to LiteralTokens inside the command
+                    // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
-                        SerializeLiteralWithWhitespaceSplitting(sb, lit);
+                        SerializeShellFormLiteral(sb, lit);
                     }
                     else
                     {
@@ -521,7 +451,7 @@ public static class TokenJsonSerializer
     // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
     // value as an opaque literal string. This serializer flattens the Mount
     // aggregate back to a single LiteralToken containing the opaque text.
-    // Also applies shell form whitespace splitting (same as CMD/ENTRYPOINT).
+    // Also validates shell-form LiteralTokens and fails fast on VariableRefToken (same as CMD/ENTRYPOINT).
     // ===================================================================
 
     private static void SerializeRunInstruction(StringBuilder sb, RunInstruction instruction)
@@ -547,10 +477,10 @@ public static class TokenJsonSerializer
                 {
                     if (!first) sb.Append(',');
                     first = false;
-                    // Apply whitespace splitting to LiteralTokens inside the command
+                    // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
-                        SerializeLiteralWithWhitespaceSplitting(sb, lit);
+                        SerializeShellFormLiteral(sb, lit);
                     }
                     else
                     {
