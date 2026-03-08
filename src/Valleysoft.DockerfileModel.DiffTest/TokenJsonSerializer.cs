@@ -592,7 +592,7 @@ public static class TokenJsonSerializer
                     j++;
 
                 string trailingWs = text.Substring(i + 1, j - (i + 1));
-                string newLine = null;
+                string? newLine = null;
                 int consumed = 0;
 
                 if (j < text.Length && text[j] == '\n')
