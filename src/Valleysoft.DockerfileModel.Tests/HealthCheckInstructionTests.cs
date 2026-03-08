@@ -535,13 +535,15 @@ public class HealthCheckInstructionTests
             new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK CMD \\\necho hello",
+                EscapeChar = '\\',
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "HEALTHCHECK"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyword(token, "CMD"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<ShellFormCommand>(token, "\\\necho hello")
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello")
                 },
                 Validate = result =>
                 {
@@ -554,19 +556,27 @@ public class HealthCheckInstructionTests
             new ParseTestScenario<HealthCheckInstruction>
             {
                 Text = "HEALTHCHECK CMD \\\n[\"echo\", \"hello\"]",
+                EscapeChar = '\\',
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "HEALTHCHECK"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyword(token, "CMD"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<ShellFormCommand>(token, "\\\n[\"echo\", \"hello\"]")
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[\"echo\", \"hello\"]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateLiteral(token, "echo", '\"'),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "hello", '\"'),
+                        token => ValidateSymbol(token, ']'))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("HEALTHCHECK", result.InstructionName);
-                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.IsType<ExecFormCommand>(result.Command);
                     Assert.Equal("HEALTHCHECK CMD \\\n[\"echo\", \"hello\"]", result.ToString());
                 }
             },
