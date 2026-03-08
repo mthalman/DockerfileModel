@@ -146,6 +146,31 @@ public class OnBuildInstructionTests
                     Assert.Equal("ONBUILD", result.InstructionName);
                     Assert.Equal("ARG name", result.TriggerInstruction);
                 }
+            },
+            // $ is treated as a regular character in ONBUILD trigger text (no
+            // VariableRefToken decomposition) — matching BuildKit behavior.
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD RUN echo $VAR",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "RUN echo $VAR",
+                        token => ValidateString(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateString(token, "echo"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateString(token, "$VAR"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    Assert.Equal("RUN echo $VAR", result.TriggerInstruction);
+                    // Verify no VariableRefToken exists in the trigger literal
+                    Assert.Empty(result.TriggerInstructionToken.Tokens.OfType<VariableRefToken>());
+                }
             }
         };
 
