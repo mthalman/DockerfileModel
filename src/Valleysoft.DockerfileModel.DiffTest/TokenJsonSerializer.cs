@@ -32,7 +32,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
 ///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
 ///   - HEALTHCHECK CMD: C# nests CmdInstruction; Lean uses flat tokens
-///   - COPY --from value: C# uses StageName (IdentifierToken); Lean uses LiteralToken
 /// </summary>
 public static class TokenJsonSerializer
 {
