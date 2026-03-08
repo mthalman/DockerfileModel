@@ -531,10 +531,11 @@ public static class TokenJsonSerializer
     /// a single literal, matching Lean's flat representation.
     ///
     /// Strategy: emit all children of the port literal, then append the protocol
-    /// content prefixed with '/'. If the port literal's last child and the protocol
-    /// literal's first child are both StringTokens, they merge into one string node
-    /// (e.g., string["80"] + "/" + string["tcp"] -> string["80/tcp"]).
-    /// Otherwise a new string node is added for the slash+protocol prefix.
+    /// content prefixed with '/'. The merge behavior depends on the boundary tokens:
+    /// - Both strings: merge into one (e.g., string["80"] + "/" + string["tcp"] -> string["80/tcp"])
+    /// - Port ends with string, proto starts with non-string (e.g., variable): append "/" to port string
+    /// - Port ends with non-string, proto starts with string: prepend "/" to proto string
+    /// - Neither is string: add a separate "/" string node between them
     /// </summary>
     private static void SerializeMergedPortProtocolLiteral(
         StringBuilder sb, LiteralToken portLiteral, LiteralToken protoLiteral)
@@ -586,6 +587,30 @@ public static class TokenJsonSerializer
             {
                 if (!first) sb.Append(',');
                 SerializeToken(sb, protoChildren[j]);
+                first = false;
+            }
+        }
+        else if (lastPortIsString && !firstProtoIsString)
+        {
+            // Emit all port children except the last
+            for (int j = 0; j < portChildren.Count - 1; j++)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, portChildren[j]);
+                first = false;
+            }
+
+            // Append "/" to the last port StringToken
+            string portWithSlash = ((StringToken)portChildren[^1]).Value + "/";
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", portWithSlash);
+            first = false;
+
+            // Emit all proto children unchanged
+            foreach (Token protoChild in protoChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, protoChild);
                 first = false;
             }
         }
