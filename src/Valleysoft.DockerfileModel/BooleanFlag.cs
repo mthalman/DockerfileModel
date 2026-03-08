@@ -10,7 +10,7 @@ namespace Valleysoft.DockerfileModel;
 /// The separator and value are both absent; IKeyValuePair.Value returns null.
 /// Subclasses only need to specify their keyword string and provide static Parse/GetParser wrappers.
 /// </summary>
-public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
+public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>, IKeyValuePair
 {
     protected BooleanFlag(string keyword, char escapeChar)
         : base(GetTokens($"--{keyword}", GetInnerParser(keyword, escapeChar)))
@@ -19,6 +19,22 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
 
     protected BooleanFlag(IEnumerable<Token> tokens) : base(tokens)
     {
+    }
+
+    /// <summary>
+    /// Boolean flags have no value; always returns null.
+    /// Setting a non-null value is not supported.
+    /// </summary>
+    string? IKeyValuePair.Value
+    {
+        get => null;
+        set
+        {
+            if (value is not null)
+            {
+                throw new NotSupportedException("Boolean flags do not support a value.");
+            }
+        }
     }
 
     protected static TFlag ParseFlag<TFlag>(string text, string keyword,

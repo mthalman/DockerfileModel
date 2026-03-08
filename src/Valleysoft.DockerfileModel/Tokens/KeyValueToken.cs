@@ -48,20 +48,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
 
     string? IKeyValuePair.Value
     {
-        get
-        {
-            // When there is no separator token after the key (e.g., boolean flags like --link),
-            // the key-value pair has no value at all, so return null.
-            // When a separator is present but the value token is absent (e.g., ENV key=),
-            // the Value property returns string.Empty, which is the correct semantic.
-            bool hasSeparator = Tokens.After(KeyToken).Any(t => t is SymbolToken or WhitespaceToken);
-            if (!hasSeparator && ValueToken is null)
-            {
-                return null;
-            }
-
-            return Value;
-        }
+        get => Value;
         set => Value = value!;
     }
 
