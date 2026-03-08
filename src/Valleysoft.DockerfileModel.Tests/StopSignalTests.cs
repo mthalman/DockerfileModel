@@ -82,6 +82,87 @@ public class StopSignalInstructionTests
                     Assert.Equal("STOPSIGNAL", result.InstructionName);
                     Assert.Equal("name", result.Signal);
                 }
+            },
+            new ParseTestScenario<StopSignalInstruction>
+            {
+                Text = "STOPSIGNAL $SIG",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "STOPSIGNAL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "$SIG",
+                        token => ValidateAggregate<VariableRefToken>(token, "$SIG",
+                            token => ValidateString(token, "SIG")))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("STOPSIGNAL", result.InstructionName);
+                    Assert.Equal("$SIG", result.Signal);
+                }
+            },
+            new ParseTestScenario<StopSignalInstruction>
+            {
+                Text = "STOPSIGNAL ${SIGNAL}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "STOPSIGNAL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "${SIGNAL}",
+                        token => ValidateAggregate<VariableRefToken>(token, "${SIGNAL}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "SIGNAL"),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("STOPSIGNAL", result.InstructionName);
+                    Assert.Equal("${SIGNAL}", result.Signal);
+                }
+            },
+            new ParseTestScenario<StopSignalInstruction>
+            {
+                Text = "STOPSIGNAL SIG$RT",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "STOPSIGNAL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "SIG$RT",
+                        token => ValidateString(token, "SIG"),
+                        token => ValidateAggregate<VariableRefToken>(token, "$RT",
+                            token => ValidateString(token, "RT")))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("STOPSIGNAL", result.InstructionName);
+                    Assert.Equal("SIG$RT", result.Signal);
+                }
+            },
+            new ParseTestScenario<StopSignalInstruction>
+            {
+                Text = "STOPSIGNAL ${SIG:-SIGTERM}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "STOPSIGNAL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "${SIG:-SIGTERM}",
+                        token => ValidateAggregate<VariableRefToken>(token, "${SIG:-SIGTERM}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "SIG"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateAggregate<LiteralToken>(token, "SIGTERM",
+                                token => ValidateString(token, "SIGTERM")),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("STOPSIGNAL", result.InstructionName);
+                    Assert.Equal("${SIG:-SIGTERM}", result.Signal);
+                }
             }
         };
 
