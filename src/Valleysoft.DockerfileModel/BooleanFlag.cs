@@ -23,18 +23,24 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>, I
 
     /// <summary>
     /// Boolean flags have no value; always returns null.
-    /// Setting a non-null value is not supported.
+    /// Setting a value is not supported.
     /// </summary>
+    /// <remarks>
+    /// Hides the base class <see cref="KeyValueToken{TKey, TValue}.Value"/> property
+    /// to prevent callers from accidentally reading <see cref="string.Empty"/> or
+    /// inserting a <see cref="LiteralToken"/> via the setter, which would create a
+    /// structurally invalid boolean flag.
+    /// </remarks>
+    public new string? Value
+    {
+        get => null;
+        set => throw new NotSupportedException("Boolean flags do not support a value.");
+    }
+
     string? IKeyValuePair.Value
     {
         get => null;
-        set
-        {
-            if (value is not null)
-            {
-                throw new NotSupportedException("Boolean flags do not support a value.");
-            }
-        }
+        set => throw new NotSupportedException("Boolean flags do not support a value.");
     }
 
     protected static TFlag ParseFlag<TFlag>(string text, string keyword,
