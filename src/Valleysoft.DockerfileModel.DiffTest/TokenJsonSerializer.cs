@@ -525,9 +525,24 @@ public static class TokenJsonSerializer
                         if (!first) sb.Append(',');
                         first = false;
 
+                        // Collect any intervening LineContinuationTokens (between port
+                        // and slash, and between slash and protocol) so they can be
+                        // included in the merged literal, matching Lean's representation.
+                        var lineContinuations = new List<LineContinuationToken>();
+                        for (int k = i + 1; k < slashIdx; k++)
+                        {
+                            if (tokens[k] is LineContinuationToken lc)
+                                lineContinuations.Add(lc);
+                        }
+                        for (int k = slashIdx + 1; k < protoIdx; k++)
+                        {
+                            if (tokens[k] is LineContinuationToken lc)
+                                lineContinuations.Add(lc);
+                        }
+
                         // Merge the port/slash/protocol tokens into a single literal,
-                        // skipping any intervening LineContinuationTokens
-                        SerializeMergedPortProtocolLiteral(sb, portLiteral, protoLiteral);
+                        // including any intervening LineContinuationTokens
+                        SerializeMergedPortProtocolLiteral(sb, portLiteral, protoLiteral, lineContinuations);
 
                         i = protoIdx; // skip all consumed tokens (including line continuations)
                         continue;
@@ -547,15 +562,21 @@ public static class TokenJsonSerializer
     /// Merge a port LiteralToken and protocol LiteralToken (separated by '/') into
     /// a single literal, matching Lean's flat representation.
     ///
-    /// Strategy: emit all children of the port literal, then append the protocol
-    /// content prefixed with '/'. The merge behavior depends on the boundary tokens:
+    /// Strategy: emit all children of the port literal, then any intervening
+    /// LineContinuationTokens, then append the protocol content prefixed with '/'.
+    /// The merge behavior for the boundary tokens depends on their types:
     /// - Both strings: merge into one (e.g., string["80"] + "/" + string["tcp"] -> string["80/tcp"])
     /// - Port ends with string, proto starts with non-string (e.g., variable): append "/" to port string
     /// - Port ends with non-string, proto starts with string: prepend "/" to proto string
     /// - Neither is string: add a separate "/" string node between them
+    ///
+    /// Any LineContinuationTokens that appeared between the port, slash, and protocol
+    /// tokens in the original instruction are emitted between the port children and
+    /// the "/" string, matching Lean's literalWithVariables representation.
     /// </summary>
     private static void SerializeMergedPortProtocolLiteral(
-        StringBuilder sb, LiteralToken portLiteral, LiteralToken protoLiteral)
+        StringBuilder sb, LiteralToken portLiteral, LiteralToken protoLiteral,
+        List<LineContinuationToken> lineContinuations)
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
 
@@ -576,14 +597,15 @@ public static class TokenJsonSerializer
         List<Token> protoChildren = protoLiteral.Tokens.ToList();
 
         bool first = true;
+        bool hasLineContinuations = lineContinuations.Count > 0;
 
         // Check if we can merge the last port child with the first proto child
         bool lastPortIsString = portChildren.Count > 0 && portChildren[^1] is StringToken;
         bool firstProtoIsString = protoChildren.Count > 0 && protoChildren[0] is StringToken;
 
-        if (lastPortIsString && firstProtoIsString)
+        if (!hasLineContinuations && lastPortIsString && firstProtoIsString)
         {
-            // Emit all port children except the last
+            // No line continuations: merge lastPortString + "/" + firstProtoString
             for (int j = 0; j < portChildren.Count - 1; j++)
             {
                 if (!first) sb.Append(',');
@@ -591,7 +613,6 @@ public static class TokenJsonSerializer
                 first = false;
             }
 
-            // Merge: lastPortString + "/" + firstProtoString
             string mergedValue = ((StringToken)portChildren[^1]).Value
                 + "/"
                 + ((StringToken)protoChildren[0]).Value;
@@ -599,7 +620,6 @@ public static class TokenJsonSerializer
             SerializePrimitive(sb, "string", mergedValue);
             first = false;
 
-            // Emit remaining proto children
             for (int j = 1; j < protoChildren.Count; j++)
             {
                 if (!first) sb.Append(',');
@@ -607,9 +627,9 @@ public static class TokenJsonSerializer
                 first = false;
             }
         }
-        else if (lastPortIsString && !firstProtoIsString)
+        else if (!hasLineContinuations && lastPortIsString && !firstProtoIsString)
         {
-            // Emit all port children except the last
+            // No line continuations: append "/" to the last port string
             for (int j = 0; j < portChildren.Count - 1; j++)
             {
                 if (!first) sb.Append(',');
@@ -617,13 +637,11 @@ public static class TokenJsonSerializer
                 first = false;
             }
 
-            // Append "/" to the last port StringToken
             string portWithSlash = ((StringToken)portChildren[^1]).Value + "/";
             if (!first) sb.Append(',');
             SerializePrimitive(sb, "string", portWithSlash);
             first = false;
 
-            // Emit all proto children unchanged
             foreach (Token protoChild in protoChildren)
             {
                 if (!first) sb.Append(',');
@@ -631,9 +649,9 @@ public static class TokenJsonSerializer
                 first = false;
             }
         }
-        else if (firstProtoIsString)
+        else if (!hasLineContinuations && firstProtoIsString)
         {
-            // Emit all port children
+            // No line continuations: prepend "/" to the first proto string
             foreach (Token portChild in portChildren)
             {
                 if (!first) sb.Append(',');
@@ -641,13 +659,11 @@ public static class TokenJsonSerializer
                 first = false;
             }
 
-            // Add "/" prepended to the first proto string
             string slashProto = "/" + ((StringToken)protoChildren[0]).Value;
             if (!first) sb.Append(',');
             SerializePrimitive(sb, "string", slashProto);
             first = false;
 
-            // Emit remaining proto children
             for (int j = 1; j < protoChildren.Count; j++)
             {
                 if (!first) sb.Append(',');
@@ -655,9 +671,9 @@ public static class TokenJsonSerializer
                 first = false;
             }
         }
-        else
+        else if (!hasLineContinuations)
         {
-            // Emit all port children
+            // No line continuations, no mergeable strings: add "/" as separate node
             foreach (Token portChild in portChildren)
             {
                 if (!first) sb.Append(',');
@@ -665,17 +681,67 @@ public static class TokenJsonSerializer
                 first = false;
             }
 
-            // Add a "/" string node
             if (!first) sb.Append(',');
             SerializePrimitive(sb, "string", "/");
             first = false;
 
-            // Emit all proto children
             foreach (Token protoChild in protoChildren)
             {
                 if (!first) sb.Append(',');
                 SerializeToken(sb, protoChild);
                 first = false;
+            }
+        }
+        else
+        {
+            // Line continuations present: emit all port children, then line
+            // continuations, then "/" merged with the protocol content.
+            // This matches Lean's literalWithVariables which includes line
+            // continuation tokens as children of the literal.
+            foreach (Token portChild in portChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, portChild);
+                first = false;
+            }
+
+            // Emit intervening LineContinuationTokens
+            foreach (LineContinuationToken lc in lineContinuations)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, lc);
+                first = false;
+            }
+
+            // Emit "/" merged with protocol content
+            if (firstProtoIsString)
+            {
+                // Prepend "/" to the first proto string
+                string slashProto = "/" + ((StringToken)protoChildren[0]).Value;
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", slashProto);
+                first = false;
+
+                for (int j = 1; j < protoChildren.Count; j++)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, protoChildren[j]);
+                    first = false;
+                }
+            }
+            else
+            {
+                // Add "/" as a separate string, then all proto children
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", "/");
+                first = false;
+
+                foreach (Token protoChild in protoChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, protoChild);
+                    first = false;
+                }
             }
         }
 
