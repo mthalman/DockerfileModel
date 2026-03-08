@@ -33,6 +33,15 @@ public class OnBuildInstructionTests
         Assert.Equal("ONBUILD RUN test2", result.ToString());
 
         Assert.Throws<ArgumentNullException>(() => result.TriggerInstruction = null);
+        Assert.Throws<ArgumentException>(() => result.TriggerInstruction = "");
+        Assert.Throws<ArgumentException>(() => result.TriggerInstruction = " ");
+    }
+
+    [Fact]
+    public void TriggerInstruction_RejectsEmptyAndWhitespace()
+    {
+        Assert.Throws<ArgumentException>(() => new OnBuildInstruction(""));
+        Assert.Throws<ArgumentException>(() => new OnBuildInstruction(" "));
     }
 
     public static IEnumerable<object[]> ParseTestInput()
