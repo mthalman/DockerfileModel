@@ -22,7 +22,7 @@ public class HealthCheckInstruction : Instruction
 
     public HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(StringHelper.FormatAsJson(new string[] { command }.Concat(args)), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
+        : this(GetTokens(ValidateAndFormatAsJson(command, args), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
@@ -280,5 +280,12 @@ public class HealthCheckInstruction : Instruction
     {
         Requires.NotNull(defaultArgs, paramName);
         return StringHelper.FormatAsJson(defaultArgs);
+    }
+
+    private static string ValidateAndFormatAsJson(string command, IEnumerable<string> args)
+    {
+        Requires.NotNullOrEmpty(command, nameof(command));
+        Requires.NotNull(args, nameof(args));
+        return StringHelper.FormatAsJson(new string[] { command }.Concat(args));
     }
 }
