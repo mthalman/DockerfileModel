@@ -6,7 +6,8 @@ namespace Valleysoft.DockerfileModel;
 /// <summary>
 /// Represents a mount specification for RUN --mount flags.
 /// Handles all BuildKit mount types (bind, cache, tmpfs, secret, ssh) by parsing
-/// the mount value as a type=X prefix followed by zero or more comma-separated key=value pairs.
+/// the mount value as a type=X prefix followed by zero or more comma-separated entries,
+/// where each entry is either a key=value pair or a bare keyword (e.g., required, readonly).
 /// </summary>
 public class Mount : AggregateToken
 {
