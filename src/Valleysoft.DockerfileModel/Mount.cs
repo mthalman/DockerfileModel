@@ -11,7 +11,7 @@ namespace Valleysoft.DockerfileModel;
 /// </summary>
 public class Mount : AggregateToken
 {
-    protected internal Mount(IEnumerable<Token> tokens) : base(tokens)
+    internal Mount(IEnumerable<Token> tokens) : base(tokens)
     {
     }
 
