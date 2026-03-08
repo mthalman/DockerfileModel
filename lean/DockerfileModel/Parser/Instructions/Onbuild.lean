@@ -66,33 +66,49 @@ open Run Copy Add Healthcheck
 -- Trigger instruction dispatch parser
 -- ============================================================
 
-/-- Parse a trigger instruction by dispatching to all known instruction parsers.
-    This mirrors C#'s `Instruction.CreateInstruction()` which detects the keyword
-    and calls the appropriate instruction-specific parser.
+/-- Peek the trigger keyword without consuming input.
+    Reads leading whitespace then the first alphabetic word, returning it
+    uppercased for case-insensitive matching. -/
+private def peekTriggerKeyword : Parser String :=
+  lookAhead (do
+    let _ ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
+    let word ← many1Chars letter
+    Parser.pure word.toUpper)
 
-    Each instruction parser starts with its keyword, so `or'` naturally dispatches
-    based on the first token. Of the 18 instruction types, 15 are included here.
+/-- Parse a trigger instruction by peeking the keyword and dispatching directly
+    to the corresponding instruction parser.
+
+    This mirrors C#'s `Instruction.CreateInstruction()` which detects the keyword
+    and calls the appropriate instruction-specific parser. By peeking the keyword
+    first (without consuming input) and then invoking the one matching parser,
+    we get committed-choice semantics: if the keyword matches but the arguments
+    are invalid, the real parse error is reported instead of falling through to
+    later alternatives and surfacing a misleading error.
+
+    Of the 18 instruction types, 15 are included here.
     Three are excluded because BuildKit explicitly rejects them as ONBUILD triggers:
     ONBUILD (no chaining), FROM, and MAINTAINER.
 
     Returns an InstructionToken wrapping the fully parsed trigger instruction. -/
 partial def triggerInstructionParser (escapeChar : Char) : Parser Token := do
-  let tokens ←
-    or' (argInstructionParser escapeChar)
-    (or' (workdirInstructionParser escapeChar)
-    (or' (stopsignalInstructionParser escapeChar)
-    (or' (cmdInstructionParser escapeChar)
-    (or' (entrypointInstructionParser escapeChar)
-    (or' (shellInstructionParser escapeChar)
-    (or' (userInstructionParser escapeChar)
-    (or' (exposeInstructionParser escapeChar)
-    (or' (volumeInstructionParser escapeChar)
-    (or' (envInstructionParser escapeChar)
-    (or' (labelInstructionParser escapeChar)
-    (or' (runInstructionParser escapeChar)
-    (or' (copyInstructionParser escapeChar)
-    (or' (addInstructionParser escapeChar)
-         (healthcheckInstructionParser escapeChar))))))))))))))
+  let keyword ← peekTriggerKeyword
+  let tokens ← match keyword with
+    | "ARG"         => argInstructionParser escapeChar
+    | "WORKDIR"     => workdirInstructionParser escapeChar
+    | "STOPSIGNAL"  => stopsignalInstructionParser escapeChar
+    | "CMD"         => cmdInstructionParser escapeChar
+    | "ENTRYPOINT"  => entrypointInstructionParser escapeChar
+    | "SHELL"       => shellInstructionParser escapeChar
+    | "USER"        => userInstructionParser escapeChar
+    | "EXPOSE"      => exposeInstructionParser escapeChar
+    | "VOLUME"      => volumeInstructionParser escapeChar
+    | "ENV"         => envInstructionParser escapeChar
+    | "LABEL"       => labelInstructionParser escapeChar
+    | "RUN"         => runInstructionParser escapeChar
+    | "COPY"        => copyInstructionParser escapeChar
+    | "ADD"         => addInstructionParser escapeChar
+    | "HEALTHCHECK" => healthcheckInstructionParser escapeChar
+    | other         => Parser.fail s!"unknown or unsupported ONBUILD trigger instruction: {other}"
   Parser.pure (Token.mkInstruction tokens)
 
 -- ============================================================
