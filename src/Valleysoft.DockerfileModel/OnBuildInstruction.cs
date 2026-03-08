@@ -63,8 +63,51 @@ public class OnBuildInstruction : Instruction
             .Or(Spaces())
             .Or(from lc in LineContinuations(escapeChar)
                 from comments in CommentText().Many()
-                select ConcatTokens(lc, comments.Flatten()))
+                // Absorb leading WhitespaceTokens from each comment line into the
+                // CommentToken that follows them.  CommentText() returns leading
+                // whitespace as separate WhitespaceToken siblings outside the
+                // CommentToken, and LiteralToken.Value only excludes
+                // CommentToken/LineContinuationToken — so without this, indentation
+                // before '#' on comment-only continuation lines would leak into
+                // TriggerInstruction.
+                select ConcatTokens(lc, AbsorbLeadingWhitespaceIntoComments(comments.Flatten())))
             .Many().Flatten()
         where literal.Any()
         select new LiteralToken(TokenHelper.CollapseStringTokens(literal), canContainVariables: false, escapeChar);
+
+    /// <summary>
+    /// Absorbs leading <see cref="WhitespaceToken"/>s into the <see cref="CommentToken"/>
+    /// that follows them.  This keeps the whitespace in the token tree (preserving
+    /// round-trip fidelity) while ensuring it is excluded from
+    /// <see cref="LiteralToken.Value"/> via the normal <c>ExcludeComments</c> filter.
+    /// </summary>
+    private static IEnumerable<Token> AbsorbLeadingWhitespaceIntoComments(IEnumerable<Token> tokens)
+    {
+        List<Token> pending = new();
+        foreach (Token token in tokens)
+        {
+            if (token is CommentToken comment && pending.Count > 0)
+            {
+                // Wrap pending whitespace + original comment children into a new CommentToken.
+                pending.AddRange(comment.Tokens);
+                yield return new CommentToken(pending);
+                pending = new();
+            }
+            else if (token is WhitespaceToken)
+            {
+                pending.Add(token);
+            }
+            else
+            {
+                // Flush any pending tokens that weren't followed by a CommentToken.
+                foreach (Token p in pending)
+                    yield return p;
+                pending.Clear();
+                yield return token;
+            }
+        }
+        // Flush remaining tokens.
+        foreach (Token p in pending)
+            yield return p;
+    }
 }

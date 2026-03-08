@@ -115,6 +115,37 @@ public class OnBuildInstructionTests
                     Assert.Equal("ONBUILD", result.InstructionName);
                     Assert.Equal("ARG name", result.TriggerInstruction);
                 }
+            },
+            // Indented comment on a continuation line within trigger text:
+            // leading whitespace before '#' is absorbed into the CommentToken so it
+            // does NOT leak into TriggerInstruction.
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD ARG \\\n  # comment\nname",
+                EscapeChar = '\\',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "ARG \\\n  # comment\nname",
+                        token => ValidateString(token, "ARG"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLineContinuation(token, '\\', "\n"),
+                        token => ValidateAggregate<CommentToken>(token, "  # comment\n",
+                            token => ValidateWhitespace(token, "  "),
+                            token => ValidateSymbol(token, '#'),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "comment"),
+                            token => ValidateNewLine(token, "\n")),
+                        token => ValidateString(token, "name"))
+                },
+                Validate = result =>
+                {
+                    Assert.Collection(result.Comments,
+                        comment => Assert.Equal("comment", comment));
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    Assert.Equal("ARG name", result.TriggerInstruction);
+                }
             }
         };
 
