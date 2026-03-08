@@ -75,7 +75,16 @@ public class OnBuildInstruction : Instruction
                 select ConcatTokens(lc, AbsorbLeadingWhitespaceIntoComments(comments.Flatten())))
             .Many().Flatten()
         where literal.Any()
-        select new LiteralToken(TokenHelper.CollapseStringTokens(literal), canContainVariables: false, escapeChar);
+        // Ensure the trigger text has substantive content after excluding line
+        // continuations and comments.  Without this, input like "ONBUILD \\\n# comment\n"
+        // would produce a LiteralToken whose Value is empty/whitespace, violating the
+        // NotNullOrWhiteSpace invariant on TriggerInstruction.
+        let collapsed = TokenHelper.CollapseStringTokens(literal).ToList()
+        let value = string.Concat(collapsed
+            .Where(t => t is not LineContinuationToken && t is not CommentToken)
+            .Select(t => t.ToString()))
+        where !string.IsNullOrWhiteSpace(value)
+        select new LiteralToken(collapsed, canContainVariables: false, escapeChar);
 
     /// <summary>
     /// Absorbs leading <see cref="WhitespaceToken"/>s into the <see cref="CommentToken"/>

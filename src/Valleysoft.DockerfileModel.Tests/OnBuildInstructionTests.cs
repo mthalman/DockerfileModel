@@ -171,6 +171,14 @@ public class OnBuildInstructionTests
                     // Verify no VariableRefToken exists in the trigger literal
                     Assert.Empty(result.TriggerInstructionToken.Tokens.OfType<VariableRefToken>());
                 }
+            },
+            // Trigger text that is only a line continuation + comment should fail to parse
+            // because the trigger value (excluding comments/continuations) would be empty.
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD \\\n# comment\n",
+                EscapeChar = '\\',
+                ParseExceptionPosition = new Position(0, 3, 1)
             }
         };
 
