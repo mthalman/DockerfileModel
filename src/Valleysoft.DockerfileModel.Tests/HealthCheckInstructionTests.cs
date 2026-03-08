@@ -532,6 +532,44 @@ public class HealthCheckInstructionTests
                     Assert.Equal("10s", result.StartPeriod);
                 }
             },
+            new ParseTestScenario<HealthCheckInstruction>
+            {
+                Text = "HEALTHCHECK CMD \\\necho hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "HEALTHCHECK"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "\\\necho hello")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("HEALTHCHECK", result.InstructionName);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("HEALTHCHECK CMD \\\necho hello", result.ToString());
+                }
+            },
+            new ParseTestScenario<HealthCheckInstruction>
+            {
+                Text = "HEALTHCHECK CMD \\\n[\"echo\", \"hello\"]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "HEALTHCHECK"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "\\\n[\"echo\", \"hello\"]")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("HEALTHCHECK", result.InstructionName);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("HEALTHCHECK CMD \\\n[\"echo\", \"hello\"]", result.ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
