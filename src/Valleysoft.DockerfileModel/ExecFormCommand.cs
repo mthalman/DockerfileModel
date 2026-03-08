@@ -22,6 +22,11 @@ public class ExecFormCommand : Command
     private static IEnumerable<Token> GetTokens(IEnumerable<string> values, char escapeChar)
     {
         Requires.NotNull(values, nameof(values));
+        if (values.Any(v => v is null))
+        {
+            throw new ArgumentNullException(nameof(values), "Collection must not contain null elements.");
+        }
+
         return GetTokens(StringHelper.FormatAsJson(values), GetInnerParser(escapeChar));
     }
 
