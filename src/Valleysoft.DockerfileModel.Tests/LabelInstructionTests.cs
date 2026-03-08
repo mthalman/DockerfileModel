@@ -64,6 +64,27 @@ public class LabelInstructionTests
         Validate(result, "VAR3", "bar");
     }
 
+    [Fact]
+    public void SetValueOnEmptyLabel()
+    {
+        // Parse "LABEL key=" which produces a KeyValueToken with no value token
+        LabelInstruction result = LabelInstruction.Parse("LABEL MY_LABEL=");
+        Assert.Equal("MY_LABEL", result.Labels[0].Key);
+        Assert.Equal("", result.Labels[0].Value);
+        Assert.Null(result.LabelTokens[0].ValueToken);
+
+        // Setting a value via the Labels projected list should insert a LiteralToken
+        result.Labels[0].Value = "hello";
+        Assert.Equal("hello", result.Labels[0].Value);
+        Assert.NotNull(result.LabelTokens[0].ValueToken);
+        Assert.Equal("LABEL MY_LABEL=hello", result.ToString());
+
+        // Subsequent value changes should work via the normal path
+        result.Labels[0].Value = "world";
+        Assert.Equal("world", result.Labels[0].Value);
+        Assert.Equal("LABEL MY_LABEL=world", result.ToString());
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<LabelInstruction>[] testInputs = new ParseTestScenario<LabelInstruction>[]
