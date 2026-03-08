@@ -580,6 +580,30 @@ internal static class ParseHelper
     }
 
     /// <summary>
+    /// Creates a <see cref="LiteralToken"/> for a JSON array element from its parsed tokens.
+    /// When the element is an empty string (e.g. ""), the token sequence is empty and
+    /// <see cref="CollapseLiteralTokens"/> cannot be used because it requires non-empty input.
+    /// In that case, a zero-length <see cref="LiteralToken"/> with <see cref="LiteralToken.QuoteChar"/>
+    /// set to double-quote is returned directly.
+    /// </summary>
+    private static IEnumerable<Token> CreateJsonArrayElementLiteral(IEnumerable<Token> tokens,
+        bool canContainVariables, char escapeChar)
+    {
+        if (!tokens.Any())
+        {
+            return new Token[]
+            {
+                new LiteralToken(Enumerable.Empty<Token>(), canContainVariables, escapeChar)
+                {
+                    QuoteChar = DoubleQuote
+                }
+            };
+        }
+
+        return CollapseLiteralTokens(tokens, canContainVariables, escapeChar, DoubleQuote);
+    }
+
+    /// <summary>
     /// Parses a JSON aray element delimiter (i.e. comma) with optional whitespace.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
@@ -611,7 +635,7 @@ internal static class ParseHelper
             from closingQuote in Symbol(DoubleQuote)
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
-                CollapseLiteralTokens(argValue.Flatten(), canContainVariables, escapeChar, DoubleQuote),
+                CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
     }
 
@@ -634,7 +658,7 @@ internal static class ParseHelper
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
                 leading,
-                CollapseLiteralTokens(argValue.Flatten(), canContainVariables, escapeChar, DoubleQuote),
+                CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
     }
 
