@@ -282,6 +282,64 @@ public class LabelInstructionTests
             },
             new ParseTestScenario<LabelInstruction>
             {
+                Text = "LABEL mykey=$var",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "LABEL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "mykey=$var",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "mykey"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "$var", null,
+                            token => ValidateAggregate<VariableRefToken>(token, "$var",
+                                token => ValidateString(token, "var"))))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("LABEL", result.InstructionName);
+                    Assert.Collection(result.Labels, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("mykey", pair.Key);
+                            Assert.Equal("$var", pair.Value);
+                        }
+                    });
+                }
+            },
+            new ParseTestScenario<LabelInstruction>
+            {
+                Text = "LABEL mykey=${var}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "LABEL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "mykey=${var}",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "mykey"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "${var}", null,
+                            token => ValidateAggregate<VariableRefToken>(token, "${var}",
+                                token => ValidateSymbol(token, '{'),
+                                token => ValidateString(token, "var"),
+                                token => ValidateSymbol(token, '}'))))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("LABEL", result.InstructionName);
+                    Assert.Collection(result.Labels, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("mykey", pair.Key);
+                            Assert.Equal("${var}", pair.Value);
+                        }
+                    });
+                }
+            },
+            new ParseTestScenario<LabelInstruction>
+            {
                 Text = "LABEL \"it's\"=value",
                 ParseExceptionPosition = new Position(9, 1, 10)
             },
