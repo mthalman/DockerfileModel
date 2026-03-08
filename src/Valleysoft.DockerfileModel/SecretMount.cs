@@ -26,6 +26,10 @@ public class SecretMount : Mount
     public static new SecretMount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar)
     {
         Mount mount = Mount.Parse(text, escapeChar);
+        if (!string.Equals(mount.Type, "secret", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"Expected mount type 'secret' but got '{mount.Type}'.", nameof(text));
+        }
         return new SecretMount(mount.Tokens);
     }
 }
