@@ -708,7 +708,7 @@ public static class TokenJsonSerializer
     // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
     // value as an opaque literal string. This serializer flattens the Mount
     // aggregate back to a single LiteralToken containing the opaque text.
-    // Also applies shell form whitespace splitting (same as CMD/ENTRYPOINT).
+    // Also flattens VariableRefToken in shell form literals (same as CMD/ENTRYPOINT).
     // ===================================================================
 
     private static void SerializeRunInstruction(StringBuilder sb, RunInstruction instruction)
