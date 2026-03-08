@@ -371,15 +371,15 @@ public static class DockerfileArbitraries
             from src in PathSegment()
             from tgt in PathSegment()
             select $"type=bind,source={src},target=/{tgt}",
-            // Cache mount — disabled: C# MountFlag parser fails on type=cache (issue #200)
-            // from tgt in PathSegment()
-            // select $"type=cache,target=/{tgt}",
+            // Cache mount
+            from tgt in PathSegment()
+            select $"type=cache,target=/{tgt}",
             // Secret mount
             from id in Identifier()
-            select $"type=secret,id={id}");
-            // Tmpfs mount — disabled: C# MountFlag parser fails on type=tmpfs (issue #200)
-            // from tgt in PathSegment()
-            // select $"type=tmpfs,target=/{tgt}");
+            select $"type=secret,id={id}",
+            // Tmpfs mount
+            from tgt in PathSegment()
+            select $"type=tmpfs,target=/{tgt}");
 
     // ──────────────────────────────────────────────
     // Instruction string generators
@@ -460,15 +460,15 @@ public static class DockerfileArbitraries
             from security in Gen.Elements("insecure", "sandbox")
             from cmd in ShellCommand()
             select $"RUN --security={security} {cmd}",
-            // With --mount — disabled: C# MountFlag parser fails on various mount types (issue #200)
-            // from mount in MountSpec()
-            // from cmd in ShellCommand()
-            // select $"RUN --mount={mount} {cmd}",
-            // With --mount + --network — disabled: same issue #200
-            // from mount in MountSpec()
-            // from network in Gen.Elements("default", "none", "host")
-            // from cmd in ShellCommand()
-            // select $"RUN --mount={mount} --network={network} {cmd}",
+            // With --mount
+            from mount in MountSpec()
+            from cmd in ShellCommand()
+            select $"RUN --mount={mount} {cmd}",
+            // With --mount + --network
+            from mount in MountSpec()
+            from network in Gen.Elements("default", "none", "host")
+            from cmd in ShellCommand()
+            select $"RUN --mount={mount} --network={network} {cmd}",
             // Shell form with line continuation (multiline command)
             from c1 in Gen.Elements("apt-get update", "echo hello", "mkdir -p /app")
             from lc in LineContinuation()
@@ -481,10 +481,10 @@ public static class DockerfileArbitraries
             // Exec form with varied commands
             from cmd in ExecFormCommandVaried()
             select $"RUN {cmd}",
-            // With --mount + exec form — disabled: C# MountFlag parser fails (issue #200)
-            // from mount in MountSpec()
-            // from cmd in ExecFormCommand()
-            // select $"RUN --mount={mount} {cmd}"
+            // With --mount + exec form
+            from mount in MountSpec()
+            from cmd in ExecFormCommand()
+            select $"RUN --mount={mount} {cmd}",
             // Shell form with pipe commands
             from cmd in ShellCommand()
             select $"RUN {cmd}",

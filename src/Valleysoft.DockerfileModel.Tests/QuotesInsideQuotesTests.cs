@@ -30,8 +30,8 @@ public class QuotesInsideQuotesTests
         Assert.Collection(result.Tokens,
             token => ValidateKeyword(token, "LABEL"),
             token => ValidateWhitespace(token, " "),
-            token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "a=\"foo'bar\"",
-                token => ValidateLiteral(token, "a"),
+            token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "a=\"foo'bar\"",
+                token => ValidateIdentifier<LabelKeyToken>(token, "a"),
                 token => ValidateSymbol(token, '='),
                 token => ValidateLiteral(token, "foo'bar", '\"')));
 
@@ -57,8 +57,8 @@ public class QuotesInsideQuotesTests
         Assert.Collection(result.Tokens,
             token => ValidateKeyword(token, "LABEL"),
             token => ValidateWhitespace(token, " "),
-            token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "a='foo\"bar'",
-                token => ValidateLiteral(token, "a"),
+            token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "a='foo\"bar'",
+                token => ValidateIdentifier<LabelKeyToken>(token, "a"),
                 token => ValidateSymbol(token, '='),
                 token => ValidateLiteral(token, "foo\"bar", '\'')));
 
@@ -104,13 +104,13 @@ public class QuotesInsideQuotesTests
         Assert.Collection(result.Tokens,
             token => ValidateKeyword(token, "LABEL"),
             token => ValidateWhitespace(token, " "),
-            token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "a=\"it's\"",
-                token => ValidateLiteral(token, "a"),
+            token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "a=\"it's\"",
+                token => ValidateIdentifier<LabelKeyToken>(token, "a"),
                 token => ValidateSymbol(token, '='),
                 token => ValidateLiteral(token, "it's", '\"')),
             token => ValidateWhitespace(token, " "),
-            token => ValidateAggregate<KeyValueToken<LiteralToken, LiteralToken>>(token, "b='say \"hello\"'",
-                token => ValidateLiteral(token, "b"),
+            token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "b='say \"hello\"'",
+                token => ValidateIdentifier<LabelKeyToken>(token, "b"),
                 token => ValidateSymbol(token, '='),
                 token => ValidateLiteral(token, "say \"hello\"", '\'')));
 

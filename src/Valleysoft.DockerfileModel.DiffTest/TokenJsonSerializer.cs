@@ -29,7 +29,8 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 /// Known differences with workarounds:
 ///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
 ///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
-///   - EXPOSE port/protocol: C# uses flat tokens; Lean wraps in keyValue
+///   - EXPOSE port/protocol: C# splits into literal+symbol+literal; Lean uses one flat literal.
+///     Workaround merges the three tokens back into a single literal during serialization.
 ///   - ONBUILD trigger: C# recursively parses; Lean uses opaque LiteralToken
 /// </summary>
 public static class TokenJsonSerializer
@@ -93,12 +94,6 @@ public static class TokenJsonSerializer
             return;
         }
 
-        if (token is LabelInstruction labelInst)
-        {
-            SerializeLabel(sb, labelInst);
-            return;
-        }
-
         // RUN needs mount value flattening (issue #200) + shell form VariableRefToken validation (fail-fast)
         if (token is RunInstruction)
         {
@@ -112,14 +107,6 @@ public static class TokenJsonSerializer
             SerializeShellFormInstruction(sb, (Instruction)token);
             return;
         }
-
-        // STOPSIGNAL: C# doesn't parse variable refs (issue #199)
-        if (token is StopSignalInstruction)
-        {
-            SerializeStopSignal(sb, (StopSignalInstruction)token);
-            return;
-        }
-
 
         if (token is Instruction)
         {
@@ -339,67 +326,14 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Workaround: LABEL instruction
-    // C# uses LiteralToken for label keys, Lean uses IdentifierToken.
-    // We remap the key's kind from "literal" to "identifier" during serialization.
-    // ===================================================================
-
-    private static void SerializeLabel(StringBuilder sb, LabelInstruction label)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in label.Tokens)
-        {
-            if (IsKeyValueToken(child))
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeLabelKeyValue(sb, (AggregateToken)child);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    private static void SerializeLabelKeyValue(StringBuilder sb, AggregateToken kvToken)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        bool isFirstChild = true;
-        foreach (Token child in kvToken.Tokens)
-        {
-            if (!first) sb.Append(',');
-            first = false;
-
-            // The first child of a LABEL KeyValueToken is the key.
-            // C# uses LiteralToken, Lean uses IdentifierToken. Remap.
-            if (isFirstChild && child is LiteralToken)
-            {
-                SerializeAggregate(sb, "identifier", child);
-            }
-            else
-            {
-                SerializeToken(sb, child);
-            }
-            isFirstChild = false;
-        }
-
-        sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: EXPOSE instruction
-    // C# has flat tokens (literal, symbol('/'), literal) for port/protocol.
-    // Lean wraps port/protocol in a KeyValueToken.
-    // We detect the flat pattern and re-wrap during serialization.
+    // Workaround: EXPOSE port/protocol merging
+    // C# tokenizes port/protocol specs as separate tokens at the instruction
+    // level: LiteralToken(port) + SymbolToken('/') + LiteralToken(protocol).
+    // BuildKit (and hence Lean) treats the entire port/protocol spec as a
+    // single opaque literal value, e.g., "80/tcp" becomes one LiteralToken
+    // containing StringToken("80/tcp"). This serializer detects the
+    // literal + '/' + literal pattern and merges them into a single literal,
+    // appending "/" and the protocol text into the port literal's children.
     // ===================================================================
 
     private static void SerializeExpose(StringBuilder sb, ExposeInstruction expose)
@@ -414,29 +348,330 @@ public static class TokenJsonSerializer
             Token child = tokens[i];
 
             // Detect the port/protocol pattern: LiteralToken, SymbolToken('/'), LiteralToken
-            if (child is LiteralToken
-                && i + 1 < tokens.Count && tokens[i + 1] is SymbolToken slashSym && slashSym.Value == "/"
-                && i + 2 < tokens.Count && tokens[i + 2] is LiteralToken)
+            // with optional LineContinuationTokens between them (e.g., "80\\\n/tcp").
+            if (child is LiteralToken portLiteral)
+            {
+                // Scan forward past any LineContinuationTokens to find the slash
+                int slashIdx = i + 1;
+                while (slashIdx < tokens.Count && tokens[slashIdx] is LineContinuationToken)
+                    slashIdx++;
+
+                if (slashIdx < tokens.Count
+                    && tokens[slashIdx] is SymbolToken slashSym && slashSym.Value == "/")
+                {
+                    // Scan forward past any LineContinuationTokens to find the protocol literal
+                    int protoIdx = slashIdx + 1;
+                    while (protoIdx < tokens.Count && tokens[protoIdx] is LineContinuationToken)
+                        protoIdx++;
+
+                    if (protoIdx < tokens.Count && tokens[protoIdx] is LiteralToken protoLiteral)
+                    {
+                        if (!first) sb.Append(',');
+                        first = false;
+
+                        // Collect LineContinuationTokens separately for before
+                        // the slash (port→slash) and after the slash (slash→protocol)
+                        // so their relative position is preserved in the merged literal.
+                        var preSlashLCs = new List<LineContinuationToken>();
+                        for (int k = i + 1; k < slashIdx; k++)
+                        {
+                            if (tokens[k] is LineContinuationToken lc)
+                                preSlashLCs.Add(lc);
+                        }
+                        var postSlashLCs = new List<LineContinuationToken>();
+                        for (int k = slashIdx + 1; k < protoIdx; k++)
+                        {
+                            if (tokens[k] is LineContinuationToken lc)
+                                postSlashLCs.Add(lc);
+                        }
+
+                        // Merge the port/slash/protocol tokens into a single literal,
+                        // preserving relative positions of LineContinuationTokens
+                        SerializeMergedPortProtocolLiteral(sb, portLiteral, protoLiteral, preSlashLCs, postSlashLCs);
+
+                        i = protoIdx; // skip all consumed tokens (including line continuations)
+                        continue;
+                    }
+                }
+            }
+
+            if (!first) sb.Append(',');
+            SerializeToken(sb, child);
+            first = false;
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Merge a port LiteralToken and protocol LiteralToken (separated by '/') into
+    /// a single literal, matching Lean's flat representation.
+    ///
+    /// The merge behavior for the boundary tokens depends on their types:
+    /// - Both strings: merge into one (e.g., string["80"] + "/" + string["tcp"] -> string["80/tcp"])
+    /// - Port ends with string, proto starts with non-string (e.g., variable): append "/" to port string
+    /// - Port ends with non-string, proto starts with string: prepend "/" to proto string
+    /// - Neither is string: add a separate "/" string node between them
+    ///
+    /// LineContinuationTokens are tracked separately for before vs after the slash
+    /// to preserve their relative position. Lean's literalStringWithoutSpaces parses
+    /// char-by-char: "80/\\\ntcp" -> string["80/"], LC, string["tcp"] while
+    /// "80\\\n/tcp" -> string["80"], LC, string["/tcp"]. The slash is part of
+    /// whichever string segment it is adjacent to, and LCs stay in their original
+    /// position relative to it.
+    /// </summary>
+    private static void SerializeMergedPortProtocolLiteral(
+        StringBuilder sb, LiteralToken portLiteral, LiteralToken protoLiteral,
+        List<LineContinuationToken> preSlashLCs, List<LineContinuationToken> postSlashLCs)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
+
+        if (portLiteral.QuoteChar.HasValue)
+        {
+            sb.Append('"');
+            JsonEscapeString(sb, portLiteral.QuoteChar.Value.ToString());
+            sb.Append('"');
+        }
+        else
+        {
+            sb.Append("null");
+        }
+
+        sb.Append(",\"children\":[");
+
+        List<Token> portChildren = portLiteral.Tokens.ToList();
+        List<Token> protoChildren = protoLiteral.Tokens.ToList();
+
+        bool first = true;
+        bool hasPreSlashLCs = preSlashLCs.Count > 0;
+        bool hasPostSlashLCs = postSlashLCs.Count > 0;
+        bool hasLineContinuations = hasPreSlashLCs || hasPostSlashLCs;
+
+        // Check if we can merge the last port child with the first proto child
+        bool lastPortIsString = portChildren.Count > 0 && portChildren[^1] is StringToken;
+        bool firstProtoIsString = protoChildren.Count > 0 && protoChildren[0] is StringToken;
+
+        if (!hasLineContinuations && lastPortIsString && firstProtoIsString)
+        {
+            // No line continuations: merge lastPortString + "/" + firstProtoString
+            for (int j = 0; j < portChildren.Count - 1; j++)
             {
                 if (!first) sb.Append(',');
+                SerializeToken(sb, portChildren[j]);
                 first = false;
+            }
 
-                // Wrap the three tokens as a keyValue
-                sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-                SerializeToken(sb, tokens[i]);     // port literal
-                sb.Append(',');
-                SerializeToken(sb, tokens[i + 1]); // slash symbol
-                sb.Append(',');
-                SerializeToken(sb, tokens[i + 2]); // protocol literal
-                sb.Append("]}");
+            string mergedValue = ((StringToken)portChildren[^1]).Value
+                + "/"
+                + ((StringToken)protoChildren[0]).Value;
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", mergedValue);
+            first = false;
 
-                i += 2; // skip the next two tokens, already consumed
+            for (int j = 1; j < protoChildren.Count; j++)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, protoChildren[j]);
+                first = false;
+            }
+        }
+        else if (!hasLineContinuations && lastPortIsString && !firstProtoIsString)
+        {
+            // No line continuations: append "/" to the last port string
+            for (int j = 0; j < portChildren.Count - 1; j++)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, portChildren[j]);
+                first = false;
+            }
+
+            string portWithSlash = ((StringToken)portChildren[^1]).Value + "/";
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", portWithSlash);
+            first = false;
+
+            foreach (Token protoChild in protoChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, protoChild);
+                first = false;
+            }
+        }
+        else if (!hasLineContinuations && firstProtoIsString)
+        {
+            // No line continuations: prepend "/" to the first proto string
+            foreach (Token portChild in portChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, portChild);
+                first = false;
+            }
+
+            string slashProto = "/" + ((StringToken)protoChildren[0]).Value;
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", slashProto);
+            first = false;
+
+            for (int j = 1; j < protoChildren.Count; j++)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, protoChildren[j]);
+                first = false;
+            }
+        }
+        else if (!hasLineContinuations)
+        {
+            // No line continuations, no mergeable strings: add "/" as separate node
+            foreach (Token portChild in portChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, portChild);
+                first = false;
+            }
+
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", "/");
+            first = false;
+
+            foreach (Token protoChild in protoChildren)
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, protoChild);
+                first = false;
+            }
+        }
+        else
+        {
+            // Line continuations present: preserve their position relative to
+            // the slash. Lean parses char-by-char, so the slash is part of
+            // whichever string segment it is adjacent to:
+            //   "80\\\n/tcp" -> port["80"], preSlashLC, string["/tcp"]
+            //   "80/\\\ntcp" -> port["80/"], postSlashLC, string["tcp"]
+            //   "80\\\n/\\\ntcp" -> port["80"], preSlashLC, string["/"], postSlashLC, string["tcp"]
+
+            // Emit port children. When post-slash LCs exist (slash is adjacent
+            // to port text), append "/" to the last port string.
+            if (hasPostSlashLCs && !hasPreSlashLCs && lastPortIsString)
+            {
+                // Slash is adjacent to port: append "/" to last port string
+                for (int j = 0; j < portChildren.Count - 1; j++)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, portChildren[j]);
+                    first = false;
+                }
+
+                string portWithSlash = ((StringToken)portChildren[^1]).Value + "/";
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", portWithSlash);
+                first = false;
+            }
+            else if (hasPostSlashLCs && !hasPreSlashLCs)
+            {
+                // Slash is adjacent to port but last port child is not a string
+                foreach (Token portChild in portChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, portChild);
+                    first = false;
+                }
+
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", "/");
+                first = false;
             }
             else
             {
+                // Pre-slash LCs exist: slash is separated from port by LCs.
+                // Emit port children, then pre-slash LCs, then "/" merged
+                // with protocol content.
+                foreach (Token portChild in portChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, portChild);
+                    first = false;
+                }
+
+                // Emit pre-slash LineContinuationTokens
+                foreach (LineContinuationToken lc in preSlashLCs)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, lc);
+                    first = false;
+                }
+            }
+
+            // Emit protocol content. When pre-slash LCs exist and no post-slash
+            // LCs, the slash is adjacent to the protocol: prepend "/" to first
+            // proto string.
+            if (hasPreSlashLCs && !hasPostSlashLCs && firstProtoIsString)
+            {
+                string slashProto = "/" + ((StringToken)protoChildren[0]).Value;
                 if (!first) sb.Append(',');
-                SerializeToken(sb, child);
+                SerializePrimitive(sb, "string", slashProto);
                 first = false;
+
+                for (int j = 1; j < protoChildren.Count; j++)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, protoChildren[j]);
+                    first = false;
+                }
+            }
+            else if (hasPreSlashLCs && !hasPostSlashLCs)
+            {
+                // Pre-slash LCs, no post-slash LCs, first proto is not string
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", "/");
+                first = false;
+
+                foreach (Token protoChild in protoChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, protoChild);
+                    first = false;
+                }
+            }
+            else if (hasPreSlashLCs && hasPostSlashLCs)
+            {
+                // Both pre-slash and post-slash LCs: the "/" is a separate
+                // string segment between the two LC groups. Emit "/" first,
+                // then post-slash LCs, then protocol children.
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", "/");
+                first = false;
+
+                foreach (LineContinuationToken lc in postSlashLCs)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, lc);
+                    first = false;
+                }
+
+                foreach (Token protoChild in protoChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, protoChild);
+                    first = false;
+                }
+            }
+            else
+            {
+                // Only post-slash LCs (slash already emitted with port above).
+                // Emit post-slash LCs then protocol directly.
+                foreach (LineContinuationToken lc in postSlashLCs)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, lc);
+                    first = false;
+                }
+
+                foreach (Token protoChild in protoChildren)
+                {
+                    if (!first) sb.Append(',');
+                    SerializeToken(sb, protoChild);
+                    first = false;
+                }
             }
         }
 
@@ -577,8 +812,8 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Workaround: RUN instruction — mount value flattening (see issue #200)
-    // C# over-parses mount flag values into structured KeyValueToken children
+    // RUN instruction — mount value flattening for diff test normalization.
+    // C# parses mount flag values into structured KeyValueToken children
     // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
     // value as an opaque literal string. This serializer flattens the Mount
     // aggregate back to a single LiteralToken containing the opaque text.
@@ -661,221 +896,6 @@ public static class TokenJsonSerializer
         }
 
         sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: STOPSIGNAL variable ref parsing (see issue #199)
-    // C# doesn't parse variable refs ($VAR, ${VAR}) in STOPSIGNAL — it
-    // treats them as plain StringToken text inside a LiteralToken. Lean
-    // DOES parse them as variableRef tokens (since STOPSIGNAL supports
-    // variable substitution per Docker docs). This serializer scans
-    // StringToken values for variable ref patterns and emits the Lean-
-    // style variableRef aggregate tokens.
-    // ===================================================================
-
-    private static void SerializeStopSignal(StringBuilder sb, StopSignalInstruction instruction)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in instruction.Tokens)
-        {
-            if (child is LiteralToken literal)
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeLiteralWithVariableRefParsing(sb, literal);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Serialize a LiteralToken, parsing $VAR and ${VAR} patterns out of StringToken
-    /// children and emitting them as variableRef aggregate tokens (matching Lean behavior).
-    /// </summary>
-    private static void SerializeLiteralWithVariableRefParsing(StringBuilder sb, LiteralToken literal)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
-
-        if (literal.QuoteChar.HasValue)
-        {
-            sb.Append('"');
-            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
-            sb.Append('"');
-        }
-        else
-        {
-            sb.Append("null");
-        }
-
-        sb.Append(",\"children\":[");
-
-        bool first = true;
-        foreach (Token child in literal.Tokens)
-        {
-            if (child is StringToken strTok)
-            {
-                EmitStringWithVariableRefs(sb, strTok.Value, ref first);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Scan a string value for $VAR and ${VAR...} patterns and emit
-    /// alternating string primitives and variableRef aggregates.
-    /// Supports all modifier types: default-value (:-, :+, :?, -, +, ?)
-    /// and POSIX pattern (##, #, %%, %, //, /).
-    /// Lean's variableRef structure:
-    ///   Simple $VAR -> variableRef [ string("VAR") ]
-    ///   Braced ${VAR} -> variableRef [ symbol("{"), string("VAR"), symbol("}") ]
-    ///   Modified ${VAR:-value} -> variableRef [ symbol("{"), string("VAR"),
-    ///     symbol(":"), symbol("-"), literal [ string("value") ], symbol("}") ]
-    ///   POSIX ${VAR##pattern} -> variableRef [ symbol("{"), string("VAR"),
-    ///     symbol("#"), symbol("#"), literal [ string("pattern") ], symbol("}") ]
-    /// </summary>
-    private static void EmitStringWithVariableRefs(StringBuilder sb, string text, ref bool first)
-    {
-        int i = 0;
-        while (i < text.Length)
-        {
-            // Look for $ that starts a variable reference
-            if (text[i] == '$' && i + 1 < text.Length)
-            {
-                char next = text[i + 1];
-
-                // Braced variable reference: ${...}
-                if (next == '{')
-                {
-                    // Find the closing brace
-                    int braceStart = i + 2;
-                    int braceEnd = text.IndexOf('}', braceStart);
-                    if (braceEnd > braceStart)
-                    {
-                        // Extract the content between braces
-                        string braceContent = text[braceStart..braceEnd];
-
-                        // Parse variable name (alphanumeric + underscore)
-                        int nameEnd = 0;
-                        while (nameEnd < braceContent.Length &&
-                               (char.IsLetterOrDigit(braceContent[nameEnd]) || braceContent[nameEnd] == '_'))
-                        {
-                            nameEnd++;
-                        }
-
-                        if (nameEnd > 0)
-                        {
-                            string varName = braceContent[..nameEnd];
-                            string remainder = braceContent[nameEnd..];
-
-                            if (!first) sb.Append(',');
-                            first = false;
-
-                            // Emit variableRef aggregate
-                            sb.Append("{\"type\":\"aggregate\",\"kind\":\"variableRef\",\"quoteChar\":null,\"children\":[");
-                            SerializePrimitive(sb, "symbol", "{");
-                            sb.Append(',');
-                            SerializePrimitive(sb, "string", varName);
-
-                            // If there's a modifier (e.g., :-, :+, :?, -, +, ?, ##, #, %%, %, //, /)
-                            if (remainder.Length > 0)
-                            {
-                                // Emit each modifier character as a symbol
-                                int modEnd = 0;
-                                while (modEnd < remainder.Length &&
-                                       (remainder[modEnd] == ':' || remainder[modEnd] == '-' ||
-                                        remainder[modEnd] == '+' || remainder[modEnd] == '?' ||
-                                        remainder[modEnd] == '#' || remainder[modEnd] == '%' ||
-                                        remainder[modEnd] == '/'))
-                                {
-                                    sb.Append(',');
-                                    SerializePrimitive(sb, "symbol", remainder[modEnd].ToString());
-                                    modEnd++;
-                                }
-
-                                // Everything after the modifier chars is the modifier value (e.g., default, pattern, replacement)
-                                if (modEnd < remainder.Length)
-                                {
-                                    string modValue = remainder[modEnd..];
-                                    sb.Append(',');
-                                    // Wrap in a literal token (matching Lean behavior)
-                                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-                                    SerializePrimitive(sb, "string", modValue);
-                                    sb.Append("]}");
-                                }
-                            }
-
-                            sb.Append(',');
-                            SerializePrimitive(sb, "symbol", "}");
-                            sb.Append("]}");
-
-                            i = braceEnd + 1;
-                            continue;
-                        }
-                    }
-                }
-                // Simple variable reference: $IDENTIFIER
-                else if (char.IsLetterOrDigit(next) || next == '_')
-                {
-                    // Collect the identifier
-                    int nameStart = i + 1;
-                    int nameEnd = nameStart;
-                    while (nameEnd < text.Length &&
-                           (char.IsLetterOrDigit(text[nameEnd]) || text[nameEnd] == '_'))
-                    {
-                        nameEnd++;
-                    }
-
-                    string varName = text[nameStart..nameEnd];
-
-                    if (!first) sb.Append(',');
-                    first = false;
-
-                    // Emit variableRef aggregate with just the name
-                    sb.Append("{\"type\":\"aggregate\",\"kind\":\"variableRef\",\"quoteChar\":null,\"children\":[");
-                    SerializePrimitive(sb, "string", varName);
-                    sb.Append("]}");
-
-                    i = nameEnd;
-                    continue;
-                }
-            }
-
-            // Regular text: collect until next $ or end
-            int textStart = i;
-            while (i < text.Length)
-            {
-                if (text[i] == '$' && i + 1 < text.Length &&
-                    (char.IsLetterOrDigit(text[i + 1]) || text[i + 1] == '_' || text[i + 1] == '{'))
-                {
-                    break;
-                }
-                i++;
-            }
-
-            if (i > textStart)
-            {
-                string segment = text[textStart..i];
-                if (!first) sb.Append(',');
-                first = false;
-                SerializePrimitive(sb, "string", segment);
-            }
-        }
     }
 
     /// <summary>
