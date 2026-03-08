@@ -99,7 +99,7 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // RUN needs mount value flattening (issue #200) + shell form variable ref flattening
+        // RUN needs mount value flattening (issue #200) + shell form VariableRefToken validation (fail-fast)
         if (token is RunInstruction)
         {
             SerializeRunInstruction(sb, (RunInstruction)token);
@@ -590,7 +590,7 @@ public static class TokenJsonSerializer
     // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
     // value as an opaque literal string. This serializer flattens the Mount
     // aggregate back to a single LiteralToken containing the opaque text.
-    // Also flattens VariableRefToken in shell form literals (same as CMD/ENTRYPOINT).
+    // Also validates shell-form LiteralTokens and fails fast on VariableRefToken (same as CMD/ENTRYPOINT).
     // ===================================================================
 
     private static void SerializeRunInstruction(StringBuilder sb, RunInstruction instruction)
