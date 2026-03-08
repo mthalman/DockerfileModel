@@ -37,9 +37,9 @@ public class GenericMount : Mount
                 KeyValueToken<KeywordToken, LiteralToken>.GetParser(
                     KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
             from rest in (
-                from comma in Symbol(',')
+                from comma in ArgTokens(Symbol(',').AsEnumerable(), escapeChar)
                 from kv in keyValueParser
-                select ConcatTokens(comma, kv)).Many()
+                select ConcatTokens(comma, new Token[] { kv })).Many()
             select ConcatTokens(type, rest.SelectMany(t => t));
     }
 }
