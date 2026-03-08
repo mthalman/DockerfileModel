@@ -580,7 +580,8 @@ internal static class ParseHelper
     private static IEnumerable<Token> CreateJsonArrayElementLiteral(IEnumerable<Token> tokens,
         bool canContainVariables, char escapeChar)
     {
-        if (!tokens.Any())
+        var materializedTokens = tokens.ToList();
+        if (!materializedTokens.Any())
         {
             return new Token[]
             {
@@ -591,7 +592,7 @@ internal static class ParseHelper
             };
         }
 
-        return CollapseLiteralTokens(tokens, canContainVariables, escapeChar, DoubleQuote);
+        return CollapseLiteralTokens(materializedTokens, canContainVariables, escapeChar, DoubleQuote);
     }
 
     /// <summary>
