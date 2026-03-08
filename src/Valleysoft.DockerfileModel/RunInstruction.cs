@@ -36,7 +36,7 @@ public class RunInstruction : CommandInstruction
         Mounts = new ProjectedItemList<MountFlag, Mount>(
             new TokenList<MountFlag>(TokenList),
             flag => flag.ValueToken
-                ?? throw new InvalidOperationException("ValueToken cannot be null for this operation."),
+                ?? throw new InvalidOperationException("MountFlag.ValueToken cannot be null when accessing RunInstruction.Mounts."),
             (flag, mount) => flag.ValueToken = mount);
     }
 

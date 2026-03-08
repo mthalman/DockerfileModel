@@ -25,7 +25,7 @@ public class SecretMount : Mount
         {
             Requires.NotNull(value, nameof(value));
             var valueToken = IdToken.ValueToken
-                ?? throw new InvalidOperationException("ValueToken cannot be null for this operation.");
+                ?? throw new InvalidOperationException("SecretMount.IdToken.ValueToken cannot be null when setting SecretMount.Id.");
             valueToken.Value = value;
         }
     }
@@ -86,7 +86,7 @@ public class SecretMount : Mount
         if (token is not null && newValue is not null)
         {
             var valueToken = token.ValueToken
-                ?? throw new InvalidOperationException("ValueToken cannot be null for this operation.");
+                ?? throw new InvalidOperationException($"SecretMount {destinationKey} token's ValueToken cannot be null when setting its value.");
             valueToken.Value = newValue;
         }
         else

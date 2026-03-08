@@ -15,7 +15,7 @@ public abstract class Mount : AggregateToken
         {
             Requires.NotNullOrEmpty(value, nameof(value));
             var valueToken = TypeToken.ValueToken
-                ?? throw new InvalidOperationException("ValueToken cannot be null for this operation.");
+                ?? throw new InvalidOperationException("Mount.TypeToken.ValueToken cannot be null when setting Mount.Type.");
             valueToken.Value = value;
         }
     }
