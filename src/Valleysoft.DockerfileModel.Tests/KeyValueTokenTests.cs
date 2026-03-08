@@ -53,6 +53,23 @@ public class KeyValueTokenTests
         Assert.Equal("foo4", token.KeyToken.Value);
     }
 
+    [Fact]
+    public void SetEmptyValueIsNoOpWhenNoValueToken()
+    {
+        // Parse "ENV key=" which yields a KeyValueToken with ValueToken == null
+        EnvInstruction env = EnvInstruction.Parse("ENV MY_VAR=");
+        KeyValueToken<Variable, LiteralToken> kvToken = env.VariableTokens[0];
+        Assert.Null(kvToken.ValueToken);
+        Assert.Equal("", kvToken.Value);
+
+        // Setting Value to string.Empty when no ValueToken exists should be a no-op
+        kvToken.Value = string.Empty;
+
+        Assert.Null(kvToken.ValueToken);
+        Assert.Equal("", kvToken.Value);
+        Assert.Equal("ENV MY_VAR=", env.ToString());
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         KeyValueTokenParseTestScenario[] testInputs = new KeyValueTokenParseTestScenario[]

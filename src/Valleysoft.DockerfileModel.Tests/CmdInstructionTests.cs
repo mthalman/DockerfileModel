@@ -141,6 +141,29 @@ public class CmdInstructionTests
                     Assert.Empty(cmd.Values);
                 }
             },
+            // Empty exec form array with interior whitespace
+            new ParseTestScenario<CmdInstruction>
+            {
+                Text = "CMD [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[ ]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("CMD", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
             new ParseTestScenario<CmdInstruction>
             {
                 Text = "CMD [\"/bin/bash\", \"-c\", \"echo hello\"]",
