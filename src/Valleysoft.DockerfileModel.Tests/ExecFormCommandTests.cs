@@ -197,6 +197,39 @@ public class ExecFormCommandTests
             },
             new ParseTestScenario<ExecFormCommand>
             {
+                Text = "[]\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateSymbol(token, ']'),
+                    token => ValidateNewLine(token, "\n")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.CommandType);
+                    Assert.Equal("[]\n", result.ToString());
+                    Assert.Empty(result.Values);
+                }
+            },
+            new ParseTestScenario<ExecFormCommand>
+            {
+                Text = "[ ]\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, ']'),
+                    token => ValidateNewLine(token, "\n")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.CommandType);
+                    Assert.Equal("[ ]\n", result.ToString());
+                    Assert.Empty(result.Values);
+                }
+            },
+            new ParseTestScenario<ExecFormCommand>
+            {
                 Text = "echo hello",
                 ParseExceptionPosition = new Position(0, 1, 1)
             }
