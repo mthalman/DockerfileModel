@@ -175,6 +175,123 @@ public class VariableRefTokenTests
                     Assert.Equal(":-", result.Modifier);
                     Assert.Equal("test", result.ModifierValue);
                 }
+            },
+            // POSIX prefix removal: # (shortest)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo#pattern}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateLiteral(token, "pattern"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("#", result.Modifier);
+                    Assert.Equal("pattern", result.ModifierValue);
+                }
+            },
+            // POSIX prefix removal: ## (longest)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo##pattern}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateLiteral(token, "pattern"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("##", result.Modifier);
+                    Assert.Equal("pattern", result.ModifierValue);
+                }
+            },
+            // POSIX suffix removal: % (shortest)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo%suffix}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateLiteral(token, "suffix"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("%", result.Modifier);
+                    Assert.Equal("suffix", result.ModifierValue);
+                }
+            },
+            // POSIX suffix removal: %% (longest)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo%%suffix}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateLiteral(token, "suffix"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("%%", result.Modifier);
+                    Assert.Equal("suffix", result.ModifierValue);
+                }
+            },
+            // POSIX replacement: / (first occurrence)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo/old/new}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateLiteral(token, "old/new"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("/", result.Modifier);
+                    Assert.Equal("old/new", result.ModifierValue);
+                }
+            },
+            // POSIX replacement: // (all occurrences)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo//old/new}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateLiteral(token, "old/new"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("//", result.Modifier);
+                    Assert.Equal("old/new", result.ModifierValue);
+                }
             }
         };
 
@@ -413,6 +530,160 @@ public class VariableRefTokenTests
                     string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                     Assert.Equal("atest2x", result);
 
+                }
+            },
+            // POSIX prefix removal: # (shortest) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "#",
+                ModifierValue = "pattern",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateAggregate<LiteralToken>(token, "pattern",
+                        token => ValidateString(token, "pattern")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    // POSIX modifiers return the raw variable reference text unchanged
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo#pattern}", result);
+                }
+            },
+            // POSIX prefix removal: ## (longest) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "##",
+                ModifierValue = "pattern",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateAggregate<LiteralToken>(token, "pattern",
+                        token => ValidateString(token, "pattern")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo##pattern}", result);
+                }
+            },
+            // POSIX suffix removal: % (shortest) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "%",
+                ModifierValue = "suffix",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateAggregate<LiteralToken>(token, "suffix",
+                        token => ValidateString(token, "suffix")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo%suffix}", result);
+                }
+            },
+            // POSIX suffix removal: %% (longest) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "%%",
+                ModifierValue = "suffix",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateAggregate<LiteralToken>(token, "suffix",
+                        token => ValidateString(token, "suffix")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo%%suffix}", result);
+                }
+            },
+            // POSIX replacement: / (first occurrence) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "/",
+                ModifierValue = "old/new",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateAggregate<LiteralToken>(token, "old/new",
+                        token => ValidateString(token, "old/new")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo/old/new}", result);
+                }
+            },
+            // POSIX replacement: // (all occurrences) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "//",
+                ModifierValue = "old/new",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateAggregate<LiteralToken>(token, "old/new",
+                        token => ValidateString(token, "old/new")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo//old/new}", result);
                 }
             },
         };

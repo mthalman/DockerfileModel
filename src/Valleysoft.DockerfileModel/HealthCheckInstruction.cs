@@ -9,20 +9,20 @@ public class HealthCheckInstruction : Instruction
     private readonly char escapeChar;
 
     public HealthCheckInstruction(string commandWithArgs, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(commandWithArgs, interval, timeout, startPeriod, retries, escapeChar), escapeChar)
+        string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : this(GetTokens(commandWithArgs, interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
     public HealthCheckInstruction(IEnumerable<string> defaultArgs, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(StringHelper.FormatAsJson(defaultArgs), interval, timeout, startPeriod, retries, escapeChar), escapeChar)
+        string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : this(GetTokens(StringHelper.FormatAsJson(defaultArgs), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
     public HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(StringHelper.FormatAsJson(new string[] { command }.Concat(args)), interval, timeout, startPeriod, retries, escapeChar), escapeChar)
+        string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : this(GetTokens(StringHelper.FormatAsJson(new string[] { command }.Concat(args)), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
@@ -97,6 +97,25 @@ public class HealthCheckInstruction : Instruction
     {
         get => Tokens.OfType<StartPeriodFlag>().FirstOrDefault();
         set => SetOptionalFlagToken(StartPeriodFlag, value);
+    }
+
+    public string? StartInterval
+    {
+        get => StartIntervalToken?.Value;
+        set => SetOptionalLiteralTokenValue(StartIntervalToken, value, token => StartIntervalToken = token, canContainVariables: true, escapeChar);
+    }
+
+    public LiteralToken? StartIntervalToken
+    {
+        get => StartIntervalFlag?.ValueToken;
+        set => SetOptionalKeyValueTokenValue(
+            StartIntervalFlag, value, val => new StartIntervalFlag(val, escapeChar), token => StartIntervalFlag = token);
+    }
+
+    private StartIntervalFlag? StartIntervalFlag
+    {
+        get => Tokens.OfType<StartIntervalFlag>().FirstOrDefault();
+        set => SetOptionalFlagToken(StartIntervalFlag, value);
     }
 
     public string? Retries
@@ -195,14 +214,14 @@ public class HealthCheckInstruction : Instruction
         select new HealthCheckInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string commandBody, string? interval, string? timeout,
-        string? startPeriod, string? retries, char escapeChar)
+        string? startPeriod, string? startInterval, string? retries, char escapeChar)
     {
         Requires.NotNullOrEmpty(commandBody, nameof(commandBody));
         return GetTokens(
-            $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, retries, escapeChar)}CMD {commandBody}", GetInnerParser(escapeChar));
+            $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, startInterval, retries, escapeChar)}CMD {commandBody}", GetInnerParser(escapeChar));
     }
 
-    private static string GetOptionArgs(string? interval, string? timeout, string? startPeriod, string? retries, char escapeChar)
+    private static string GetOptionArgs(string? interval, string? timeout, string? startPeriod, string? startInterval, string? retries, char escapeChar)
     {
         StringBuilder builder = new();
         if (interval is not null)
@@ -216,6 +235,10 @@ public class HealthCheckInstruction : Instruction
         if (startPeriod is not null)
         {
             builder.Append($"{new StartPeriodFlag(startPeriod, escapeChar)} ");
+        }
+        if (startInterval is not null)
+        {
+            builder.Append($"{new StartIntervalFlag(startInterval, escapeChar)} ");
         }
         if (retries is not null)
         {
@@ -248,6 +271,7 @@ public class HealthCheckInstruction : Instruction
             IntervalFlag.GetParser(escapeChar).Cast<IntervalFlag, Token>()
                 .Or(TimeoutFlag.GetParser(escapeChar))
                 .Or(StartPeriodFlag.GetParser(escapeChar))
+                .Or(StartIntervalFlag.GetParser(escapeChar))
                 .Or(RetriesFlag.GetParser(escapeChar)).AsEnumerable(),
             escapeChar)
             .Many().Flatten();

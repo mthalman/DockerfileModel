@@ -519,9 +519,8 @@ public static class DockerfileArbitraries
             select $"RUN {c1} \\\n  && {c2} \\\n  && {c3}",
             // Disabled: C# parser treats \<spaces><newline> as regular text, not line continuation
             // Gen.Constant("RUN echo hello \\   \n  && echo world"),
-            // Disabled: C# parser crashes on exec form with empty string element (issue #203)
-            // from arg in Gen.Elements("hello", "-c", "test")
-            // select $"RUN [\"\", \"{arg}\"]",
+            from arg in Gen.Elements("hello", "-c", "test")
+            select $"RUN [\"\", \"{arg}\"]",
             Gen.Constant("RUN []"));
 
     /// <summary>
@@ -567,14 +566,14 @@ public static class DockerfileArbitraries
             from c1 in Gen.Elements("echo hello", "cat /etc/hosts")
             from c2 in Gen.Elements("world", "output")
             select $"CMD {c1} \\\r\n  {c2}",
-            // Disabled: C# parser crashes on exec form with empty string element (issue #203)
-            // from arg in Gen.Elements("hello", "world")
-            // select $"CMD [\"\", \"{arg}\"]",
+            from arg in Gen.Elements("hello", "world")
+            select $"CMD [\"\", \"{arg}\"]",
             // Three-line shell form
             from c1 in Gen.Elements("echo line1")
             from c2 in Gen.Elements("echo line2")
             from c3 in Gen.Elements("echo line3")
             select $"CMD {c1} \\\n  && {c2} \\\n  && {c3}",
+            // Empty exec form array
             Gen.Constant("CMD []"));
 
     /// <summary>
@@ -615,13 +614,13 @@ public static class DockerfileArbitraries
             from exe in Gen.Elements("/app/run", "python", "node")
             from arg in Gen.Elements("--config", "--port", "start")
             select $"ENTRYPOINT [ \"{exe}\" , \"{arg}\" ]",
-            // Disabled: C# parser crashes on exec form with empty string element (issue #203)
-            // from arg in Gen.Elements("/app/run", "--config")
-            // select $"ENTRYPOINT [\"\", \"{arg}\"]",
+            from arg in Gen.Elements("/app/run", "--config")
+            select $"ENTRYPOINT [\"\", \"{arg}\"]",
             // \r\n line continuation
             from c1 in Gen.Elements("/app/run", "python app.py")
             from c2 in Gen.Elements("--config /etc/app.conf", "--port 8080")
             select $"ENTRYPOINT {c1} \\\r\n  {c2}",
+            // Empty exec form array
             Gen.Constant("ENTRYPOINT []"));
 
     /// <summary>
@@ -904,10 +903,10 @@ public static class DockerfileArbitraries
             from w1 in SimpleAlphaNum()
             from w2 in SimpleAlphaNum()
             select $"ENV {key}='{w1} {w2}'",
-            // Disabled: C# parser doesn't tokenize exotic variable ref modifiers (issue #206)
-            // from key in Identifier()
-            // from varRef in ExoticVariableRef()
-            // select $"ENV {key}={varRef}",
+            // Exotic variable ref modifiers (e.g. ${var##pattern})
+            from key in Identifier()
+            from varRef in ExoticVariableRef()
+            select $"ENV {key}={varRef}",
             // Legacy form with \r\n line continuation
             from key in Identifier()
             from v1 in SimpleAlphaNum()
@@ -978,10 +977,10 @@ public static class DockerfileArbitraries
             from name in Identifier()
             from value in SimpleAlphaNum()
             select $"ARG {name}='{value}'",
-            // Disabled: C# parser doesn't tokenize exotic variable ref modifiers (issue #206)
-            // from name in Identifier()
-            // from varRef in ExoticVariableRef()
-            // select $"ARG {name}={varRef}",
+            // Exotic variable ref modifiers (e.g. ${var##pattern})
+            from name in Identifier()
+            from varRef in ExoticVariableRef()
+            select $"ARG {name}={varRef}",
             // \r\n line continuation
             from n1 in Identifier()
             from v1 in SimpleAlphaNum()
@@ -1091,18 +1090,18 @@ public static class DockerfileArbitraries
             from timeout in Duration()
             from cmd in ShellCommand()
             select $"HEALTHCHECK --interval={interval} \\\r\n  --timeout={timeout} \\\r\n  CMD {cmd}",
-            // Disabled: C# parser crashes on --start-interval flag (issue #202)
-            // from startInterval in Duration()
-            // from cmd in ShellCommand()
-            // select $"HEALTHCHECK --start-interval={startInterval} CMD {cmd}",
-            // Disabled: C# parser crashes on --start-interval flag (issue #202)
-            // from interval in Duration()
-            // from timeout in Duration()
-            // from startPeriod in Duration()
-            // from startInterval in Duration()
-            // from retries in Gen.Choose(1, 10)
-            // from cmd in ShellCommand()
-            // select $"HEALTHCHECK --interval={interval} --timeout={timeout} --start-period={startPeriod} --start-interval={startInterval} --retries={retries} CMD {cmd}",
+            // Only --start-interval
+            from startInterval in Duration()
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --start-interval={startInterval} CMD {cmd}",
+            // All flags
+            from interval in Duration()
+            from timeout in Duration()
+            from startPeriod in Duration()
+            from startInterval in Duration()
+            from retries in Gen.Choose(1, 10)
+            from cmd in ShellCommand()
+            select $"HEALTHCHECK --interval={interval} --timeout={timeout} --start-period={startPeriod} --start-interval={startInterval} --retries={retries} CMD {cmd}",
             // Three-flag line continuation
             from interval in Duration()
             from timeout in Duration()
@@ -1197,10 +1196,10 @@ public static class DockerfileArbitraries
             from suffix in Gen.Elements("version", "title")
             from value in SimpleAlphaNum()
             select $"LABEL {prefix}.{suffix}={value}",
-            // Disabled: C# parser doesn't tokenize exotic variable ref modifiers (issue #206)
-            // from key in Identifier()
-            // from varRef in ExoticVariableRef()
-            // select $"LABEL {key}={varRef}",
+            // Exotic variable ref modifiers (e.g. ${var##pattern})
+            from key in Identifier()
+            from varRef in ExoticVariableRef()
+            select $"LABEL {key}={varRef}",
             // \r\n line continuation
             from k1 in Identifier()
             from v1 in SimpleAlphaNum()
@@ -1312,9 +1311,9 @@ public static class DockerfileArbitraries
             from ws in FlexibleWhitespace()
             from cmd in ShellCommand()
             select $"ONBUILD{ws}RUN {cmd}",
-            // Disabled: C# parser doesn't tokenize exotic variable ref modifiers (issue #206)
-            // from varRef in ExoticVariableRef()
-            // select $"ONBUILD ENV MYVAR={varRef}",
+            // Exotic variable ref modifiers (e.g. ${var##pattern})
+            from varRef in ExoticVariableRef()
+            select $"ONBUILD ENV MYVAR={varRef}",
             // ONBUILD with single-quoted value
             from key in Identifier()
             from value in SimpleAlphaNum()
@@ -1347,9 +1346,9 @@ public static class DockerfileArbitraries
             from ws in FlexibleWhitespace()
             from signal in Signal()
             select $"STOPSIGNAL{ws}{signal}",
-            // Disabled: C# parser doesn't tokenize exotic variable ref modifiers (issue #206)
-            // from varRef in ExoticVariableRef()
-            // select $"STOPSIGNAL {varRef}"
+            // Exotic variable ref modifiers (e.g. ${var##pattern})
+            from varRef in ExoticVariableRef()
+            select $"STOPSIGNAL {varRef}",
             Gen.Constant("STOPSIGNAL SIGTERM"));
 
     /// <summary>
@@ -1397,9 +1396,9 @@ public static class DockerfileArbitraries
             from userVar in VariableRef()
             from grpVar in VariableRef()
             select $"USER {userVar}:{grpVar}",
-            // Disabled: C# parser doesn't tokenize exotic variable ref modifiers (issue #206)
-            // from varRef in ExoticVariableRef()
-            // select $"USER {varRef}"
+            // Exotic variable ref modifiers (e.g. ${var##pattern})
+            from varRef in ExoticVariableRef()
+            select $"USER {varRef}",
             Gen.Constant("USER www-data"));
 
     /// <summary>
@@ -1451,9 +1450,9 @@ public static class DockerfileArbitraries
             from ws in FlexibleWhitespace()
             from path in AbsolutePath()
             select $"VOLUME{ws}{path}",
-            // Disabled: C# parser doesn't tokenize exotic variable ref modifiers (issue #206)
-            // from varRef in ExoticVariableRef()
-            // select $"VOLUME {varRef}"
+            // Exotic variable ref modifiers (e.g. ${var##pattern})
+            from varRef in ExoticVariableRef()
+            select $"VOLUME {varRef}",
             Gen.Constant("VOLUME /data"));
 
     /// <summary>
@@ -1501,9 +1500,9 @@ public static class DockerfileArbitraries
             // Line continuation inside path
             from seg in PathSegment()
             select $"WORKDIR /app/\\\n{seg}",
-            // Disabled: C# parser doesn't tokenize exotic variable ref modifiers (issue #206)
-            // from varRef in ExoticVariableRef()
-            // select $"WORKDIR {varRef}",
+            // Exotic variable ref modifiers (e.g. ${var##pattern})
+            from varRef in ExoticVariableRef()
+            select $"WORKDIR {varRef}",
             // Quoted path
             from seg in PathSegment()
             select $"WORKDIR \"/app/{seg}\"",

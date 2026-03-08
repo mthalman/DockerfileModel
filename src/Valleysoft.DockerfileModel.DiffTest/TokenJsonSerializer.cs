@@ -121,12 +121,6 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // ENV: empty value handling (issue #201)
-        if (token is EnvInstruction)
-        {
-            SerializeInstructionStrippingEmptyLiterals(sb, (Instruction)token);
-            return;
-        }
 
         if (token is Instruction)
         {
@@ -460,12 +454,6 @@ public static class TokenJsonSerializer
         bool isFirstChild = true;
         foreach (Token child in kvToken.Tokens)
         {
-            // Strip empty LiteralTokens (issue #201)
-            if (!isFirstChild && child is LiteralToken lit && lit.ToString() == "")
-            {
-                continue;
-            }
-
             if (!first) sb.Append(',');
             first = false;
 
@@ -825,13 +813,17 @@ public static class TokenJsonSerializer
     }
 
     /// <summary>
-    /// Scan a string value for $VAR and ${VAR:-default} patterns and emit
+    /// Scan a string value for $VAR and ${VAR...} patterns and emit
     /// alternating string primitives and variableRef aggregates.
+    /// Supports all modifier types: default-value (:-, :+, :?, -, +, ?)
+    /// and POSIX pattern (##, #, %%, %, //, /).
     /// Lean's variableRef structure:
     ///   Simple $VAR -> variableRef [ string("VAR") ]
     ///   Braced ${VAR} -> variableRef [ symbol("{"), string("VAR"), symbol("}") ]
-    ///   Modified ${VAR:-default} -> variableRef [ symbol("{"), string("VAR"),
-    ///     symbol(":"), symbol("-"), literal [ string("default") ], symbol("}") ]
+    ///   Modified ${VAR:-value} -> variableRef [ symbol("{"), string("VAR"),
+    ///     symbol(":"), symbol("-"), literal [ string("value") ], symbol("}") ]
+    ///   POSIX ${VAR##pattern} -> variableRef [ symbol("{"), string("VAR"),
+    ///     symbol("#"), symbol("#"), literal [ string("pattern") ], symbol("}") ]
     /// </summary>
     private static void EmitStringWithVariableRefs(StringBuilder sb, string text, ref bool first)
     {
@@ -876,21 +868,23 @@ public static class TokenJsonSerializer
                             sb.Append(',');
                             SerializePrimitive(sb, "string", varName);
 
-                            // If there's a modifier (e.g., :-, :+, :?, -, +, ?)
+                            // If there's a modifier (e.g., :-, :+, :?, -, +, ?, ##, #, %%, %, //, /)
                             if (remainder.Length > 0)
                             {
                                 // Emit each modifier character as a symbol
                                 int modEnd = 0;
                                 while (modEnd < remainder.Length &&
                                        (remainder[modEnd] == ':' || remainder[modEnd] == '-' ||
-                                        remainder[modEnd] == '+' || remainder[modEnd] == '?'))
+                                        remainder[modEnd] == '+' || remainder[modEnd] == '?' ||
+                                        remainder[modEnd] == '#' || remainder[modEnd] == '%' ||
+                                        remainder[modEnd] == '/'))
                                 {
                                     sb.Append(',');
                                     SerializePrimitive(sb, "symbol", remainder[modEnd].ToString());
                                     modEnd++;
                                 }
 
-                                // Everything after the modifier chars is the default value
+                                // Everything after the modifier chars is the modifier value (e.g., default, pattern, replacement)
                                 if (modEnd < remainder.Length)
                                 {
                                     string modValue = remainder[modEnd..];
@@ -960,81 +954,6 @@ public static class TokenJsonSerializer
         }
     }
 
-    // ===================================================================
-    // Workaround: ENV/LABEL empty value handling (see issue #201)
-    // For ENV/LABEL instructions with `key=` (empty value after `=`), C#
-    // includes an empty LiteralToken child in the keyValue. Lean omits it
-    // entirely. This serializer strips empty LiteralTokens from keyValue
-    // children during serialization.
-    // ===================================================================
-
-    private static void SerializeInstructionStrippingEmptyLiterals(StringBuilder sb, Instruction instruction)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in instruction.Tokens)
-        {
-            if (IsKeyValueToken(child))
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeKeyValueStrippingEmptyLiterals(sb, (AggregateToken)child);
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Serialize a keyValue token, skipping any LiteralToken children that are empty
-    /// (i.e., their ToString() returns "").
-    /// </summary>
-    private static void SerializeKeyValueStrippingEmptyLiterals(StringBuilder sb, AggregateToken kvToken)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in kvToken.Tokens)
-        {
-            // Strip empty LiteralTokens (issue #201)
-            if (child is LiteralToken lit && lit.ToString() == "")
-            {
-                continue;
-            }
-
-            if (!first) sb.Append(',');
-            SerializeToken(sb, child);
-            first = false;
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Check if a token is a KeyValueToken&lt;,&gt; by walking the base types
-    /// looking for a generic type definition match.
-    /// </summary>
-    private static bool IsKeyValueToken(Token token)
-    {
-        Type? type = token.GetType();
-        while (type != null)
-        {
-            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(KeyValueToken<,>))
-            {
-                return true;
-            }
-            type = type.BaseType;
-        }
-        return false;
-    }
-
     /// <summary>
     /// JSON-standard string escaping: \\ \" \n \r \t and control chars &lt; 0x20 as \uXXXX.
     /// </summary>
@@ -1062,5 +981,23 @@ public static class TokenJsonSerializer
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// Check if a token is a KeyValueToken&lt;,&gt; by walking the base types
+    /// looking for a generic type definition match.
+    /// </summary>
+    private static bool IsKeyValueToken(Token token)
+    {
+        Type? type = token.GetType();
+        while (type != null)
+        {
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(KeyValueToken<,>))
+            {
+                return true;
+            }
+            type = type.BaseType;
+        }
+        return false;
     }
 }
