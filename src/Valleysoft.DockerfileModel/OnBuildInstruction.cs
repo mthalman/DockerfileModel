@@ -19,7 +19,7 @@ public class OnBuildInstruction : Instruction
         get => TriggerInstructionToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Requires.NotNullOrWhiteSpace(value, nameof(value));
             TriggerInstructionToken.Value = value;
         }
     }
@@ -43,7 +43,7 @@ public class OnBuildInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string triggerInstruction, char escapeChar)
     {
-        Requires.NotNullOrEmpty(triggerInstruction, nameof(triggerInstruction));
+        Requires.NotNullOrWhiteSpace(triggerInstruction, nameof(triggerInstruction));
         return GetTokens($"ONBUILD {triggerInstruction}", GetInnerParser(escapeChar));
     }
 
