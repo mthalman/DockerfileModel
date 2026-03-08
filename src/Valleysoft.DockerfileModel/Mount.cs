@@ -67,18 +67,22 @@ public class Mount : AggregateToken
         // Line continuations can appear between comma-separated pairs.
         // Whitespace() after each LineContinuations() handles indentation that may
         // appear on the next line after a line continuation (e.g., "type=bind,\\\n  readonly").
+        // CommentText() handles comment lines that can appear after line continuations
+        // (e.g., "type=bind,\\\n# comment\nreadonly").
         return
             from type in ArgTokens(
                 KeyValueToken<KeywordToken, LiteralToken>.GetParser(
                     KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
             from rest in (
                 from lineCont1 in LineContinuations(escapeChar)
+                from comments1 in CommentText().Many()
                 from ws1 in Whitespace()
                 from comma in Symbol(',')
                 from lineCont2 in LineContinuations(escapeChar)
+                from comments2 in CommentText().Many()
                 from ws2 in Whitespace()
                 from entry in entryParser
-                select ConcatTokens(lineCont1, ws1, new Token[] { comma }, lineCont2, ws2, new Token[] { entry })).Many()
+                select ConcatTokens(lineCont1, comments1.SelectMany(c => c), ws1, new Token[] { comma }, lineCont2, comments2.SelectMany(c => c), ws2, new Token[] { entry })).Many()
             select ConcatTokens(type, rest.SelectMany(t => t));
     }
 }
