@@ -508,6 +508,7 @@ public class HealthCheckInstructionTests
                 Command = "/bin/check-running",
                 Interval = "1s",
                 StartPeriod = "2s",
+                StartInterval = "10s",
                 Timeout = "3s",
                 Retries = "10",
                 TokenValidators = new Action<Token>[]
@@ -519,6 +520,8 @@ public class HealthCheckInstructionTests
                     token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "3s"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "2s"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<StartIntervalFlag>(token, "start-interval", "10s"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<RetriesFlag>(token, "retries", "10"),
                     token => ValidateWhitespace(token, " "),
