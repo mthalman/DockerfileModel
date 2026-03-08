@@ -43,10 +43,6 @@ public class CmdInstruction : CommandInstruction
     private static IEnumerable<Token> GetTokens(IEnumerable<string> defaultArgs, char escapeChar)
     {
         Requires.NotNull(defaultArgs, nameof(defaultArgs));
-        if (defaultArgs.Any(v => v is null))
-        {
-            throw new ArgumentNullException(nameof(defaultArgs), "Collection must not contain null elements.");
-        }
 
         return GetTokens($"CMD {StringHelper.FormatAsJson(defaultArgs)}", GetInnerParser(escapeChar));
     }
