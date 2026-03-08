@@ -121,6 +121,28 @@ public class EntrypointInstructionTests
             },
             new ParseTestScenario<EntrypointInstruction>
             {
+                Text = "ENTRYPOINT []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ENTRYPOINT", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.Equal("[]", result.Command.ToString());
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            new ParseTestScenario<EntrypointInstruction>
+            {
                 Text = "ENTRYPOINT [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
                 {
