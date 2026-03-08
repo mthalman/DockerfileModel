@@ -40,10 +40,6 @@ public class EntrypointInstruction : CommandInstruction
     private static IEnumerable<Token> GetTokens(IEnumerable<string> execArgs, char escapeChar)
     {
         Requires.NotNull(execArgs, nameof(execArgs));
-        if (execArgs.Any(v => v is null))
-        {
-            throw new ArgumentNullException(nameof(execArgs), "Collection must not contain null elements.");
-        }
 
         return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(execArgs)}", GetInnerParser(escapeChar));
     }
