@@ -70,6 +70,13 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
             }
             else if (existingToken is null)
             {
+                // When no value token exists, setting to empty string is a no-op
+                // since the getter already returns string.Empty in that case.
+                if (value == string.Empty)
+                {
+                    return;
+                }
+
                 throw new InvalidOperationException(
                     $"No value token exists. Use the {nameof(ValueToken)} setter to insert a new value token.");
             }
