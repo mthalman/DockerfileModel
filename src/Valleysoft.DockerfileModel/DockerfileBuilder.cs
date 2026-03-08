@@ -81,6 +81,9 @@ public class DockerfileBuilder
     public DockerfileBuilder EntrypointInstruction(string commandWithArgs) =>
         AddConstruct(new EntrypointInstruction(commandWithArgs, EscapeChar));
 
+    public DockerfileBuilder EntrypointInstruction(IEnumerable<string> execArgs) =>
+        AddConstruct(new EntrypointInstruction(execArgs, EscapeChar));
+
     public DockerfileBuilder EntrypointInstruction(string command, IEnumerable<string> args) =>
         AddConstruct(new EntrypointInstruction(command, args, EscapeChar));
 
@@ -112,16 +115,16 @@ public class DockerfileBuilder
         ParseTokens(configureBuilder, DockerfileModel.GenericInstruction.Parse);
 
     public DockerfileBuilder HealthCheckInstruction(string commandWithArgs, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null) =>
-        AddConstruct(new HealthCheckInstruction(commandWithArgs, interval, timeout, startPeriod, retries, EscapeChar));
+        string? startPeriod = null, string? startInterval = null, string? retries = null) =>
+        AddConstruct(new HealthCheckInstruction(commandWithArgs, interval, timeout, startPeriod, startInterval, retries, EscapeChar));
 
     public DockerfileBuilder HealthCheckInstruction(IEnumerable<string> defaultArgs, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null) =>
-        AddConstruct(new HealthCheckInstruction(defaultArgs, interval, timeout, startPeriod, retries, EscapeChar));
+        string? startPeriod = null, string? startInterval = null, string? retries = null) =>
+        AddConstruct(new HealthCheckInstruction(defaultArgs, interval, timeout, startPeriod, startInterval, retries, EscapeChar));
 
     public DockerfileBuilder HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null) =>
-        AddConstruct(new HealthCheckInstruction(command, args, interval, timeout, startPeriod, retries, EscapeChar));
+        string? startPeriod = null, string? startInterval = null, string? retries = null) =>
+        AddConstruct(new HealthCheckInstruction(command, args, interval, timeout, startPeriod, startInterval, retries, EscapeChar));
 
     public DockerfileBuilder HealthCheckDisabledInstruction() =>
         AddConstruct(new HealthCheckInstruction(EscapeChar));

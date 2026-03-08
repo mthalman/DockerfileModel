@@ -21,11 +21,11 @@ public class HealthCheckInstructionTests
         {
             if (scenario.Args is not null)
             {
-                result = new HealthCheckInstruction(scenario.Command, scenario.Args, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
+                result = new HealthCheckInstruction(scenario.Command, scenario.Args, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.StartInterval, scenario.Retries);
             }
             else
             {
-                result = new HealthCheckInstruction(scenario.Command, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.Retries);
+                result = new HealthCheckInstruction(scenario.Command, scenario.Interval, scenario.Timeout, scenario.StartPeriod, scenario.StartInterval, scenario.Retries);
             }
         }
         else
@@ -164,6 +164,48 @@ public class HealthCheckInstructionTests
     }
 
     [Fact]
+    public void StartInterval()
+    {
+        HealthCheckInstruction instruction = new("command", startInterval: "10s");
+        Assert.Equal("10s", instruction.StartInterval);
+        Assert.Equal("10s", instruction.StartIntervalToken.Value);
+        Assert.Equal("HEALTHCHECK --start-interval=10s CMD command", instruction.ToString());
+
+        instruction.StartInterval = "20s";
+        Assert.Equal("20s", instruction.StartInterval);
+        Assert.Equal("20s", instruction.StartIntervalToken.Value);
+        Assert.Equal("HEALTHCHECK --start-interval=20s CMD command", instruction.ToString());
+
+        instruction.StartInterval = null;
+        Assert.Null(instruction.StartInterval);
+        Assert.Null(instruction.StartIntervalToken);
+        Assert.Equal("HEALTHCHECK CMD command", instruction.ToString());
+
+        instruction.StartIntervalToken = new LiteralToken("40s");
+        Assert.Equal("40s", instruction.StartInterval);
+        Assert.Equal("40s", instruction.StartIntervalToken.Value);
+        Assert.Equal("HEALTHCHECK --start-interval=40s CMD command", instruction.ToString());
+
+        instruction.StartIntervalToken.Value = "30s";
+        Assert.Equal("30s", instruction.StartInterval);
+        Assert.Equal("30s", instruction.StartIntervalToken.Value);
+        Assert.Equal("HEALTHCHECK --start-interval=30s CMD command", instruction.ToString());
+
+        instruction.StartIntervalToken = null;
+        Assert.Null(instruction.StartInterval);
+        Assert.Null(instruction.StartIntervalToken);
+        Assert.Equal("HEALTHCHECK CMD command", instruction.ToString());
+    }
+
+    [Fact]
+    public void StartIntervalWithVariables()
+    {
+        HealthCheckInstruction instruction = new("command", startInterval: "$var");
+        TestHelper.TestVariablesWithNullableLiteral(
+            () => instruction.StartIntervalToken, token => instruction.StartIntervalToken = token, val => instruction.StartInterval = val, "var", canContainVariables: true);
+    }
+
+    [Fact]
     public void Retries()
     {
         HealthCheckInstruction instruction = new("command", retries: "10s");
@@ -288,6 +330,66 @@ public class HealthCheckInstructionTests
             },
             new ParseTestScenario<HealthCheckInstruction>
             {
+                Text = "HEALTHCHECK --start-interval=5s CMD /bin/check-running",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "HEALTHCHECK"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<StartIntervalFlag>(token, "start-interval", "5s"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
+                        token => ValidateKeyword(token, "CMD"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                            token => ValidateLiteral(token, "/bin/check-running")))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("HEALTHCHECK", result.InstructionName);
+                    Assert.IsType<ShellFormCommand>(result.CmdInstruction.Command);
+                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
+                    Assert.Equal("5s", result.StartInterval);
+                }
+            },
+            new ParseTestScenario<HealthCheckInstruction>
+            {
+                Text = "HEALTHCHECK --interval=1m --start-period=10s --start-interval=5s --retries=5 --timeout=1h CMD /bin/check-running",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "HEALTHCHECK"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<IntervalFlag>(token, "interval", "1m"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "10s"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<StartIntervalFlag>(token, "start-interval", "5s"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<RetriesFlag>(token, "retries", "5"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "1h"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
+                        token => ValidateKeyword(token, "CMD"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                            token => ValidateLiteral(token, "/bin/check-running")))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("HEALTHCHECK", result.InstructionName);
+                    Assert.IsType<ShellFormCommand>(result.CmdInstruction.Command);
+                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
+                    Assert.Equal("10s", result.StartPeriod);
+                    Assert.Equal("5s", result.StartInterval);
+                    Assert.Equal("5", result.Retries);
+                    Assert.Equal("1m", result.Interval);
+                    Assert.Equal("1h", result.Timeout);
+                }
+            },
+            new ParseTestScenario<HealthCheckInstruction>
+            {
                 Text = "HEALTHCHECK --interval=1m --start-period=10s --retries=5 --timeout=1h CMD /bin/check-running",
                 TokenValidators = new Action<Token>[]
                 {
@@ -406,6 +508,7 @@ public class HealthCheckInstructionTests
                 Command = "/bin/check-running",
                 Interval = "1s",
                 StartPeriod = "2s",
+                StartInterval = "10s",
                 Timeout = "3s",
                 Retries = "10",
                 TokenValidators = new Action<Token>[]
@@ -417,6 +520,8 @@ public class HealthCheckInstructionTests
                     token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "3s"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "2s"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<StartIntervalFlag>(token, "start-interval", "10s"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<RetriesFlag>(token, "retries", "10"),
                     token => ValidateWhitespace(token, " "),
@@ -439,6 +544,7 @@ public class HealthCheckInstructionTests
         public string Interval { get; set; }
         public string Timeout { get; set; }
         public string StartPeriod { get; set; }
+        public string StartInterval { get; set; }
         public string Retries { get; set; }
     }
 }
