@@ -20,11 +20,11 @@ public class TokenBuilderTests
             .Keyword("key")
             .LineContinuation()
             .Literal("literal")
-            .MountFlag(new SecretMount("id"))
+            .MountFlag(Mount.Parse("type=secret,id=id"))
             .NewLine()
             .PlatformFlag("platform")
             .RetriesFlag("2")
-            .SecretMount("id")
+            .Mount("type=secret,id=id")
             .ShellFormCommand("cmd")
             .StageName("stage")
             .StartPeriodFlag("1s")
@@ -66,7 +66,7 @@ public class TokenBuilderTests
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, "mount"),
                 token => ValidateSymbol(token, '='),
-                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                     token => ValidateKeyValue(token, "type", "secret"),
                     token => ValidateSymbol(token, ','),
                     token => ValidateKeyValue(token, "id", "id"))),
@@ -78,7 +78,7 @@ public class TokenBuilderTests
                 token => ValidateSymbol(token, '='),
                 token => ValidateLiteral(token, "platform")),
             token => ValidateKeyValueFlag<RetriesFlag>(token, "retries", "2"),
-            token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+            token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                 token => ValidateKeyValue(token, "type", "secret"),
                 token => ValidateSymbol(token, ','),
                 token => ValidateKeyValue(token, "id", "id")),

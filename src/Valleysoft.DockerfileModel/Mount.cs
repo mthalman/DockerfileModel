@@ -1,10 +1,16 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
+using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public abstract class Mount : AggregateToken
+/// <summary>
+/// Represents a mount specification for RUN --mount flags.
+/// Handles all BuildKit mount types (bind, cache, tmpfs, secret, ssh) by parsing
+/// the mount value as a type=X prefix followed by zero or more comma-separated key=value pairs.
+/// </summary>
+public class Mount : AggregateToken
 {
-    protected Mount(IEnumerable<Token> tokens) : base(tokens)
+    internal Mount(IEnumerable<Token> tokens) : base(tokens)
     {
     }
 
@@ -26,5 +32,36 @@ public abstract class Mount : AggregateToken
             Requires.NotNull(value, nameof(value));
             SetToken(TypeToken, value);
         }
+    }
+
+    public static Mount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        new(GetTokens(text, GetInnerParser(escapeChar)));
+
+    public static Parser<Mount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        from tokens in GetInnerParser(escapeChar)
+        select new Mount(tokens);
+
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar)
+    {
+        Parser<LiteralToken> valueParser = LiteralWithVariables(
+            escapeChar, new char[] { ',' });
+
+        Parser<KeyValueToken<KeywordToken, LiteralToken>> keyValueParser =
+            KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                KeywordToken.GetParser(escapeChar), valueParser, escapeChar: escapeChar);
+
+        // Parse: type=X followed by zero or more ,key=value pairs
+        // Line continuations can appear between comma-separated pairs
+        return
+            from type in ArgTokens(
+                KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+                    KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
+            from rest in (
+                from lineCont1 in LineContinuations(escapeChar)
+                from comma in Symbol(',')
+                from lineCont2 in LineContinuations(escapeChar)
+                from kv in keyValueParser
+                select ConcatTokens(lineCont1, new Token[] { comma }, lineCont2, new Token[] { kv })).Many()
+            select ConcatTokens(type, rest.SelectMany(t => t));
     }
 }

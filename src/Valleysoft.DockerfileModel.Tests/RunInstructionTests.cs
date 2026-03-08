@@ -34,14 +34,14 @@ public class RunInstructionTests
     [Fact]
     public void Mounts()
     {
-        RunInstruction instruction = new("echo hello", new Mount[] { new SecretMount("id") });
+        RunInstruction instruction = new("echo hello", new Mount[] { Mount.Parse("type=secret,id=id") });
         Assert.Single(instruction.Mounts);
         Assert.Equal("RUN --mount=type=secret,id=id echo hello", instruction.ToString());
 
-        ((SecretMount)instruction.Mounts[0]).Id = "id2";
+        instruction.Mounts[0] = Mount.Parse("type=secret,id=id2");
         Assert.Equal("RUN --mount=type=secret,id=id2 echo hello", instruction.ToString());
 
-        instruction.Mounts[0] = new SecretMount("id3");
+        instruction.Mounts[0] = Mount.Parse("type=secret,id=id3");
         Assert.Equal("RUN --mount=type=secret,id=id3 echo hello", instruction.ToString());
     }
 
@@ -378,7 +378,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -397,7 +397,7 @@ public class RunInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
 
                     Assert.Single(result.Mounts);
-                    Assert.IsType<SecretMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
                 }
             },
@@ -416,7 +416,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -437,7 +437,7 @@ public class RunInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
 
                     Assert.Single(result.Mounts);
-                    Assert.IsType<SecretMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
                 }
             },
@@ -454,7 +454,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<GenericMount>(token, "type=cache,target=/var/cache",
+                        token => ValidateAggregate<Mount>(token, "type=cache,target=/var/cache",
                             token => ValidateKeyValue(token, "type", "cache"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "target", "/var/cache"))),
@@ -465,7 +465,7 @@ public class RunInstructionTests
                 Validate = result =>
                 {
                     Assert.Single(result.Mounts);
-                    Assert.IsType<GenericMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("cache", result.Mounts.First().Type);
                     Assert.Equal("type=cache,target=/var/cache", result.Mounts.First().ToString());
                 }
@@ -483,7 +483,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<GenericMount>(token, "type=tmpfs,target=/tmp",
+                        token => ValidateAggregate<Mount>(token, "type=tmpfs,target=/tmp",
                             token => ValidateKeyValue(token, "type", "tmpfs"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "target", "/tmp"))),
@@ -494,7 +494,7 @@ public class RunInstructionTests
                 Validate = result =>
                 {
                     Assert.Single(result.Mounts);
-                    Assert.IsType<GenericMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("tmpfs", result.Mounts.First().Type);
                 }
             },
@@ -511,7 +511,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<GenericMount>(token, "type=bind,source=/src,target=/tgt",
+                        token => ValidateAggregate<Mount>(token, "type=bind,source=/src,target=/tgt",
                             token => ValidateKeyValue(token, "type", "bind"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "source", "/src"),
@@ -524,7 +524,7 @@ public class RunInstructionTests
                 Validate = result =>
                 {
                     Assert.Single(result.Mounts);
-                    Assert.IsType<GenericMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("bind", result.Mounts.First().Type);
                 }
             },
@@ -541,7 +541,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<GenericMount>(token, "type=cache,target=/path",
+                        token => ValidateAggregate<Mount>(token, "type=cache,target=/path",
                             token => ValidateKeyValue(token, "type", "cache"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "target", "/path"))),
@@ -554,7 +554,7 @@ public class RunInstructionTests
                 Validate = result =>
                 {
                     Assert.Single(result.Mounts);
-                    Assert.IsType<GenericMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("host", result.Network);
                 }
             },
@@ -641,7 +641,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -654,7 +654,7 @@ public class RunInstructionTests
                 Validate = result =>
                 {
                     Assert.Single(result.Mounts);
-                    Assert.IsType<SecretMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("host", result.Network);
                     Assert.Null(result.Security);
                 }
@@ -674,7 +674,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -689,7 +689,7 @@ public class RunInstructionTests
                     Assert.Equal("host", result.Network);
                     Assert.Equal("insecure", result.Security);
                     Assert.Single(result.Mounts);
-                    Assert.IsType<SecretMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                 }
             },
             // --network flag with exec form command
@@ -824,7 +824,7 @@ public class RunInstructionTests
                 Command = "echo hello",
                 Mounts = new Mount[]
                 {
-                    new SecretMount("id")
+                    Mount.Parse("type=secret,id=id")
                 },
                 TokenValidators = new Action<Token>[]
                 {
@@ -835,7 +835,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -849,8 +849,8 @@ public class RunInstructionTests
                 Command = "echo hello",
                 Mounts = new Mount[]
                 {
-                    new SecretMount("id"),
-                    new SecretMount("id2")
+                    Mount.Parse("type=secret,id=id"),
+                    Mount.Parse("type=secret,id=id2")
                 },
                 TokenValidators = new Action<Token>[]
                 {
@@ -861,7 +861,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -871,7 +871,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id2",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id2",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id2"))),

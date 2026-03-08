@@ -88,11 +88,11 @@ public class TokenBuilder
     public TokenBuilder NewLine() =>
         AddToken(new NewLineToken(DefaultNewLine));
 
-    public TokenBuilder SecretMount(string id, string? destinationPath = null, string? environmentVariable = null) =>
-        AddToken(new SecretMount(id, destinationPath, environmentVariable, EscapeChar));
+    public TokenBuilder Mount(string text) =>
+        AddToken(DockerfileModel.Mount.Parse(text, EscapeChar));
 
-    public TokenBuilder SecretMount(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new SecretMount(GetTokens(configureBuilder), EscapeChar));
+    public TokenBuilder Mount(Action<TokenBuilder> configureBuilder) =>
+        AddToken(new DockerfileModel.Mount(GetTokens(configureBuilder)));
 
     public TokenBuilder ShellFormCommand(string command) =>
         AddToken(new ShellFormCommand(command, EscapeChar));
