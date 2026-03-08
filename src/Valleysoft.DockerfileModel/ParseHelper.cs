@@ -320,8 +320,9 @@ internal static class ParseHelper
 
     /// <summary>
     /// Parses the tokens within a LABEL key. Unquoted keys use identifier character
-    /// restrictions; quoted keys allow any characters (matching Docker/BuildKit behavior
-    /// where quoted LABEL keys can contain special characters like apostrophes).
+    /// restrictions; quoted keys allow characters like whitespace and special characters
+    /// (e.g. apostrophes) that aren't valid in unquoted keys, but still exclude variable
+    /// reference characters (<c>$</c>) and treat the escape character specially.
     /// </summary>
     /// <param name="firstCharacterParser">Parser of the first character of an unquoted identifier.</param>
     /// <param name="tailCharacterParser">Parser of the rest of the characters of an unquoted identifier.</param>
