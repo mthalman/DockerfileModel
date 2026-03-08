@@ -94,6 +94,25 @@ public class TokenBuilder
     public TokenBuilder Mount(Action<TokenBuilder> configureBuilder) =>
         AddToken(new DockerfileModel.Mount(GetTokens(configureBuilder)));
 
+    [Obsolete("Use Mount() instead.")]
+    public TokenBuilder SecretMount(string id, string? destinationPath = null, string? environmentVariable = null)
+    {
+        string mountText = $"type=secret,id={id}";
+        if (!string.IsNullOrEmpty(destinationPath))
+        {
+            mountText += $",dst={destinationPath}";
+        }
+        if (!string.IsNullOrEmpty(environmentVariable))
+        {
+            mountText += $",env={environmentVariable}";
+        }
+        return Mount(mountText);
+    }
+
+    [Obsolete("Use Mount() instead.")]
+    public TokenBuilder SecretMount(Action<TokenBuilder> configureBuilder) =>
+        Mount(configureBuilder);
+
     public TokenBuilder ShellFormCommand(string command) =>
         AddToken(new ShellFormCommand(command, EscapeChar));
 
