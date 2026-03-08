@@ -575,8 +575,8 @@ public static class TokenJsonSerializer
     // ===================================================================
     // Workaround: ONBUILD inner instruction
     // C# recursively parses the inner instruction as a full Instruction node.
-    // Lean treats the trigger text as an opaque LiteralToken containing
-    // string and whitespace primitives.
+    // Lean treats the trigger text as an opaque LiteralToken containing a
+    // single opaque StringToken (plus LineContinuationTokens if any).
     // We detect the inner Instruction and convert it to a LiteralToken.
     // ===================================================================
 
@@ -590,7 +590,7 @@ public static class TokenJsonSerializer
             if (child is Instruction innerInst)
             {
                 // Convert the inner instruction to an opaque literal token
-                // matching Lean's format: LiteralToken containing string/whitespace primitives
+                // matching Lean's format: LiteralToken containing a single opaque string
                 if (!first) sb.Append(',');
                 first = false;
                 SerializeInstructionAsLiteral(sb, innerInst);
