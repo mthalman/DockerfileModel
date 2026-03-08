@@ -248,19 +248,109 @@ public class HealthCheckInstructionTests
     }
 
     [Fact]
-    public void Command()
+    public void CommandProperty()
     {
         HealthCheckInstruction instruction = new("command1");
         Assert.Equal("HEALTHCHECK CMD command1", instruction.ToString());
 
-        instruction.CmdInstruction = new CmdInstruction(new string[] { "command", "arg" });
+        instruction.Command = new ExecFormCommand(new string[] { "command", "arg" });
         Assert.Equal("HEALTHCHECK CMD [\"command\", \"arg\"]", instruction.ToString());
 
-        instruction.CmdInstruction = null;
+        instruction.Command = null;
         Assert.Equal("HEALTHCHECK NONE", instruction.ToString());
 
-        instruction.CmdInstruction = new CmdInstruction("cmd");
+        instruction.Command = new ShellFormCommand("cmd");
         Assert.Equal("HEALTHCHECK CMD cmd", instruction.ToString());
+    }
+
+    [Fact]
+    public void CommandProperty_SetNullWithFlags()
+    {
+        // When flags exist, setting Command to null should preserve the flags
+        // and replace CMD + command with NONE.
+        HealthCheckInstruction instruction = new("command1", interval: "30s", timeout: "10s");
+        Assert.Equal("HEALTHCHECK --interval=30s --timeout=10s CMD command1", instruction.ToString());
+        Assert.NotNull(instruction.Command);
+        Assert.Equal("30s", instruction.Interval);
+        Assert.Equal("10s", instruction.Timeout);
+
+        instruction.Command = null;
+        Assert.Null(instruction.Command);
+        // Flags should still be present
+        Assert.Equal("30s", instruction.Interval);
+        Assert.Equal("10s", instruction.Timeout);
+        Assert.Contains("NONE", instruction.ToString());
+        Assert.Contains("--interval=30s", instruction.ToString());
+        Assert.Contains("--timeout=10s", instruction.ToString());
+    }
+
+    [Fact]
+    public void CommandProperty_CmdToNoneRoundTrip()
+    {
+        // Test full round-trip: CMD -> NONE -> CMD
+        HealthCheckInstruction instruction = new("original");
+        Assert.Equal("HEALTHCHECK CMD original", instruction.ToString());
+
+        // CMD -> NONE
+        instruction.Command = null;
+        Assert.Equal("HEALTHCHECK NONE", instruction.ToString());
+        Assert.Null(instruction.Command);
+
+        // NONE -> CMD
+        instruction.Command = new ShellFormCommand("restored");
+        Assert.Equal("HEALTHCHECK CMD restored", instruction.ToString());
+        Assert.NotNull(instruction.Command);
+        Assert.IsType<ShellFormCommand>(instruction.Command);
+        Assert.Equal("restored", ((ShellFormCommand)instruction.Command).Value);
+
+        // CMD -> NONE again
+        instruction.Command = null;
+        Assert.Equal("HEALTHCHECK NONE", instruction.ToString());
+
+        // NONE -> CMD with exec form
+        instruction.Command = new ExecFormCommand(new string[] { "cmd", "arg1" });
+        Assert.Contains("[\"cmd\", \"arg1\"]", instruction.ToString());
+        Assert.IsType<ExecFormCommand>(instruction.Command);
+    }
+
+    [Fact]
+    public void CommandProperty_CmdToNoneWithFlagsRoundTrip()
+    {
+        // Test round-trip with flags: CMD -> NONE -> CMD, verifying flags survive
+        HealthCheckInstruction instruction = new("check", interval: "5s", retries: "3");
+        Assert.Equal("HEALTHCHECK --interval=5s --retries=3 CMD check", instruction.ToString());
+
+        // CMD -> NONE (flags should be preserved)
+        instruction.Command = null;
+        Assert.Null(instruction.Command);
+        Assert.Equal("5s", instruction.Interval);
+        Assert.Equal("3", instruction.Retries);
+
+        // NONE -> CMD (flags should still be preserved)
+        instruction.Command = new ShellFormCommand("newcheck");
+        Assert.NotNull(instruction.Command);
+        Assert.Equal("5s", instruction.Interval);
+        Assert.Equal("3", instruction.Retries);
+        Assert.Equal("newcheck", ((ShellFormCommand)instruction.Command).Value);
+    }
+
+    [Fact]
+    public void CommandProperty_NoneToCmd()
+    {
+        // Start with NONE, set Command to a value
+        HealthCheckInstruction instruction = new();
+        Assert.Equal("HEALTHCHECK NONE", instruction.ToString());
+        Assert.Null(instruction.Command);
+
+        instruction.Command = new ShellFormCommand("mycommand");
+        Assert.Equal("HEALTHCHECK CMD mycommand", instruction.ToString());
+        Assert.NotNull(instruction.Command);
+        Assert.IsType<ShellFormCommand>(instruction.Command);
+
+        // Replace with exec form
+        instruction.Command = new ExecFormCommand(new string[] { "exec" });
+        Assert.Contains("[\"exec\"]", instruction.ToString());
+        Assert.IsType<ExecFormCommand>(instruction.Command);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -280,7 +370,7 @@ public class HealthCheckInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("HEALTHCHECK", result.InstructionName);
-                    Assert.Null(result.CmdInstruction);
+                    Assert.Null(result.Command);
                 }
             },
             new ParseTestScenario<HealthCheckInstruction>
@@ -290,18 +380,17 @@ public class HealthCheckInstructionTests
                 {
                     token => ValidateKeyword(token, "HEALTHCHECK"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running")))
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                        token => ValidateLiteral(token, "/bin/check-running"))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("HEALTHCHECK", result.InstructionName);
-                    Assert.IsType<ShellFormCommand>(result.CmdInstruction.Command);
-                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
                 }
             },
             new ParseTestScenario<HealthCheckInstruction>
@@ -313,18 +402,17 @@ public class HealthCheckInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "10s"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running")))
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                        token => ValidateLiteral(token, "/bin/check-running"))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("HEALTHCHECK", result.InstructionName);
-                    Assert.IsType<ShellFormCommand>(result.CmdInstruction.Command);
-                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
                     Assert.Equal("10s", result.StartPeriod);
                 }
             },
@@ -337,18 +425,17 @@ public class HealthCheckInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<StartIntervalFlag>(token, "start-interval", "5s"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running")))
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                        token => ValidateLiteral(token, "/bin/check-running"))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("HEALTHCHECK", result.InstructionName);
-                    Assert.IsType<ShellFormCommand>(result.CmdInstruction.Command);
-                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
                     Assert.Equal("5s", result.StartInterval);
                 }
             },
@@ -369,18 +456,17 @@ public class HealthCheckInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "1h"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running")))
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                        token => ValidateLiteral(token, "/bin/check-running"))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("HEALTHCHECK", result.InstructionName);
-                    Assert.IsType<ShellFormCommand>(result.CmdInstruction.Command);
-                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
                     Assert.Equal("10s", result.StartPeriod);
                     Assert.Equal("5s", result.StartInterval);
                     Assert.Equal("5", result.Retries);
@@ -403,18 +489,17 @@ public class HealthCheckInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "1h"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running")))
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                        token => ValidateLiteral(token, "/bin/check-running"))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("HEALTHCHECK", result.InstructionName);
-                    Assert.IsType<ShellFormCommand>(result.CmdInstruction.Command);
-                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
                     Assert.Equal("10s", result.StartPeriod);
                     Assert.Equal("5", result.Retries);
                     Assert.Equal("1m", result.Interval);
@@ -433,19 +518,66 @@ public class HealthCheckInstructionTests
                     token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "10s"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLineContinuation(token, '`', "\n"),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running")))
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                        token => ValidateLiteral(token, "/bin/check-running"))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("HEALTHCHECK", result.InstructionName);
-                    Assert.IsType<ShellFormCommand>(result.CmdInstruction.Command);
-                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.CmdInstruction.Command).Value);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("/bin/check-running", ((ShellFormCommand)result.Command).Value);
                     Assert.Equal("10s", result.StartPeriod);
+                }
+            },
+            new ParseTestScenario<HealthCheckInstruction>
+            {
+                Text = "HEALTHCHECK CMD \\\necho hello",
+                EscapeChar = '\\',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "HEALTHCHECK"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("HEALTHCHECK", result.InstructionName);
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    Assert.Equal("HEALTHCHECK CMD \\\necho hello", result.ToString());
+                }
+            },
+            new ParseTestScenario<HealthCheckInstruction>
+            {
+                Text = "HEALTHCHECK CMD \\\n[\"echo\", \"hello\"]",
+                EscapeChar = '\\',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "HEALTHCHECK"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[\"echo\", \"hello\"]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateLiteral(token, "echo", '\"'),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "hello", '\"'),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("HEALTHCHECK", result.InstructionName);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    Assert.Equal("HEALTHCHECK CMD \\\n[\"echo\", \"hello\"]", result.ToString());
                 }
             },
         };
@@ -473,11 +605,10 @@ public class HealthCheckInstructionTests
                 {
                     token => ValidateKeyword(token, "HEALTHCHECK"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running")))
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                        token => ValidateLiteral(token, "/bin/check-running"))
                 }
             },
             new CreateTestScenario
@@ -491,16 +622,15 @@ public class HealthCheckInstructionTests
                 {
                     token => ValidateKeyword(token, "HEALTHCHECK"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD [\"/bin/check-running\", \"-f\"]",
-                        token => ValidateKeyword(token, "CMD"),
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/check-running\", \"-f\"]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateLiteral(token, "/bin/check-running", '\"'),
+                        token => ValidateSymbol(token, ','),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/check-running\", \"-f\"]",
-                            token => ValidateSymbol(token, '['),
-                            token => ValidateLiteral(token, "/bin/check-running", '\"'),
-                            token => ValidateSymbol(token, ','),
-                            token => ValidateWhitespace(token, " "),
-                            token => ValidateLiteral(token, "-f", '\"'),
-                            token => ValidateSymbol(token, ']')))
+                        token => ValidateLiteral(token, "-f", '\"'),
+                        token => ValidateSymbol(token, ']'))
                 }
             },
             new CreateTestScenario
@@ -525,11 +655,10 @@ public class HealthCheckInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateKeyValueFlag<RetriesFlag>(token, "retries", "10"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<CmdInstruction>(token, "CMD /bin/check-running",
-                        token => ValidateKeyword(token, "CMD"),
-                        token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
-                            token => ValidateLiteral(token, "/bin/check-running")))
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "/bin/check-running",
+                        token => ValidateLiteral(token, "/bin/check-running"))
                 }
             },
         };
