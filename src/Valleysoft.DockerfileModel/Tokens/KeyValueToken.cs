@@ -122,6 +122,22 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
                     {
                         TokenList.Add(token);
                     }
+                },
+                removeToken: token =>
+                {
+                    // Remove any whitespace tokens between the separator and the value token
+                    Token? separator = Tokens.After(KeyToken).OfType<SymbolToken>().FirstOrDefault();
+                    int startIndex = separator is not null ? TokenList.IndexOf(separator) + 1 : TokenList.IndexOf(KeyToken) + 1;
+                    int endIndex = TokenList.IndexOf(token);
+                    // Remove whitespace tokens that precede the value token (between separator and value)
+                    for (int i = endIndex - 1; i >= startIndex; i--)
+                    {
+                        if (TokenList[i] is WhitespaceToken)
+                        {
+                            TokenList.RemoveAt(i);
+                        }
+                    }
+                    TokenList.Remove(token);
                 });
         }
     }
