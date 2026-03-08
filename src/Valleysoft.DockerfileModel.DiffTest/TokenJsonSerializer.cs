@@ -634,7 +634,7 @@ public static class TokenJsonSerializer
     private static void EmitOpaqueStringWithLineContinuations(StringBuilder sb, string text, ref bool first)
     {
         int i = 0;
-        string pending = "";
+        StringBuilder pending = new();
 
         while (i < text.Length)
         {
@@ -650,8 +650,8 @@ public static class TokenJsonSerializer
                     {
                         if (!first) sb.Append(',');
                         first = false;
-                        SerializePrimitive(sb, "string", pending);
-                        pending = "";
+                        SerializePrimitive(sb, "string", pending.ToString());
+                        pending.Clear();
                     }
 
                     if (!first) sb.Append(',');
@@ -672,8 +672,8 @@ public static class TokenJsonSerializer
                     {
                         if (!first) sb.Append(',');
                         first = false;
-                        SerializePrimitive(sb, "string", pending);
-                        pending = "";
+                        SerializePrimitive(sb, "string", pending.ToString());
+                        pending.Clear();
                     }
 
                     if (!first) sb.Append(',');
@@ -689,7 +689,7 @@ public static class TokenJsonSerializer
             }
 
             // Regular character: accumulate into pending string
-            pending += text[i];
+            pending.Append(text[i]);
             i++;
         }
 
@@ -698,7 +698,7 @@ public static class TokenJsonSerializer
         {
             if (!first) sb.Append(',');
             first = false;
-            SerializePrimitive(sb, "string", pending);
+            SerializePrimitive(sb, "string", pending.ToString());
         }
     }
 
