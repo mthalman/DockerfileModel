@@ -279,6 +279,16 @@ public class LabelInstructionTests
                         }
                     });
                 }
+            },
+            new ParseTestScenario<LabelInstruction>
+            {
+                Text = "LABEL \"it's\"=value",
+                ParseExceptionPosition = new Position(9, 1, 10)
+            },
+            new ParseTestScenario<LabelInstruction>
+            {
+                Text = "LABEL $var=1",
+                ParseExceptionPosition = new Position(6, 1, 7)
             }
         };
 
