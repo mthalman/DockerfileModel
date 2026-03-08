@@ -98,7 +98,7 @@ public class TokenBuilder
     public TokenBuilder SecretMount(string id, string? destinationPath = null, string? environmentVariable = null)
     {
         Requires.NotNullOrEmpty(id, nameof(id));
-        if (destinationPath != null && environmentVariable != null)
+        if (!string.IsNullOrEmpty(destinationPath) && !string.IsNullOrEmpty(environmentVariable))
         {
             throw new ArgumentException("destinationPath and environmentVariable are mutually exclusive");
         }
