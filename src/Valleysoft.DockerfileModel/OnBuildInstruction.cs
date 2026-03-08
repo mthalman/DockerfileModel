@@ -60,7 +60,7 @@ public class OnBuildInstruction : Instruction
     // so they don't leak into the trigger string value (LiteralToken.Value excludes comments).
     private static Parser<LiteralToken> LiteralTokenWithSpaces(char escapeChar) =>
         from literal in LiteralString(escapeChar, Enumerable.Empty<char>(), excludeVariableRefChars: false)
-            .Or(Whitespace())
+            .Or(Spaces())
             .Or(from lc in LineContinuations(escapeChar)
                 from comments in CommentText().Many()
                 select ConcatTokens(lc, comments.Flatten()))

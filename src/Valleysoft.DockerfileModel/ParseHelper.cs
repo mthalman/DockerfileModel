@@ -37,6 +37,15 @@ internal static class ParseHelper
         select ConcatTokens(whitespace, newLine);
 
     /// <summary>
+    /// Parses spaces and tabs only (no newlines).
+    /// </summary>
+    /// <returns>Set of tokens representing spaces/tabs.</returns>
+    public static Parser<IEnumerable<Token>> Spaces() =>
+        from whitespace in WhitespaceWithoutNewLine()
+        where whitespace != null
+        select new Token[] { whitespace }.AsEnumerable();
+
+    /// <summary>
     /// Parses the text of a comment, including leading whitespace.
     /// </summary>
     /// <returns>Set of tokens representing comment text.</returns>
