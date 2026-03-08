@@ -14,7 +14,7 @@ public abstract class Mount : AggregateToken
         set
         {
             Requires.NotNullOrEmpty(value, nameof(value));
-            TypeToken.ValueToken.Value = value;
+            TypeToken.ValueToken!.Value = value;
         }
     }
 

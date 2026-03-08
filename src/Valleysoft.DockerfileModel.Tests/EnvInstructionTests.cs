@@ -65,6 +65,32 @@ public class EnvInstructionTests
     }
 
     [Fact]
+    public void SetValueOnEmptyEnvVar()
+    {
+        // Parse "ENV key=" which produces a KeyValueToken with no value token
+        EnvInstruction result = EnvInstruction.Parse("ENV MY_VAR=");
+        Assert.Equal("MY_VAR", result.Variables[0].Key);
+        Assert.Equal("", result.Variables[0].Value);
+        Assert.Null(result.VariableTokens[0].ValueToken);
+
+        // Set a value token via the ValueToken setter
+        result.VariableTokens[0].ValueToken = new LiteralToken("hello", canContainVariables: true);
+        Assert.Equal("hello", result.Variables[0].Value);
+        Assert.Equal("ENV MY_VAR=hello", result.ToString());
+
+        // Now the Value setter should work since a value token exists
+        result.VariableTokens[0].Value = "world";
+        Assert.Equal("world", result.Variables[0].Value);
+        Assert.Equal("ENV MY_VAR=world", result.ToString());
+
+        // Setting ValueToken to null should remove it
+        result.VariableTokens[0].ValueToken = null;
+        Assert.Null(result.VariableTokens[0].ValueToken);
+        Assert.Equal("", result.Variables[0].Value);
+        Assert.Equal("ENV MY_VAR=", result.ToString());
+    }
+
+    [Fact]
     public void EnvVarWithVariables()
     {
         EnvInstruction result = new(

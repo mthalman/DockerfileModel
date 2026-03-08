@@ -24,7 +24,7 @@ public class SecretMount : Mount
         set
         {
             Requires.NotNull(value, nameof(value));
-            IdToken.ValueToken.Value = value;
+            IdToken.ValueToken!.Value = value;
         }
     }
 
@@ -83,7 +83,7 @@ public class SecretMount : Mount
     {
         if (token is not null && newValue is not null)
         {
-            token.ValueToken.Value = newValue;
+            token.ValueToken!.Value = newValue;
         }
         else
         {
