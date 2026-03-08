@@ -21,7 +21,8 @@ public class ExecFormCommand : Command
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> values, char escapeChar)
     {
-        Requires.NotNullEmptyOrNullElements(values, nameof(values));
+        Requires.NotNull(values, nameof(values));
+
         return GetTokens(StringHelper.FormatAsJson(values), GetInnerParser(escapeChar));
     }
 
