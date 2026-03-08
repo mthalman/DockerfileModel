@@ -113,7 +113,7 @@ public static class TokenJsonSerializer
             return;
         }
 
-        // CMD, ENTRYPOINT need shell form variable ref flattening
+        // CMD, ENTRYPOINT need shell form VariableRefToken validation (fail-fast)
         if (token is CmdInstruction || token is EntrypointInstruction)
         {
             SerializeShellFormInstruction(sb, (Instruction)token);
@@ -331,7 +331,7 @@ public static class TokenJsonSerializer
                 {
                     if (!first) sb.Append(',');
                     first = false;
-                    // Flatten VariableRefTokens in shell form LiteralTokens
+                    // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
                         SerializeShellFormLiteral(sb, lit);
@@ -462,8 +462,8 @@ public static class TokenJsonSerializer
     // Workaround: HEALTHCHECK CMD nesting
     // C# nests CmdInstruction as a child Instruction inside HealthCheckInstruction.
     // Lean keeps everything flat: flags, KeywordToken("CMD"), whitespace, command tokens.
-    // We detect the nested CmdInstruction and inline its children, also flattening
-    // VariableRefToken in shell form literals.
+    // We detect the nested CmdInstruction and inline its children, also validating
+    // shell form literals (fail-fast on VariableRefToken).
     // ===================================================================
 
     private static void SerializeHealthCheck(StringBuilder sb, HealthCheckInstruction healthCheck)
@@ -485,7 +485,7 @@ public static class TokenJsonSerializer
                         {
                             if (!first) sb.Append(',');
                             first = false;
-                            // Flatten VariableRefTokens in shell form LiteralTokens
+                            // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                             if (cmdGrandchild is LiteralToken lit)
                             {
                                 SerializeShellFormLiteral(sb, lit);
@@ -680,7 +680,7 @@ public static class TokenJsonSerializer
                 {
                     if (!first) sb.Append(',');
                     first = false;
-                    // Flatten VariableRefTokens in shell form LiteralTokens
+                    // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
                         SerializeShellFormLiteral(sb, lit);
