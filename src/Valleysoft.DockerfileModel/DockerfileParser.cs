@@ -14,7 +14,7 @@ internal static class DockerfileParser
     //
     // Known limitation: this regex is not quote-aware and can produce false positives when
     // a <<DELIM sequence appears inside a quoted string or JSON exec-form argument
-    // (e.g. RUN ['echo', 'a <<EOF']). Making it fully quote-aware would require tracking
+    // (e.g. RUN ["echo", "a <<EOF"]). Making it fully quote-aware would require tracking
     // quote state across the entire line, which is complex and invasive; that improvement
     // is deferred. In practice, valid Dockerfiles do not place heredoc markers inside
     // quoted exec-form arrays, so the risk of false positives is low.
