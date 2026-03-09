@@ -94,7 +94,7 @@ public class ExposeInstructionTests
     }
 
     [Fact]
-    public void Ports_EmptyValue_ThrowsArgumentException()
+    public void Ports_InvalidValue_Throws()
     {
         ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80 443");
         Assert.Throws<ArgumentNullException>(() => result.Ports[0] = null!);
