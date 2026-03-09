@@ -681,3 +681,19 @@ Reduced diff test mismatches from 314/900 (35%) to 0/900 (0%) by fixing the seri
 - `lean/DockerfileModel/Parser/Instructions/Run.lean` — uses `mountFlagParser`
 - `lean/DockerfileModel/Main.lean` — build fix
 - `src/Valleysoft.DockerfileModel.DiffTest/TokenJsonSerializer.cs` — C# serializer workaround
+
+### 2026-03-08 — Differential Testing Expansion & Analysis (Issues #238-#247)
+
+**Team update (2026-03-08)**: Differential testing expansion completed. Expanded FsCheck generators to produce varied inputs covering variable references, mount flags, empty values, dotted/hyphenated label keys, multi-source file transfers, and varied exec forms. Identified ~100-125 mismatches per 1800 inputs (5-7% mismatch rate) across three seeds (42, 123, 999). Categorized mismatches into 4 actionable areas: variable refs in shell form (majority), mount flag structure, empty values in key=value pairs, and single-quoted strings with dollar signs. All analysis documented in .squad/decisions.md with architectural verdicts and prioritized recommendations (P0-P2).
+
+**Key decisions:**
+1. Lean parser shell-form varref handling (Decision 1)
+2. Structured mount spec parsing (Decision 2)
+3. TokenJsonSerializer workarounds for known differences
+4. FsCheck generator expansion with new edge cases
+5. PR #248 with 10 new GitHub issues (#238-#247) filed
+
+**Test suite metrics:**
+- 693 tests passing after workarounds
+- Generator expansion added comprehensive edge case coverage
+- Differential test suite now functioning as bug-finding oracle
