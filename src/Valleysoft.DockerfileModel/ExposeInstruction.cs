@@ -134,7 +134,7 @@ public class ExposeInstruction : Instruction
     private LiteralToken? GetProtocolTokenForPort(LiteralToken portToken)
     {
         int portIndex = TokenList.IndexOf(portToken);
-        // Look forward past any LineContinuationTokens to find if the next significant token is a '/'
+        // Look forward past any non-significant tokens (line continuations, whitespace, comments) to find if the next significant token is a '/'
         for (int i = portIndex + 1; i < TokenList.Count; i++)
         {
             Token next = TokenList[i];
@@ -144,7 +144,7 @@ public class ExposeInstruction : Instruction
             }
             if (next is SymbolToken symbolToken && symbolToken.Value == "/")
             {
-                // The token after the '/' (skipping line continuations) is the protocol
+                // The token after the '/' (skipping non-significant tokens: line continuations, whitespace, comments) is the protocol
                 for (int j = i + 1; j < TokenList.Count; j++)
                 {
                     Token afterSlash = TokenList[j];
