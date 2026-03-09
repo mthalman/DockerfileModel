@@ -624,4 +624,35 @@ public class HeredocTests
         Assert.Equal("EOF", delimiters[0].Delimiter);
         Assert.True(delimiters[0].HasChomp);
     }
+
+    // ==============================
+    // Comment 4: delimiter grammar alignment between ExtractHeredocDelimiters and HeredocParseImpl
+    // ==============================
+
+    [Fact]
+    public void ExtractHeredocDelimiters_QuotedDelimiterCharset_MatchesParser()
+    {
+        // The HeredocMarkerRegex now uses [A-Za-z0-9_.\-]+ for quoted delimiters
+        // (previously [^"]+), matching the expanded IsHeredocDelimiterChar.
+        // A quoted delimiter with a hyphen must be detected AND parseable.
+        var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<\"MY-DELIM\"\n");
+        Assert.Single(delimiters);
+        Assert.Equal("MY-DELIM", delimiters[0].Delimiter);
+
+        // Verify the same input is also parseable end-to-end
+        string text = "RUN <<\"MY-DELIM\"\necho hello\nMY-DELIM\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        Assert.Equal(text, result.ToString());
+        Assert.Single(result.Heredocs);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_ArbitraryQuotedCharsNotMatched()
+    {
+        // Characters outside [A-Za-z0-9_.\-] in a quoted delimiter are no longer
+        // matched by the tightened regex, so lines like <<'EOF SPACE' are not treated
+        // as heredoc markers (which aligns with what the parser would accept).
+        var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<'EOF SPACE'\n");
+        Assert.Empty(delimiters);
+    }
 }
