@@ -31,8 +31,31 @@ public abstract class FileTransferInstruction : Instruction
 
     /// <summary>
     /// Gets or sets the destination path.
-    /// Returns null when the instruction uses heredoc syntax (no LiteralToken children).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Nullability is intentionally asymmetric between the getter and setter.
+    /// </para>
+    /// <para>
+    /// The getter returns <see langword="null"/> for heredoc-based instructions where the
+    /// destination path is embedded inside the heredoc token rather than expressed as a
+    /// separate <see cref="LiteralToken"/>.
+    /// </para>
+    /// <para>
+    /// The setter requires a non-null, non-empty value and throws
+    /// <see cref="InvalidOperationException"/> when called on a heredoc-based instruction
+    /// (i.e., when the getter would return <see langword="null"/>), because there is no
+    /// standalone destination token to update. To author a heredoc-based instruction, use
+    /// heredoc syntax directly in the Dockerfile text.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown by the setter when <paramref name="value"/> is null or empty.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown by the setter when called on a heredoc-based instruction that has no
+    /// standalone destination token.
+    /// </exception>
     public string? Destination
     {
         get => DestinationToken?.Value;
@@ -51,8 +74,30 @@ public abstract class FileTransferInstruction : Instruction
 
     /// <summary>
     /// Gets or sets the destination token.
-    /// Returns null when the instruction uses heredoc syntax (no LiteralToken children).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Nullability is intentionally asymmetric between the getter and setter.
+    /// </para>
+    /// <para>
+    /// The getter returns <see langword="null"/> for heredoc-based instructions where the
+    /// destination path is embedded inside the heredoc token rather than expressed as a
+    /// separate <see cref="LiteralToken"/>.
+    /// </para>
+    /// <para>
+    /// The setter requires a non-null value and throws <see cref="InvalidOperationException"/>
+    /// when called on a heredoc-based instruction (i.e., when no existing destination token
+    /// is present to replace), because the setter can only update an existing token in-place.
+    /// To author a heredoc-based instruction, use heredoc syntax directly in the Dockerfile text.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown by the setter when <paramref name="value"/> is null.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown by the setter when called on a heredoc-based instruction that has no
+    /// standalone destination token to replace.
+    /// </exception>
     public LiteralToken? DestinationToken
     {
         get => Tokens.OfType<HeredocToken>().Any()
