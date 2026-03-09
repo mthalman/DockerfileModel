@@ -29,23 +29,43 @@ public abstract class FileTransferInstruction : Instruction
 
     public IList<LiteralToken> SourceTokens { get; }
 
-    public string Destination
+    /// <summary>
+    /// Gets or sets the destination path.
+    /// Returns null when the instruction uses heredoc syntax (no LiteralToken children).
+    /// </summary>
+    public string? Destination
     {
-        get => DestinationToken.Value;
+        get => DestinationToken?.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
-            DestinationToken.Value = value;
+            Requires.NotNullOrEmpty(value!, nameof(value));
+            LiteralToken? token = DestinationToken;
+            if (token is null)
+            {
+                throw new InvalidOperationException(
+                    "Cannot set Destination on a heredoc-based instruction.");
+            }
+            token.Value = value!;
         }
     }
 
-    public LiteralToken DestinationToken
+    /// <summary>
+    /// Gets or sets the destination token.
+    /// Returns null when the instruction uses heredoc syntax (no LiteralToken children).
+    /// </summary>
+    public LiteralToken? DestinationToken
     {
-        get => Tokens.OfType<LiteralToken>().Last();
+        get => Tokens.OfType<LiteralToken>().LastOrDefault();
         set
         {
-            Requires.NotNull(value, nameof(value));
-            SetToken(DestinationToken, value);
+            Requires.NotNull(value!, nameof(value));
+            LiteralToken? existing = DestinationToken;
+            if (existing is null)
+            {
+                throw new InvalidOperationException(
+                    "Cannot set DestinationToken on a heredoc-based instruction.");
+            }
+            SetToken(existing, value!);
         }
     }
 
@@ -150,11 +170,14 @@ public abstract class FileTransferInstruction : Instruction
         select ConcatTokens(flags, whitespace, files);
 
     /// <summary>
-    /// Parses heredoc constructs as file transfer instruction arguments.
+    /// Parses a single heredoc construct as file transfer instruction arguments.
     /// Syntax: COPY/ADD &lt;&lt;DELIM [destination]\n body \n DELIM
+    /// Multiple heredocs per instruction are not supported because HeredocParseImpl
+    /// consumes the rest of the marker line as a StringToken, which swallows any
+    /// subsequent &lt;&lt;DELIM markers on the same line.
     /// </summary>
     private static Parser<IEnumerable<Token>> HeredocFileArgs() =>
-        from heredocs in Heredoc().AtLeastOnce()
+        from heredocs in Heredoc().Once()
         select heredocs.Cast<Token>();
 
     private static Parser<IEnumerable<Token>?> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>

@@ -7,9 +7,10 @@ namespace Valleysoft.DockerfileModel;
 internal static class DockerfileParser
 {
     // Matches <<[-]["]DELIM["] or <<[-][']DELIM['] or <<[-]DELIM on an instruction line.
-    // Captures the delimiter name (without quotes). Multiple heredocs on one line are supported.
+    // Group 1 captures the optional chomp flag '-'.
+    // Groups 2/3/4 capture the delimiter name (double-quoted / single-quoted / unquoted).
     private static readonly Regex HeredocMarkerRegex = new(
-        @"<<-?(?:""([^""]+)""|'([^']+)'|([A-Za-z_][A-Za-z0-9_]*))",
+        @"<<(-?)(?:""([^""]+)""|'([^']+)'|([A-Za-z_][A-Za-z0-9_]*))",
         RegexOptions.Compiled);
 
     public static Dockerfile ParseContent(string text)
@@ -25,7 +26,8 @@ internal static class DockerfileParser
 
         // Heredoc state: when we detect a heredoc marker on an instruction line,
         // we keep consuming lines until all heredoc delimiters are closed.
-        List<string> pendingHeredocDelimiters = new();
+        // Each entry tracks the delimiter name and whether the chomp flag (<<-) was used.
+        List<(string Delimiter, bool HasChomp)> pendingHeredocDelimiters = new();
 
         for (int i = 0; i < text.Length; i++)
         {
@@ -67,8 +69,12 @@ internal static class DockerfileParser
                 if (pendingHeredocDelimiters.Count > 0)
                 {
                     string lineContent = line.TrimEnd('\r', '\n');
-                    if (lineContent == pendingHeredocDelimiters[0] ||
-                        lineContent.TrimStart('\t') == pendingHeredocDelimiters[0])
+                    // Only apply tab-trimming for chomp (<<-) heredocs; non-chomp
+                    // heredocs require an exact match for the closing delimiter.
+                    string effectiveLine = pendingHeredocDelimiters[0].HasChomp
+                        ? lineContent.TrimStart('\t')
+                        : lineContent;
+                    if (effectiveLine == pendingHeredocDelimiters[0].Delimiter)
                     {
                         pendingHeredocDelimiters.RemoveAt(0);
                     }
@@ -87,7 +93,7 @@ internal static class DockerfileParser
                 // Check if this line (when not inside a heredoc) opens any heredocs.
                 if (!Comment.IsComment(line))
                 {
-                    List<string> delimiters = ExtractHeredocDelimiters(line);
+                    List<(string Delimiter, bool HasChomp)> delimiters = ExtractHeredocDelimiters(line);
                     if (delimiters.Count > 0)
                     {
                         pendingHeredocDelimiters.AddRange(delimiters);
@@ -135,20 +141,22 @@ internal static class DockerfileParser
     }
 
     /// <summary>
-    /// Extracts heredoc delimiter names from a line of text.
-    /// Returns the list of delimiter names that need to be closed (in order).
+    /// Extracts heredoc delimiter names and chomp flags from a line of text.
+    /// Returns the list of (delimiter, hasChomp) tuples that need to be closed (in order).
     /// </summary>
-    internal static List<string> ExtractHeredocDelimiters(string line)
+    internal static List<(string Delimiter, bool HasChomp)> ExtractHeredocDelimiters(string line)
     {
-        List<string> delimiters = new();
+        List<(string Delimiter, bool HasChomp)> delimiters = new();
         MatchCollection matches = HeredocMarkerRegex.Matches(line);
         foreach (Match match in matches)
         {
-            // Group 1 = double-quoted, Group 2 = single-quoted, Group 3 = unquoted
-            string delimiter = match.Groups[1].Success ? match.Groups[1].Value :
-                               match.Groups[2].Success ? match.Groups[2].Value :
-                               match.Groups[3].Value;
-            delimiters.Add(delimiter);
+            // Group 1 = chomp flag '-' (may be empty), Group 2 = double-quoted,
+            // Group 3 = single-quoted, Group 4 = unquoted
+            bool hasChomp = match.Groups[1].Value == "-";
+            string delimiter = match.Groups[2].Success ? match.Groups[2].Value :
+                               match.Groups[3].Success ? match.Groups[3].Value :
+                               match.Groups[4].Value;
+            delimiters.Add((delimiter, hasChomp));
         }
         return delimiters;
     }

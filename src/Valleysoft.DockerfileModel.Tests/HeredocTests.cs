@@ -344,7 +344,8 @@ public class HeredocTests
     {
         var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<EOF\n");
         Assert.Single(delimiters);
-        Assert.Equal("EOF", delimiters[0]);
+        Assert.Equal("EOF", delimiters[0].Delimiter);
+        Assert.False(delimiters[0].HasChomp);
     }
 
     [Fact]
@@ -352,7 +353,8 @@ public class HeredocTests
     {
         var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<\"EOF\"\n");
         Assert.Single(delimiters);
-        Assert.Equal("EOF", delimiters[0]);
+        Assert.Equal("EOF", delimiters[0].Delimiter);
+        Assert.False(delimiters[0].HasChomp);
     }
 
     [Fact]
@@ -360,7 +362,8 @@ public class HeredocTests
     {
         var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<'EOF'\n");
         Assert.Single(delimiters);
-        Assert.Equal("EOF", delimiters[0]);
+        Assert.Equal("EOF", delimiters[0].Delimiter);
+        Assert.False(delimiters[0].HasChomp);
     }
 
     [Fact]
@@ -368,7 +371,8 @@ public class HeredocTests
     {
         var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<-EOF\n");
         Assert.Single(delimiters);
-        Assert.Equal("EOF", delimiters[0]);
+        Assert.Equal("EOF", delimiters[0].Delimiter);
+        Assert.True(delimiters[0].HasChomp);
     }
 
     [Fact]
@@ -383,7 +387,8 @@ public class HeredocTests
     {
         var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<MY_SCRIPT_123\n");
         Assert.Single(delimiters);
-        Assert.Equal("MY_SCRIPT_123", delimiters[0]);
+        Assert.Equal("MY_SCRIPT_123", delimiters[0].Delimiter);
+        Assert.False(delimiters[0].HasChomp);
     }
 
     // ==============================
@@ -463,5 +468,138 @@ public class HeredocTests
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
         Assert.Single(result.Heredocs);
+    }
+
+    // ==============================
+    // Fix #1: Non-chomp heredoc with tab-indented delimiter-matching body line
+    // ==============================
+
+    [Fact]
+    public void Dockerfile_NonChompHeredoc_TabIndentedDelimiterLineIsBodyNotClose()
+    {
+        // With non-chomp <<EOF, a body line "\tEOF" should NOT close the heredoc.
+        // Only an exact "EOF" line closes it.
+        string text = "FROM ubuntu\nRUN <<EOF\n\tEOF\nreal body\nEOF\n";
+        Dockerfile result = Dockerfile.Parse(text);
+        Assert.Equal(text, result.ToString());
+
+        // Should parse as two constructs: FROM + RUN (the heredoc stays open past \tEOF)
+        Assert.Equal(2, result.Items.Count);
+    }
+
+    [Fact]
+    public void Run_NonChompHeredoc_TabIndentedDelimiterIsBody()
+    {
+        // <<EOF (no chomp): "\tEOF" is body text, not a closing delimiter
+        string text = "RUN <<EOF\n\tEOF\nactual content\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        Assert.Equal(text, result.ToString());
+        Assert.Single(result.Heredocs);
+
+        // The heredoc body should include "\tEOF\n" as body content
+        HeredocToken heredoc = result.Heredocs.First();
+        Assert.Equal("<<EOF\n\tEOF\nactual content\nEOF\n", heredoc.ToString());
+    }
+
+    [Fact]
+    public void Run_ChompHeredoc_TabIndentedDelimiterClosesHeredoc()
+    {
+        // <<-EOF (chomp): "\tEOF" SHOULD close the heredoc
+        string text = "RUN <<-EOF\n\techo hello\n\tEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        Assert.Equal(text, result.ToString());
+        Assert.Single(result.Heredocs);
+    }
+
+    // ==============================
+    // Fix #2: Single heredoc per instruction (multi-heredoc limitation)
+    // ==============================
+
+    [Fact]
+    public void Run_SingleHeredoc_WorksCorrectly()
+    {
+        // Verify that a single heredoc per instruction works correctly
+        string text = "RUN <<EOF\necho hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        Assert.Equal(text, result.ToString());
+        Assert.Single(result.Heredocs);
+    }
+
+    [Fact]
+    public void Copy_SingleHeredoc_WithDestination_WorksCorrectly()
+    {
+        // Verify single heredoc with destination on the same line works
+        string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+        Assert.Equal(text, result.ToString());
+        Assert.Single(result.Heredocs);
+    }
+
+    // ==============================
+    // Fix #3: Sources/Destination behavior on heredoc COPY/ADD
+    // ==============================
+
+    [Fact]
+    public void Copy_Heredoc_DestinationIsNull()
+    {
+        // Heredoc COPY has no LiteralToken children, so Destination should be null
+        string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+        // The destination "/app/script.sh" is consumed as part of the heredoc's
+        // rest-of-line text, so no separate LiteralToken exists
+        Assert.Null(result.Destination);
+    }
+
+    [Fact]
+    public void Add_Heredoc_DestinationIsNull()
+    {
+        string text = "ADD <<EOF /app/script.sh\necho hello\nEOF\n";
+        AddInstruction result = AddInstruction.Parse(text);
+        Assert.Null(result.Destination);
+    }
+
+    [Fact]
+    public void Copy_Heredoc_SourcesIsEmpty()
+    {
+        string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+        Assert.Empty(result.Sources);
+    }
+
+    [Fact]
+    public void Copy_Heredoc_SetDestination_Throws()
+    {
+        string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+        Assert.Throws<InvalidOperationException>(() => result.Destination = "/new/path");
+    }
+
+    // ==============================
+    // Fix #5: RunInstruction.Command setter throws on heredoc
+    // ==============================
+
+    [Fact]
+    public void Run_Heredoc_SetCommand_ThrowsInvalidOperation()
+    {
+        string text = "RUN <<EOF\necho hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        Assert.Null(result.Command);
+
+        // Setting Command on a heredoc instruction should throw
+        Assert.Throws<InvalidOperationException>(() =>
+            result.Command = ShellFormCommand.Parse("echo world"));
+    }
+
+    // ==============================
+    // ExtractHeredocDelimiters chomp flag tests
+    // ==============================
+
+    [Fact]
+    public void ExtractHeredocDelimiters_ChompQuotedDelimiter_HasChompTrue()
+    {
+        var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<-\"EOF\"\n");
+        Assert.Single(delimiters);
+        Assert.Equal("EOF", delimiters[0].Delimiter);
+        Assert.True(delimiters[0].HasChomp);
     }
 }

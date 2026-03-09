@@ -44,6 +44,10 @@ public class RunInstruction : CommandInstruction
     /// Gets or sets the command of this RUN instruction.
     /// Returns null when the instruction uses heredoc syntax.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when attempting to set the command on a heredoc-based RUN instruction.
+    /// Heredoc instructions do not have a <see cref="Command"/> token to replace.
+    /// </exception>
     public new Command? Command
     {
         get => this.Tokens.OfType<Command>().FirstOrDefault();
@@ -51,10 +55,13 @@ public class RunInstruction : CommandInstruction
         {
             if (value is null) throw new ArgumentNullException(nameof(value));
             Command? existing = Command;
-            if (existing is not null)
+            if (existing is null)
             {
-                SetToken(existing, value);
+                throw new InvalidOperationException(
+                    "Cannot set Command on a heredoc-based RUN instruction. " +
+                    "Heredoc instructions do not support command assignment.");
             }
+            SetToken(existing, value);
         }
     }
 
@@ -166,10 +173,13 @@ public class RunInstruction : CommandInstruction
         select ConcatTokens(options, whitespace, command);
 
     /// <summary>
-    /// Parses one or more heredoc constructs as the RUN instruction arguments.
+    /// Parses a single heredoc construct as the RUN instruction arguments.
+    /// Multiple heredocs per instruction (e.g., RUN &lt;&lt;FILE1 &lt;&lt;FILE2) are not supported
+    /// because HeredocParseImpl consumes the rest of the marker line as a StringToken,
+    /// which swallows any subsequent &lt;&lt;DELIM markers on the same line.
     /// </summary>
     private static Parser<IEnumerable<Token>> HeredocArgs() =>
-        from heredocs in Heredoc().AtLeastOnce()
+        from heredocs in Heredoc().Once()
         select heredocs.Cast<Token>();
 
     private static Parser<IEnumerable<Token>> Options(char escapeChar) =>

@@ -1024,7 +1024,7 @@ internal static class ParseHelper
         }
 
         // Parse delimiter name: alphanumeric + underscore characters
-        var delimChars = new System.Collections.Generic.List<char>();
+        var delimChars = new List<char>();
         while (!current.AtEnd && IsHeredocDelimiterChar(current.Current))
         {
             delimChars.Add(current.Current);
@@ -1050,13 +1050,13 @@ internal static class ParseHelper
         markerText += delimiter;
         if (quoteChar.HasValue) markerText += quoteChar.Value;
 
-        System.Collections.Generic.List<Token> tokens = new()
+        List<Token> tokens = new()
         {
             new StringToken(markerText)
         };
 
         // Consume the rest of the current line (any text after the heredoc marker on the same line)
-        var restOfLineChars = new System.Collections.Generic.List<char>();
+        var restOfLineChars = new List<char>();
         while (!current.AtEnd && current.Current != '\n' && current.Current != '\r')
         {
             restOfLineChars.Add(current.Current);
@@ -1084,7 +1084,7 @@ internal static class ParseHelper
         while (!current.AtEnd)
         {
             // Read a complete line
-            var lineChars = new System.Collections.Generic.List<char>();
+            var lineChars = new List<char>();
             while (!current.AtEnd && current.Current != '\n' && current.Current != '\r')
             {
                 lineChars.Add(current.Current);
