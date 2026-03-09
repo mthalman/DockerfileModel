@@ -104,8 +104,8 @@ public class ExposeInstruction : Instruction
 
     private IEnumerable<LiteralToken> FilterPortTokens(IEnumerable<LiteralToken> literals)
     {
-        // A port token is a LiteralToken that is NOT preceded by a SymbolToken('/') as the previous significant token
-        // (skipping over any whitespace, line continuations, or comments)
+        // A port token is a LiteralToken that is NOT preceded by a SymbolToken('/') as the previous significant token.
+        // Non-significant tokens (whitespace, line continuations, and comments) are skipped when searching backwards.
         foreach (LiteralToken literal in literals)
         {
             int index = TokenList.IndexOf(literal);
@@ -118,7 +118,7 @@ public class ExposeInstruction : Instruction
 
     private static bool IsSlashSymbol(List<Token> tokenList, int literalIndex)
     {
-        // Walk backwards past any LineContinuationTokens/WhitespaceTokens to find the previous significant token
+        // Walk backwards past any non-significant tokens (line continuations, whitespace, comments) to find the previous significant token
         for (int i = literalIndex - 1; i >= 0; i--)
         {
             Token prev = tokenList[i];
