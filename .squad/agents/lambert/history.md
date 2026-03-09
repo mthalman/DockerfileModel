@@ -275,3 +275,21 @@ Team update (2026-03-05T23:43:03Z): Dallas completed Phase 4 formal verification
 
 Key design decisions: VarMap as association list (List (String × String)) for proof-friendliness, Except String String return type for error modeling, extracted processEscapes for termination clarity. All modifier proofs complete (no sorry), 1 documented sorry in resolve_token_toString_unchanged per spec. Lean build passes (18 jobs). .NET baseline verified green (649 tests).
 Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new theorems in Capstone.lean, token_concat_length fixed in RoundTrip.lean, proof coverage documented. Total: 55 proved, 4 documented sorries. Build: 19 jobs, 0 errors. — decided by Dallas
+
+### 2026-03-08 — Differential Testing Expansion (Issues #238-#247)
+
+**Team update (2026-03-08)**: Lambert completed differential testing expansion to find additional parsing edge cases. Successfully filed 10 new GitHub issues (#238-#247) covering COPY/ADD flag handling, boolean flag formats (=true/=false), and serializer gaps. Added FsCheck generators for new edge case coverage including mount flags, variable references, empty values, dotted/hyphenated label keys, and multi-source file transfers. Implemented TokenJsonSerializer.cs workarounds for known C#/Lean parser differences. PR #248 opened targeting dev branch. Test suite now at 693 passing tests.
+
+**Key findings:**
+- Variable references in shell-form commands: ~60-70% of mismatches
+- Mount flag token structure differences: ~15-20% of mismatches  
+- Empty values in key=value pairs (LABEL, ENV): ~5-8% of mismatches
+- Single-quoted strings with dollar signs: ~5% of mismatches
+
+**Workarounds implemented:**
+- BooleanFlag maps to keyValue token kind
+- UserAccount conditional transparency (with/without group)
+- Shell form whitespace splitting (RUN, CMD, ENTRYPOINT, HEALTHCHECK CMD)
+- Instruction-specific serializer methods with GitHub issue tracking
+
+**All changes documented in .squad/decisions.md for architectural reference.**
