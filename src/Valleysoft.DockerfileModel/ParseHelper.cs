@@ -1105,7 +1105,13 @@ internal static class ParseHelper
             return Result.Success(new HeredocToken(tokens), current);
         }
 
-        // Consume body lines until we find the closing delimiter on its own line
+        // Consume body lines until we find the closing delimiter on its own line.
+        //
+        // Intentional BuildKit-compatible behavior: if the input ends (AtEnd) before
+        // the closing delimiter is encountered, we return a successful result with
+        // whatever body tokens were collected rather than failing. BuildKit itself
+        // treats unterminated heredocs as valid, consuming through EOF, so this
+        // lenient handling is correct for the Lean spec which follows BuildKit semantics.
         while (!current.AtEnd)
         {
             // Read a complete line
