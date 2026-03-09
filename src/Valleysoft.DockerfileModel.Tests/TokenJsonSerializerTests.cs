@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Valleysoft.DockerfileModel.DiffTest;
 
 namespace Valleysoft.DockerfileModel.Tests;
@@ -119,30 +120,41 @@ public class TokenJsonSerializerTests
     }
 
     /// <summary>
-    /// Extracts the JSON for the literal token's children from the full instruction JSON.
-    /// Used to check that no whitespace tokens appear inside the shell form literal.
+    /// Extracts the JSON for the shell-form literal token's children from the full instruction JSON.
+    /// Uses <see cref="JsonDocument"/> to structurally traverse the token tree rather than
+    /// ad-hoc string slicing, making the search correct even when the instruction contains
+    /// '['/']' characters in values or multiple literal tokens (e.g., flags).
+    ///
+    /// Traversal: instruction.children -> find first aggregate with kind="literal" at the
+    /// top level of the instruction's children (not nested inside a keyValue or other aggregate).
+    /// Returns the serialized children array of that literal as a JSON string, or the original
+    /// json if no literal node is found.
     /// </summary>
     private static string GetLiteralChildrenJson(string json)
     {
-        // Find the literal token and extract its children portion
-        // The literal appears as: {"type":"aggregate","kind":"literal","quoteChar":null,"children":[...]}
-        int literalIdx = json.IndexOf("\"kind\":\"literal\"");
-        if (literalIdx < 0) return json;
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
 
-        int childrenIdx = json.IndexOf("\"children\":[", literalIdx);
-        if (childrenIdx < 0) return json;
+        // The root element is the instruction aggregate.
+        // Walk its children array looking for the first direct aggregate with kind="literal".
+        if (!root.TryGetProperty("children", out JsonElement children))
+            return json;
 
-        int start = childrenIdx + "\"children\":[".Length;
-        // Find the matching closing bracket
-        int depth = 1;
-        int end = start;
-        while (end < json.Length && depth > 0)
+        foreach (JsonElement child in children.EnumerateArray())
         {
-            if (json[end] == '[') depth++;
-            else if (json[end] == ']') depth--;
-            end++;
+            if (!child.TryGetProperty("kind", out JsonElement kindProp))
+                continue;
+
+            if (kindProp.GetString() == "literal")
+            {
+                // Found the shell-form literal. Return its children array serialized as JSON.
+                if (child.TryGetProperty("children", out JsonElement literalChildren))
+                    return literalChildren.GetRawText();
+
+                return json;
+            }
         }
 
-        return json.Substring(start, end - start - 1);
+        return json;
     }
 }
