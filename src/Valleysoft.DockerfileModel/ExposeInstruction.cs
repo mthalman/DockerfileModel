@@ -23,56 +23,15 @@ public class ExposeInstruction : Instruction
             (token, value) => token.Value = value);
     }
 
-    public string Port
-    {
-        get => PortToken.Value;
-        set
-        {
-            Requires.NotNullOrEmpty(value, nameof(value));
-            PortToken.Value = value;
-        }
-    }
-
-    public LiteralToken PortToken
-    {
-        get => PortTokens.First();
-        set
-        {
-            Requires.NotNull(value, nameof(value));
-            SetToken(PortTokens.First(), value);
-        }
-    }
-
     public IList<string> Ports { get; }
 
     public IList<LiteralToken> PortTokens { get; }
 
-    public string? Protocol
-    {
-        get => ProtocolToken?.Value;
-        set => SetOptionalLiteralTokenValue(ProtocolToken, value, token => ProtocolToken = token, canContainVariables: true, escapeChar);
-    }
-
-    public LiteralToken? ProtocolToken
-    {
-        get => GetProtocolTokenForPort(PortTokens.First());
-        set
-        {
-            SetToken(ProtocolToken, value,
-                addToken: token =>
-                {
-                    int portIndex = TokenList.IndexOf(PortTokens.First());
-                    TokenList.Insert(portIndex + 1, new SymbolToken('/'));
-                    TokenList.Insert(portIndex + 2, token);
-                },
-                removeToken: token =>
-                {
-                    TokenList.RemoveRange(
-                        TokenList.FirstPreviousOfType<Token, SymbolToken>(token),
-                        token);
-                });
-        }
-    }
+    /// <summary>
+    /// Returns the protocol token for a given port token, or <c>null</c> if the port has no protocol.
+    /// </summary>
+    public LiteralToken? GetProtocolTokenForPort(LiteralToken portToken) =>
+        GetProtocolTokenForPortInternal(portToken);
 
     public static ExposeInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
@@ -131,7 +90,7 @@ public class ExposeInstruction : Instruction
         return false;
     }
 
-    private LiteralToken? GetProtocolTokenForPort(LiteralToken portToken)
+    private LiteralToken? GetProtocolTokenForPortInternal(LiteralToken portToken)
     {
         int portIndex = TokenList.IndexOf(portToken);
         // Look forward past any non-significant tokens (line continuations, whitespace, comments) to find if the next significant token is a '/'

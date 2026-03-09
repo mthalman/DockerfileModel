@@ -21,83 +21,6 @@ public class ExposeInstructionTests
     }
 
     [Fact]
-    public void Port()
-    {
-        ExposeInstruction result = new("23", "protocol");
-        Assert.Equal("23", result.Port);
-        Assert.Equal("23", result.PortToken.Value);
-        Assert.Equal("EXPOSE 23/protocol", result.ToString());
-
-        result.Port = "45";
-        Assert.Equal("45", result.Port);
-        Assert.Equal("45", result.PortToken.Value);
-        Assert.Equal("EXPOSE 45/protocol", result.ToString());
-
-        result.PortToken.Value = "67";
-        Assert.Equal("67", result.Port);
-        Assert.Equal("67", result.PortToken.Value);
-        Assert.Equal("EXPOSE 67/protocol", result.ToString());
-
-        result.PortToken = new LiteralToken("78");
-        Assert.Equal("78", result.Port);
-        Assert.Equal("78", result.PortToken.Value);
-        Assert.Equal("EXPOSE 78/protocol", result.ToString());
-
-        Assert.Throws<ArgumentNullException>(() => result.Port = null);
-        Assert.Throws<ArgumentException>(() => result.Port = "");
-        Assert.Throws<ArgumentNullException>(() => result.PortToken = null);
-    }
-
-    [Fact]
-    public void Protocol()
-    {
-        ExposeInstruction result = new("23", "test");
-        Assert.Equal("test", result.Protocol);
-        Assert.Equal("test", result.ProtocolToken.Value);
-        Assert.Equal("EXPOSE 23/test", result.ToString());
-
-        result.Protocol = "test2";
-        Assert.Equal("test2", result.Protocol);
-        Assert.Equal("test2", result.ProtocolToken.Value);
-        Assert.Equal("EXPOSE 23/test2", result.ToString());
-
-        result.Protocol = null;
-        Assert.Null(result.Protocol);
-        Assert.Null(result.ProtocolToken);
-        Assert.Equal("EXPOSE 23", result.ToString());
-
-        result.ProtocolToken = new LiteralToken("test3");
-        Assert.Equal("test3", result.Protocol);
-        Assert.Equal("test3", result.ProtocolToken.Value);
-        Assert.Equal("EXPOSE 23/test3", result.ToString());
-
-        result.ProtocolToken.Value = "test4";
-        Assert.Equal("test4", result.Protocol);
-        Assert.Equal("test4", result.ProtocolToken.Value);
-        Assert.Equal("EXPOSE 23/test4", result.ToString());
-
-        result.ProtocolToken = null;
-        Assert.Null(result.Protocol);
-        Assert.Null(result.ProtocolToken);
-        Assert.Equal("EXPOSE 23", result.ToString());
-    }
-
-    [Fact]
-    public void PortWithVariables()
-    {
-        ExposeInstruction result = new("$var", "test");
-        TestHelper.TestVariablesWithLiteral(() => result.PortToken, "var", canContainVariables: true);
-    }
-
-    [Fact]
-    public void ProtocolWithVariables()
-    {
-        ExposeInstruction result = new("23", "$var");
-        TestHelper.TestVariablesWithNullableLiteral(
-            () => result.ProtocolToken, token => result.ProtocolToken = token, val => result.Protocol = val, "var", canContainVariables: true);
-    }
-
-    [Fact]
     public void Ports_SinglePort()
     {
         ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80");
@@ -109,6 +32,7 @@ public class ExposeInstructionTests
         {
             token => Assert.Equal("80", token.Value)
         });
+        Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[0]));
     }
 
     [Fact]
@@ -125,8 +49,8 @@ public class ExposeInstructionTests
             token => Assert.Equal("80", token.Value),
             token => Assert.Equal("443", token.Value)
         });
-        // Verify Port (backward compat) returns first port
-        Assert.Equal("80", result.Port);
+        Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[0]));
+        Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[1]));
     }
 
     [Fact]
@@ -138,8 +62,8 @@ public class ExposeInstructionTests
             port => Assert.Equal("80", port),
             port => Assert.Equal("443", port)
         });
-        // Protocol returns the first port's protocol
-        Assert.Equal("tcp", result.Protocol);
+        Assert.Equal("tcp", result.GetProtocolTokenForPort(result.PortTokens[0])?.Value);
+        Assert.Equal("udp", result.GetProtocolTokenForPort(result.PortTokens[1])?.Value);
     }
 
     [Fact]
@@ -152,7 +76,9 @@ public class ExposeInstructionTests
             port => Assert.Equal("443", port),
             port => Assert.Equal("8080", port)
         });
-        Assert.Equal("tcp", result.Protocol);
+        Assert.Equal("tcp", result.GetProtocolTokenForPort(result.PortTokens[0])?.Value);
+        Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[1]));
+        Assert.Equal("udp", result.GetProtocolTokenForPort(result.PortTokens[2])?.Value);
     }
 
     [Fact]
@@ -160,11 +86,75 @@ public class ExposeInstructionTests
     {
         ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80 443");
         result.Ports[0] = "8080";
-        Assert.Equal("8080", result.Port);
+        Assert.Equal("8080", result.Ports[0]);
         Assert.Equal("EXPOSE 8080 443", result.ToString());
 
         result.Ports[1] = "9090";
         Assert.Equal("EXPOSE 8080 9090", result.ToString());
+    }
+
+    [Fact]
+    public void Ports_PortTokenValue_Roundtrip()
+    {
+        ExposeInstruction result = new("23", "protocol");
+        Assert.Equal("23", result.Ports[0]);
+        Assert.Equal("23", result.PortTokens[0].Value);
+        Assert.Equal("EXPOSE 23/protocol", result.ToString());
+
+        result.Ports[0] = "45";
+        Assert.Equal("45", result.Ports[0]);
+        Assert.Equal("45", result.PortTokens[0].Value);
+        Assert.Equal("EXPOSE 45/protocol", result.ToString());
+
+        result.PortTokens[0].Value = "67";
+        Assert.Equal("67", result.Ports[0]);
+        Assert.Equal("67", result.PortTokens[0].Value);
+        Assert.Equal("EXPOSE 67/protocol", result.ToString());
+    }
+
+    [Fact]
+    public void GetProtocolTokenForPort_ReturnsProtocol()
+    {
+        ExposeInstruction result = new("23", "test");
+        LiteralToken? protocolToken = result.GetProtocolTokenForPort(result.PortTokens[0]);
+        Assert.NotNull(protocolToken);
+        Assert.Equal("test", protocolToken!.Value);
+        Assert.Equal("EXPOSE 23/test", result.ToString());
+    }
+
+    [Fact]
+    public void GetProtocolTokenForPort_Modify_Roundtrip()
+    {
+        ExposeInstruction result = new("23", "test");
+        LiteralToken? protocolToken = result.GetProtocolTokenForPort(result.PortTokens[0]);
+        Assert.NotNull(protocolToken);
+        protocolToken!.Value = "test2";
+        Assert.Equal("test2", result.GetProtocolTokenForPort(result.PortTokens[0])?.Value);
+        Assert.Equal("EXPOSE 23/test2", result.ToString());
+    }
+
+    [Fact]
+    public void GetProtocolTokenForPort_NoProtocol_ReturnsNull()
+    {
+        ExposeInstruction result = new("23");
+        Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[0]));
+        Assert.Equal("EXPOSE 23", result.ToString());
+    }
+
+    [Fact]
+    public void PortWithVariables()
+    {
+        ExposeInstruction result = new("$var", "test");
+        TestHelper.TestVariablesWithLiteral(() => result.PortTokens[0], "var", canContainVariables: true);
+    }
+
+    [Fact]
+    public void ProtocolWithVariables()
+    {
+        ExposeInstruction result = new("23", "$var");
+        LiteralToken? protocolToken = result.GetProtocolTokenForPort(result.PortTokens[0]);
+        Assert.NotNull(protocolToken);
+        Assert.Equal("$var", protocolToken!.Value);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -184,7 +174,8 @@ public class ExposeInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("EXPOSE", result.InstructionName);
-                    Assert.Equal("80", result.Port);
+                    Assert.Equal("80", result.Ports[0]);
+                    Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[0]));
                 }
             },
             new ParseTestScenario<ExposeInstruction>
@@ -202,8 +193,8 @@ public class ExposeInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("EXPOSE", result.InstructionName);
-                    Assert.Equal("433", result.Port);
-                    Assert.Equal("tcp", result.Protocol);
+                    Assert.Equal("433", result.Ports[0]);
+                    Assert.Equal("tcp", result.GetProtocolTokenForPort(result.PortTokens[0])?.Value);
                 }
             },
             new ParseTestScenario<ExposeInstruction>
@@ -250,8 +241,7 @@ public class ExposeInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("EXPOSE", result.InstructionName);
-                    Assert.Equal("80", result.Port);
-                    Assert.Null(result.Protocol);
+                    Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[0]));
                     Assert.Collection(result.Ports, new Action<string>[]
                     {
                         port => Assert.Equal("80", port),
@@ -277,7 +267,6 @@ public class ExposeInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("EXPOSE", result.InstructionName);
-                    Assert.Equal("80", result.Port);
                     Assert.Collection(result.Ports, new Action<string>[]
                     {
                         port => Assert.Equal("80", port),
@@ -306,8 +295,8 @@ public class ExposeInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("EXPOSE", result.InstructionName);
-                    Assert.Equal("80", result.Port);
-                    Assert.Equal("tcp", result.Protocol);
+                    Assert.Equal("tcp", result.GetProtocolTokenForPort(result.PortTokens[0])?.Value);
+                    Assert.Equal("udp", result.GetProtocolTokenForPort(result.PortTokens[1])?.Value);
                     Assert.Collection(result.Ports, new Action<string>[]
                     {
                         port => Assert.Equal("80", port),
@@ -337,8 +326,9 @@ public class ExposeInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("EXPOSE", result.InstructionName);
-                    Assert.Equal("80", result.Port);
-                    Assert.Equal("tcp", result.Protocol);
+                    Assert.Equal("tcp", result.GetProtocolTokenForPort(result.PortTokens[0])?.Value);
+                    Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[1]));
+                    Assert.Equal("udp", result.GetProtocolTokenForPort(result.PortTokens[2])?.Value);
                     Assert.Collection(result.Ports, new Action<string>[]
                     {
                         port => Assert.Equal("80", port),
@@ -429,7 +419,8 @@ public class ExposeInstructionTests
                 },
                 Validate = result =>
                 {
-                    Assert.Equal("8000-8010", result.Port);
+                    Assert.Equal("8000-8010", result.Ports[0]);
+                    Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[0]));
                     Assert.Collection(result.Ports, new Action<string>[]
                     {
                         port => Assert.Equal("8000-8010", port)
@@ -450,8 +441,8 @@ public class ExposeInstructionTests
                 },
                 Validate = result =>
                 {
-                    Assert.Equal("8000-8010", result.Port);
-                    Assert.Equal("tcp", result.Protocol);
+                    Assert.Equal("8000-8010", result.Ports[0]);
+                    Assert.Equal("tcp", result.GetProtocolTokenForPort(result.PortTokens[0])?.Value);
                 }
             }
         };
@@ -471,6 +462,11 @@ public class ExposeInstructionTests
                     token => ValidateKeyword(token, "EXPOSE"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "8080")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("8080", result.Ports[0]);
+                    Assert.Null(result.GetProtocolTokenForPort(result.PortTokens[0]));
                 }
             },
             new CreateTestScenario
@@ -484,6 +480,11 @@ public class ExposeInstructionTests
                     token => ValidateLiteral(token, "80"),
                     token => ValidateSymbol(token, '/'),
                     token => ValidateLiteral(token, "udp")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("80", result.Ports[0]);
+                    Assert.Equal("udp", result.GetProtocolTokenForPort(result.PortTokens[0])?.Value);
                 }
             }
         };
