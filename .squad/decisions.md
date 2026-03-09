@@ -1733,3 +1733,18 @@ Same as Category 1's serializer workaround. When comparing shell-form command to
 The fundamental tension is between **semantic faithfulness** (C# only parses what will be resolved) and **structural completeness** (Lean parses all recognizable syntax regardless of runtime behavior). Both are valid design philosophies. The Lean approach is the better spec because it's context-free -- the parser identifies structure without needing to know which instruction types support variable expansion. The C# approach is more pragmatic for consumers who only care about resolvable values.
 
 Since Lean is the authoritative spec, the long-term direction is clear: the parser should identify all syntactic structure. The C# `CommandInstruction.ResolveVariables` override already handles the runtime semantics correctly by returning the raw string. If we ever wanted to align C# fully with Lean, we would change `ShellFormCommand` to use `LiteralWithVariables` and rely on `ResolveVariables` to suppress resolution. But that's a larger API change with no immediate consumer benefit, so it's not recommended now.
+
+### 2026-03-09T03:30:00Z: User directive (Copilot review workflow - updated)
+**By:** Matt Thalman (via Copilot)
+**What:** Whenever you create a PR, add Copilot as a reviewer using this API command: `gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'`. Follow this workflow: (1) add Copilot as reviewer, (2) wait for its review, (3) respond to each comment by fixing or taking appropriate action — include the commit SHA, one commit per comment response, (4) re-request Copilot's review, (5) repeat until all comments are addressed. If the PR has merge conflicts during this workflow, resolve them. Note: `gh pr edit --add-reviewer` does NOT work for bots — must use the API directly. Supersedes earlier directive from 2026-03-09T03:00:00Z.
+**Why:** User request — captured for team memory
+
+### 2026-03-08T00:00:00Z: User directive (ONBUILD recursive parsing)
+**By:** Matt Thalman (via Copilot)
+**What:** ONBUILD recursive parsing is CORRECT. BuildKit's `parseSubCommand` in `line_parsers.go` calls `newNodeFromLine()` which runs the full parser dispatch on the inner instruction, producing a recursively parsed child Node. The C# behavior (recursive parsing into a full Instruction token tree) matches BuildKit. The Lean spec's opaque literal treatment is the bug — Lean should recursively parse the trigger instruction. Do not file issues saying C# should treat ONBUILD trigger text as opaque. Issues #187, #195, #244 were all closed for this reason.
+**Why:** User request — verified against BuildKit source (`moby/buildkit/frontend/dockerfile/parser/line_parsers.go`)
+
+### 2026-03-08T00:00:00Z: User directive (Shell form whitespace splitting)
+**By:** Matt Thalman (via Copilot)
+**What:** Shell form whitespace splitting (C# uses single StringToken vs Lean splitting by whitespace) is BY DESIGN. BuildKit does not split shell form command text into separate whitespace tokens at the parser layer. The C# behavior is correct. Do not log issues for this behavior. Issue #243 was closed as duplicate of #190 for this reason.
+**Why:** User request — captured for team memory
