@@ -15,7 +15,7 @@ public class LinkFlagTests
     [MemberData(nameof(CreateTestInput))]
     public void Create(CreateTestScenario scenario)
     {
-        LinkFlag result = new();
+        LinkFlag result = scenario.CreateFlag();
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
     }
@@ -25,7 +25,7 @@ public class LinkFlagTests
     {
         LinkFlag result = LinkFlag.Parse("--link");
 
-        // Value getter returns null (via null! on the non-nullable override)
+        // Value getter returns null for bare flag
         Assert.Null(result.Value);
 
         // Value setter throws NotSupportedException
@@ -36,6 +36,58 @@ public class LinkFlagTests
 
         // IKeyValuePair.Value setter throws NotSupportedException
         Assert.Throws<NotSupportedException>(() => ((IKeyValuePair)result).Value = "test");
+    }
+
+    [Fact]
+    public void ValueProperty_ExplicitTrue()
+    {
+        LinkFlag result = LinkFlag.Parse("--link=true");
+
+        Assert.Equal("true", result.Value);
+        Assert.True(result.BoolValue);
+    }
+
+    [Fact]
+    public void ValueProperty_ExplicitFalse()
+    {
+        LinkFlag result = LinkFlag.Parse("--link=false");
+
+        Assert.Equal("false", result.Value);
+        Assert.False(result.BoolValue);
+    }
+
+    [Fact]
+    public void BoolValue_BareFlag()
+    {
+        LinkFlag result = LinkFlag.Parse("--link");
+        Assert.True(result.BoolValue);
+    }
+
+    [Theory]
+    [InlineData("--link=yes")]
+    [InlineData("--link=1")]
+    [InlineData("--link=0")]
+    [InlineData("--link=")]
+    [InlineData("--link=on")]
+    [InlineData("--link=off")]
+    public void Parse_InvalidValues_ThrowsParseException(string text)
+    {
+        Assert.Throws<ParseException>(() => LinkFlag.Parse(text));
+    }
+
+    [Theory]
+    [InlineData("--linker")]
+    [InlineData("--link-extra")]
+    [InlineData("--link/path")]
+    [InlineData("--link_foo")]
+    [InlineData("--link.foo")]
+    public void Parse_KeywordPrefix_ThrowsParseException(string text)
+    {
+        // The bare-flag parser must not match when the keyword is only a prefix
+        // of a longer token (e.g. --linker, --link-extra, --link/path, --link_foo, --link.foo).
+        // The boundary guard uses an allow-list (whitespace, end-of-input, #, \) so that
+        // any non-boundary character — including '_' and '.' — causes the parse to fail.
+        Assert.Throws<ParseException>(() => LinkFlag.Parse(text));
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -56,6 +108,83 @@ public class LinkFlagTests
                     Assert.Equal("--link", result.ToString());
                     Assert.Equal("link", result.Key);
                     Assert.Null(((IKeyValuePair)result).Value);
+                    Assert.True(result.BoolValue);
+                }
+            },
+            new ParseTestScenario<LinkFlag>
+            {
+                Text = "--link=true",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "link"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "true")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("--link=true", result.ToString());
+                    Assert.Equal("link", result.Key);
+                    Assert.Equal("true", result.Value);
+                    Assert.True(result.BoolValue);
+                }
+            },
+            new ParseTestScenario<LinkFlag>
+            {
+                Text = "--link=false",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "link"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "false")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("--link=false", result.ToString());
+                    Assert.Equal("link", result.Key);
+                    Assert.Equal("false", result.Value);
+                    Assert.False(result.BoolValue);
+                }
+            },
+            new ParseTestScenario<LinkFlag>
+            {
+                Text = "--link=True",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "link"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "True")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("--link=True", result.ToString());
+                    Assert.Equal("link", result.Key);
+                    Assert.Equal("True", result.Value);
+                    Assert.True(result.BoolValue);
+                }
+            },
+            new ParseTestScenario<LinkFlag>
+            {
+                Text = "--link=FALSE",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "link"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "FALSE")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("--link=FALSE", result.ToString());
+                    Assert.Equal("link", result.Key);
+                    Assert.Equal("FALSE", result.Value);
+                    Assert.False(result.BoolValue);
                 }
             },
         };
@@ -69,6 +198,7 @@ public class LinkFlagTests
         {
             new CreateTestScenario
             {
+                CreateFlag = () => new LinkFlag(),
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateSymbol(token, '-'),
@@ -80,6 +210,45 @@ public class LinkFlagTests
                     Assert.Equal("--link", result.ToString());
                     Assert.Equal("link", result.Key);
                     Assert.Null(((IKeyValuePair)result).Value);
+                    Assert.True(result.BoolValue);
+                }
+            },
+            new CreateTestScenario
+            {
+                CreateFlag = () => new LinkFlag(true),
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "link"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "true")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("--link=true", result.ToString());
+                    Assert.Equal("link", result.Key);
+                    Assert.Equal("true", result.Value);
+                    Assert.True(result.BoolValue);
+                }
+            },
+            new CreateTestScenario
+            {
+                CreateFlag = () => new LinkFlag(false),
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "link"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "false")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("--link=false", result.ToString());
+                    Assert.Equal("link", result.Key);
+                    Assert.Equal("false", result.Value);
+                    Assert.False(result.BoolValue);
                 }
             },
         };
@@ -89,5 +258,6 @@ public class LinkFlagTests
 
     public class CreateTestScenario : TestScenario<LinkFlag>
     {
+        public Func<LinkFlag> CreateFlag { get; set; } = () => new LinkFlag();
     }
 }

@@ -198,6 +198,76 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
     }
 
     [Fact]
+    public void KeepGitDir_ExplicitTrue()
+    {
+        AddInstruction instruction = AddInstruction.Parse("ADD --keep-git-dir=true src dst");
+        Assert.True(instruction.KeepGitDir);
+        Assert.NotNull(instruction.KeepGitDirFlagToken);
+        Assert.True(instruction.KeepGitDirFlagToken!.BoolValue);
+        Assert.Equal("ADD --keep-git-dir=true src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void KeepGitDir_ExplicitFalse()
+    {
+        AddInstruction instruction = AddInstruction.Parse("ADD --keep-git-dir=false src dst");
+        Assert.False(instruction.KeepGitDir);
+        Assert.NotNull(instruction.KeepGitDirFlagToken);
+        Assert.False(instruction.KeepGitDirFlagToken!.BoolValue);
+        Assert.Equal("ADD --keep-git-dir=false src dst", instruction.ToString());
+
+        // Setting KeepGitDir = true should replace the =false flag with a bare flag
+        instruction.KeepGitDir = true;
+        Assert.True(instruction.KeepGitDir);
+        Assert.Equal("ADD --keep-git-dir src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Link_ExplicitTrue()
+    {
+        AddInstruction instruction = AddInstruction.Parse("ADD --link=true src dst");
+        Assert.True(instruction.Link);
+        Assert.NotNull(instruction.LinkFlagToken);
+        Assert.True(instruction.LinkFlagToken!.BoolValue);
+        Assert.Equal("ADD --link=true src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Link_ExplicitFalse()
+    {
+        AddInstruction instruction = AddInstruction.Parse("ADD --link=false src dst");
+        Assert.False(instruction.Link);
+        Assert.NotNull(instruction.LinkFlagToken);
+        Assert.False(instruction.LinkFlagToken!.BoolValue);
+        Assert.Equal("ADD --link=false src dst", instruction.ToString());
+
+        // Setting Link = true should replace the =false flag with a bare flag
+        instruction.Link = true;
+        Assert.True(instruction.Link);
+        Assert.Equal("ADD --link src dst", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData("ADD --link=True src dst", true)]
+    [InlineData("ADD --link=FALSE src dst", false)]
+    [InlineData("ADD --keep-git-dir=True src dst", true)]
+    [InlineData("ADD --keep-git-dir=FALSE src dst", false)]
+    public void BooleanFlag_CaseInsensitive(string text, bool expectedValue)
+    {
+        AddInstruction instruction = AddInstruction.Parse(text);
+        // Check the appropriate flag based on what's in the text
+        if (text.Contains("--link"))
+        {
+            Assert.Equal(expectedValue, instruction.Link);
+        }
+        else
+        {
+            Assert.Equal(expectedValue, instruction.KeepGitDir);
+        }
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
     public void Checksum_WithChown()
     {
         AddInstruction instruction = new(

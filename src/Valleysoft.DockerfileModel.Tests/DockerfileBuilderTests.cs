@@ -219,6 +219,67 @@ public class DockerfileBuilderTests
     }
 
     [Fact]
+    public void CopyInstruction_WithParents()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", parents: true);
+        Assert.Equal("COPY --parents src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithParents_AndLink()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", link: true, parents: true);
+        Assert.Equal("COPY --link --parents src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithExclude()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", excludes: new string[] { "*.txt" });
+        Assert.Equal("COPY --exclude=*.txt src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithMultipleExcludes()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", excludes: new string[] { "*.txt", "*.log" });
+        Assert.Equal("COPY --exclude=*.txt --exclude=*.log src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithAllNewFlags()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst",
+            fromStageName: "base", link: true, parents: true, excludes: new string[] { "*.txt" });
+        Assert.Equal("COPY --from=base --link --parents --exclude=*.txt src dst", builder.ToString());
+    }
+
+    [Fact]
     public void AutoEscapeDirective_Enabled_Default()
     {
         DockerfileBuilder builder = new();

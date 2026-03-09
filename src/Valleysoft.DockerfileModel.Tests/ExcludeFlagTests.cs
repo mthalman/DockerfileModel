@@ -24,7 +24,7 @@ public class ExcludeFlagTests
     {
         ParseTestScenario<ExcludeFlag>[] testInputs = new ParseTestScenario<ExcludeFlag>[]
         {
-            // simple glob pattern
+            // Simple glob pattern
             new ParseTestScenario<ExcludeFlag>
             {
                 Text = "--exclude=*.txt",
@@ -42,7 +42,7 @@ public class ExcludeFlagTests
                     Assert.Equal("*.txt", result.Value);
                 }
             },
-            // directory pattern
+            // Directory pattern
             new ParseTestScenario<ExcludeFlag>
             {
                 Text = "--exclude=docs/",
@@ -60,7 +60,43 @@ public class ExcludeFlagTests
                     Assert.Equal("docs/", result.Value);
                 }
             },
-            // variable reference
+            // Directory pattern (temp)
+            new ParseTestScenario<ExcludeFlag>
+            {
+                Text = "--exclude=temp/",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "exclude"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "temp/")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("exclude", result.Key);
+                    Assert.Equal("temp/", result.Value);
+                }
+            },
+            // Double-star glob pattern
+            new ParseTestScenario<ExcludeFlag>
+            {
+                Text = "--exclude=**/*.log",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "exclude"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "**/*.log")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("exclude", result.Key);
+                    Assert.Equal("**/*.log", result.Value);
+                }
+            },
+            // Variable reference
             new ParseTestScenario<ExcludeFlag>
             {
                 Text = "--exclude=$PATTERN",
@@ -125,6 +161,42 @@ public class ExcludeFlagTests
                     Assert.Equal("--exclude=docs/", result.ToString());
                 }
             },
+            new CreateTestScenario
+            {
+                Pattern = "**/*.log",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "exclude"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "**/*.log")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("exclude", result.Key);
+                    Assert.Equal("**/*.log", result.Value);
+                    Assert.Equal("--exclude=**/*.log", result.ToString());
+                }
+            },
+            new CreateTestScenario
+            {
+                Pattern = "temp/",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "exclude"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "temp/")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("exclude", result.Key);
+                    Assert.Equal("temp/", result.Value);
+                    Assert.Equal("--exclude=temp/", result.ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
@@ -132,6 +204,6 @@ public class ExcludeFlagTests
 
     public class CreateTestScenario : TestScenario<ExcludeFlag>
     {
-        public string Pattern { get; set; }
+        public string Pattern { get; set; } = string.Empty;
     }
 }

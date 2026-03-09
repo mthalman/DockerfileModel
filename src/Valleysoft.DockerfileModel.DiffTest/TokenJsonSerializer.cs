@@ -27,8 +27,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   GitHub issue tracking the underlying C# fix.
 ///
 /// Known differences with workarounds:
-///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
-///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
 ///   - EXPOSE port/protocol: C# splits into literal+symbol+literal; Lean uses one flat literal.
 ///     Workaround merges the three tokens back into a single literal during serialization.
 ///   - COPY/ADD unrecognized flags (issues #238, #239, #240, #241): C# does not recognize
@@ -36,11 +34,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     them as opaque literal file-path tokens. Lean recognizes them and emits keyValue tokens.
 ///     Workaround converts literal["--flagname[=value]"] → keyValue[-, -, keyword["flagname"],
 ///     optionally =, literal["value"]] when the literal starts with "--".
-///   - Boolean flags with explicit =true/=false (issue #246): C# parses --link, --keep-git-dir
-///     etc. as BooleanFlag (keyValue without value) and then treats "=true"/"=false" as a
-///     separate literal file-path argument. Lean parses them as a single keyValue with the
-///     explicit value included. Workaround merges an immediately-adjacent literal["=true"/
-///     "=false"] into the preceding boolean keyValue token.
 /// </summary>
 public static class TokenJsonSerializer
 {
@@ -697,16 +690,10 @@ public static class TokenJsonSerializer
     // Issue #239: COPY --exclude=... — C# treats it as literal["--exclude=..."]; Lean: keyValue
     // Issue #240: ADD --unpack — C# treats it as literal["--unpack"]; Lean: keyValue
     // Issue #241: ADD --exclude=... — C# treats it as literal["--exclude=..."]; Lean: keyValue
-    // Issue #246: --link=true/=false, --keep-git-dir=true/=false — C# parses --link as
-    //   BooleanFlag (keyValue without value) and "=true"/"=false" becomes a separate literal
-    //   immediately after (no whitespace). Lean merges them into one keyValue with the value.
-    //
     // Strategy:
     //   1. Scan instruction tokens with a look-ahead of 1.
     //   2. A literal whose StringToken value starts with "--" is an unrecognized flag literal:
     //      parse "flagname" (and optional "=flagvalue") from the text and emit as keyValue.
-    //   3. A keyValue (BooleanFlag) immediately followed (with no intervening whitespace) by
-    //      a literal["=true" or "=false"] is a boolean flag with explicit value: merge them.
     // ===================================================================
 
     private static void SerializeCopyOrAddInstruction(StringBuilder sb, Instruction instruction)
@@ -719,20 +706,6 @@ public static class TokenJsonSerializer
         for (int i = 0; i < tokens.Count; i++)
         {
             Token child = tokens[i];
-
-            // Workaround #246: BooleanFlag (keyValue without value) immediately followed by
-            // literal["=true"] or literal["=false"] (no whitespace between them).
-            // Lean parses these as a single keyValue with the explicit boolean value.
-            if (IsBooleanFlagToken(child) && i + 1 < tokens.Count
-                && tokens[i + 1] is LiteralToken nextLit
-                && IsBooleanValueLiteral(nextLit, out string? boolValue))
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeBooleanFlagWithExplicitValue(sb, child, boolValue!);
-                i++; // skip the literal["=true"/"=false"] token
-                continue;
-            }
 
             // Workaround #238/#239/#240/#241: LiteralToken whose value starts with "--" is
             // an unrecognized flag. Emit as keyValue[-, -, keyword["name"], optionally =, literal["value"]].
@@ -750,31 +723,6 @@ public static class TokenJsonSerializer
         }
 
         sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Returns true if the token is a BooleanFlag (keyValue containing only --, --, keyword
-    /// with no separator or value child). Uses the BooleanFlag class type check.
-    /// </summary>
-    private static bool IsBooleanFlagToken(Token token) =>
-        token is BooleanFlag;
-
-    /// <summary>
-    /// Returns true if the literal token holds the text "=true" or "=false" (the explicit
-    /// boolean value that C# mistakenly parsed as a separate file-path argument).
-    /// Outputs the cleaned value ("true" or "false") without the leading "=".
-    /// </summary>
-    private static bool IsBooleanValueLiteral(LiteralToken literal, out string? boolValue)
-    {
-        // The literal's StringToken children should concatenate to "=true" or "=false"
-        string text = GetLiteralText(literal);
-        if (text == "=true" || text == "=false")
-        {
-            boolValue = text.Substring(1); // "true" or "false"
-            return true;
-        }
-        boolValue = null;
-        return false;
     }
 
     /// <summary>
@@ -819,36 +767,6 @@ public static class TokenJsonSerializer
         flagName = null;
         flagValue = null;
         return false;
-    }
-
-    /// <summary>
-    /// Serialize a BooleanFlag token with an explicit boolean value appended.
-    /// C# structure: keyValue[-, -, keyword["name"]] + (separately) literal["=true/=false"]
-    /// Lean structure: keyValue[-, -, keyword["name"], symbol["="], literal[string["true/false"]]]
-    /// </summary>
-    private static void SerializeBooleanFlagWithExplicitValue(StringBuilder sb, Token boolFlagToken, string boolValue)
-    {
-        // Emit the existing keyValue children, then append =, literal["true"/"false"]
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in ((AggregateToken)boolFlagToken).Tokens)
-        {
-            if (!first) sb.Append(',');
-            SerializeToken(sb, child);
-            first = false;
-        }
-
-        // Append the separator symbol "="
-        if (!first) sb.Append(',');
-        SerializePrimitive(sb, "symbol", "=");
-
-        // Append the literal["true"/"false"] value
-        sb.Append(",{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-        SerializePrimitive(sb, "string", boolValue);
-        sb.Append("]}");
-
-        sb.Append("]}");
     }
 
     /// <summary>
