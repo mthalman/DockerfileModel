@@ -203,6 +203,155 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
         Assert.Equal("COPY --chmod=755 --link src dst", instruction.ToString());
     }
 
+    [Fact]
+    public void Parents()
+    {
+        // Verify Parents is false by default when not specified
+        CopyInstruction instruction = new(new string[] { "src" }, "dst", escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.False(instruction.Parents);
+        Assert.Equal("COPY src dst", instruction.ToString());
+
+        // Set Parents = true via property — instruction should gain the --parents flag
+        instruction.Parents = true;
+        Assert.True(instruction.Parents);
+        Assert.Equal("COPY --parents src dst", instruction.ToString());
+
+        // Set Parents = false — flag should be removed
+        instruction.Parents = false;
+        Assert.False(instruction.Parents);
+        Assert.Equal("COPY src dst", instruction.ToString());
+
+        // Construct with parents = true directly in the constructor
+        instruction = new(new string[] { "src" }, "dst", parents: true, escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Parents);
+        Assert.Equal("COPY --parents src dst", instruction.ToString());
+
+        // Toggle off again
+        instruction.Parents = false;
+        Assert.False(instruction.Parents);
+        Assert.Equal("COPY src dst", instruction.ToString());
+
+        // Parse from text with line-continuation escape and then set Parents
+        instruction = CopyInstruction.Parse($"COPY`\n src dst", '`');
+        instruction.Parents = true;
+        Assert.True(instruction.Parents);
+        Assert.Equal($"COPY --parents`\n src dst", instruction.ToString());
+
+        // Parse with --parents already present and remove it
+        instruction = CopyInstruction.Parse($"COPY`\n --parents`\n src dst", '`');
+        instruction.Parents = false;
+        Assert.False(instruction.Parents);
+        Assert.Equal($"COPY`\n`\n src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Parents_WithLink()
+    {
+        // --parents and --link together
+        CopyInstruction instruction = new(new string[] { "src" }, "dst", link: true, parents: true, escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Parents);
+        Assert.True(instruction.Link);
+        Assert.Equal("COPY --link --parents src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Parents_WithFromStageName()
+    {
+        // --parents and --from together
+        CopyInstruction instruction = new(new string[] { "src" }, "dst", fromStageName: "base", parents: true, escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Parents);
+        Assert.Equal("base", instruction.FromStageName);
+        Assert.Equal("COPY --from=base --parents src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Exclude_Single()
+    {
+        // Parse a single --exclude flag
+        CopyInstruction instruction = CopyInstruction.Parse("COPY --exclude=*.txt src /app");
+        Assert.Single(instruction.Excludes);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("COPY --exclude=*.txt src /app", instruction.ToString());
+    }
+
+    [Fact]
+    public void Exclude_Multiple()
+    {
+        // Parse multiple --exclude flags
+        CopyInstruction instruction = CopyInstruction.Parse("COPY --exclude=*.txt --exclude=*.log src /app");
+        Assert.Equal(2, instruction.Excludes.Count);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("*.log", instruction.Excludes[1]);
+        Assert.Equal("COPY --exclude=*.txt --exclude=*.log src /app", instruction.ToString());
+    }
+
+    [Fact]
+    public void Exclude_WithOtherFlags()
+    {
+        // --exclude with --from, --link, and --parents
+        CopyInstruction instruction = CopyInstruction.Parse("COPY --from=stage --link --parents --exclude=*.txt src /app");
+        Assert.Equal("stage", instruction.FromStageName);
+        Assert.True(instruction.Link);
+        Assert.True(instruction.Parents);
+        Assert.Single(instruction.Excludes);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("COPY --from=stage --link --parents --exclude=*.txt src /app", instruction.ToString());
+    }
+
+    [Fact]
+    public void Exclude_Constructor()
+    {
+        // Construct with excludes in constructor
+        CopyInstruction instruction = new(
+            new string[] { "src" }, "/app",
+            excludes: new string[] { "*.txt", "*.log" },
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.Equal(2, instruction.Excludes.Count);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("*.log", instruction.Excludes[1]);
+        Assert.Equal("COPY --exclude=*.txt --exclude=*.log src /app", instruction.ToString());
+    }
+
+    [Fact]
+    public void Exclude_RoundTrip_WithLineContinuation()
+    {
+        // Round-trip with line continuation
+        string text = "COPY --exclude=*.txt `\n src /app";
+        CopyInstruction instruction = CopyInstruction.Parse(text, '`');
+        Assert.Single(instruction.Excludes);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void Exclude_VariableValue()
+    {
+        // --exclude with a variable reference
+        CopyInstruction instruction = CopyInstruction.Parse("COPY --exclude=$PATTERN src /app");
+        Assert.Single(instruction.Excludes);
+        Assert.Equal("$PATTERN", instruction.Excludes[0]);
+        Assert.Equal("COPY --exclude=$PATTERN src /app", instruction.ToString());
+    }
+
+    [Fact]
+    public void AllFlags_Together()
+    {
+        // All flags: --from, --chown, --chmod, --link, --parents, --exclude (multiple)
+        CopyInstruction instruction = CopyInstruction.Parse(
+            "COPY --from=stage --chown=user --chmod=755 --link --parents --exclude=*.txt --exclude=*.log src /app");
+        Assert.Equal("stage", instruction.FromStageName);
+        Assert.Equal("user", instruction.ChangeOwner);
+        Assert.Equal("755", instruction.Permissions);
+        Assert.True(instruction.Link);
+        Assert.True(instruction.Parents);
+        Assert.Equal(2, instruction.Excludes.Count);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("*.log", instruction.Excludes[1]);
+        Assert.Equal(
+            "COPY --from=stage --chown=user --chmod=755 --link --parents --exclude=*.txt --exclude=*.log src /app",
+            instruction.ToString());
+    }
+
     public static IEnumerable<object[]> ParseTestInputBase() => ParseTestInput("COPY");
 
     public static IEnumerable<object[]> CreateTestInputBase() => CreateTestInput("COPY");
@@ -540,6 +689,166 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                     Assert.Equal("dst", result.Destination);
                 }
             },
+            // --parents flag alone
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --parents src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateParentsFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("COPY", result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("/app", result.Destination);
+                    Assert.True(result.Parents);
+                    Assert.False(result.Link);
+                    Assert.Null(result.FromStageName);
+                }
+            },
+            // --parents with --from
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --from=stage --parents src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateFromFlag(token, "from", "stage"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateParentsFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Parents);
+                    Assert.Equal("stage", result.FromStageName);
+                }
+            },
+            // --parents=true (explicit true)
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --parents=true src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateParentsFlagWithValue(token, "true"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Parents);
+                    Assert.Equal("COPY --parents=true src /app", result.ToString());
+                }
+            },
+            // --parents=false (explicit false)
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --parents=false src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateParentsFlagWithValue(token, "false"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.False(result.Parents);
+                    Assert.Equal("COPY --parents=false src /app", result.ToString());
+                }
+            },
+            // --exclude flag alone
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --exclude=*.txt src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateExcludeFlag(token, "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("COPY", result.InstructionName);
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.False(result.Link);
+                    Assert.False(result.Parents);
+                }
+            },
+            // Multiple --exclude flags
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --exclude=*.txt --exclude=*.log src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateExcludeFlag(token, "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateExcludeFlag(token, "*.log"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(2, result.Excludes.Count);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.Equal("*.log", result.Excludes[1]);
+                }
+            },
+            // All new flags together: --parents, --exclude, --link
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --link --parents --exclude=*.txt src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateParentsFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateExcludeFlag(token, "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Link);
+                    Assert.True(result.Parents);
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
@@ -559,6 +868,34 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
             token => ValidateSymbol(token, '-'),
             token => ValidateSymbol(token, '-'),
             token => ValidateKeyword(token, "link"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLiteral(token, value));
+    }
+
+    private static void ValidateParentsFlag(Token token)
+    {
+        ValidateAggregate<ParentsFlag>(token, "--parents",
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "parents"));
+    }
+
+    private static void ValidateParentsFlagWithValue(Token token, string value)
+    {
+        ValidateAggregate<ParentsFlag>(token, $"--parents={value}",
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "parents"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLiteral(token, value));
+    }
+
+    private static void ValidateExcludeFlag(Token token, string value)
+    {
+        ValidateAggregate<ExcludeFlag>(token, $"--exclude={value}",
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "exclude"),
             token => ValidateSymbol(token, '='),
             token => ValidateLiteral(token, value));
     }
