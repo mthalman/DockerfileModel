@@ -55,7 +55,9 @@ public abstract class FileTransferInstruction : Instruction
     /// </summary>
     public LiteralToken? DestinationToken
     {
-        get => Tokens.OfType<LiteralToken>().LastOrDefault();
+        get => Tokens.OfType<HeredocToken>().Any()
+            ? Tokens.OfType<LiteralToken>().LastOrDefault()
+            : Tokens.OfType<LiteralToken>().Last();
         set
         {
             Requires.NotNull(value!, nameof(value));
