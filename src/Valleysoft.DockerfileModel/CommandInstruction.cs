@@ -27,7 +27,7 @@ public abstract class CommandInstruction : Instruction
         get => this.Tokens.OfType<Command>().FirstOrDefault();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Requires.NotNull(value!, nameof(value));
             SetToken(Command, value);
         }
     }
