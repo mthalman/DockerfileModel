@@ -94,6 +94,14 @@ public class ExposeInstructionTests
     }
 
     [Fact]
+    public void Ports_EmptyValue_ThrowsArgumentException()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80 443");
+        Assert.Throws<ArgumentNullException>(() => result.Ports[0] = null!);
+        Assert.Throws<ArgumentException>(() => result.Ports[0] = "");
+    }
+
+    [Fact]
     public void Ports_PortTokenValue_Roundtrip()
     {
         ExposeInstruction result = new("23", "protocol");
