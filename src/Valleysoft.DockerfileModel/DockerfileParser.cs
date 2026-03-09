@@ -153,13 +153,51 @@ internal static class DockerfileParser
     }
 
     /// <summary>
+    /// Returns the portion of <paramref name="line"/> before any trailing shell comment.
+    /// A trailing comment begins at the first <c>#</c> character that is not inside a
+    /// single-quoted or double-quoted string.  Text inside quotes is passed through
+    /// unchanged.  This prevents a <c>&lt;&lt;DELIM</c> sequence that appears in a
+    /// trailing comment (e.g. <c>RUN echo hi # &lt;&lt;EOF</c>) from being mistakenly
+    /// treated as a heredoc marker.
+    /// </summary>
+    internal static string StripTrailingComment(string line)
+    {
+        char quoteChar = '\0';
+        for (int i = 0; i < line.Length; i++)
+        {
+            char ch = line[i];
+            if (quoteChar != '\0')
+            {
+                // Inside a quoted string — only the matching close-quote ends it.
+                if (ch == quoteChar)
+                {
+                    quoteChar = '\0';
+                }
+            }
+            else if (ch == '"' || ch == '\'')
+            {
+                quoteChar = ch;
+            }
+            else if (ch == '#')
+            {
+                // Unquoted '#' — everything from here to end-of-line is a comment.
+                return line[..i];
+            }
+        }
+        return line;
+    }
+
+    /// <summary>
     /// Extracts heredoc delimiter names and chomp flags from a line of text.
     /// Returns the list of (delimiter, hasChomp) tuples that need to be closed (in order).
+    /// Trailing shell comments (text after an unquoted <c>#</c>) are ignored so that a
+    /// <c>&lt;&lt;DELIM</c> sequence inside a comment does not trigger heredoc mode.
     /// </summary>
     internal static List<(string Delimiter, bool HasChomp)> ExtractHeredocDelimiters(string line)
     {
         List<(string Delimiter, bool HasChomp)> delimiters = new();
-        MatchCollection matches = HeredocMarkerRegex.Matches(line);
+        string effectiveLine = StripTrailingComment(line);
+        MatchCollection matches = HeredocMarkerRegex.Matches(effectiveLine);
         foreach (Match match in matches)
         {
             // Group 1 = chomp flag '-' (may be empty), Group 2 = double-quoted,

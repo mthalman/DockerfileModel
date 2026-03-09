@@ -665,4 +665,63 @@ public class HeredocTests
         var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<'EOF SPACE'\n");
         Assert.Empty(delimiters);
     }
+
+    // ==============================
+    // Fix: heredoc marker in trailing comment must not trigger heredoc mode
+    // ==============================
+
+    [Fact]
+    public void ExtractHeredocDelimiters_MarkerInTrailingComment_ReturnsEmpty()
+    {
+        // A <<DELIM sequence that appears after an unquoted '#' is part of a shell
+        // comment and must not be treated as a heredoc marker.
+        var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN echo hi # <<EOF\n");
+        Assert.Empty(delimiters);
+    }
+
+    [Fact]
+    public void Dockerfile_RunWithHeredocMarkerInComment_DoesNotEnterHeredocMode()
+    {
+        // Regression test: "RUN echo hi # <<EOF" must parse as a single RUN instruction
+        // that does NOT enter heredoc mode, so the next line is a new construct rather
+        // than being consumed as heredoc body text.
+        string text = "FROM ubuntu\nRUN echo hi # <<EOF\nRUN echo world\n";
+        Dockerfile result = Dockerfile.Parse(text);
+        Assert.Equal(text, result.ToString());
+        // Three constructs: FROM, RUN echo hi # <<EOF, RUN echo world
+        Assert.Equal(3, result.Items.Count);
+    }
+
+    [Fact]
+    public void StripTrailingComment_NoComment_ReturnsOriginal()
+    {
+        string line = "RUN echo hello\n";
+        Assert.Equal(line, DockerfileParser.StripTrailingComment(line));
+    }
+
+    [Fact]
+    public void StripTrailingComment_WithComment_ReturnsBeforeHash()
+    {
+        Assert.Equal("RUN echo hi ", DockerfileParser.StripTrailingComment("RUN echo hi # <<EOF\n"));
+    }
+
+    [Fact]
+    public void StripTrailingComment_HashInsideSingleQuotes_NotTreatedAsComment()
+    {
+        string line = "RUN echo '#notacomment' world";
+        Assert.Equal(line, DockerfileParser.StripTrailingComment(line));
+    }
+
+    [Fact]
+    public void StripTrailingComment_HashInsideDoubleQuotes_NotTreatedAsComment()
+    {
+        string line = "RUN echo \"#notacomment\" world";
+        Assert.Equal(line, DockerfileParser.StripTrailingComment(line));
+    }
+
+    [Fact]
+    public void StripTrailingComment_HashAfterClosingQuote_TreatedAsComment()
+    {
+        Assert.Equal("RUN echo 'hello' ", DockerfileParser.StripTrailingComment("RUN echo 'hello' # comment <<EOF"));
+    }
 }
