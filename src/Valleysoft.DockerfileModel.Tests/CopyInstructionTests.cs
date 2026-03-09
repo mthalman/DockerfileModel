@@ -736,6 +736,46 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                     Assert.Equal("stage", result.FromStageName);
                 }
             },
+            // --parents=true (explicit true)
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --parents=true src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateParentsFlagWithValue(token, "true"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Parents);
+                    Assert.Equal("COPY --parents=true src /app", result.ToString());
+                }
+            },
+            // --parents=false (explicit false)
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --parents=false src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateParentsFlagWithValue(token, "false"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.False(result.Parents);
+                    Assert.Equal("COPY --parents=false src /app", result.ToString());
+                }
+            },
             // --exclude flag alone
             new ParseTestScenario<CopyInstruction>
             {
@@ -838,6 +878,16 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
             token => ValidateSymbol(token, '-'),
             token => ValidateSymbol(token, '-'),
             token => ValidateKeyword(token, "parents"));
+    }
+
+    private static void ValidateParentsFlagWithValue(Token token, string value)
+    {
+        ValidateAggregate<ParentsFlag>(token, $"--parents={value}",
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "parents"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLiteral(token, value));
     }
 
     private static void ValidateExcludeFlag(Token token, string value)

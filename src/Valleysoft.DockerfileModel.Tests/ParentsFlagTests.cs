@@ -38,6 +38,30 @@ public class ParentsFlagTests
         Assert.Throws<NotSupportedException>(() => ((IKeyValuePair)result).Value = "test");
     }
 
+    [Fact]
+    public void BoolValue_BareFlag()
+    {
+        ParentsFlag result = ParentsFlag.Parse("--parents");
+        Assert.True(result.BoolValue);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void BoolValue_ExplicitTrue()
+    {
+        ParentsFlag result = ParentsFlag.Parse("--parents=true");
+        Assert.True(result.BoolValue);
+        Assert.Equal("true", result.Value);
+    }
+
+    [Fact]
+    public void BoolValue_ExplicitFalse()
+    {
+        ParentsFlag result = ParentsFlag.Parse("--parents=false");
+        Assert.False(result.BoolValue);
+        Assert.Equal("false", result.Value);
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<ParentsFlag>[] testInputs = new ParseTestScenario<ParentsFlag>[]
@@ -56,6 +80,45 @@ public class ParentsFlagTests
                     Assert.Equal("--parents", result.ToString());
                     Assert.Equal("parents", result.Key);
                     Assert.Null(((IKeyValuePair)result).Value);
+                    Assert.True(result.BoolValue);
+                }
+            },
+            new ParseTestScenario<ParentsFlag>
+            {
+                Text = "--parents=true",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "parents"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "true")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("--parents=true", result.ToString());
+                    Assert.Equal("parents", result.Key);
+                    Assert.Equal("true", ((IKeyValuePair)result).Value);
+                    Assert.True(result.BoolValue);
+                }
+            },
+            new ParseTestScenario<ParentsFlag>
+            {
+                Text = "--parents=false",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateKeyword(token, "parents"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLiteral(token, "false")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("--parents=false", result.ToString());
+                    Assert.Equal("parents", result.Key);
+                    Assert.Equal("false", ((IKeyValuePair)result).Value);
+                    Assert.False(result.BoolValue);
                 }
             },
         };
