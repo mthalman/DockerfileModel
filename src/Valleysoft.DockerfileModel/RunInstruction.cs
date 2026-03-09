@@ -46,11 +46,14 @@ public class RunInstruction : CommandInstruction
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This property overrides <see cref="CommandInstruction.Command"/> to return
-    /// <see langword="null"/> for heredoc-based RUN instructions (where no <see cref="Command"/>
-    /// token exists) rather than throwing. This ensures correct behavior regardless of whether
-    /// the caller holds a <see cref="RunInstruction"/> reference or a
-    /// <see cref="CommandInstruction"/> base-type reference.
+    /// This property overrides <see cref="CommandInstruction.Command"/> to enforce
+    /// RUN-specific setter semantics. The getter behaves identically to the base class —
+    /// it returns <see langword="null"/> via <c>FirstOrDefault()</c> when no
+    /// <see cref="Command"/> token is present (e.g., for heredoc-based RUN instructions).
+    /// The override exists because the setter on this class throws
+    /// <see cref="InvalidOperationException"/> when the instruction is heredoc-based,
+    /// whereas the base-class setter would silently succeed (calling <c>SetToken</c> with
+    /// a null existing token, effectively appending an unexpected token).
     /// </para>
     /// <para>
     /// Nullability is intentionally asymmetric: the getter returns <see langword="null"/> for

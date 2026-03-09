@@ -18,8 +18,9 @@ public abstract class CommandInstruction : Instruction
     /// Gets or sets the command of this instruction.
     /// Returns <see langword="null"/> when no command token is present (e.g., heredoc-based
     /// <see cref="RunInstruction"/> instances). Subclasses may override this property to
-    /// customize behavior — for example, <see cref="RunInstruction"/> overrides it to return
-    /// <see langword="null"/> instead of throwing when no command token exists.
+    /// provide different setter semantics — for example, <see cref="RunInstruction"/> overrides
+    /// it so that the setter throws <see cref="System.InvalidOperationException"/> when called
+    /// on a heredoc-based instruction, rather than silently appending a token.
     /// </summary>
     public virtual Command? Command
     {
