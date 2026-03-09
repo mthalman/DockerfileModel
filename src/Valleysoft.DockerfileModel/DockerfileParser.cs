@@ -181,7 +181,7 @@ internal static class DockerfileParser
             else if (ch == '#')
             {
                 // Unquoted '#' — everything from here to end-of-line is a comment.
-                return line[..i];
+                return line.Substring(0, i);
             }
         }
         return line;
