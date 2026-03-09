@@ -188,6 +188,11 @@ public class ExposeInstructionTests
         LiteralToken? protocolToken = result.GetProtocolTokenForPort(result.PortTokens[0]);
         Assert.NotNull(protocolToken);
         Assert.Equal("$var", protocolToken!.Value);
+        Assert.Collection(protocolToken!.Tokens, new Action<Token>[]
+        {
+            token => ValidateAggregate<VariableRefToken>(token, "$var",
+                token => ValidateString(token, "var"))
+        });
     }
 
     public static IEnumerable<object[]> ParseTestInput()
