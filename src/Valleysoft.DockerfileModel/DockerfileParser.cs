@@ -9,8 +9,17 @@ internal static class DockerfileParser
     // Matches <<[-]["]DELIM["] or <<[-][']DELIM['] or <<[-]DELIM on an instruction line.
     // Group 1 captures the optional chomp flag '-'.
     // Groups 2/3/4 capture the delimiter name (double-quoted / single-quoted / unquoted).
+    // The delimiter character class [A-Za-z0-9_.\-]+ is intentionally the same set that
+    // IsHeredocDelimiterChar in ParseHelper accepts, so detection and parsing stay aligned.
+    //
+    // Known limitation: this regex is not quote-aware and can produce false positives when
+    // a <<DELIM sequence appears inside a quoted string or JSON exec-form argument
+    // (e.g. RUN ['echo', 'a <<EOF']). Making it fully quote-aware would require tracking
+    // quote state across the entire line, which is complex and invasive; that improvement
+    // is deferred. In practice, valid Dockerfiles do not place heredoc markers inside
+    // quoted exec-form arrays, so the risk of false positives is low.
     private static readonly Regex HeredocMarkerRegex = new(
-        @"<<(-?)(?:""([^""]+)""|'([^']+)'|([A-Za-z_][A-Za-z0-9_]*))",
+        @"<<(-?)(?:""([A-Za-z0-9_.\-]+)""|'([A-Za-z0-9_.\-]+)'|([A-Za-z_][A-Za-z0-9_.\-]*))",
         RegexOptions.Compiled);
 
     public static Dockerfile ParseContent(string text)
