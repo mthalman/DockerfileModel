@@ -439,7 +439,21 @@ public static class DockerfileArbitraries
             // Double line continuation (two in a row)
             from image in ImageName()
             from stage in StageName()
-            select $"FROM {image} \\\n\\\n  AS {stage}");
+            select $"FROM {image} \\\n\\\n  AS {stage}",
+            // FROM scratch — special base image with no tag
+            Gen.Constant("FROM scratch"),
+            // FROM scratch with AS
+            from stage in StageName()
+            select $"FROM scratch AS {stage}",
+            // FROM with --platform containing variable with modifier
+            from image in ImageName()
+            select $"FROM --platform=${{PLATFORM:-linux/amd64}} {image}",
+            // FROM with digest-only image
+            from hash in SimpleHexString()
+            select $"FROM ubuntu@sha256:{hash}",
+            // FROM with underscore in stage name
+            from image in ImageName()
+            select $"FROM {image} AS build_stage");
 
     /// <summary>
     /// Generates a valid RUN instruction string (shell form or exec form).
@@ -735,7 +749,31 @@ public static class DockerfileArbitraries
             from mode in Gen.Elements("755", "644")
             from src in PathSegment()
             from dst in PathSegment()
-            select $"COPY --chmod={mode} --link {src} {dst}");
+            select $"COPY --chmod={mode} --link {src} {dst}",
+            // COPY --parents flag not recognized as keyValue (issue #238)
+            // Workaround in TokenJsonSerializer normalizes literal["--parents"] to keyValue
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --parents {src} {dst}",
+            // COPY --exclude flag not recognized as keyValue (issue #239)
+            // Workaround in TokenJsonSerializer normalizes literal["--exclude=..."] to keyValue
+            from ext in Gen.Elements("txt", "log", "tmp")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --exclude=*.{ext} {src} {dst}",
+            // Boolean flags with =true/=false not accepted (issue #246)
+            // Workaround in TokenJsonSerializer merges keyValue[--link] + literal["=true"] into one keyValue
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --link=true {src} {dst}",
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --link=false {src} {dst}",
+            // Disabled: EXPOSE drops all ports after first (issue #242) - no feasible serializer workaround
+            // from p1 in PortNumber() from p2 in PortNumber() select $"EXPOSE {p1} {p2}",
+            // Disabled: heredoc not supported (issue #245) - completely different token structure
+            // Gen.Constant("COPY <<EOF /dst/\nsome content\nEOF"),
+            Gen.Constant("COPY src.txt /app/"));
 
     /// <summary>
     /// Generates a valid ADD instruction string.
@@ -820,6 +858,25 @@ public static class DockerfileArbitraries
             from src in PathSegment()
             from dst in PathSegment()
             select $"ADD --chown={owner} \\\n  --link {src} {dst}",
+            // ADD --unpack flag not recognized as keyValue (issue #240)
+            // Workaround in TokenJsonSerializer normalizes literal["--unpack"] to keyValue
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --unpack {src}.tar {dst}",
+            // ADD --exclude flag not recognized as keyValue (issue #241)
+            // Workaround in TokenJsonSerializer normalizes literal["--exclude=..."] to keyValue
+            from ext in Gen.Elements("txt", "log", "tmp")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --exclude=*.{ext} {src} {dst}",
+            // Boolean flags with =true/=false not accepted (issue #246)
+            // Workaround in TokenJsonSerializer merges keyValue + literal["=true/=false"] into one keyValue
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --keep-git-dir=true {src} {dst}",
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --keep-git-dir=false {src} {dst}",
             Gen.Constant("ADD src.txt /dst/"));
 
     /// <summary>
@@ -1025,7 +1082,23 @@ public static class DockerfileArbitraries
             from ws in FlexibleWhitespace()
             from port in PortNumber()
             from proto in Protocol()
-            select $"EXPOSE{ws}{port}/{proto}");
+            select $"EXPOSE{ws}{port}/{proto}",
+            // Port range with dash
+            from low in Gen.Choose(1000, 8000)
+            from high in Gen.Choose(8001, 9000)
+            select $"EXPOSE {low}-{high}",
+            // Port range with protocol
+            from low in Gen.Choose(1000, 8000)
+            from high in Gen.Choose(8001, 9000)
+            from proto in Protocol()
+            select $"EXPOSE {low}-{high}/{proto}",
+            // Variable ref with numeric protocol (unusual but valid)
+            from varRef in VariableRef()
+            select $"EXPOSE {varRef}/443",
+            // Two variables: port/proto both as variable refs
+            from portVar in Identifier()
+            from protoVar in Identifier()
+            select $"EXPOSE ${{{portVar}}}/${{{protoVar}}}");
 
     /// <summary>
     /// Generates a valid HEALTHCHECK instruction string.
