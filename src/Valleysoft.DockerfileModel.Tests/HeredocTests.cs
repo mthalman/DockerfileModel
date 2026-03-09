@@ -283,6 +283,28 @@ public class HeredocTests
     }
 
     [Fact]
+    public void Run_HeredocQuotedDelimiterWithHyphen_RoundTrips()
+    {
+        // <<'MY-DELIM' - hyphen is valid in quoted delimiters and must be parsed by
+        // HeredocParseImpl (IsHeredocDelimiterChar) consistently with HeredocMarkerRegex.
+        string text = "RUN <<'MY-DELIM'\necho hello\nMY-DELIM\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        Assert.Equal(text, result.ToString());
+        Assert.Single(result.Heredocs);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_QuotedHyphenatedDelimiter()
+    {
+        // Verify that ExtractHeredocDelimiters extracts a hyphenated delimiter name
+        // from a quoted marker, consistent with the expanded IsHeredocDelimiterChar.
+        var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<'MY-DELIM'\n");
+        Assert.Single(delimiters);
+        Assert.Equal("MY-DELIM", delimiters[0].Delimiter);
+        Assert.False(delimiters[0].HasChomp);
+    }
+
+    [Fact]
     public void Run_HeredocChildTokens_AreCorrect()
     {
         string text = "RUN <<EOF\necho hello\nEOF\n";

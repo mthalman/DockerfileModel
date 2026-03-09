@@ -1123,9 +1123,16 @@ internal static class ParseHelper
         return Result.Success(new HeredocToken(tokens), current);
     }
 
+    /// <summary>
+    /// Returns true for characters that are valid inside a heredoc delimiter name.
+    /// Accepts letters, digits, underscore, hyphen, and dot to match the character set
+    /// accepted by <see cref="DockerfileParser.HeredocMarkerRegex"/> for quoted delimiters
+    /// (e.g. &lt;&lt;'MY-DELIM'). Keeping both grammars in sync prevents a marker that the
+    /// regex accepts from being rejected here.
+    /// </summary>
     private static bool IsHeredocDelimiterChar(char c)
     {
-        return char.IsLetterOrDigit(c) || c == '_';
+        return char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '.';
     }
 
     private static string ConsumeHeredocNewLine(ref IInput current)
