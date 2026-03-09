@@ -45,24 +45,6 @@ public class ExcludeFlagTests
             // Directory pattern
             new ParseTestScenario<ExcludeFlag>
             {
-                Text = "--exclude=docs/",
-                TokenValidators = new Action<Token>[]
-                {
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateKeyword(token, "exclude"),
-                    token => ValidateSymbol(token, '='),
-                    token => ValidateLiteral(token, "docs/")
-                },
-                Validate = result =>
-                {
-                    Assert.Equal("exclude", result.Key);
-                    Assert.Equal("docs/", result.Value);
-                }
-            },
-            // Directory pattern (temp)
-            new ParseTestScenario<ExcludeFlag>
-            {
                 Text = "--exclude=temp/",
                 TokenValidators = new Action<Token>[]
                 {
@@ -141,24 +123,6 @@ public class ExcludeFlagTests
                     Assert.Equal("exclude", result.Key);
                     Assert.Equal("*.txt", result.Value);
                     Assert.Equal("--exclude=*.txt", result.ToString());
-                }
-            },
-            new CreateTestScenario
-            {
-                Pattern = "docs/",
-                TokenValidators = new Action<Token>[]
-                {
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateSymbol(token, '-'),
-                    token => ValidateKeyword(token, "exclude"),
-                    token => ValidateSymbol(token, '='),
-                    token => ValidateLiteral(token, "docs/")
-                },
-                Validate = result =>
-                {
-                    Assert.Equal("exclude", result.Key);
-                    Assert.Equal("docs/", result.Value);
-                    Assert.Equal("--exclude=docs/", result.ToString());
                 }
             },
             new CreateTestScenario
