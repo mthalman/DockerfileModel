@@ -461,9 +461,9 @@ public class HeredocTests
     // ==============================
 
     [Fact]
-    public void Copy_HeredocWithFromFlag_RoundTrips()
+    public void Copy_HeredocWithDestination_RoundTrips()
     {
-        // COPY --from with heredoc source
+        // COPY with a heredoc source and a destination path on the marker line
         string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
