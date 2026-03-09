@@ -6,7 +6,6 @@ namespace Valleysoft.DockerfileModel;
 public class CopyInstruction : FileTransferInstruction
 {
     private const string Name = "COPY";
-    private readonly char escapeChar;
 
     public CopyInstruction(IEnumerable<string> sources, string destination,
         string? fromStageName = null, string? changeOwner = null, string? permissions = null,
@@ -14,7 +13,6 @@ public class CopyInstruction : FileTransferInstruction
         char escapeChar = Dockerfile.DefaultEscapeChar)
         : base(GetTokens(sources, destination, fromStageName, changeOwner, permissions, link, parents, excludes, escapeChar), escapeChar)
     {
-        this.escapeChar = escapeChar;
         ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
         Excludes = new ProjectedItemList<ExcludeFlag, string>(
             ExcludeFlagTokens,
@@ -32,7 +30,6 @@ public class CopyInstruction : FileTransferInstruction
 
     private CopyInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        this.escapeChar = escapeChar;
         ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
         Excludes = new ProjectedItemList<ExcludeFlag, string>(
             ExcludeFlagTokens,
