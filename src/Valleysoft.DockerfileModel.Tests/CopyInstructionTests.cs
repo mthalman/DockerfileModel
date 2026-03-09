@@ -123,6 +123,49 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
     }
 
     [Fact]
+    public void Link_ExplicitTrue()
+    {
+        // Parse --link=true
+        CopyInstruction instruction = CopyInstruction.Parse("COPY --link=true src dst");
+        Assert.True(instruction.Link);
+        Assert.Equal("COPY --link=true src dst", instruction.ToString());
+
+        // The LinkFlagToken should have BoolValue = true
+        Assert.NotNull(instruction.LinkFlagToken);
+        Assert.True(instruction.LinkFlagToken!.BoolValue);
+        Assert.Equal("true", instruction.LinkFlagToken.Value);
+    }
+
+    [Fact]
+    public void Link_ExplicitFalse()
+    {
+        // Parse --link=false
+        CopyInstruction instruction = CopyInstruction.Parse("COPY --link=false src dst");
+        Assert.False(instruction.Link);
+        Assert.Equal("COPY --link=false src dst", instruction.ToString());
+
+        // The LinkFlagToken should have BoolValue = false
+        Assert.NotNull(instruction.LinkFlagToken);
+        Assert.False(instruction.LinkFlagToken!.BoolValue);
+        Assert.Equal("false", instruction.LinkFlagToken.Value);
+
+        // Setting Link = true should replace the =false flag with a bare flag
+        instruction.Link = true;
+        Assert.True(instruction.Link);
+        Assert.Equal("COPY --link src dst", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData("COPY --link=True src dst", true)]
+    [InlineData("COPY --link=FALSE src dst", false)]
+    public void Link_CaseInsensitive(string text, bool expectedValue)
+    {
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+        Assert.Equal(expectedValue, instruction.Link);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
     public void Link_WithFromStageName()
     {
         // --link and --from together
@@ -414,6 +457,66 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                     Assert.Equal("COPY --link `\n src dst", result.ToString());
                 }
             },
+            // --link=true (explicit true)
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --link=true src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlagWithValue(token, "true"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Link);
+                    Assert.Equal("COPY --link=true src dst", result.ToString());
+                }
+            },
+            // --link=false (explicit false)
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --link=false src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlagWithValue(token, "false"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.False(result.Link);
+                    Assert.Equal("COPY --link=false src dst", result.ToString());
+                }
+            },
+            // --link=True (case-insensitive)
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY --link=True src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlagWithValue(token, "True"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Link);
+                    Assert.Equal("COPY --link=True src dst", result.ToString());
+                }
+            },
             // Multiple sources with --link
             new ParseTestScenario<CopyInstruction>
             {
@@ -448,6 +551,16 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
             token => ValidateSymbol(token, '-'),
             token => ValidateSymbol(token, '-'),
             token => ValidateKeyword(token, "link"));
+    }
+
+    private static void ValidateLinkFlagWithValue(Token token, string value)
+    {
+        ValidateAggregate<LinkFlag>(token, $"--link={value}",
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "link"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLiteral(token, value));
     }
 
     private static void ValidateFromFlag(Token token, string key, string value)

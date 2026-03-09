@@ -43,14 +43,22 @@ public class AddInstruction : FileTransferInstruction
 
     public bool KeepGitDir
     {
-        get => KeepGitDirFlagToken is not null;
+        get => KeepGitDirFlagToken?.BoolValue ?? false;
         set
         {
-            if (value && KeepGitDirFlagToken is null)
+            if (value)
             {
-                KeepGitDirFlagToken = new KeepGitDirFlag(escapeChar);
+                if (KeepGitDirFlagToken is null)
+                {
+                    KeepGitDirFlagToken = new KeepGitDirFlag(escapeChar);
+                }
+                else if (!KeepGitDirFlagToken.BoolValue)
+                {
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(KeepGitDirFlag, new KeepGitDirFlag(escapeChar));
+                }
             }
-            else if (!value && KeepGitDirFlagToken is not null)
+            else if (KeepGitDirFlagToken is not null)
             {
                 KeepGitDirFlagToken = null;
             }
@@ -71,14 +79,22 @@ public class AddInstruction : FileTransferInstruction
 
     public bool Link
     {
-        get => LinkFlagToken is not null;
+        get => LinkFlagToken?.BoolValue ?? false;
         set
         {
-            if (value && LinkFlagToken is null)
+            if (value)
             {
-                LinkFlagToken = new LinkFlag(escapeChar);
+                if (LinkFlagToken is null)
+                {
+                    LinkFlagToken = new LinkFlag(escapeChar);
+                }
+                else if (!LinkFlagToken.BoolValue)
+                {
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(LinkFlag, new LinkFlag(escapeChar));
+                }
             }
-            else if (!value && LinkFlagToken is not null)
+            else if (LinkFlagToken is not null)
             {
                 LinkFlagToken = null;
             }
