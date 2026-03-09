@@ -90,14 +90,22 @@ public class CopyInstruction : FileTransferInstruction
 
     public bool Parents
     {
-        get => ParentsFlagInternal is not null;
+        get => ParentsFlagInternal?.BoolValue ?? false;
         set
         {
-            if (value && ParentsFlagInternal is null)
+            if (value)
             {
-                ParentsFlagToken = new ParentsFlag(escapeChar);
+                if (ParentsFlagInternal is null)
+                {
+                    ParentsFlagToken = new ParentsFlag(EscapeChar);
+                }
+                else if (!ParentsFlagInternal.BoolValue)
+                {
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(ParentsFlagInternal, new ParentsFlag(EscapeChar));
+                }
             }
-            else if (!value && ParentsFlagInternal is not null)
+            else if (ParentsFlagInternal is not null)
             {
                 ParentsFlagToken = null;
             }
