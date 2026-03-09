@@ -14,9 +14,16 @@ public abstract class CommandInstruction : Instruction
     {
     }
 
-    public Command Command
+    /// <summary>
+    /// Gets or sets the command of this instruction.
+    /// Returns <see langword="null"/> when no command token is present (e.g., heredoc-based
+    /// <see cref="RunInstruction"/> instances). Subclasses may override this property to
+    /// customize behavior — for example, <see cref="RunInstruction"/> overrides it to return
+    /// <see langword="null"/> instead of throwing when no command token exists.
+    /// </summary>
+    public virtual Command? Command
     {
-        get => this.Tokens.OfType<Command>().First();
+        get => this.Tokens.OfType<Command>().FirstOrDefault();
         set
         {
             Requires.NotNull(value, nameof(value));

@@ -46,13 +46,11 @@ public class RunInstruction : CommandInstruction
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This property uses the <c>new</c> modifier to shadow <see cref="CommandInstruction.Command"/>,
-    /// which is non-nullable and calls <c>.First()</c> — it will throw
-    /// <see cref="InvalidOperationException"/> when accessed on a heredoc-based RUN instruction via
-    /// the <see cref="CommandInstruction"/> base type. Callers holding a <see cref="RunInstruction"/>
-    /// as a <see cref="CommandInstruction"/> reference should cast to <see cref="RunInstruction"/>
-    /// first and check <c>Heredocs</c> before accessing <c>Command</c>, or call
-    /// <c>Tokens.OfType&lt;Command&gt;().FirstOrDefault()</c> directly.
+    /// This property overrides <see cref="CommandInstruction.Command"/> to return
+    /// <see langword="null"/> for heredoc-based RUN instructions (where no <see cref="Command"/>
+    /// token exists) rather than throwing. This ensures correct behavior regardless of whether
+    /// the caller holds a <see cref="RunInstruction"/> reference or a
+    /// <see cref="CommandInstruction"/> base-type reference.
     /// </para>
     /// <para>
     /// Nullability is intentionally asymmetric: the getter returns <see langword="null"/> for
@@ -71,7 +69,7 @@ public class RunInstruction : CommandInstruction
     /// Thrown when attempting to set the command on a heredoc-based RUN instruction.
     /// Heredoc instructions do not have a <see cref="Command"/> token to replace.
     /// </exception>
-    public new Command? Command
+    public override Command? Command
     {
         get => this.Tokens.OfType<Command>().FirstOrDefault();
         set
