@@ -982,6 +982,171 @@ internal static class ParseHelper
         public string OpeningString { get; }
         public string ClosingString { get; }
     }
+
+    /// <summary>
+    /// Parses a heredoc construct: &lt;&lt;[-][QUOTE]DELIM[QUOTE] followed by body lines
+    /// and a closing delimiter line.
+    /// Returns a HeredocToken containing all the raw text as child tokens.
+    /// </summary>
+    public static Parser<HeredocToken> Heredoc() =>
+        i => HeredocParseImpl(i);
+
+    private static IResult<HeredocToken> HeredocParseImpl(IInput input)
+    {
+        IInput current = input;
+
+        // Parse "<<"
+        if (current.AtEnd || current.Current != '<')
+            return Result.Failure<HeredocToken>(current, "expected '<<'", Enumerable.Empty<string>());
+        current = current.Advance();
+
+        if (current.AtEnd || current.Current != '<')
+            return Result.Failure<HeredocToken>(current, "expected '<<'", Enumerable.Empty<string>());
+        current = current.Advance();
+
+        string markerPrefix = "<<";
+
+        // Parse optional chomp flag '-'
+        bool hasChomp = false;
+        if (!current.AtEnd && current.Current == '-')
+        {
+            hasChomp = true;
+            markerPrefix += "-";
+            current = current.Advance();
+        }
+
+        // Parse optional quote character and delimiter name
+        char? quoteChar = null;
+        if (!current.AtEnd && (current.Current == '"' || current.Current == '\''))
+        {
+            quoteChar = current.Current;
+            current = current.Advance();
+        }
+
+        // Parse delimiter name: alphanumeric + underscore characters
+        var delimChars = new System.Collections.Generic.List<char>();
+        while (!current.AtEnd && IsHeredocDelimiterChar(current.Current))
+        {
+            delimChars.Add(current.Current);
+            current = current.Advance();
+        }
+
+        if (delimChars.Count == 0)
+            return Result.Failure<HeredocToken>(current, "expected heredoc delimiter name", Enumerable.Empty<string>());
+
+        string delimiter = new string(delimChars.ToArray());
+
+        // Parse closing quote if we had an opening quote
+        if (quoteChar.HasValue)
+        {
+            if (current.AtEnd || current.Current != quoteChar.Value)
+                return Result.Failure<HeredocToken>(current, $"expected closing quote '{quoteChar.Value}'", Enumerable.Empty<string>());
+            current = current.Advance();
+        }
+
+        // Build the marker string token
+        string markerText = markerPrefix;
+        if (quoteChar.HasValue) markerText += quoteChar.Value;
+        markerText += delimiter;
+        if (quoteChar.HasValue) markerText += quoteChar.Value;
+
+        System.Collections.Generic.List<Token> tokens = new()
+        {
+            new StringToken(markerText)
+        };
+
+        // Consume the rest of the current line (any text after the heredoc marker on the same line)
+        var restOfLineChars = new System.Collections.Generic.List<char>();
+        while (!current.AtEnd && current.Current != '\n' && current.Current != '\r')
+        {
+            restOfLineChars.Add(current.Current);
+            current = current.Advance();
+        }
+
+        if (restOfLineChars.Count > 0)
+        {
+            tokens.Add(new StringToken(new string(restOfLineChars.ToArray())));
+        }
+
+        // Consume newline after the marker line
+        if (!current.AtEnd)
+        {
+            string newLine = ConsumeHeredocNewLine(ref current);
+            tokens.Add(new NewLineToken(newLine));
+        }
+        else
+        {
+            // No body - just the marker with no closing delimiter
+            return Result.Success(new HeredocToken(tokens), current);
+        }
+
+        // Consume body lines until we find the closing delimiter on its own line
+        while (!current.AtEnd)
+        {
+            // Read a complete line
+            var lineChars = new System.Collections.Generic.List<char>();
+            while (!current.AtEnd && current.Current != '\n' && current.Current != '\r')
+            {
+                lineChars.Add(current.Current);
+                current = current.Advance();
+            }
+
+            string lineContent = new string(lineChars.ToArray());
+
+            // Check for newline
+            string? lineNewLine = null;
+            if (!current.AtEnd)
+            {
+                lineNewLine = ConsumeHeredocNewLine(ref current);
+            }
+
+            // Check if this line is the closing delimiter
+            string trimmedLine = hasChomp ? lineContent.TrimStart('\t') : lineContent;
+            if (trimmedLine == delimiter)
+            {
+                // This is the closing delimiter line
+                tokens.Add(new StringToken(lineContent));
+                if (lineNewLine != null)
+                {
+                    tokens.Add(new NewLineToken(lineNewLine));
+                }
+                break;
+            }
+            else
+            {
+                // This is a body line - store as string token including newline
+                string bodyLineText = lineContent + (lineNewLine ?? "");
+                tokens.Add(new StringToken(bodyLineText));
+            }
+        }
+
+        return Result.Success(new HeredocToken(tokens), current);
+    }
+
+    private static bool IsHeredocDelimiterChar(char c)
+    {
+        return char.IsLetterOrDigit(c) || c == '_';
+    }
+
+    private static string ConsumeHeredocNewLine(ref IInput current)
+    {
+        if (current.Current == '\r')
+        {
+            current = current.Advance();
+            if (!current.AtEnd && current.Current == '\n')
+            {
+                current = current.Advance();
+                return "\r\n";
+            }
+            return "\r";
+        }
+        else if (current.Current == '\n')
+        {
+            current = current.Advance();
+            return "\n";
+        }
+        return "";
+    }
 }
 
 /// <summary>

@@ -128,17 +128,34 @@ public abstract class FileTransferInstruction : Instruction
         }
     }
 
+    /// <summary>
+    /// Gets the heredoc tokens contained in this file transfer instruction.
+    /// Empty if the instruction uses regular file arguments.
+    /// </summary>
+    public IEnumerable<HeredocToken> Heredocs =>
+        this.Tokens.OfType<HeredocToken>();
+
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
         from flags in ArgTokens(
             from flag in FlagOption(escapeChar, optionalFlagParser).Optional()
             select flag.GetOrDefault(), escapeChar).Many().Flatten()
         from whitespace in Whitespace()
-        from files in ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar).Or(
-            from literals in ArgTokens(
-                LiteralWithVariables(escapeChar).AsEnumerable(),
-                escapeChar).Many()
-            select literals.Flatten())
+        from files in HeredocFileArgs()
+            .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar))
+            .Or(
+                from literals in ArgTokens(
+                    LiteralWithVariables(escapeChar).AsEnumerable(),
+                    escapeChar).Many()
+                select literals.Flatten())
         select ConcatTokens(flags, whitespace, files);
+
+    /// <summary>
+    /// Parses heredoc constructs as file transfer instruction arguments.
+    /// Syntax: COPY/ADD &lt;&lt;DELIM [destination]\n body \n DELIM
+    /// </summary>
+    private static Parser<IEnumerable<Token>> HeredocFileArgs() =>
+        from heredocs in Heredoc().AtLeastOnce()
+        select heredocs.Cast<Token>();
 
     private static Parser<IEnumerable<Token>?> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
         ChangeOwnerFlag.GetParser(escapeChar)

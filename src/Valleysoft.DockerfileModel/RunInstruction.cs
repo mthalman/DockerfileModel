@@ -40,6 +40,31 @@ public class RunInstruction : CommandInstruction
             (flag, mount) => flag.ValueToken = mount);
     }
 
+    /// <summary>
+    /// Gets or sets the command of this RUN instruction.
+    /// Returns null when the instruction uses heredoc syntax.
+    /// </summary>
+    public new Command? Command
+    {
+        get => this.Tokens.OfType<Command>().FirstOrDefault();
+        set
+        {
+            if (value is null) throw new ArgumentNullException(nameof(value));
+            Command? existing = Command;
+            if (existing is not null)
+            {
+                SetToken(existing, value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the heredoc tokens contained in this RUN instruction.
+    /// Empty if the instruction uses exec-form or shell-form commands.
+    /// </summary>
+    public IEnumerable<HeredocToken> Heredocs =>
+        this.Tokens.OfType<HeredocToken>();
+
     public IList<Mount> Mounts { get; }
 
     public string? Network
@@ -136,8 +161,16 @@ public class RunInstruction : CommandInstruction
     private new static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from options in Options(escapeChar)
         from whitespace in Whitespace()
-        from command in ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar)
+        from command in ArgTokens(HeredocArgs(), escapeChar)
+            .Or(ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar))
         select ConcatTokens(options, whitespace, command);
+
+    /// <summary>
+    /// Parses one or more heredoc constructs as the RUN instruction arguments.
+    /// </summary>
+    private static Parser<IEnumerable<Token>> HeredocArgs() =>
+        from heredocs in Heredoc().AtLeastOnce()
+        select heredocs.Cast<Token>();
 
     private static Parser<IEnumerable<Token>> Options(char escapeChar) =>
         ArgTokens(
