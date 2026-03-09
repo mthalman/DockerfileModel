@@ -564,17 +564,22 @@ public class HeredocTests
     [Fact]
     public void Copy_Heredoc_DestinationIsNull()
     {
-        // Heredoc COPY has no LiteralToken children, so Destination should be null
+        // Known limitation: the destination path "/app/script.sh" is absorbed into the
+        // heredoc token's rest-of-line StringToken by HeredocParseImpl, so no separate
+        // LiteralToken is produced and Destination returns null. This is inconsistent with
+        // the documented COPY heredoc syntax (COPY <<EOF /dest) and with the existing
+        // Destination/Sources API. Fixing it requires stopping the heredoc token at the
+        // delimiter and re-tokenizing the remainder, which is deferred to avoid parser risk.
         string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
-        // The destination "/app/script.sh" is consumed as part of the heredoc's
-        // rest-of-line text, so no separate LiteralToken exists
         Assert.Null(result.Destination);
     }
 
     [Fact]
     public void Add_Heredoc_DestinationIsNull()
     {
+        // Known limitation: same as Copy_Heredoc_DestinationIsNull — the destination is
+        // absorbed into the heredoc token and is not accessible via the Destination property.
         string text = "ADD <<EOF /app/script.sh\necho hello\nEOF\n";
         AddInstruction result = AddInstruction.Parse(text);
         Assert.Null(result.Destination);
@@ -583,6 +588,9 @@ public class HeredocTests
     [Fact]
     public void Copy_Heredoc_SourcesIsEmpty()
     {
+        // Known limitation: Sources is empty because the heredoc parser absorbs the
+        // marker-line remainder (which would contain the destination) and does not produce
+        // any LiteralToken children. See Copy_Heredoc_DestinationIsNull for full context.
         string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Empty(result.Sources);
@@ -591,6 +599,8 @@ public class HeredocTests
     [Fact]
     public void Copy_Heredoc_SetDestination_Throws()
     {
+        // Because Destination is null (known limitation), the setter throws rather than
+        // overwriting a non-existent token.
         string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Throws<InvalidOperationException>(() => result.Destination = "/new/path");
