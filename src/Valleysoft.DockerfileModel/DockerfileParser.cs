@@ -105,7 +105,10 @@ internal static class DockerfileParser
                     List<(string Delimiter, bool HasChomp)> delimiters = ExtractHeredocDelimiters(line);
                     if (delimiters.Count > 0)
                     {
-                        pendingHeredocDelimiters.AddRange(delimiters);
+                        // The instruction parser currently only supports a single heredoc
+                        // per instruction line, so only track the first marker even if
+                        // multiple are detected on the same line.
+                        pendingHeredocDelimiters.Add(delimiters[0]);
                         lineBuilder = new StringBuilder();
                         continue;
                     }
