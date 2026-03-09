@@ -172,9 +172,20 @@ public abstract class FileTransferInstruction : Instruction
     /// <summary>
     /// Parses a single heredoc construct as file transfer instruction arguments.
     /// Syntax: COPY/ADD &lt;&lt;DELIM [destination]\n body \n DELIM
-    /// Multiple heredocs per instruction are not supported because HeredocParseImpl
-    /// consumes the rest of the marker line as a StringToken, which swallows any
-    /// subsequent &lt;&lt;DELIM markers on the same line.
+    ///
+    /// Known limitations:
+    /// <list type="bullet">
+    ///   <item>Multiple heredocs per instruction are not supported because
+    ///   <see cref="ParseHelper.HeredocParseImpl"/> consumes the rest of the marker line
+    ///   as a StringToken, which swallows any subsequent &lt;&lt;DELIM markers.</item>
+    ///   <item>The destination path that follows the marker on the first line
+    ///   (e.g. the "/dest" in "COPY &lt;&lt;EOF /dest") is absorbed into the heredoc token's
+    ///   rest-of-line StringToken and is therefore not returned as a separate
+    ///   <see cref="LiteralToken"/>. Consequently <see cref="FileTransferInstruction.Destination"/>
+    ///   and <see cref="FileTransferInstruction.Sources"/> are null/empty for heredoc-based
+    ///   instructions. Fixing this requires stopping the heredoc token at the delimiter and
+    ///   re-tokenizing the remainder; that change is deferred to avoid broad parser risk.</item>
+    /// </list>
     /// </summary>
     private static Parser<IEnumerable<Token>> HeredocFileArgs() =>
         from heredocs in Heredoc().Once()
