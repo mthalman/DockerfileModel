@@ -89,12 +89,17 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
          from val in BooleanValueLiteral(escapeChar).AsEnumerable()
          select ConcatTokens(dash1, dash2, kw, eq, val)
         ).Or(
-        // Path 2: bare --name (must not be followed by '=' to prevent matching
-        // --name from --name=<invalid> after Path 1 backtrack)
+        // Path 2: bare --name (must be followed by an argument boundary — whitespace,
+        // end of input, comment, or line continuation — not '=', alphanumeric,
+        // hyphen, or slash, which would indicate the keyword is a prefix of a longer token)
             from dash1 in Symbol('-').AsEnumerable()
             from dash2 in Symbol('-').AsEnumerable()
             from kw in KeywordToken.GetParser(keyword, escapeChar).AsEnumerable()
-            from notEq in Sprache.Parse.Not(Sprache.Parse.Char('='))
+            from boundary in Sprache.Parse.Not(
+                Sprache.Parse.LetterOrDigit
+                    .Or(Sprache.Parse.Char('-'))
+                    .Or(Sprache.Parse.Char('/'))
+                    .Or(Sprache.Parse.Char('=')))
             select ConcatTokens(dash1, dash2, kw)
         );
 

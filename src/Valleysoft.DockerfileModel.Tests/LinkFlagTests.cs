@@ -75,6 +75,17 @@ public class LinkFlagTests
         Assert.Throws<ParseException>(() => LinkFlag.Parse(text));
     }
 
+    [Theory]
+    [InlineData("--linker")]
+    [InlineData("--link-extra")]
+    [InlineData("--link/path")]
+    public void Parse_KeywordPrefix_ThrowsParseException(string text)
+    {
+        // The bare-flag parser must not match when the keyword is only a prefix
+        // of a longer token (e.g. --linker, --link-extra, --link/path).
+        Assert.Throws<ParseException>(() => LinkFlag.Parse(text));
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<LinkFlag>[] testInputs = new ParseTestScenario<LinkFlag>[]
