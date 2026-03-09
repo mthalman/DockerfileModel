@@ -250,17 +250,17 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
     [InlineData("ADD --link=FALSE src dst", false)]
     [InlineData("ADD --keep-git-dir=True src dst", true)]
     [InlineData("ADD --keep-git-dir=FALSE src dst", false)]
-    public void BooleanFlag_CaseInsensitive(string text, bool expectedLink)
+    public void BooleanFlag_CaseInsensitive(string text, bool expectedValue)
     {
         AddInstruction instruction = AddInstruction.Parse(text);
         // Check the appropriate flag based on what's in the text
         if (text.Contains("--link"))
         {
-            Assert.Equal(expectedLink, instruction.Link);
+            Assert.Equal(expectedValue, instruction.Link);
         }
         else
         {
-            Assert.Equal(expectedLink, instruction.KeepGitDir);
+            Assert.Equal(expectedValue, instruction.KeepGitDir);
         }
         Assert.Equal(text, instruction.ToString());
     }
