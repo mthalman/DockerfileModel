@@ -22,6 +22,14 @@ public class CopyInstruction : FileTransferInstruction
             (flag, value) => flag.Value = value);
     }
 
+    [Obsolete("Use the overload that accepts parents, excludes, and escapeChar parameters in the correct order.")]
+    public CopyInstruction(IEnumerable<string> sources, string destination,
+        string? fromStageName, string? changeOwner, string? permissions,
+        bool link, char escapeChar)
+        : this(sources, destination, fromStageName, changeOwner, permissions, link, false, null, escapeChar)
+    {
+    }
+
     private CopyInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
         this.escapeChar = escapeChar;
