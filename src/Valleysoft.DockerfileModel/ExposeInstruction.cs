@@ -30,8 +30,17 @@ public class ExposeInstruction : Instruction
     /// <summary>
     /// Returns the protocol token for a given port token, or <c>null</c> if the port has no protocol.
     /// </summary>
-    public LiteralToken? GetProtocolTokenForPort(LiteralToken portToken) =>
-        GetProtocolTokenForPortInternal(portToken);
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="portToken"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="portToken"/> is not a port token in this instruction.</exception>
+    public LiteralToken? GetProtocolTokenForPort(LiteralToken portToken)
+    {
+        ArgumentNullException.ThrowIfNull(portToken);
+        if (!PortTokens.Contains(portToken))
+        {
+            throw new ArgumentException("The specified token is not a port token in this instruction.", nameof(portToken));
+        }
+        return GetProtocolTokenForPortInternal(portToken);
+    }
 
     public static ExposeInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
