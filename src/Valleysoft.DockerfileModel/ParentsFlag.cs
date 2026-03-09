@@ -11,6 +11,11 @@ public class ParentsFlag : BooleanFlag
     {
     }
 
+    public ParentsFlag(bool value, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(Keyword, value, escapeChar)
+    {
+    }
+
     internal ParentsFlag(IEnumerable<Token> tokens) : base(tokens)
     {
     }
