@@ -79,10 +79,14 @@ public class LinkFlagTests
     [InlineData("--linker")]
     [InlineData("--link-extra")]
     [InlineData("--link/path")]
+    [InlineData("--link_foo")]
+    [InlineData("--link.foo")]
     public void Parse_KeywordPrefix_ThrowsParseException(string text)
     {
         // The bare-flag parser must not match when the keyword is only a prefix
-        // of a longer token (e.g. --linker, --link-extra, --link/path).
+        // of a longer token (e.g. --linker, --link-extra, --link/path, --link_foo, --link.foo).
+        // The boundary guard uses an allow-list (whitespace, end-of-input, #, \) so that
+        // any non-boundary character — including '_' and '.' — causes the parse to fail.
         Assert.Throws<ParseException>(() => LinkFlag.Parse(text));
     }
 

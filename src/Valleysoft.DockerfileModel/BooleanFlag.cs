@@ -89,17 +89,16 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
          from val in BooleanValueLiteral(escapeChar).AsEnumerable()
          select ConcatTokens(dash1, dash2, kw, eq, val)
         ).Or(
-        // Path 2: bare --name (must be followed by an argument boundary — whitespace,
-        // end of input, comment, or line continuation — not '=', alphanumeric,
-        // hyphen, or slash, which would indicate the keyword is a prefix of a longer token)
+        // Path 2: bare --name (must be followed by a true argument boundary — end of input,
+        // whitespace (space/tab), comment start (#), or line-continuation escape (\) — to
+        // prevent matching when the keyword is only a prefix of a longer token such as
+        // --link_foo or --link.foo. Using an allow-list rather than a deny-list ensures
+        // all non-boundary characters are rejected without gaps.)
             from dash1 in Symbol('-').AsEnumerable()
             from dash2 in Symbol('-').AsEnumerable()
             from kw in KeywordToken.GetParser(keyword, escapeChar).AsEnumerable()
             from boundary in Sprache.Parse.Not(
-                Sprache.Parse.LetterOrDigit
-                    .Or(Sprache.Parse.Char('-'))
-                    .Or(Sprache.Parse.Char('/'))
-                    .Or(Sprache.Parse.Char('=')))
+                Sprache.Parse.Char(c => !char.IsWhiteSpace(c) && c != '#' && c != escapeChar, "non-boundary character"))
             select ConcatTokens(dash1, dash2, kw)
         );
 
