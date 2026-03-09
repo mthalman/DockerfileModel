@@ -42,8 +42,17 @@ public class RunInstruction : CommandInstruction
 
     /// <summary>
     /// Gets or sets the command of this RUN instruction.
-    /// Returns null when the instruction uses heredoc syntax.
+    /// Returns <see langword="null"/> when the instruction uses heredoc syntax (no command token exists).
     /// </summary>
+    /// <remarks>
+    /// This property uses the <c>new</c> modifier to shadow <see cref="CommandInstruction.Command"/>,
+    /// which is non-nullable and calls <c>.First()</c> — it will throw
+    /// <see cref="InvalidOperationException"/> when accessed on a heredoc-based RUN instruction via
+    /// the <see cref="CommandInstruction"/> base type. Callers holding a <see cref="RunInstruction"/>
+    /// as a <see cref="CommandInstruction"/> reference should cast to <see cref="RunInstruction"/>
+    /// first and check <c>Heredocs</c> before accessing <c>Command</c>, or call
+    /// <c>Tokens.OfType&lt;Command&gt;().FirstOrDefault()</c> directly.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// Thrown when attempting to set the command on a heredoc-based RUN instruction.
     /// Heredoc instructions do not have a <see cref="Command"/> token to replace.
