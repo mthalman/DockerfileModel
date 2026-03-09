@@ -51,8 +51,9 @@ public class ExposeInstruction : Instruction
 
     /// <summary>
     /// Sets or removes the protocol for a given port token.
-    /// When <paramref name="protocol"/> is non-null, adds or replaces the <c>/protocol</c> tokens immediately after the port token.
-    /// When <paramref name="protocol"/> is null, removes any existing <c>/protocol</c> tokens for the port.
+    /// When <paramref name="protocol"/> is non-null and non-empty, adds or replaces the <c>/protocol</c> tokens immediately after the port token.
+    /// When <paramref name="protocol"/> is <c>null</c> or an empty string, removes any existing <c>/protocol</c> tokens for the port.
+    /// Empty string is normalized to <c>null</c> and treated identically; callers should not pass empty string to represent a valid protocol value.
     /// </summary>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="portToken"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="portToken"/> is not a port token in this instruction.</exception>
