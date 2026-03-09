@@ -7,6 +7,443 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class HeredocTests
 {
     // ==============================
+    // RUN instruction heredoc parse tests (token validation)
+    // ==============================
+
+    [Theory]
+    [MemberData(nameof(RunParseTestInput))]
+    public void RunParse(ParseTestScenario<RunInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, RunInstruction.Parse);
+
+    public static IEnumerable<object[]> RunParseTestInput()
+    {
+        ParseTestScenario<RunInstruction>[] testInputs = new ParseTestScenario<RunInstruction>[]
+        {
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<EOF\necho hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF\necho hello\nEOF\n",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Null(result.Command);
+                    Assert.Single(result.Heredocs);
+                    Assert.Empty(result.Comments);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<-EOF\n\techo hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<-EOF\n\techo hello\nEOF\n",
+                        token => ValidateString(token, "<<-EOF"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "\techo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<\"EOF\"\necho hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<\"EOF\"\necho hello\nEOF\n",
+                        token => ValidateString(token, "<<\"EOF\""),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<'EOF'\necho hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<'EOF'\necho hello\nEOF\n",
+                        token => ValidateString(token, "<<'EOF'"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<EOF\nline 1\nline 2\nline 3\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF\nline 1\nline 2\nline 3\nEOF\n",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "line 1\n"),
+                        token => ValidateString(token, "line 2\n"),
+                        token => ValidateString(token, "line 3\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<EOF\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF\nEOF\n",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<SCRIPT\n#!/bin/bash\necho hello\nSCRIPT\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<SCRIPT\n#!/bin/bash\necho hello\nSCRIPT\n",
+                        token => ValidateString(token, "<<SCRIPT"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "#!/bin/bash\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "SCRIPT"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<EOF\necho hello\nEOF",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF\necho hello\nEOF",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<-\"EOF\"\n\techo hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<-\"EOF\"\n\techo hello\nEOF\n",
+                        token => ValidateString(token, "<<-\"EOF\""),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "\techo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<EOF\n#!/bin/bash\nset -e\napt-get update\napt-get install -y curl\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF\n#!/bin/bash\nset -e\napt-get update\napt-get install -y curl\nEOF\n",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "#!/bin/bash\n"),
+                        token => ValidateString(token, "set -e\n"),
+                        token => ValidateString(token, "apt-get update\n"),
+                        token => ValidateString(token, "apt-get install -y curl\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<EOF123\necho hello\nEOF123\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF123\necho hello\nEOF123\n",
+                        token => ValidateString(token, "<<EOF123"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF123"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<MY_EOF\necho hello\nMY_EOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<MY_EOF\necho hello\nMY_EOF\n",
+                        token => ValidateString(token, "<<MY_EOF"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "MY_EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN <<'MY-DELIM'\necho hello\nMY-DELIM\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<'MY-DELIM'\necho hello\nMY-DELIM\n",
+                        token => ValidateString(token, "<<'MY-DELIM'"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "MY-DELIM"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+        };
+
+        return testInputs.Select(input => new object[] { input });
+    }
+
+    // ==============================
+    // COPY instruction heredoc parse tests (token validation)
+    // ==============================
+
+    [Theory]
+    [MemberData(nameof(CopyParseTestInput))]
+    public void CopyParse(ParseTestScenario<CopyInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, CopyInstruction.Parse);
+
+    public static IEnumerable<object[]> CopyParseTestInput()
+    {
+        ParseTestScenario<CopyInstruction>[] testInputs = new ParseTestScenario<CopyInstruction>[]
+        {
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF /app/script.sh\necho hello\nEOF\n",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateString(token, " /app/script.sh"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("COPY", result.InstructionName);
+                    Assert.Single(result.Heredocs);
+                    Assert.Null(result.Destination);
+                }
+            },
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY <<\"EOF\" /app/script.sh\necho hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<\"EOF\" /app/script.sh\necho hello\nEOF\n",
+                        token => ValidateString(token, "<<\"EOF\""),
+                        token => ValidateString(token, " /app/script.sh"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                    Assert.Null(result.Destination);
+                }
+            },
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY <<EOF /app/config.txt\nline 1\nline 2\nline 3\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF /app/config.txt\nline 1\nline 2\nline 3\nEOF\n",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateString(token, " /app/config.txt"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "line 1\n"),
+                        token => ValidateString(token, "line 2\n"),
+                        token => ValidateString(token, "line 3\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+        };
+
+        return testInputs.Select(input => new object[] { input });
+    }
+
+    // ==============================
+    // ADD instruction heredoc parse tests (token validation)
+    // ==============================
+
+    [Theory]
+    [MemberData(nameof(AddParseTestInput))]
+    public void AddParse(ParseTestScenario<AddInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, AddInstruction.Parse);
+
+    public static IEnumerable<object[]> AddParseTestInput()
+    {
+        ParseTestScenario<AddInstruction>[] testInputs = new ParseTestScenario<AddInstruction>[]
+        {
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD <<EOF /app/script.sh\necho hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF /app/script.sh\necho hello\nEOF\n",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateString(token, " /app/script.sh"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("ADD", result.InstructionName);
+                    Assert.Single(result.Heredocs);
+                    Assert.Null(result.Destination);
+                }
+            },
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD <<\"EOF\" /app/script.sh\necho hello\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<\"EOF\" /app/script.sh\necho hello\nEOF\n",
+                        token => ValidateString(token, "<<\"EOF\""),
+                        token => ValidateString(token, " /app/script.sh"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "echo hello\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD <<EOF /app/config\nline1\nline2\nline3\nEOF\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<HeredocToken>(token, "<<EOF /app/config\nline1\nline2\nline3\nEOF\n",
+                        token => ValidateString(token, "<<EOF"),
+                        token => ValidateString(token, " /app/config"),
+                        token => ValidateNewLine(token, "\n"),
+                        token => ValidateString(token, "line1\n"),
+                        token => ValidateString(token, "line2\n"),
+                        token => ValidateString(token, "line3\n"),
+                        token => ValidateString(token, "EOF"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Heredocs);
+                }
+            },
+        };
+
+        return testInputs.Select(input => new object[] { input });
+    }
+
+    // ==============================
     // RUN instruction heredoc tests
     // ==============================
 
@@ -723,228 +1160,5 @@ public class HeredocTests
     public void StripTrailingComment_HashAfterClosingQuote_TreatedAsComment()
     {
         Assert.Equal("RUN echo 'hello' ", DockerfileParser.StripTrailingComment("RUN echo 'hello' # comment <<EOF"));
-    }
-
-    // ==============================
-    // Dockerfile-level heredoc scenarios (DockerfileParser.ParseContent coverage)
-    // ==============================
-
-    /// <summary>
-    /// Scenario 1: Full Dockerfile with RUN heredoc — multi-instruction Dockerfile where one
-    /// RUN uses a heredoc. Blank lines produce Whitespace constructs so we get 5 items total.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_RunHeredoc_FullDockerfile_CorrectConstructsAndRoundTrip()
-    {
-        string text = "FROM alpine\n\nRUN <<EOF\necho hello\necho world\nEOF\n\nRUN echo done";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 5 constructs: FROM, Whitespace, RUN heredoc, Whitespace, RUN
-        Assert.Equal(5, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-        Assert.IsType<Whitespace>(result.Items[1]);
-
-        RunInstruction runHeredoc = Assert.IsType<RunInstruction>(result.Items[2]);
-        Assert.Single(runHeredoc.Heredocs);
-        Assert.Null(runHeredoc.Command);
-
-        Assert.IsType<Whitespace>(result.Items[3]);
-
-        RunInstruction runDone = Assert.IsType<RunInstruction>(result.Items[4]);
-        Assert.NotNull(runDone.Command); // shell form — Command is non-null
-        Assert.Empty(runDone.Heredocs);
-    }
-
-    /// <summary>
-    /// Scenario 2: Dockerfile with COPY heredoc — COPY using heredoc with destination.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_CopyHeredoc_CorrectConstructsAndRoundTrip()
-    {
-        string text = "FROM alpine\nCOPY <<EOF /app/config.txt\nkey=value\nEOF";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 2 constructs: FROM, COPY heredoc
-        Assert.Equal(2, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-
-        CopyInstruction copyHeredoc = Assert.IsType<CopyInstruction>(result.Items[1]);
-        Assert.Single(copyHeredoc.Heredocs);
-    }
-
-    /// <summary>
-    /// Scenario 3: Heredoc after line continuation — heredoc marker appears on the continued line.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_HeredocAfterLineContinuation_CorrectConstructsAndRoundTrip()
-    {
-        string text = "FROM alpine\nRUN \\\n<<EOF\nscript content\nEOF";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 2 constructs: FROM, RUN (assembled from continuation + heredoc body)
-        Assert.Equal(2, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-
-        RunInstruction runInstruction = Assert.IsType<RunInstruction>(result.Items[1]);
-        Assert.Single(runInstruction.Heredocs);
-    }
-
-    /// <summary>
-    /// Scenario 4: Heredoc with trailing comment on other lines — verifies that
-    /// StripTrailingComment prevents a comment-embedded &lt;&lt;EOF from triggering heredoc mode.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_HeredocMarkerInComment_DoesNotAbsorbNextInstruction()
-    {
-        string text = "FROM alpine\nRUN echo hi # not a heredoc <<EOF\nRUN <<EOF\nreal heredoc\nEOF";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 3 constructs: FROM, RUN (comment line — no heredoc), RUN (real heredoc)
-        Assert.Equal(3, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-
-        // First RUN: ordinary shell form — the comment-embedded <<EOF is NOT a heredoc
-        RunInstruction runComment = Assert.IsType<RunInstruction>(result.Items[1]);
-        Assert.Empty(runComment.Heredocs);
-
-        // Second RUN: real heredoc
-        RunInstruction runReal = Assert.IsType<RunInstruction>(result.Items[2]);
-        Assert.Single(runReal.Heredocs);
-    }
-
-    /// <summary>
-    /// Scenario 5: Multiple RUN instructions with heredocs — two separate heredoc instructions,
-    /// each with their own delimiter.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_MultipleHeredocRuns_EachHasOwnHeredoc()
-    {
-        string text = "FROM alpine\nRUN <<EOF\nfirst script\nEOF\nRUN <<SCRIPT\nsecond script\nSCRIPT";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 3 constructs: FROM, first RUN heredoc, second RUN heredoc
-        Assert.Equal(3, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-
-        RunInstruction firstRun = Assert.IsType<RunInstruction>(result.Items[1]);
-        Assert.Single(firstRun.Heredocs);
-        Assert.Equal("<<EOF\nfirst script\nEOF\n", firstRun.Heredocs.First().ToString());
-
-        RunInstruction secondRun = Assert.IsType<RunInstruction>(result.Items[2]);
-        Assert.Single(secondRun.Heredocs);
-        Assert.Equal("<<SCRIPT\nsecond script\nSCRIPT", secondRun.Heredocs.First().ToString());
-    }
-
-    /// <summary>
-    /// Scenario 6: Heredoc with quoted delimiter — &lt;&lt;"EOF" suppresses variable expansion.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_HeredocQuotedDelimiter_RoundTrip()
-    {
-        string text = "FROM alpine\nRUN <<\"EOF\"\necho $HOME\nEOF";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 2 constructs: FROM, RUN heredoc
-        Assert.Equal(2, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-
-        RunInstruction runHeredoc = Assert.IsType<RunInstruction>(result.Items[1]);
-        Assert.Single(runHeredoc.Heredocs);
-        Assert.Equal("<<\"EOF\"\necho $HOME\nEOF", runHeredoc.Heredocs.First().ToString());
-    }
-
-    /// <summary>
-    /// Scenario 7: Heredoc with chomp flag — &lt;&lt;-EOF strips leading tabs.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_HeredocChompFlag_RoundTrip()
-    {
-        string text = "FROM alpine\nRUN <<-EOF\n\techo hello\n\techo world\nEOF";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 2 constructs: FROM, RUN heredoc
-        Assert.Equal(2, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-
-        RunInstruction runHeredoc = Assert.IsType<RunInstruction>(result.Items[1]);
-        Assert.Single(runHeredoc.Heredocs);
-        Assert.Equal("<<-EOF\n\techo hello\n\techo world\nEOF", runHeredoc.Heredocs.First().ToString());
-    }
-
-    /// <summary>
-    /// Scenario 8: Empty heredoc — delimiter immediately follows the marker with no body lines.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_EmptyHeredoc_ValidParseAndRoundTrip()
-    {
-        string text = "FROM alpine\nRUN <<EOF\nEOF";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 2 constructs: FROM, RUN heredoc
-        Assert.Equal(2, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-
-        RunInstruction runHeredoc = Assert.IsType<RunInstruction>(result.Items[1]);
-        Assert.Single(runHeredoc.Heredocs);
-        Assert.Equal("<<EOF\nEOF", runHeredoc.Heredocs.First().ToString());
-    }
-
-    /// <summary>
-    /// Scenario 9: Heredoc interleaved with comments — a Dockerfile-level comment between
-    /// two heredoc instructions must be its own construct and not be absorbed into any heredoc.
-    /// </summary>
-    [Fact]
-    public void Dockerfile_HeredocInterleavedWithComment_CommentIsSeparateConstruct()
-    {
-        string text = "FROM alpine\nRUN <<EOF\nscript\nEOF\n# A comment\nRUN echo done";
-        Dockerfile result = Dockerfile.Parse(text);
-
-        // Round-trip fidelity
-        Assert.Equal(text, result.ToString());
-
-        // 4 constructs: FROM, RUN heredoc, Comment, RUN
-        Assert.Equal(4, result.Items.Count);
-
-        Assert.IsType<FromInstruction>(result.Items[0]);
-
-        RunInstruction runHeredoc = Assert.IsType<RunInstruction>(result.Items[1]);
-        Assert.Single(runHeredoc.Heredocs);
-
-        Assert.IsType<Comment>(result.Items[2]);
-
-        RunInstruction runDone = Assert.IsType<RunInstruction>(result.Items[3]);
-        Assert.Empty(runDone.Heredocs);
     }
 }
