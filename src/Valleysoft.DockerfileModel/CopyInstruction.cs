@@ -154,14 +154,9 @@ public class CopyInstruction : FileTransferInstruction
         string fromFlag = fromStageName is null ? "" : new FromFlag(fromStageName, escapeChar).ToString() + " ";
         string linkFlag = link ? new LinkFlag(escapeChar).ToString() + " " : "";
         string parentsFlag = parents ? new ParentsFlag(escapeChar).ToString() + " " : "";
-        string excludeFlags = "";
-        if (excludes is not null)
-        {
-            foreach (string pattern in excludes)
-            {
-                excludeFlags += new ExcludeFlag(pattern, escapeChar).ToString() + " ";
-            }
-        }
+        string excludeFlags = excludes is not null
+            ? string.Join("", excludes.Select(p => $"{new ExcludeFlag(p, escapeChar)} "))
+            : "";
         string trailingFlags = $"{linkFlag}{parentsFlag}{excludeFlags}";
         string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, fromFlag, trailingFlags);
         return GetTokens(text, GetInnerParser(escapeChar));
