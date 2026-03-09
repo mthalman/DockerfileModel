@@ -51,9 +51,8 @@ public class CopyInstruction : FileTransferInstruction
                 }
                 else if (!LinkFlag.BoolValue)
                 {
-                    // Replace explicit =false with a bare flag
-                    LinkFlagToken = null;
-                    LinkFlagToken = new LinkFlag(EscapeChar);
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(LinkFlag, new LinkFlag(EscapeChar));
                 }
             }
             else if (LinkFlag is not null)
