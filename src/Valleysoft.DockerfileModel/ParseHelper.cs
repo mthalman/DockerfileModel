@@ -1055,7 +1055,19 @@ internal static class ParseHelper
             new StringToken(markerText)
         };
 
-        // Consume the rest of the current line (any text after the heredoc marker on the same line)
+        // Consume the rest of the marker line as a single StringToken.
+        //
+        // Known limitation: this swallows any text that follows the heredoc marker on
+        // the same line — including destination paths for COPY/ADD (e.g. the "/dest" in
+        // "COPY <<EOF /dest") and any subsequent <<DELIM markers that would open
+        // additional heredocs. As a result:
+        //   • Multiple heredocs on a single instruction line are not supported.
+        //   • The destination path for COPY/ADD heredoc syntax is absorbed here and is
+        //     not available as a separate LiteralToken, so FileTransferInstruction.Destination
+        //     returns null for heredoc-based instructions.
+        // Fixing this properly would require stopping the token at the delimiter end and
+        // letting the outer instruction parser re-tokenize the remainder; that change is
+        // deferred to avoid broad parser risk.
         var restOfLineChars = new List<char>();
         while (!current.AtEnd && current.Current != '\n' && current.Current != '\r')
         {
