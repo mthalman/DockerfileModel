@@ -8,9 +8,9 @@ namespace Valleysoft.DockerfileModel;
 /// Child tokens preserve exact character fidelity for round-trip. The tokenization structure is:
 /// <list type="bullet">
 ///   <item><description>
-///     The opening marker (e.g. <c>&lt;&lt;EOF</c>) is a <see cref="Tokens.StringToken"/>, followed by
-///     a <see cref="Tokens.NewLineToken"/> (and optionally a second <see cref="Tokens.StringToken"/>
-///     for any text after the marker on the same line).
+///     The opening marker (e.g. <c>&lt;&lt;EOF</c>) is a <see cref="Tokens.StringToken"/>, optionally
+///     followed by a second <see cref="Tokens.StringToken"/> for any text that appears after the marker
+///     on the same line, and then a <see cref="Tokens.NewLineToken"/>.
 ///   </description></item>
 ///   <item><description>
 ///     Each body line is stored as a single <see cref="Tokens.StringToken"/> whose value
