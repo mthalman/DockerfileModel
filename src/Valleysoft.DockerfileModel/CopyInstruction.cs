@@ -13,11 +13,7 @@ public class CopyInstruction : FileTransferInstruction
         char escapeChar = Dockerfile.DefaultEscapeChar)
         : base(GetTokens(sources, destination, fromStageName, changeOwner, permissions, link, parents, excludes, escapeChar), escapeChar)
     {
-        ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
-        Excludes = new ProjectedItemList<ExcludeFlag, string>(
-            ExcludeFlagTokens,
-            flag => flag.Value,
-            (flag, value) => flag.Value = value);
+        InitializeLists();
     }
 
     public CopyInstruction(IEnumerable<string> sources, string destination,
@@ -29,11 +25,7 @@ public class CopyInstruction : FileTransferInstruction
 
     private CopyInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
-        Excludes = new ProjectedItemList<ExcludeFlag, string>(
-            ExcludeFlagTokens,
-            flag => flag.Value,
-            (flag, value) => flag.Value = value);
+        InitializeLists();
     }
 
     public string? FromStageName
@@ -128,9 +120,18 @@ public class CopyInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(ParentsFlagInternal, value);
     }
 
-    public IList<string> Excludes { get; }
+    public IList<string> Excludes { get; private set; } = null!;
 
-    public IList<ExcludeFlag> ExcludeFlagTokens { get; }
+    public IList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
+
+    private void InitializeLists()
+    {
+        ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
+        Excludes = new ProjectedItemList<ExcludeFlag, string>(
+            ExcludeFlagTokens,
+            flag => flag.Value,
+            (flag, value) => flag.Value = value);
+    }
 
     public static CopyInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
