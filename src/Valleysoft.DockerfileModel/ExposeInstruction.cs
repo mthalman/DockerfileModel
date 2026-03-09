@@ -67,6 +67,12 @@ public class ExposeInstruction : Instruction
             throw new ArgumentException("The specified token is not a port token in this instruction.", nameof(portToken));
         }
 
+        // Treat empty string the same as null: both trigger the remove path.
+        if (string.IsNullOrEmpty(protocol))
+        {
+            protocol = null;
+        }
+
         LiteralToken? existingProtocol = GetProtocolTokenForPortInternal(portToken);
 
         if (existingProtocol is not null)
