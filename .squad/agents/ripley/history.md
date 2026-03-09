@@ -92,3 +92,6 @@ Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new th
 **Priority order:** P0 = STOPSIGNAL fix (C#), P1 = mount parser robustness (C#), P2 = serializer normalizations (test infra).
 
 **Decision document:** `.squad/decisions/inbox/ripley-mismatch-analysis.md`
+
+## Team update (2026-03-09T12:49:57Z): Copilot review workflow directive
+Added to shared decisions: Copilot PR review workflow (add reviewer via API, respond per comment, re-request until resolved). Note: `gh pr edit --add-reviewer` does NOT work for bots; must use API directly with bot name `copilot-pull-request-reviewer[bot]`. — decided by Scribe
