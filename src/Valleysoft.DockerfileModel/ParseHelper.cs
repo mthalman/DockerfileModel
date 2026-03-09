@@ -1023,12 +1023,25 @@ internal static class ParseHelper
             current = current.Advance();
         }
 
-        // Parse delimiter name: alphanumeric + underscore characters
+        // Parse delimiter name: alphanumeric + underscore characters.
+        // For unquoted delimiters, the first character must be [A-Za-z_] to match
+        // HeredocMarkerRegex in DockerfileParser, which uses [A-Za-z_][A-Za-z0-9_.\-]*.
+        // Without this check, a marker like <<1EOF would be accepted here but never
+        // detected by the regex, so its body lines would not be rolled into the construct.
         var delimChars = new List<char>();
+        bool isFirstDelimChar = true;
         while (!current.AtEnd && IsHeredocDelimiterChar(current.Current))
         {
+            if (!quoteChar.HasValue && isFirstDelimChar &&
+                !(current.Current == '_' ||
+                  (current.Current >= 'A' && current.Current <= 'Z') ||
+                  (current.Current >= 'a' && current.Current <= 'z')))
+            {
+                break;
+            }
             delimChars.Add(current.Current);
             current = current.Advance();
+            isFirstDelimChar = false;
         }
 
         if (delimChars.Count == 0)
