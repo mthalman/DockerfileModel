@@ -104,7 +104,8 @@ public class ExposeInstruction : Instruction
 
     private IEnumerable<LiteralToken> FilterPortTokens(IEnumerable<LiteralToken> literals)
     {
-        // A port token is a LiteralToken that is NOT immediately preceded by a SymbolToken('/')
+        // A port token is a LiteralToken that is NOT preceded by a SymbolToken('/') as the previous significant token
+        // (skipping over any whitespace, line continuations, or comments)
         foreach (LiteralToken literal in literals)
         {
             int index = TokenList.IndexOf(literal);
