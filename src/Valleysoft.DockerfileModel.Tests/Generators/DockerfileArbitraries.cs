@@ -761,8 +761,7 @@ public static class DockerfileArbitraries
             from src in PathSegment()
             from dst in PathSegment()
             select $"COPY --exclude=*.{ext} {src} {dst}",
-            // Boolean flags with =true/=false not accepted (issue #246)
-            // Workaround in TokenJsonSerializer merges keyValue[--link] + literal["=true"] into one keyValue
+            // Boolean flags with =true/=false (issue #246 — now natively supported)
             from src in PathSegment()
             from dst in PathSegment()
             select $"COPY --link=true {src} {dst}",
@@ -869,8 +868,7 @@ public static class DockerfileArbitraries
             from src in PathSegment()
             from dst in PathSegment()
             select $"ADD --exclude=*.{ext} {src} {dst}",
-            // Boolean flags with =true/=false not accepted (issue #246)
-            // Workaround in TokenJsonSerializer merges keyValue + literal["=true/=false"] into one keyValue
+            // Boolean flags with =true/=false (issue #246 — now natively supported)
             from src in PathSegment()
             from dst in PathSegment()
             select $"ADD --keep-git-dir=true {src} {dst}",

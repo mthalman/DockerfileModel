@@ -40,14 +40,23 @@ public class CopyInstruction : FileTransferInstruction
 
     public bool Link
     {
-        get => LinkFlag is not null;
+        get => LinkFlag?.BoolValue ?? false;
         set
         {
-            if (value && LinkFlag is null)
+            if (value)
             {
-                LinkFlagToken = new LinkFlag(EscapeChar);
+                if (LinkFlag is null)
+                {
+                    LinkFlagToken = new LinkFlag(EscapeChar);
+                }
+                else if (!LinkFlag.BoolValue)
+                {
+                    // Replace explicit =false with a bare flag
+                    LinkFlagToken = null;
+                    LinkFlagToken = new LinkFlag(EscapeChar);
+                }
             }
-            else if (!value && LinkFlag is not null)
+            else if (LinkFlag is not null)
             {
                 LinkFlagToken = null;
             }

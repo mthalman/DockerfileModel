@@ -11,6 +11,11 @@ public class LinkFlag : BooleanFlag
     {
     }
 
+    public LinkFlag(bool value, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(Keyword, value, escapeChar)
+    {
+    }
+
     internal LinkFlag(IEnumerable<Token> tokens) : base(tokens)
     {
     }

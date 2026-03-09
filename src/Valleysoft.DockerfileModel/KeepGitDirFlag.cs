@@ -11,6 +11,11 @@ public class KeepGitDirFlag : BooleanFlag
     {
     }
 
+    public KeepGitDirFlag(bool value, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(Keyword, value, escapeChar)
+    {
+    }
+
     internal KeepGitDirFlag(IEnumerable<Token> tokens) : base(tokens)
     {
     }
