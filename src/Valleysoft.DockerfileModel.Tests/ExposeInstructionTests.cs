@@ -175,6 +175,89 @@ public class ExposeInstructionTests
     }
 
     [Fact]
+    public void SetProtocolForPort_Add_NoExistingProtocol()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80");
+        LiteralToken portToken = result.PortTokens[0];
+        result.SetProtocolForPort(portToken, "tcp");
+        Assert.Equal("EXPOSE 80/tcp", result.ToString());
+        Assert.Equal("tcp", result.GetProtocolTokenForPort(portToken)?.Value);
+        Assert.Collection(result.Tokens, new Action<Token>[]
+        {
+            token => ValidateKeyword(token, "EXPOSE"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "80"),
+            token => ValidateSymbol(token, '/'),
+            token => ValidateLiteral(token, "tcp")
+        });
+    }
+
+    [Fact]
+    public void SetProtocolForPort_Replace_ExistingProtocol()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80/tcp");
+        LiteralToken portToken = result.PortTokens[0];
+        result.SetProtocolForPort(portToken, "udp");
+        Assert.Equal("EXPOSE 80/udp", result.ToString());
+        Assert.Equal("udp", result.GetProtocolTokenForPort(portToken)?.Value);
+        Assert.Collection(result.Tokens, new Action<Token>[]
+        {
+            token => ValidateKeyword(token, "EXPOSE"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "80"),
+            token => ValidateSymbol(token, '/'),
+            token => ValidateLiteral(token, "udp")
+        });
+    }
+
+    [Fact]
+    public void SetProtocolForPort_Remove_NullProtocol()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80/tcp");
+        LiteralToken portToken = result.PortTokens[0];
+        result.SetProtocolForPort(portToken, null);
+        Assert.Equal("EXPOSE 80", result.ToString());
+        Assert.Null(result.GetProtocolTokenForPort(portToken));
+        Assert.Collection(result.Tokens, new Action<Token>[]
+        {
+            token => ValidateKeyword(token, "EXPOSE"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "80")
+        });
+    }
+
+    [Fact]
+    public void SetProtocolForPort_EmptyString_TreatedAsRemove()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80/tcp");
+        LiteralToken portToken = result.PortTokens[0];
+        result.SetProtocolForPort(portToken, "");
+        Assert.Equal("EXPOSE 80", result.ToString());
+        Assert.Null(result.GetProtocolTokenForPort(portToken));
+        Assert.Collection(result.Tokens, new Action<Token>[]
+        {
+            token => ValidateKeyword(token, "EXPOSE"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "80")
+        });
+    }
+
+    [Fact]
+    public void SetProtocolForPort_NullToken_ThrowsArgumentNullException()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80");
+        Assert.Throws<ArgumentNullException>(() => result.SetProtocolForPort(null!, "tcp"));
+    }
+
+    [Fact]
+    public void SetProtocolForPort_TokenNotInInstruction_ThrowsArgumentException()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80");
+        LiteralToken foreignToken = new("9999");
+        Assert.Throws<ArgumentException>(() => result.SetProtocolForPort(foreignToken, "tcp"));
+    }
+
+    [Fact]
     public void PortWithVariables()
     {
         ExposeInstruction result = new("$var", "test");
