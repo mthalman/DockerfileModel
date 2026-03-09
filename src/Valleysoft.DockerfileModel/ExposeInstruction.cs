@@ -34,7 +34,10 @@ public class ExposeInstruction : Instruction
     /// <exception cref="ArgumentException">Thrown when <paramref name="portToken"/> is not a port token in this instruction.</exception>
     public LiteralToken? GetProtocolTokenForPort(LiteralToken portToken)
     {
-        ArgumentNullException.ThrowIfNull(portToken);
+        if (portToken is null)
+        {
+            throw new ArgumentNullException(nameof(portToken));
+        }
         if (!PortTokens.Contains(portToken))
         {
             throw new ArgumentException("The specified token is not a port token in this instruction.", nameof(portToken));
