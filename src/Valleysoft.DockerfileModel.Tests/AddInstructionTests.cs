@@ -38,7 +38,9 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
             escapeChar: scenario.EscapeChar,
             checksum: scenario.Checksum,
             keepGitDir: scenario.KeepGitDir,
-            link: scenario.Link);
+            link: scenario.Link,
+            unpack: scenario.Unpack,
+            excludes: scenario.Excludes);
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
     }
@@ -245,6 +247,152 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
         Assert.True(instruction.Link);
         Assert.Equal("755", instruction.Permissions);
         Assert.Equal("ADD --chmod=755 --link src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void UnpackProperty()
+    {
+        // Not set by default
+        AddInstruction instruction = new(new string[] { "src" }, "dst", escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.False(instruction.Unpack);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Set Unpack = true via property
+        instruction.Unpack = true;
+        Assert.True(instruction.Unpack);
+        Assert.Equal("ADD --unpack src dst", instruction.ToString());
+
+        // Set Unpack = false -- flag should be removed
+        instruction.Unpack = false;
+        Assert.False(instruction.Unpack);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Construct with unpack = true directly in the constructor
+        instruction = new(new string[] { "src" }, "dst", unpack: true, escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Unpack);
+        Assert.Equal("ADD --unpack src dst", instruction.ToString());
+
+        // Toggle off again
+        instruction.Unpack = false;
+        Assert.False(instruction.Unpack);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Parse from text with line-continuation escape and then set Unpack
+        instruction = AddInstruction.Parse($"ADD`\n src dst", '`');
+        instruction.Unpack = true;
+        Assert.True(instruction.Unpack);
+        Assert.Equal($"ADD --unpack`\n src dst", instruction.ToString());
+
+        // Parse with --unpack already present and remove it
+        instruction = AddInstruction.Parse($"ADD`\n --unpack`\n src dst", '`');
+        instruction.Unpack = false;
+        Assert.False(instruction.Unpack);
+        Assert.Equal($"ADD`\n`\n src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Unpack_WithChown()
+    {
+        AddInstruction instruction = new(
+            new string[] { "src" }, "dst",
+            changeOwner: "user",
+            unpack: true,
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Unpack);
+        Assert.Equal("user", instruction.ChangeOwner);
+        Assert.Equal("ADD --chown=user --unpack src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void ExcludesProperty()
+    {
+        // Not set by default
+        AddInstruction instruction = new(new string[] { "src" }, "dst", escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.Empty(instruction.Excludes);
+        Assert.Equal("ADD src dst", instruction.ToString());
+
+        // Parse single --exclude
+        instruction = AddInstruction.Parse("ADD --exclude=*.txt src dst");
+        Assert.Single(instruction.Excludes);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("ADD --exclude=*.txt src dst", instruction.ToString());
+
+        // Parse multiple --exclude flags
+        instruction = AddInstruction.Parse("ADD --exclude=*.txt --exclude=docs/ src dst");
+        Assert.Equal(2, instruction.Excludes.Count);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("docs/", instruction.Excludes[1]);
+        Assert.Equal("ADD --exclude=*.txt --exclude=docs/ src dst", instruction.ToString());
+
+        // Construct with excludes directly in the constructor
+        instruction = new(new string[] { "src" }, "dst",
+            excludes: new string[] { "*.log", "temp/" },
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.Equal(2, instruction.Excludes.Count);
+        Assert.Equal("*.log", instruction.Excludes[0]);
+        Assert.Equal("temp/", instruction.Excludes[1]);
+        Assert.Equal("ADD --exclude=*.log --exclude=temp/ src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Excludes_WithChown()
+    {
+        AddInstruction instruction = new(
+            new string[] { "src" }, "dst",
+            changeOwner: "user",
+            excludes: new string[] { "*.txt" },
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.Single(instruction.Excludes);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("user", instruction.ChangeOwner);
+        Assert.Equal("ADD --chown=user --exclude=*.txt src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void Excludes_WithLineContinuation()
+    {
+        // Parse with --exclude and line continuation
+        AddInstruction instruction = AddInstruction.Parse($"ADD --exclude=*.txt `\n src dst", '`');
+        Assert.Single(instruction.Excludes);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal($"ADD --exclude=*.txt `\n src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void AllNewFlags_Together()
+    {
+        // Combine --unpack with --exclude flags
+        AddInstruction instruction = AddInstruction.Parse("ADD --unpack --exclude=*.txt --exclude=docs/ src dst");
+        Assert.True(instruction.Unpack);
+        Assert.Equal(2, instruction.Excludes.Count);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("docs/", instruction.Excludes[1]);
+        Assert.Equal("ADD --unpack --exclude=*.txt --exclude=docs/ src dst", instruction.ToString());
+
+        // Construct with all new flags in the constructor
+        instruction = new(new string[] { "src" }, "dst",
+            unpack: true,
+            excludes: new string[] { "*.txt", "docs/" },
+            escapeChar: Dockerfile.DefaultEscapeChar);
+        Assert.True(instruction.Unpack);
+        Assert.Equal(2, instruction.Excludes.Count);
+        Assert.Equal("ADD --unpack --exclude=*.txt --exclude=docs/ src dst", instruction.ToString());
+    }
+
+    [Fact]
+    public void AllFlags_Together()
+    {
+        // Combine all flags together
+        AddInstruction instruction = AddInstruction.Parse(
+            "ADD --checksum=sha256:abc123 --keep-git-dir --link --unpack --exclude=*.txt --chown=user --chmod=755 src dst");
+        Assert.Equal("sha256:abc123", instruction.Checksum);
+        Assert.True(instruction.KeepGitDir);
+        Assert.True(instruction.Link);
+        Assert.True(instruction.Unpack);
+        Assert.Single(instruction.Excludes);
+        Assert.Equal("*.txt", instruction.Excludes[0]);
+        Assert.Equal("user", instruction.ChangeOwner);
+        Assert.Equal("755", instruction.Permissions);
     }
 
     public static IEnumerable<object[]> ParseTestInputBase() => ParseTestInput("ADD");
@@ -666,6 +814,230 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                     Assert.Equal("755", result.Permissions);
                 }
             },
+            // --unpack alone
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD --unpack src.tar /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateUnpackFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src.tar"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ADD", result.InstructionName);
+                    Assert.Equal(new string[] { "src.tar" }, result.Sources.ToArray());
+                    Assert.Equal("/app", result.Destination);
+                    Assert.True(result.Unpack);
+                    Assert.Empty(result.Excludes);
+                    Assert.Null(result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                    Assert.False(result.Link);
+                }
+            },
+            // --exclude alone (single)
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD --exclude=*.txt src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ADD", result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("/app", result.Destination);
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.False(result.Unpack);
+                    Assert.Null(result.Checksum);
+                    Assert.False(result.KeepGitDir);
+                    Assert.False(result.Link);
+                }
+            },
+            // --exclude repeated multiple times
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD --exclude=*.txt --exclude=docs/ src /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "docs/"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(2, result.Excludes.Count);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.Equal("docs/", result.Excludes[1]);
+                    Assert.False(result.Unpack);
+                }
+            },
+            // --unpack with --exclude
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD --unpack --exclude=*.txt src.tar /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateUnpackFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src.tar"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Unpack);
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                }
+            },
+            // --exclude with variable reference
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD --exclude=$PATTERN src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExcludeFlag>(token, "--exclude=$PATTERN",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "exclude"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<LiteralToken>(token, "$PATTERN",
+                            token => ValidateAggregate<VariableRefToken>(token, "$PATTERN",
+                                token => ValidateString(token, "PATTERN")))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("$PATTERN", result.Excludes[0]);
+                }
+            },
+            // round-trip: --unpack with line continuation
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD --unpack `\n src.tar /app",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateUnpackFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLineContinuation(token, '`', "\n"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src.tar"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Unpack);
+                    Assert.Equal("ADD --unpack `\n src.tar /app", result.ToString());
+                }
+            },
+            // round-trip: --exclude with line continuation
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD --exclude=*.txt `\n src dst",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLineContinuation(token, '`', "\n"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.Equal("ADD --exclude=*.txt `\n src dst", result.ToString());
+                }
+            },
+            // all flags together including --unpack and --exclude
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD --checksum=sha256:abc123 --keep-git-dir --link --unpack --exclude=*.txt --chown=user --chmod=755 src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ChecksumFlag>(token, "checksum", "sha256:abc123"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeepGitDirFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLinkFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateUnpackFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=user",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "chown"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "user")),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "chmod"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "755")),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("sha256:abc123", result.Checksum);
+                    Assert.True(result.KeepGitDir);
+                    Assert.True(result.Link);
+                    Assert.True(result.Unpack);
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.Equal("user", result.ChangeOwner);
+                    Assert.Equal("755", result.Permissions);
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
@@ -777,6 +1149,106 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                     Assert.Equal("ADD --checksum=sha256:abc123 --keep-git-dir --link src dst", result.ToString());
                 }
             },
+            // Create with unpack only
+            new AddInstructionCreateTestScenario
+            {
+                Sources = new string[] { "src.tar" },
+                Destination = "/app",
+                Unpack = true,
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateUnpackFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src.tar"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Unpack);
+                    Assert.Empty(result.Excludes);
+                    Assert.Equal("ADD --unpack src.tar /app", result.ToString());
+                }
+            },
+            // Create with single exclude
+            new AddInstructionCreateTestScenario
+            {
+                Sources = new string[] { "src" },
+                Destination = "dst",
+                Excludes = new string[] { "*.txt" },
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.False(result.Unpack);
+                    Assert.Equal("ADD --exclude=*.txt src dst", result.ToString());
+                }
+            },
+            // Create with multiple excludes
+            new AddInstructionCreateTestScenario
+            {
+                Sources = new string[] { "src" },
+                Destination = "dst",
+                Excludes = new string[] { "*.txt", "docs/" },
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "docs/"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(2, result.Excludes.Count);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.Equal("docs/", result.Excludes[1]);
+                    Assert.Equal("ADD --exclude=*.txt --exclude=docs/ src dst", result.ToString());
+                }
+            },
+            // Create with unpack and excludes together
+            new AddInstructionCreateTestScenario
+            {
+                Sources = new string[] { "src.tar" },
+                Destination = "/app",
+                Unpack = true,
+                Excludes = new string[] { "*.txt" },
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateUnpackFlag(token),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<ExcludeFlag>(token, "exclude", "*.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src.tar"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app")
+                },
+                Validate = result =>
+                {
+                    Assert.True(result.Unpack);
+                    Assert.Single(result.Excludes);
+                    Assert.Equal("*.txt", result.Excludes[0]);
+                    Assert.Equal("ADD --unpack --exclude=*.txt src.tar /app", result.ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
@@ -798,6 +1270,14 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
             token => ValidateKeyword(token, "link"));
     }
 
+    private static void ValidateUnpackFlag(Token token)
+    {
+        ValidateAggregate<UnpackFlag>(token, "--unpack",
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "unpack"));
+    }
+
     public class AddInstructionCreateTestScenario : TestScenario<AddInstruction>
     {
         public IEnumerable<string> Sources { get; set; }
@@ -807,6 +1287,8 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
         public string Checksum { get; set; }
         public bool KeepGitDir { get; set; }
         public bool Link { get; set; }
+        public bool Unpack { get; set; }
+        public IEnumerable<string> Excludes { get; set; }
         public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
     }
 }

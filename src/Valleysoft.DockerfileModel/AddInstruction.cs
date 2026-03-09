@@ -11,15 +11,26 @@ public class AddInstruction : FileTransferInstruction
     public AddInstruction(IEnumerable<string> sources, string destination,
         string? changeOwner = null, string? permissions = null,
         string? checksum = null, bool keepGitDir = false, bool link = false,
+        bool unpack = false, IEnumerable<string>? excludes = null,
         char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(GetTokens(sources, destination, changeOwner, permissions, checksum, keepGitDir, link, escapeChar), escapeChar)
+        : base(GetTokens(sources, destination, changeOwner, permissions, checksum, keepGitDir, link, unpack, excludes, escapeChar), escapeChar)
     {
         this.escapeChar = escapeChar;
+        InitExcludes();
     }
 
     private AddInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
         this.escapeChar = escapeChar;
+        InitExcludes();
+    }
+
+    private void InitExcludes()
+    {
+        Excludes = new ProjectedItemList<ExcludeFlag, string>(
+            new TokenList<ExcludeFlag>(TokenList),
+            flag => flag.Value,
+            (flag, value) => flag.ValueToken = new LiteralToken(value, canContainVariables: true, escapeChar));
     }
 
     public string? Checksum
@@ -97,6 +108,36 @@ public class AddInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(LinkFlag, value);
     }
 
+    public bool Unpack
+    {
+        get => UnpackFlagToken is not null;
+        set
+        {
+            if (value && UnpackFlagToken is null)
+            {
+                UnpackFlagToken = new UnpackFlag(escapeChar);
+            }
+            else if (!value && UnpackFlagToken is not null)
+            {
+                UnpackFlagToken = null;
+            }
+        }
+    }
+
+    public UnpackFlag? UnpackFlagToken
+    {
+        get => UnpackFlagInternal;
+        set => SetOptionalFlagToken(UnpackFlagInternal, value);
+    }
+
+    private UnpackFlag? UnpackFlagInternal
+    {
+        get => Tokens.OfType<UnpackFlag>().FirstOrDefault();
+        set => SetOptionalFlagToken(UnpackFlagInternal, value);
+    }
+
+    public IList<string> Excludes { get; private set; } = null!;
+
     public static AddInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
@@ -108,15 +149,21 @@ public class AddInstruction : FileTransferInstruction
         GetInnerParser(escapeChar, Name,
             ArgTokens(ChecksumFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)
                 .Or(ArgTokens(KeepGitDirFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)));
+                .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Or(ArgTokens(UnpackFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-        string? changeOwner, string? permissions, string? checksum, bool keepGitDir, bool link, char escapeChar)
+        string? changeOwner, string? permissions, string? checksum, bool keepGitDir, bool link,
+        bool unpack, IEnumerable<string>? excludes, char escapeChar)
     {
         string checksumFlag = checksum is null ? "" : new ChecksumFlag(checksum, escapeChar).ToString() + " ";
         string keepGitDirFlag = keepGitDir ? new KeepGitDirFlag(escapeChar).ToString() + " " : "";
         string linkFlag = link ? new LinkFlag(escapeChar).ToString() + " " : "";
-        string trailingFlags = $"{keepGitDirFlag}{linkFlag}";
+        string unpackFlag = unpack ? new UnpackFlag(escapeChar).ToString() + " " : "";
+        string excludeFlags = excludes is null ? "" : string.Concat(
+            excludes.Select(pattern => new ExcludeFlag(pattern, escapeChar).ToString() + " "));
+        string trailingFlags = $"{keepGitDirFlag}{linkFlag}{unpackFlag}{excludeFlags}";
         string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, checksumFlag, trailingFlags);
         return GetTokens(text, GetInnerParser(escapeChar));
     }
