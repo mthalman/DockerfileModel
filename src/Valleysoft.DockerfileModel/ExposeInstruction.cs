@@ -20,7 +20,11 @@ public class ExposeInstruction : Instruction
         Ports = new ProjectedItemList<LiteralToken, string>(
             PortTokens,
             token => token.Value,
-            (token, value) => token.Value = value);
+            (token, value) =>
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                token.Value = value;
+            });
     }
 
     public IList<string> Ports { get; }
