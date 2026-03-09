@@ -38,14 +38,7 @@ public class ExposeInstruction : Instruction
     /// <exception cref="ArgumentException">Thrown when <paramref name="portToken"/> is not a port token in this instruction.</exception>
     public LiteralToken? GetProtocolTokenForPort(LiteralToken portToken)
     {
-        if (portToken is null)
-        {
-            throw new ArgumentNullException(nameof(portToken));
-        }
-        if (!PortTokens.Contains(portToken))
-        {
-            throw new ArgumentException("The specified token is not a port token in this instruction.", nameof(portToken));
-        }
+        ValidatePortToken(portToken);
         return GetProtocolTokenForPortInternal(portToken);
     }
 
@@ -59,14 +52,7 @@ public class ExposeInstruction : Instruction
     /// <exception cref="ArgumentException">Thrown when <paramref name="portToken"/> is not a port token in this instruction.</exception>
     public void SetProtocolForPort(LiteralToken portToken, string? protocol)
     {
-        if (portToken is null)
-        {
-            throw new ArgumentNullException(nameof(portToken));
-        }
-        if (!PortTokens.Contains(portToken))
-        {
-            throw new ArgumentException("The specified token is not a port token in this instruction.", nameof(portToken));
-        }
+        ValidatePortToken(portToken);
 
         // Treat empty string the same as null: both trigger the remove path.
         if (string.IsNullOrEmpty(protocol))
@@ -127,33 +113,40 @@ public class ExposeInstruction : Instruction
             select ConcatTokens(separator, protocol)).Optional()
         select ConcatTokens(port, protocolTokens.GetOrDefault());
 
-    private IEnumerable<LiteralToken> FilterPortTokens(IEnumerable<LiteralToken> literals)
+    private void ValidatePortToken(LiteralToken portToken)
     {
-        // A port token is a LiteralToken that is NOT preceded by a SymbolToken('/') as the previous significant token.
-        // Non-significant tokens (whitespace, line continuations, and comments) are skipped when searching backwards.
-        foreach (LiteralToken literal in literals)
+        if (portToken is null)
         {
-            int index = TokenList.IndexOf(literal);
-            if (index == 0 || !IsSlashSymbol(TokenList, index))
-            {
-                yield return literal;
-            }
+            throw new ArgumentNullException(nameof(portToken));
+        }
+        if (!PortTokens.Contains(portToken))
+        {
+            throw new ArgumentException("The specified token is not a port token in this instruction.", nameof(portToken));
         }
     }
 
-    private static bool IsSlashSymbol(List<Token> tokenList, int literalIndex)
+    private IEnumerable<LiteralToken> FilterPortTokens(IEnumerable<LiteralToken> literals)
     {
-        // Walk backwards past any non-significant tokens (line continuations, whitespace, comments) to find the previous significant token
-        for (int i = literalIndex - 1; i >= 0; i--)
+        // Iterate TokenList once by index, tracking the previous significant token.
+        // A LiteralToken is a port token when its previous significant token is not a SymbolToken('/').
+        // Non-significant tokens (whitespace, line continuations, and comments) are skipped.
+        Token? prevSignificant = null;
+        foreach (Token token in TokenList)
         {
-            Token prev = tokenList[i];
-            if (prev is LineContinuationToken || prev is WhitespaceToken || prev is CommentToken)
+            if (token is LiteralToken literalToken)
             {
-                continue;
+                bool precededBySlash = prevSignificant is SymbolToken symbolToken && symbolToken.Value == "/";
+                if (!precededBySlash)
+                {
+                    yield return literalToken;
+                }
+                prevSignificant = token;
             }
-            return prev is SymbolToken symbolToken && symbolToken.Value == "/";
+            else if (!(token is LineContinuationToken || token is WhitespaceToken || token is CommentToken))
+            {
+                prevSignificant = token;
+            }
         }
-        return false;
     }
 
     private LiteralToken? GetProtocolTokenForPortInternal(LiteralToken portToken)
