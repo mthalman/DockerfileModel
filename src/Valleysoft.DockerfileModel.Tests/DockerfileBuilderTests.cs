@@ -134,6 +134,42 @@ public class DockerfileBuilderTests
     }
 
     [Fact]
+    public void AddInstruction_WithUnpack()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "src.tar" }, "dst", unpack: true);
+        Assert.Equal("ADD --unpack src.tar dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithExcludes()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "src" }, "dst", excludes: new[] { "*.log", "temp" });
+        Assert.Equal("ADD --exclude=*.log --exclude=temp src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithUnpackAndExcludes()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "src.tar" }, "dst", unpack: true, excludes: new[] { "*.tmp" });
+        Assert.Equal("ADD --unpack --exclude=*.tmp src.tar dst", builder.ToString());
+    }
+
+    [Fact]
     public void CopyInstruction_WithLink()
     {
         DockerfileBuilder builder = new()

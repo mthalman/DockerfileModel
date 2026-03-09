@@ -126,14 +126,14 @@ public class AddInstruction : FileTransferInstruction
 
     public UnpackFlag? UnpackFlagToken
     {
-        get => UnpackFlagInternal;
-        set => SetOptionalFlagToken(UnpackFlagInternal, value);
+        get => UnpackFlag;
+        set => SetOptionalFlagToken(UnpackFlag, value);
     }
 
-    private UnpackFlag? UnpackFlagInternal
+    private UnpackFlag? UnpackFlag
     {
         get => Tokens.OfType<UnpackFlag>().FirstOrDefault();
-        set => SetOptionalFlagToken(UnpackFlagInternal, value);
+        set => SetOptionalFlagToken(UnpackFlag, value);
     }
 
     public IList<string> Excludes { get; private set; } = null!;
