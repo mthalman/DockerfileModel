@@ -90,9 +90,8 @@ public class AddInstruction : FileTransferInstruction
                 }
                 else if (!LinkFlagToken.BoolValue)
                 {
-                    // Replace explicit =false with a bare flag
-                    LinkFlagToken = null;
-                    LinkFlagToken = new LinkFlag(escapeChar);
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(LinkFlag, new LinkFlag(escapeChar));
                 }
             }
             else if (LinkFlagToken is not null)
