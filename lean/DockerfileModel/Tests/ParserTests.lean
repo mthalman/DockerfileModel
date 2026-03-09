@@ -2726,6 +2726,90 @@ def testAddLowercase : IO Unit := do
   | none =>
     throw (IO.Error.userError "Parse failed: lowercase add should parse")
 
+open DockerfileModel.Parser.Instructions.Add in
+/-- Test: ADD --unpack src /dest — with boolean --unpack flag -/
+def testAddWithUnpack : IO Unit := do
+  IO.println "Add: with --unpack flag"
+  match parseAdd "ADD --unpack src /dest" with
+  | some inst =>
+    assertEqual (Token.toString inst.token) "ADD --unpack src /dest"
+      "add unpack flag round-trip"
+    -- Verify instruction token structure
+    let token := inst.token
+    -- The instruction child at index 2 is the keyValue for the flag
+    let flagToken := token.children[2]!
+    assertAggregateKind flagToken .keyValue "unpack flag is keyValue"
+    -- Boolean flag --unpack has 3 children: symbol[-], symbol[-], keyword[unpack]
+    assertChildCount flagToken 3 "unpack flag has 3 children"
+    assertEqual (Token.toString flagToken) "--unpack" "unpack flag toString"
+  | none =>
+    throw (IO.Error.userError "Parse failed: ADD with --unpack should parse")
+
+open DockerfileModel.Parser.Instructions.Add in
+/-- Test: ADD --exclude=*.txt src /dest — with string --exclude flag -/
+def testAddWithExclude : IO Unit := do
+  IO.println "Add: with --exclude flag"
+  match parseAdd "ADD --exclude=*.txt src /dest" with
+  | some inst =>
+    assertEqual (Token.toString inst.token) "ADD --exclude=*.txt src /dest"
+      "add exclude flag round-trip"
+    -- Verify instruction token structure
+    let token := inst.token
+    -- The instruction child at index 2 is the keyValue for the flag
+    let flagToken := token.children[2]!
+    assertAggregateKind flagToken .keyValue "exclude flag is keyValue"
+    -- String flag --exclude=*.txt has 5 children: symbol[-], symbol[-], keyword[exclude], symbol[=], literal[*.txt]
+    assertChildCount flagToken 5 "exclude flag has 5 children"
+    assertEqual (Token.toString flagToken) "--exclude=*.txt" "exclude flag toString"
+  | none =>
+    throw (IO.Error.userError "Parse failed: ADD with --exclude should parse")
+
+open DockerfileModel.Parser.Instructions.Add in
+/-- Test: ADD --exclude=*.txt --exclude=*.log src /dest — with multiple --exclude flags -/
+def testAddWithMultipleExcludes : IO Unit := do
+  IO.println "Add: with multiple --exclude flags"
+  match parseAdd "ADD --exclude=*.txt --exclude=*.log src /dest" with
+  | some inst =>
+    assertEqual (Token.toString inst.token) "ADD --exclude=*.txt --exclude=*.log src /dest"
+      "add multiple exclude flags round-trip"
+    -- Verify instruction token structure: keyword, ws, flag1, ws, flag2, ws, src, ws, dest
+    let token := inst.token
+    -- First exclude flag is at child index 2
+    let flag1 := token.children[2]!
+    assertAggregateKind flag1 .keyValue "first exclude flag is keyValue"
+    assertChildCount flag1 5 "first exclude flag has 5 children"
+    assertEqual (Token.toString flag1) "--exclude=*.txt" "first exclude flag toString"
+    -- Second exclude flag is at child index 4
+    let flag2 := token.children[4]!
+    assertAggregateKind flag2 .keyValue "second exclude flag is keyValue"
+    assertChildCount flag2 5 "second exclude flag has 5 children"
+    assertEqual (Token.toString flag2) "--exclude=*.log" "second exclude flag toString"
+  | none =>
+    throw (IO.Error.userError "Parse failed: ADD with multiple --exclude flags should parse")
+
+open DockerfileModel.Parser.Instructions.Add in
+/-- Test: ADD --unpack --exclude=*.txt src /dest — with --unpack and --exclude combined -/
+def testAddWithUnpackAndExclude : IO Unit := do
+  IO.println "Add: with --unpack and --exclude flags combined"
+  match parseAdd "ADD --unpack --exclude=*.txt src /dest" with
+  | some inst =>
+    assertEqual (Token.toString inst.token) "ADD --unpack --exclude=*.txt src /dest"
+      "add unpack and exclude flags round-trip"
+    -- Verify both flags are present in the token tree
+    let token := inst.token
+    -- --unpack flag is at child index 2
+    let unpackFlag := token.children[2]!
+    assertAggregateKind unpackFlag .keyValue "unpack flag is keyValue"
+    assertChildCount unpackFlag 3 "unpack flag has 3 children"
+    assertEqual (Token.toString unpackFlag) "--unpack" "unpack flag toString"
+    -- --exclude flag is at child index 4
+    let excludeFlag := token.children[4]!
+    assertAggregateKind excludeFlag .keyValue "exclude flag is keyValue"
+    assertChildCount excludeFlag 5 "exclude flag has 5 children"
+    assertEqual (Token.toString excludeFlag) "--exclude=*.txt" "exclude flag toString"
+  | none =>
+    throw (IO.Error.userError "Parse failed: ADD with --unpack and --exclude should parse")
+
 -- Additional HEALTHCHECK tests
 
 open DockerfileModel.Parser.Instructions.Healthcheck in
@@ -3058,6 +3142,10 @@ def runParserTests_PhaseD : IO Unit := do
   testAddExecForm
   testAddVariable
   testAddLowercase
+  testAddWithUnpack
+  testAddWithExclude
+  testAddWithMultipleExcludes
+  testAddWithUnpackAndExclude
   IO.println ""
 
   IO.println "=== HEALTHCHECK Instruction Tests ==="
