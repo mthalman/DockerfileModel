@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
@@ -15,6 +15,12 @@ public class ExposeInstruction : Instruction
     private ExposeInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
     {
         this.escapeChar = escapeChar;
+
+        PortTokens = new TokenList<LiteralToken>(TokenList, FilterPortTokens);
+        Ports = new ProjectedItemList<LiteralToken, string>(
+            PortTokens,
+            token => token.Value,
+            (token, value) => token.Value = value);
     }
 
     public string Port
@@ -29,13 +35,17 @@ public class ExposeInstruction : Instruction
 
     public LiteralToken PortToken
     {
-        get => Tokens.OfType<LiteralToken>().First();
+        get => PortTokens.First();
         set
         {
             Requires.NotNull(value, nameof(value));
-            SetToken(PortToken, value);
+            SetToken(PortTokens.First(), value);
         }
     }
+
+    public IList<string> Ports { get; }
+
+    public IList<LiteralToken> PortTokens { get; }
 
     public string? Protocol
     {
@@ -45,14 +55,15 @@ public class ExposeInstruction : Instruction
 
     public LiteralToken? ProtocolToken
     {
-        get => Tokens.OfType<LiteralToken>().Skip(1).FirstOrDefault();
+        get => GetProtocolTokenForPort(PortTokens.First());
         set
         {
             SetToken(ProtocolToken, value,
                 addToken: token =>
                 {
-                    TokenList.Add(new SymbolToken('/'));
-                    TokenList.Add(token);
+                    int portIndex = TokenList.IndexOf(PortTokens.First());
+                    TokenList.Insert(portIndex + 1, new SymbolToken('/'));
+                    TokenList.Insert(portIndex + 2, token);
                 },
                 removeToken: token =>
                 {
@@ -81,10 +92,74 @@ public class ExposeInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+        GetPortSpecParser(escapeChar).AtLeastOnce().Flatten();
+
+    private static Parser<IEnumerable<Token>> GetPortSpecParser(char escapeChar) =>
         from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
-        from protocolTokens in 
+        from protocolTokens in
             (from separator in ArgTokens(Symbol('/').AsEnumerable(), escapeChar)
             from protocol in ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar)
             select ConcatTokens(separator, protocol)).Optional()
         select ConcatTokens(port, protocolTokens.GetOrDefault());
+
+    private IEnumerable<LiteralToken> FilterPortTokens(IEnumerable<LiteralToken> literals)
+    {
+        // A port token is a LiteralToken that is NOT immediately preceded by a SymbolToken('/')
+        foreach (LiteralToken literal in literals)
+        {
+            int index = TokenList.IndexOf(literal);
+            if (index == 0 || !IsSlashSymbol(TokenList, index))
+            {
+                yield return literal;
+            }
+        }
+    }
+
+    private static bool IsSlashSymbol(List<Token> tokenList, int literalIndex)
+    {
+        // Walk backwards past any LineContinuationTokens/WhitespaceTokens to find the previous significant token
+        for (int i = literalIndex - 1; i >= 0; i--)
+        {
+            Token prev = tokenList[i];
+            if (prev is LineContinuationToken || prev is WhitespaceToken || prev is CommentToken)
+            {
+                continue;
+            }
+            return prev is SymbolToken symbolToken && symbolToken.Value == "/";
+        }
+        return false;
+    }
+
+    private LiteralToken? GetProtocolTokenForPort(LiteralToken portToken)
+    {
+        int portIndex = TokenList.IndexOf(portToken);
+        // Look forward past any LineContinuationTokens to find if the next significant token is a '/'
+        for (int i = portIndex + 1; i < TokenList.Count; i++)
+        {
+            Token next = TokenList[i];
+            if (next is LineContinuationToken || next is WhitespaceToken || next is CommentToken)
+            {
+                continue;
+            }
+            if (next is SymbolToken symbolToken && symbolToken.Value == "/")
+            {
+                // The token after the '/' (skipping line continuations) is the protocol
+                for (int j = i + 1; j < TokenList.Count; j++)
+                {
+                    Token afterSlash = TokenList[j];
+                    if (afterSlash is LineContinuationToken || afterSlash is WhitespaceToken || afterSlash is CommentToken)
+                    {
+                        continue;
+                    }
+                    if (afterSlash is LiteralToken literalToken)
+                    {
+                        return literalToken;
+                    }
+                    break;
+                }
+            }
+            break;
+        }
+        return null;
+    }
 }
