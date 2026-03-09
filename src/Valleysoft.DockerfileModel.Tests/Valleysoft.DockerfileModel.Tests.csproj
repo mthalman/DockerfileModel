@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Valleysoft.DockerfileModel\Valleysoft.DockerfileModel.csproj" />
+    <ProjectReference Include="..\Valleysoft.DockerfileModel.DiffTest\Valleysoft.DockerfileModel.DiffTest.csproj" />
   </ItemGroup>
 
 </Project>

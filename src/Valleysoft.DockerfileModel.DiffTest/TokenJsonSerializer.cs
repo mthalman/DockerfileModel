@@ -27,8 +27,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///   GitHub issue tracking the underlying C# fix.
 ///
 /// Known differences with workarounds:
-///   - Shell form whitespace: C# collapses to single StringToken; Lean splits
-///   - LABEL keys: C# uses LiteralToken; Lean uses IdentifierToken
 ///   - EXPOSE port/protocol: C# splits into literal+symbol+literal; Lean uses one flat literal.
 ///     Workaround merges the three tokens back into a single literal during serialization.
 ///   - COPY/ADD unrecognized flags (issues #238, #239, #240, #241): C# does not recognize
