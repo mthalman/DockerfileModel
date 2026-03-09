@@ -142,6 +142,31 @@ public class ExposeInstructionTests
     }
 
     [Fact]
+    public void GetProtocolTokenForPort_NullToken_ThrowsArgumentNullException()
+    {
+        ExposeInstruction result = new("23", "tcp");
+        Assert.Throws<ArgumentNullException>(() => result.GetProtocolTokenForPort(null!));
+    }
+
+    [Fact]
+    public void GetProtocolTokenForPort_TokenNotInInstruction_ThrowsArgumentException()
+    {
+        ExposeInstruction result = new("23", "tcp");
+        LiteralToken foreignToken = new("9999");
+        Assert.Throws<ArgumentException>(() => result.GetProtocolTokenForPort(foreignToken));
+    }
+
+    [Fact]
+    public void GetProtocolTokenForPort_ProtocolTokenPassedAsPort_ThrowsArgumentException()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80/tcp");
+        // The protocol token ("tcp") is a LiteralToken but is NOT in PortTokens.
+        LiteralToken protocolToken = result.GetProtocolTokenForPort(result.PortTokens[0])!;
+        Assert.NotNull(protocolToken);
+        Assert.Throws<ArgumentException>(() => result.GetProtocolTokenForPort(protocolToken));
+    }
+
+    [Fact]
     public void PortWithVariables()
     {
         ExposeInstruction result = new("$var", "test");
