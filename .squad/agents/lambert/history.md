@@ -144,3 +144,7 @@ Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new th
 
 ## Team update (2026-03-09T12:49:57Z): Copilot review workflow directive
 Added to shared decisions: Copilot PR review workflow (add reviewer via API, respond per comment, re-request until resolved). Note: `gh pr edit --add-reviewer` does NOT work for bots; must use API directly with bot name `copilot-pull-request-reviewer[bot]`. — decided by Scribe
+
+### 2026-03-09 — Copilot PR Review Rounds 4-7 (PR #253 Heredoc)
+
+Team update (2026-03-09T14:39:44Z): Lambert completed final 4 rounds (4-7) of Copilot review for PR #253 (heredoc support). Addressed 3 comments in rounds 4-6 and received clean round 7 with 0 comments. Changes: JSON quote fix in comment (3d04431), DestinationToken conditional guard preservation (a3c61c8), heredoc detection robustness improvement via trailing comment stripping (3910316). Test suite expanded from 753 to 760 tests. All tests passing. Heredoc review cycle complete and ready for merge. — decided by Scribe
