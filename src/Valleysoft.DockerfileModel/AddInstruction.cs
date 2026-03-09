@@ -54,9 +54,8 @@ public class AddInstruction : FileTransferInstruction
                 }
                 else if (!KeepGitDirFlagToken.BoolValue)
                 {
-                    // Replace explicit =false with a bare flag
-                    KeepGitDirFlagToken = null;
-                    KeepGitDirFlagToken = new KeepGitDirFlag(escapeChar);
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(KeepGitDirFlag, new KeepGitDirFlag(escapeChar));
                 }
             }
             else if (KeepGitDirFlagToken is not null)
