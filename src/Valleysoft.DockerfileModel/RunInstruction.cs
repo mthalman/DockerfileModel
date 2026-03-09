@@ -45,6 +45,7 @@ public class RunInstruction : CommandInstruction
     /// Returns <see langword="null"/> when the instruction uses heredoc syntax (no command token exists).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This property uses the <c>new</c> modifier to shadow <see cref="CommandInstruction.Command"/>,
     /// which is non-nullable and calls <c>.First()</c> — it will throw
     /// <see cref="InvalidOperationException"/> when accessed on a heredoc-based RUN instruction via
@@ -52,7 +53,20 @@ public class RunInstruction : CommandInstruction
     /// as a <see cref="CommandInstruction"/> reference should cast to <see cref="RunInstruction"/>
     /// first and check <c>Heredocs</c> before accessing <c>Command</c>, or call
     /// <c>Tokens.OfType&lt;Command&gt;().FirstOrDefault()</c> directly.
+    /// </para>
+    /// <para>
+    /// Nullability is intentionally asymmetric: the getter returns <see langword="null"/> for
+    /// heredoc-only RUN instructions (where no <see cref="Command"/> token exists), but the setter
+    /// requires a non-null value because there is no programmatic way to clear a command and
+    /// convert a regular RUN instruction into a heredoc-based one. To author a heredoc RUN
+    /// instruction, use heredoc syntax directly in the Dockerfile text.
+    /// </para>
     /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="value"/> is <see langword="null"/>.
+    /// The setter does not accept null; to produce a heredoc-only RUN instruction,
+    /// use heredoc syntax in the source text instead.
+    /// </exception>
     /// <exception cref="InvalidOperationException">
     /// Thrown when attempting to set the command on a heredoc-based RUN instruction.
     /// Heredoc instructions do not have a <see cref="Command"/> token to replace.
