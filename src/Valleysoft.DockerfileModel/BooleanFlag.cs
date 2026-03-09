@@ -52,7 +52,8 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
 
     /// <summary>
     /// Gets or sets the explicit value of this boolean flag.
-    /// Returns null for bare flags (no =value), or the string "true"/"false" when explicit.
+    /// Returns null for bare flags (no =value), or the original text as written in the
+    /// Dockerfile (e.g., "true", "false", "True", "FALSE") when an explicit value is present.
     /// Setting a value is not supported; use the constructor to specify an explicit value.
     /// </summary>
     public override string Value
