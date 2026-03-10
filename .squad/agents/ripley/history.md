@@ -103,6 +103,7 @@ Added to shared decisions: Copilot PR review workflow (add reviewer via API, res
 Designed comprehensive heredoc token architecture for Issue #245 (RUN, COPY, ADD instructions). Architecture decision merged to .squad/decisions.md.
 
 **Token Model:** `HeredocMarkerToken` (inline, contains `<<delimiter` with optional `<<-` chomp and EOF redirect) paired with `HeredocBodyToken` (sequential, contains body lines and closing delimiter). Semantic `Heredoc` wrapper encapsulates marker+body into semantic unit for instruction consumption.
+**Token Model:** `HeredocMarkerToken` (inline, contains `<<delimiter` with optional `<<<` chevron and EOF redirect) paired with `HeredocBodyToken` (sequential, contains body lines and closing delimiter). Semantic `Heredoc` wrapper encapsulates marker+body into semantic unit for instruction consumption.
 
 **Architecture Layers:**
 1. Parser combinators in ParseHelper (`HeredocMarker`, `HeredocBody`, `Heredoc`)

@@ -1821,6 +1821,7 @@ The `/` is no longer excluded from the literal parser, so `80/tcp` is consumed a
 **Date:** 2026-03-09
 **Author:** Dallas (Core Dev)
 **Status:** ~~Implemented~~ **Superseded** by heredoc marker/body token split (2026-03-10)
+**Status:** Implemented
 
 #### Context
 
@@ -1838,6 +1839,17 @@ Added a `Body` property directly on `HeredocToken` to encapsulate body-extractio
 
 - This decision is retained for historical context only and does **not** describe the current heredoc token model or `Heredocs` implementation.
 - Future work should follow the later "heredoc marker/body split" decision and its `HeredocMarkerToken` / `HeredocBodyToken` / `HeredocList` abstractions rather than the original single-token plan.
+Rather than inlining the body-extraction logic in both instruction classes, I added a `Body` property directly on `HeredocToken`. This encapsulates the knowledge of HeredocToken's internal token layout (marker, optional rest-of-line, newline, body lines, closing delimiter) in a single place. The `Heredocs` property on both instruction classes is then a one-liner: `HeredocTokens.Select(h => h.Body)`.
+
+#### Alternatives Considered
+
+1. **Inline extraction in each instruction class** — would duplicate the token-structure logic in two places and require updates in both if the HeredocToken layout ever changes.
+2. **Static helper method** — less discoverable, and the body is intrinsically a property of the heredoc itself.
+
+#### Consequences
+
+- `HeredocToken` now has a public `Body` property, which is a read-only convenience accessor. It does not affect round-trip fidelity since it derives from existing tokens without modifying them.
+- Any future instruction types that contain heredocs can reuse `HeredocToken.Body` without reimplementing extraction logic.
 
 ### 2026-03-10: Comprehensive Heredoc Test Suite Strategy
 **Author:** Lambert (Tester)
