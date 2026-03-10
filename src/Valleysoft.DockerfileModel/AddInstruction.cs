@@ -126,14 +126,22 @@ public class AddInstruction : FileTransferInstruction
 
     public bool Unpack
     {
-        get => UnpackFlagToken is not null;
+        get => UnpackFlagInternal?.BoolValue ?? false;
         set
         {
-            if (value && UnpackFlagToken is null)
+            if (value)
             {
-                UnpackFlagToken = new UnpackFlag(escapeChar);
+                if (UnpackFlagInternal is null)
+                {
+                    UnpackFlagToken = new UnpackFlag(escapeChar);
+                }
+                else if (!UnpackFlagInternal.BoolValue)
+                {
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(UnpackFlagInternal, new UnpackFlag(escapeChar));
+                }
             }
-            else if (!value && UnpackFlagToken is not null)
+            else if (UnpackFlagInternal is not null)
             {
                 UnpackFlagToken = null;
             }
@@ -142,14 +150,14 @@ public class AddInstruction : FileTransferInstruction
 
     public UnpackFlag? UnpackFlagToken
     {
-        get => UnpackFlag;
-        set => SetOptionalFlagToken(UnpackFlag, value);
+        get => UnpackFlagInternal;
+        set => SetOptionalFlagToken(UnpackFlagInternal, value);
     }
 
-    private UnpackFlag? UnpackFlag
+    private UnpackFlag? UnpackFlagInternal
     {
         get => Tokens.OfType<UnpackFlag>().FirstOrDefault();
-        set => SetOptionalFlagToken(UnpackFlag, value);
+        set => SetOptionalFlagToken(UnpackFlagInternal, value);
     }
 
     public IList<string> Excludes { get; private set; } = null!;
