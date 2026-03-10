@@ -161,9 +161,9 @@ public class AddInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(UnpackFlagInternal, value);
     }
 
-    public IList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
-
     public IList<string> Excludes { get; private set; } = null!;
+
+    public IList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
 
     public static AddInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
