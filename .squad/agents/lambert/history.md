@@ -148,3 +148,23 @@ Added to shared decisions: Copilot PR review workflow (add reviewer via API, res
 ### 2026-03-09 — Copilot PR Review Rounds 4-7 (PR #253 Heredoc)
 
 Team update (2026-03-09T14:39:44Z): Lambert completed final 4 rounds (4-7) of Copilot review for PR #253 (heredoc support). Addressed 3 comments in rounds 4-6 and received clean round 7 with 0 comments. Changes: JSON quote fix in comment (3d04431), DestinationToken conditional guard preservation (a3c61c8), heredoc detection robustness improvement via trailing comment stripping (3910316). Test suite expanded from 753 to 760 tests. All tests passing. Heredoc review cycle complete and ready for merge. — decided by Scribe
+
+### 2026-03-09 — HeredocToken.Body and Heredocs property tests (PR #253)
+
+Added 30 new tests to HeredocTests.cs covering the newly added `Body` property on `HeredocToken` and `Heredocs` property on both `RunInstruction` and `FileTransferInstruction` (via COPY and ADD).
+
+**Test categories:**
+- **HeredocToken.Body** (14 tests): single-line, multi-line, empty body, no trailing newline, special characters ($, quotes), empty lines in body, whitespace-only body, chomp flag, double-quoted delimiter, single-quoted delimiter, shebang+commands, COPY heredoc, ADD heredoc, CRLF line endings
+- **RunInstruction.Heredocs** (6 tests): single heredoc, shell-form (empty), exec-form (empty), empty body, multi-line body, with mount flag
+- **RunInstruction.HeredocTokens consistency** (1 test): verifies HeredocTokens.Body matches Heredocs
+- **FileTransferInstruction.Heredocs via COPY** (4 tests): with heredoc, without heredoc (empty), multi-line body, HeredocTokens consistency
+- **FileTransferInstruction.Heredocs via ADD** (4 tests): with heredoc, without heredoc (empty), multi-line body, special characters
+- **Heredocs/HeredocTokens alignment** (1 test via COPY): count and value match
+
+**Key patterns used:**
+- `[Fact]` for each test (no data-driven tests needed since each scenario is distinct)
+- Parse from text, then assert Body/Heredocs values directly
+- Negative tests: shell-form, exec-form, non-heredoc COPY/ADD all return empty enumerables
+- Edge cases: CRLF, whitespace-only lines, empty body between markers, no trailing newline after delimiter
+
+**Test suite: 809 total tests, 0 failures.**
