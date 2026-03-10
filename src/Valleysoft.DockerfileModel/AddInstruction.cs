@@ -27,10 +27,11 @@ public class AddInstruction : FileTransferInstruction
 
     private void InitExcludes()
     {
+        ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
         Excludes = new ProjectedItemList<ExcludeFlag, string>(
-            new TokenList<ExcludeFlag>(TokenList),
+            ExcludeFlagTokens,
             flag => flag.Value,
-            (flag, value) => flag.ValueToken = new LiteralToken(value, canContainVariables: true, escapeChar));
+            (flag, value) => flag.Value = value);
     }
 
     public string? Checksum
@@ -159,6 +160,8 @@ public class AddInstruction : FileTransferInstruction
         get => Tokens.OfType<UnpackFlag>().FirstOrDefault();
         set => SetOptionalFlagToken(UnpackFlagInternal, value);
     }
+
+    public IList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
 
     public IList<string> Excludes { get; private set; } = null!;
 
