@@ -734,3 +734,19 @@ Reduced diff test mismatches from 314/900 (35%) to 0/900 (0%) by fixing the seri
 - `src/Valleysoft.DockerfileModel/HeredocToken.cs` — added `Body` property to extract heredoc body content
 - `src/Valleysoft.DockerfileModel/FileTransferInstruction.cs` — added `Heredocs` property projecting `HeredocTokens` to strings
 - `src/Valleysoft.DockerfileModel/RunInstruction.cs` — added `Heredocs` property projecting `HeredocTokens` to strings
+
+---
+
+## Team update (2026-03-10T12:30:00Z): Heredoc architecture design completed, implementation plan produced
+
+Architecture designed and approved by Ripley for heredoc support on Issue #245 (RUN, COPY, ADD). Key decisions merged to decisions.md:
+
+**Token Model:** Separate `HeredocMarkerToken` (inline, contains `<<delimiter` and optional EOF redirect) and `HeredocBodyToken` (sequential, contains body lines and closing delimiter). Semantic `Heredoc` wrapper encapsulates marker+body unit.
+
+**Architecture Layers:** (1) Parser combinators in ParseHelper (`HeredocMarker`, `HeredocBody`, `Heredoc`), (2) Instruction integration via `RunInstruction.HeredocTokens` and `FileTransferInstruction.HeredocTokens`, (3) High-level accessors `Heredocs` property returning `IEnumerable<string>`.
+
+**10-step implementation plan produced** for systematic progression from token classes to full integration.
+
+**Lambert's test suite (1859 lines, ~160 tests)** provides executable specification. Tests lock in API surface and expected behavior — any API changes require coordinated updates.
+
+**Branch:** `squad/245-heredoc-syntax-heredocs-property` — implementation in progress (foreground mode).
