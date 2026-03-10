@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -15,86 +15,150 @@ public class ExposeInstructionTests
     [MemberData(nameof(CreateTestInput))]
     public void Create(CreateTestScenario scenario)
     {
-        ExposeInstruction result = new(scenario.Port, scenario.Protocol);
+        ExposeInstruction result = new(scenario.PortSpec);
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
     }
 
     [Fact]
-    public void Port()
+    public void Ports_SinglePort()
     {
-        ExposeInstruction result = new("23", "protocol");
-        Assert.Equal("23", result.Port);
-        Assert.Equal("23", result.PortToken.Value);
-        Assert.Equal("EXPOSE 23/protocol", result.ToString());
-
-        result.Port = "45";
-        Assert.Equal("45", result.Port);
-        Assert.Equal("45", result.PortToken.Value);
-        Assert.Equal("EXPOSE 45/protocol", result.ToString());
-
-        result.PortToken.Value = "67";
-        Assert.Equal("67", result.Port);
-        Assert.Equal("67", result.PortToken.Value);
-        Assert.Equal("EXPOSE 67/protocol", result.ToString());
-
-        result.PortToken = new LiteralToken("78");
-        Assert.Equal("78", result.Port);
-        Assert.Equal("78", result.PortToken.Value);
-        Assert.Equal("EXPOSE 78/protocol", result.ToString());
-
-        Assert.Throws<ArgumentNullException>(() => result.Port = null);
-        Assert.Throws<ArgumentException>(() => result.Port = "");
-        Assert.Throws<ArgumentNullException>(() => result.PortToken = null);
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80");
+        Assert.Collection(result.Ports, new Action<string>[]
+        {
+            port => Assert.Equal("80", port)
+        });
+        Assert.Collection(result.PortTokens, new Action<LiteralToken>[]
+        {
+            token => Assert.Equal("80", token.Value)
+        });
     }
 
     [Fact]
-    public void Protocol()
+    public void Ports_SinglePortWithProtocol()
     {
-        ExposeInstruction result = new("23", "test");
-        Assert.Equal("test", result.Protocol);
-        Assert.Equal("test", result.ProtocolToken.Value);
-        Assert.Equal("EXPOSE 23/test", result.ToString());
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80/tcp");
+        Assert.Collection(result.Ports, new Action<string>[]
+        {
+            port => Assert.Equal("80/tcp", port)
+        });
+        Assert.Collection(result.PortTokens, new Action<LiteralToken>[]
+        {
+            token => Assert.Equal("80/tcp", token.Value)
+        });
+    }
 
-        result.Protocol = "test2";
-        Assert.Equal("test2", result.Protocol);
-        Assert.Equal("test2", result.ProtocolToken.Value);
-        Assert.Equal("EXPOSE 23/test2", result.ToString());
+    [Fact]
+    public void Ports_MultiplePorts()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80 443");
+        Assert.Collection(result.Ports, new Action<string>[]
+        {
+            port => Assert.Equal("80", port),
+            port => Assert.Equal("443", port)
+        });
+        Assert.Collection(result.PortTokens, new Action<LiteralToken>[]
+        {
+            token => Assert.Equal("80", token.Value),
+            token => Assert.Equal("443", token.Value)
+        });
+    }
 
-        result.Protocol = null;
-        Assert.Null(result.Protocol);
-        Assert.Null(result.ProtocolToken);
-        Assert.Equal("EXPOSE 23", result.ToString());
+    [Fact]
+    public void Ports_MultiplePortsWithProtocols()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80/tcp 443/udp");
+        Assert.Collection(result.Ports, new Action<string>[]
+        {
+            port => Assert.Equal("80/tcp", port),
+            port => Assert.Equal("443/udp", port)
+        });
+        Assert.Collection(result.PortTokens, new Action<LiteralToken>[]
+        {
+            token => Assert.Equal("80/tcp", token.Value),
+            token => Assert.Equal("443/udp", token.Value)
+        });
+    }
 
-        result.ProtocolToken = new LiteralToken("test3");
-        Assert.Equal("test3", result.Protocol);
-        Assert.Equal("test3", result.ProtocolToken.Value);
-        Assert.Equal("EXPOSE 23/test3", result.ToString());
+    [Fact]
+    public void Ports_MultiplePortsMixedProtocols()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80/tcp 443 8080/udp");
+        Assert.Collection(result.Ports, new Action<string>[]
+        {
+            port => Assert.Equal("80/tcp", port),
+            port => Assert.Equal("443", port),
+            port => Assert.Equal("8080/udp", port)
+        });
+    }
 
-        result.ProtocolToken.Value = "test4";
-        Assert.Equal("test4", result.Protocol);
-        Assert.Equal("test4", result.ProtocolToken.Value);
-        Assert.Equal("EXPOSE 23/test4", result.ToString());
+    [Fact]
+    public void Ports_ModifyViaProjectedList()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80 443");
+        result.Ports[0] = "8080";
+        Assert.Equal("8080", result.Ports[0]);
+        Assert.Equal("EXPOSE 8080 443", result.ToString());
 
-        result.ProtocolToken = null;
-        Assert.Null(result.Protocol);
-        Assert.Null(result.ProtocolToken);
-        Assert.Equal("EXPOSE 23", result.ToString());
+        result.Ports[1] = "9090";
+        Assert.Equal("EXPOSE 8080 9090", result.ToString());
+    }
+
+    [Fact]
+    public void Ports_ModifyViaProjectedList_WithProtocol()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80/tcp 443/udp");
+        result.Ports[0] = "8080/tcp";
+        Assert.Equal("8080/tcp", result.Ports[0]);
+        Assert.Equal("EXPOSE 8080/tcp 443/udp", result.ToString());
+    }
+
+    [Fact]
+    public void Ports_InvalidValue_Throws()
+    {
+        ExposeInstruction result = ExposeInstruction.Parse("EXPOSE 80 443");
+        Assert.Throws<ArgumentNullException>(() => result.Ports[0] = null!);
+        Assert.Throws<ArgumentException>(() => result.Ports[0] = "");
+    }
+
+    [Fact]
+    public void Ports_PortTokenValue_Roundtrip()
+    {
+        ExposeInstruction result = new("23/protocol");
+        Assert.Equal("23/protocol", result.Ports[0]);
+        Assert.Equal("23/protocol", result.PortTokens[0].Value);
+        Assert.Equal("EXPOSE 23/protocol", result.ToString());
+
+        result.Ports[0] = "45/protocol";
+        Assert.Equal("45/protocol", result.Ports[0]);
+        Assert.Equal("45/protocol", result.PortTokens[0].Value);
+        Assert.Equal("EXPOSE 45/protocol", result.ToString());
+
+        result.PortTokens[0].Value = "67/protocol";
+        Assert.Equal("67/protocol", result.Ports[0]);
+        Assert.Equal("67/protocol", result.PortTokens[0].Value);
+        Assert.Equal("EXPOSE 67/protocol", result.ToString());
     }
 
     [Fact]
     public void PortWithVariables()
     {
-        ExposeInstruction result = new("$var", "test");
-        TestHelper.TestVariablesWithLiteral(() => result.PortToken, "var", canContainVariables: true);
+        ExposeInstruction result = new("$var");
+        TestHelper.TestVariablesWithLiteral(() => result.PortTokens[0], "var", canContainVariables: true);
     }
 
     [Fact]
-    public void ProtocolWithVariables()
+    public void PortSpecWithVariables()
     {
-        ExposeInstruction result = new("23", "$var");
-        TestHelper.TestVariablesWithNullableLiteral(
-            () => result.ProtocolToken, token => result.ProtocolToken = token, val => result.Protocol = val, "var", canContainVariables: true);
+        ExposeInstruction result = new("$var/tcp");
+        Assert.Equal("$var/tcp", result.Ports[0]);
+        Assert.Equal("EXPOSE $var/tcp", result.ToString());
+        Assert.Collection(result.PortTokens[0].Tokens, new Action<Token>[]
+        {
+            token => ValidateAggregate<VariableRefToken>(token, "$var",
+                token => ValidateString(token, "var")),
+            token => ValidateString(token, "/tcp")
+        });
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -114,7 +178,7 @@ public class ExposeInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("EXPOSE", result.InstructionName);
-                    Assert.Equal("80", result.Port);
+                    Assert.Equal("80", result.Ports[0]);
                 }
             },
             new ParseTestScenario<ExposeInstruction>
@@ -124,16 +188,13 @@ public class ExposeInstructionTests
                 {
                     token => ValidateKeyword(token, "EXPOSE"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "433"),
-                    token => ValidateSymbol(token, '/'),
-                    token => ValidateLiteral(token, "tcp")
+                    token => ValidateLiteral(token, "433/tcp")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("EXPOSE", result.InstructionName);
-                    Assert.Equal("433", result.Port);
-                    Assert.Equal("tcp", result.Protocol);
+                    Assert.Equal("433/tcp", result.Ports[0]);
                 }
             },
             new ParseTestScenario<ExposeInstruction>
@@ -148,20 +209,206 @@ public class ExposeInstructionTests
                             token => ValidateString(token, "TEST")))
                 }
             },
+            // Multi-port: two ports without protocols
             new ParseTestScenario<ExposeInstruction>
             {
-                Text = "EXPOSE`\n 80`\n/`\ntcp",
-                EscapeChar = '`',
+                Text = "EXPOSE 80 443",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "EXPOSE"),
-                    token => ValidateLineContinuation(token, '`', "\n"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "80"),
-                    token => ValidateLineContinuation(token, '`', "\n"),
-                    token => ValidateSymbol(token, '/'),
-                    token => ValidateLineContinuation(token, '`', "\n"),
-                    token => ValidateLiteral(token, "tcp")
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "443")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("EXPOSE", result.InstructionName);
+                    Assert.Collection(result.Ports, new Action<string>[]
+                    {
+                        port => Assert.Equal("80", port),
+                        port => Assert.Equal("443", port)
+                    });
+                }
+            },
+            // Multi-port: three ports without protocols
+            new ParseTestScenario<ExposeInstruction>
+            {
+                Text = "EXPOSE 80 443 8080",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "EXPOSE"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "80"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "443"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "8080")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("EXPOSE", result.InstructionName);
+                    Assert.Collection(result.Ports, new Action<string>[]
+                    {
+                        port => Assert.Equal("80", port),
+                        port => Assert.Equal("443", port),
+                        port => Assert.Equal("8080", port)
+                    });
+                }
+            },
+            // Multi-port: two ports with protocols — each spec is a single opaque LiteralToken
+            new ParseTestScenario<ExposeInstruction>
+            {
+                Text = "EXPOSE 80/tcp 443/udp",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "EXPOSE"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "80/tcp"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "443/udp")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("EXPOSE", result.InstructionName);
+                    Assert.Collection(result.Ports, new Action<string>[]
+                    {
+                        port => Assert.Equal("80/tcp", port),
+                        port => Assert.Equal("443/udp", port)
+                    });
+                }
+            },
+            // Multi-port: mixed protocols (some with, some without)
+            new ParseTestScenario<ExposeInstruction>
+            {
+                Text = "EXPOSE 80/tcp 443 8080/udp",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "EXPOSE"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "80/tcp"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "443"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "8080/udp")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("EXPOSE", result.InstructionName);
+                    Assert.Collection(result.Ports, new Action<string>[]
+                    {
+                        port => Assert.Equal("80/tcp", port),
+                        port => Assert.Equal("443", port),
+                        port => Assert.Equal("8080/udp", port)
+                    });
+                }
+            },
+            // Multi-port with extra whitespace
+            new ParseTestScenario<ExposeInstruction>
+            {
+                Text = "EXPOSE  80  443",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "EXPOSE"),
+                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateLiteral(token, "80"),
+                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateLiteral(token, "443")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("EXPOSE  80  443", result.ToString());
+                    Assert.Collection(result.Ports, new Action<string>[]
+                    {
+                        port => Assert.Equal("80", port),
+                        port => Assert.Equal("443", port)
+                    });
+                }
+            },
+            // Multi-port with line continuation between ports
+            new ParseTestScenario<ExposeInstruction>
+            {
+                Text = "EXPOSE 80 \\\n443",
+                EscapeChar = '\\',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "EXPOSE"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "80"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateLiteral(token, "443")
+                },
+                Validate = result =>
+                {
+                    Assert.Collection(result.Ports, new Action<string>[]
+                    {
+                        port => Assert.Equal("80", port),
+                        port => Assert.Equal("443", port)
+                    });
+                }
+            },
+            // Multi-port with variables
+            new ParseTestScenario<ExposeInstruction>
+            {
+                Text = "EXPOSE $PORT1 $PORT2",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "EXPOSE"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "$PORT1",
+                        token => ValidateAggregate<VariableRefToken>(token, "$PORT1",
+                            token => ValidateString(token, "PORT1"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "$PORT2",
+                        token => ValidateAggregate<VariableRefToken>(token, "$PORT2",
+                            token => ValidateString(token, "PORT2")))
+                },
+                Validate = result =>
+                {
+                    Assert.Collection(result.Ports, new Action<string>[]
+                    {
+                        port => Assert.Equal("$PORT1", port),
+                        port => Assert.Equal("$PORT2", port)
+                    });
+                }
+            },
+            // Port range
+            new ParseTestScenario<ExposeInstruction>
+            {
+                Text = "EXPOSE 8000-8010",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "EXPOSE"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "8000-8010")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("8000-8010", result.Ports[0]);
+                    Assert.Collection(result.Ports, new Action<string>[]
+                    {
+                        port => Assert.Equal("8000-8010", port)
+                    });
+                }
+            },
+            // Port range with protocol — single opaque token
+            new ParseTestScenario<ExposeInstruction>
+            {
+                Text = "EXPOSE 8000-8010/tcp",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "EXPOSE"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "8000-8010/tcp")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("8000-8010/tcp", result.Ports[0]);
                 }
             }
         };
@@ -175,25 +422,30 @@ public class ExposeInstructionTests
         {
             new CreateTestScenario
             {
-                Port = "8080",
+                PortSpec = "8080",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "EXPOSE"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "8080")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("8080", result.Ports[0]);
                 }
             },
             new CreateTestScenario
             {
-                Port = "80",
-                Protocol = "udp",
+                PortSpec = "80/udp",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "EXPOSE"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "80"),
-                    token => ValidateSymbol(token, '/'),
-                    token => ValidateLiteral(token, "udp")
+                    token => ValidateLiteral(token, "80/udp")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("80/udp", result.Ports[0]);
                 }
             }
         };
@@ -203,7 +455,6 @@ public class ExposeInstructionTests
 
     public class CreateTestScenario : TestScenario<ExposeInstruction>
     {
-        public string Port { get; set; }
-        public string Protocol { get; set; }
+        public string PortSpec { get; set; }
     }
 }

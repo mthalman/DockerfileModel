@@ -98,8 +98,11 @@ public class DockerfileBuilder
     public DockerfileBuilder EnvInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.EnvInstruction.Parse);
 
-    public DockerfileBuilder ExposeInstruction(string port, string? protocol = null) =>
-        AddConstruct(new ExposeInstruction(port, protocol, EscapeChar));
+    public DockerfileBuilder ExposeInstruction(string portSpecs) =>
+        AddConstruct(new ExposeInstruction(portSpecs, EscapeChar));
+
+    public DockerfileBuilder ExposeInstruction(IEnumerable<string> portSpecs) =>
+        AddConstruct(new ExposeInstruction(portSpecs, EscapeChar));
 
     public DockerfileBuilder ExposeInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.ExposeInstruction.Parse);

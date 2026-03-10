@@ -1,79 +1,54 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
 public class ExposeInstruction : Instruction
 {
-    private readonly char escapeChar;
-
-    public ExposeInstruction(string port, string? protocol = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(port, protocol, escapeChar), escapeChar)
+    public ExposeInstruction(string portSpecs, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : this(GetTokens(portSpecs, escapeChar))
     {
     }
 
-    private ExposeInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
+    public ExposeInstruction(IEnumerable<string> portSpecs, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : this(GetTokens(portSpecs, escapeChar))
     {
-        this.escapeChar = escapeChar;
     }
 
-    public string Port
+    private ExposeInstruction(IEnumerable<Token> tokens) : base(tokens)
     {
-        get => PortToken.Value;
-        set
-        {
-            Requires.NotNullOrEmpty(value, nameof(value));
-            PortToken.Value = value;
-        }
+        PortTokens = new TokenList<LiteralToken>(TokenList);
+        Ports = new ProjectedItemList<LiteralToken, string>(
+            PortTokens,
+            token => token.Value,
+            (token, value) =>
+            {
+                Requires.NotNullOrEmpty(value, nameof(value));
+                token.Value = value;
+            });
     }
 
-    public LiteralToken PortToken
-    {
-        get => Tokens.OfType<LiteralToken>().First();
-        set
-        {
-            Requires.NotNull(value, nameof(value));
-            SetToken(PortToken, value);
-        }
-    }
+    public IList<string> Ports { get; }
 
-    public string? Protocol
-    {
-        get => ProtocolToken?.Value;
-        set => SetOptionalLiteralTokenValue(ProtocolToken, value, token => ProtocolToken = token, canContainVariables: true, escapeChar);
-    }
-
-    public LiteralToken? ProtocolToken
-    {
-        get => Tokens.OfType<LiteralToken>().Skip(1).FirstOrDefault();
-        set
-        {
-            SetToken(ProtocolToken, value,
-                addToken: token =>
-                {
-                    TokenList.Add(new SymbolToken('/'));
-                    TokenList.Add(token);
-                },
-                removeToken: token =>
-                {
-                    TokenList.RemoveRange(
-                        TokenList.FirstPreviousOfType<Token, SymbolToken>(token),
-                        token);
-                });
-        }
-    }
+    public IList<LiteralToken> PortTokens { get; }
 
     public static ExposeInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar)));
 
     public static Parser<ExposeInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new ExposeInstruction(tokens, escapeChar);
+        select new ExposeInstruction(tokens);
 
-    private static IEnumerable<Token> GetTokens(string port, string? protocol, char escapeChar)
+    private static IEnumerable<Token> GetTokens(string portSpecs, char escapeChar)
     {
-        string protocolSegment = protocol is null ? string.Empty : $"/{protocol}";
-        return GetTokens($"EXPOSE {port}{protocolSegment}", GetInnerParser(escapeChar));
+        Requires.NotNullOrEmpty(portSpecs, nameof(portSpecs));
+        return GetTokens($"EXPOSE {portSpecs}", GetInnerParser(escapeChar));
+    }
+
+    private static IEnumerable<Token> GetTokens(IEnumerable<string> portSpecs, char escapeChar)
+    {
+        Requires.NotNullEmptyOrNullElements(portSpecs, nameof(portSpecs));
+        return GetTokens(string.Join(" ", portSpecs), escapeChar);
     }
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
@@ -81,10 +56,5 @@ public class ExposeInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        from port in ArgTokens(LiteralWithVariables(escapeChar, new char[] { '/' }).AsEnumerable(), escapeChar)
-        from protocolTokens in 
-            (from separator in ArgTokens(Symbol('/').AsEnumerable(), escapeChar)
-            from protocol in ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar)
-            select ConcatTokens(separator, protocol)).Optional()
-        select ConcatTokens(port, protocolTokens.GetOrDefault());
+        ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar).AtLeastOnce().Flatten();
 }
