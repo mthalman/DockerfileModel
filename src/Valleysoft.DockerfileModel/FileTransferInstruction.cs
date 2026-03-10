@@ -199,7 +199,7 @@ public abstract class FileTransferInstruction : Instruction
     /// Gets the heredoc tokens contained in this file transfer instruction.
     /// Empty if the instruction uses regular file arguments.
     /// </summary>
-    public IEnumerable<HeredocToken> Heredocs =>
+    public IEnumerable<HeredocToken> HeredocTokens =>
         this.Tokens.OfType<HeredocToken>();
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>

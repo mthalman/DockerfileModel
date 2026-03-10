@@ -37,7 +37,7 @@ public class HeredocTests
                 {
                     Assert.Equal("RUN", result.InstructionName);
                     Assert.Null(result.Command);
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                     Assert.Empty(result.Comments);
                 }
             },
@@ -57,7 +57,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -76,7 +76,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -95,7 +95,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -116,7 +116,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -134,7 +134,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -154,7 +154,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -172,7 +172,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -191,7 +191,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -213,7 +213,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -232,7 +232,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -251,7 +251,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<RunInstruction>
@@ -270,7 +270,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
         };
@@ -309,7 +309,7 @@ public class HeredocTests
                 Validate = result =>
                 {
                     Assert.Equal("COPY", result.InstructionName);
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                     Assert.Null(result.Destination);
                 }
             },
@@ -330,7 +330,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                     Assert.Null(result.Destination);
                 }
             },
@@ -353,7 +353,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
         };
@@ -392,7 +392,7 @@ public class HeredocTests
                 Validate = result =>
                 {
                     Assert.Equal("ADD", result.InstructionName);
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                     Assert.Null(result.Destination);
                 }
             },
@@ -413,7 +413,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
             new ParseTestScenario<AddInstruction>
@@ -435,7 +435,7 @@ public class HeredocTests
                 },
                 Validate = result =>
                 {
-                    Assert.Single(result.Heredocs);
+                    Assert.Single(result.HeredocTokens);
                 }
             },
         };
@@ -461,7 +461,7 @@ public class HeredocTests
         string text = "RUN <<EOF\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Null(result.Command);
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -473,9 +473,9 @@ public class HeredocTests
 
         // Check instruction-level tokens: keyword, whitespace, heredoc
         Assert.Equal("RUN", result.InstructionName);
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
 
-        HeredocToken heredoc = result.Heredocs.First();
+        HeredocToken heredoc = result.HeredocTokens.First();
         Assert.Equal("<<EOF\necho hello\nEOF\n", heredoc.ToString());
     }
 
@@ -485,7 +485,7 @@ public class HeredocTests
         string text = "RUN <<-EOF\n\techo hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -494,7 +494,7 @@ public class HeredocTests
         string text = "RUN <<\"EOF\"\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -503,7 +503,7 @@ public class HeredocTests
         string text = "RUN <<'EOF'\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -512,7 +512,7 @@ public class HeredocTests
         string text = "RUN <<EOF\nline 1\nline 2\nline 3\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -521,7 +521,7 @@ public class HeredocTests
         string text = "RUN <<EOF\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -530,7 +530,7 @@ public class HeredocTests
         string text = "RUN <<SCRIPT\n#!/bin/bash\necho hello\nSCRIPT\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -539,7 +539,7 @@ public class HeredocTests
         string text = "RUN <<EOF\necho hello\nEOF";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -548,7 +548,7 @@ public class HeredocTests
         string text = "RUN <<-\"EOF\"\n\techo hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -557,7 +557,7 @@ public class HeredocTests
         string text = "RUN <<EOF\n#!/bin/bash\nset -e\napt-get update\napt-get install -y curl\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -566,7 +566,7 @@ public class HeredocTests
         string text = "RUN --mount=type=secret,id=id <<EOF\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
         Assert.Single(result.Mounts);
     }
 
@@ -587,7 +587,7 @@ public class HeredocTests
     {
         string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -596,7 +596,7 @@ public class HeredocTests
         string text = "COPY <<\"EOF\" /app/script.sh\necho hello\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -605,7 +605,7 @@ public class HeredocTests
         string text = "COPY <<EOF /app/config.txt\nline 1\nline 2\nline 3\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     // ==============================
@@ -625,7 +625,7 @@ public class HeredocTests
     {
         string text = "ADD <<EOF /app/script.sh\necho hello\nEOF\n";
         AddInstruction result = AddInstruction.Parse(text);
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -634,7 +634,7 @@ public class HeredocTests
         string text = "ADD <<\"EOF\" /app/script.sh\necho hello\nEOF\n";
         AddInstruction result = AddInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     // ==============================
@@ -707,7 +707,7 @@ public class HeredocTests
         string text = "RUN <<EOF123\necho hello\nEOF123\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -716,7 +716,7 @@ public class HeredocTests
         string text = "RUN <<MY_EOF\necho hello\nMY_EOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -727,7 +727,7 @@ public class HeredocTests
         string text = "RUN <<'MY-DELIM'\necho hello\nMY-DELIM\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -746,7 +746,7 @@ public class HeredocTests
     {
         string text = "RUN <<EOF\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
-        HeredocToken heredoc = result.Heredocs.First();
+        HeredocToken heredoc = result.HeredocTokens.First();
 
         // The heredoc token's children should preserve all text:
         // "<<EOF" (StringToken), "\n" (NewLineToken), "echo hello\n" (StringToken), "EOF" (StringToken), "\n" (NewLineToken)
@@ -769,7 +769,7 @@ public class HeredocTests
     {
         string text = "RUN <<-EOF\n\techo hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
-        HeredocToken heredoc = result.Heredocs.First();
+        HeredocToken heredoc = result.HeredocTokens.First();
 
         var children = heredoc.Tokens.ToList();
         // First child should be "<<-EOF"
@@ -784,7 +784,7 @@ public class HeredocTests
     {
         string text = "RUN <<\"EOF\"\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
-        HeredocToken heredoc = result.Heredocs.First();
+        HeredocToken heredoc = result.HeredocTokens.First();
 
         var children = heredoc.Tokens.ToList();
         // First child should be "<<\"EOF\""
@@ -904,7 +904,7 @@ public class HeredocTests
         string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -913,7 +913,7 @@ public class HeredocTests
         string text = "ADD <<EOF /app/config\nline1\nline2\nline3\nEOF\n";
         AddInstruction result = AddInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     // ==============================
@@ -926,7 +926,7 @@ public class HeredocTests
         string text = "RUN <<EOF\r\necho hello\r\nEOF\r\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     // ==============================
@@ -953,10 +953,10 @@ public class HeredocTests
         string text = "RUN <<EOF\n\tEOF\nactual content\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
 
         // The heredoc body should include "\tEOF\n" as body content
-        HeredocToken heredoc = result.Heredocs.First();
+        HeredocToken heredoc = result.HeredocTokens.First();
         Assert.Equal("<<EOF\n\tEOF\nactual content\nEOF\n", heredoc.ToString());
     }
 
@@ -967,7 +967,7 @@ public class HeredocTests
         string text = "RUN <<-EOF\n\techo hello\n\tEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     // ==============================
@@ -981,7 +981,7 @@ public class HeredocTests
         string text = "RUN <<EOF\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]
@@ -991,7 +991,7 @@ public class HeredocTests
         string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     // ==============================
@@ -1090,7 +1090,7 @@ public class HeredocTests
         string text = "RUN <<\"MY-DELIM\"\necho hello\nMY-DELIM\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
-        Assert.Single(result.Heredocs);
+        Assert.Single(result.HeredocTokens);
     }
 
     [Fact]

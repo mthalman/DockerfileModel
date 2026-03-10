@@ -93,7 +93,7 @@ public class RunInstruction : CommandInstruction
     /// Gets the heredoc tokens contained in this RUN instruction.
     /// Empty if the instruction uses exec-form or shell-form commands.
     /// </summary>
-    public IEnumerable<HeredocToken> Heredocs =>
+    public IEnumerable<HeredocToken> HeredocTokens =>
         this.Tokens.OfType<HeredocToken>();
 
     public IList<Mount> Mounts { get; }
