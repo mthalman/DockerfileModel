@@ -202,6 +202,13 @@ public abstract class FileTransferInstruction : Instruction
     public IEnumerable<HeredocToken> HeredocTokens =>
         this.Tokens.OfType<HeredocToken>();
 
+    /// <summary>
+    /// Gets the body content of each heredoc in this file transfer instruction as a string.
+    /// Empty if the instruction uses regular file arguments.
+    /// </summary>
+    public IEnumerable<string> Heredocs =>
+        HeredocTokens.Select(h => h.Body);
+
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
         from flags in ArgTokens(
             from flag in FlagOption(escapeChar, optionalFlagParser).Optional()

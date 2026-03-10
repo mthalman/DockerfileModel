@@ -96,6 +96,13 @@ public class RunInstruction : CommandInstruction
     public IEnumerable<HeredocToken> HeredocTokens =>
         this.Tokens.OfType<HeredocToken>();
 
+    /// <summary>
+    /// Gets the body content of each heredoc in this RUN instruction as a string.
+    /// Empty if the instruction uses exec-form or shell-form commands.
+    /// </summary>
+    public IEnumerable<string> Heredocs =>
+        HeredocTokens.Select(h => h.Body);
+
     public IList<Mount> Mounts { get; }
 
     public string? Network
