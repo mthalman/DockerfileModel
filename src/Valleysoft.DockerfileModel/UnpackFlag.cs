@@ -11,6 +11,11 @@ public class UnpackFlag : BooleanFlag
     {
     }
 
+    public UnpackFlag(bool value, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(Keyword, value, escapeChar)
+    {
+    }
+
     internal UnpackFlag(IEnumerable<Token> tokens) : base(tokens)
     {
     }
