@@ -99,6 +99,9 @@ public class DockerfileBuilder
     public DockerfileBuilder ExposeInstruction(string portSpecs) =>
         AddConstruct(new ExposeInstruction(portSpecs, EscapeChar));
 
+    public DockerfileBuilder ExposeInstruction(IEnumerable<string> portSpecs) =>
+        AddConstruct(new ExposeInstruction(portSpecs, EscapeChar));
+
     public DockerfileBuilder ExposeInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.ExposeInstruction.Parse);
 

@@ -10,6 +10,11 @@ public class ExposeInstruction : Instruction
     {
     }
 
+    public ExposeInstruction(IEnumerable<string> portSpecs, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : this(GetTokens(portSpecs, escapeChar))
+    {
+    }
+
     private ExposeInstruction(IEnumerable<Token> tokens) : base(tokens)
     {
         PortTokens = new TokenList<LiteralToken>(TokenList);
@@ -38,6 +43,12 @@ public class ExposeInstruction : Instruction
     {
         Requires.NotNullOrEmpty(portSpecs, nameof(portSpecs));
         return GetTokens($"EXPOSE {portSpecs}", GetInnerParser(escapeChar));
+    }
+
+    private static IEnumerable<Token> GetTokens(IEnumerable<string> portSpecs, char escapeChar)
+    {
+        Requires.NotNullEmptyOrNullElements(portSpecs, nameof(portSpecs));
+        return GetTokens(string.Join(" ", portSpecs), escapeChar);
     }
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
