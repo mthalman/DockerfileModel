@@ -1161,4 +1161,332 @@ public class HeredocTests
     {
         Assert.Equal("RUN echo 'hello' ", DockerfileParser.StripTrailingComment("RUN echo 'hello' # comment <<EOF"));
     }
+
+    // ==============================
+    // HeredocToken.Body property tests
+    // ==============================
+
+    [Fact]
+    public void HeredocToken_Body_SingleLineBody()
+    {
+        string text = "RUN <<EOF\necho hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("echo hello\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_MultiLineBody()
+    {
+        string text = "RUN <<EOF\nline 1\nline 2\nline 3\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("line 1\nline 2\nline 3\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_EmptyBody()
+    {
+        // No lines between marker and closing delimiter
+        string text = "RUN <<EOF\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal(string.Empty, heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_NoTrailingNewlineAfterDelimiter()
+    {
+        string text = "RUN <<EOF\necho hello\nEOF";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("echo hello\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_WithSpecialCharacters()
+    {
+        string text = "RUN <<EOF\n$HOME=/root\necho \"hello world\"\necho 'single'\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("$HOME=/root\necho \"hello world\"\necho 'single'\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_WithEmptyLinesInBody()
+    {
+        string text = "RUN <<EOF\nline 1\n\nline 3\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("line 1\n\nline 3\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_WithWhitespaceOnlyLines()
+    {
+        string text = "RUN <<EOF\n  \n\t\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("  \n\t\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_WithChompFlag()
+    {
+        string text = "RUN <<-EOF\n\techo hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("\techo hello\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_WithQuotedDelimiter()
+    {
+        string text = "RUN <<\"EOF\"\necho hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("echo hello\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_WithSingleQuotedDelimiter()
+    {
+        string text = "RUN <<'EOF'\necho hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("echo hello\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_WithShebangAndMultipleCommands()
+    {
+        string text = "RUN <<EOF\n#!/bin/bash\nset -e\napt-get update\napt-get install -y curl\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("#!/bin/bash\nset -e\napt-get update\napt-get install -y curl\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_CopyInstructionHeredoc()
+    {
+        string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("echo hello\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_AddInstructionHeredoc()
+    {
+        string text = "ADD <<EOF /app/script.sh\necho hello\nEOF\n";
+        AddInstruction result = AddInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("echo hello\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_CopyMultiLineBody()
+    {
+        string text = "COPY <<EOF /app/config.txt\nline 1\nline 2\nline 3\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("line 1\nline 2\nline 3\n", heredoc.Body);
+    }
+
+    [Fact]
+    public void HeredocToken_Body_WithCRLFLineEndings()
+    {
+        string text = "RUN <<EOF\r\necho hello\r\nEOF\r\n";
+        RunInstruction result = RunInstruction.Parse(text);
+        HeredocToken heredoc = result.HeredocTokens.First();
+
+        Assert.Equal("echo hello\r\n", heredoc.Body);
+    }
+
+    // ==============================
+    // RunInstruction.Heredocs property tests
+    // ==============================
+
+    [Fact]
+    public void RunInstruction_Heredocs_SingleHeredoc()
+    {
+        string text = "RUN <<EOF\necho hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal("echo hello\n", heredocs[0]);
+    }
+
+    [Fact]
+    public void RunInstruction_Heredocs_ShellForm_IsEmpty()
+    {
+        string text = "RUN echo hello";
+        RunInstruction result = RunInstruction.Parse(text);
+
+        Assert.Empty(result.Heredocs);
+        Assert.Empty(result.HeredocTokens);
+    }
+
+    [Fact]
+    public void RunInstruction_Heredocs_ExecForm_IsEmpty()
+    {
+        RunInstruction result = RunInstruction.Parse("RUN [\"echo\", \"hello\"]");
+
+        Assert.Empty(result.Heredocs);
+        Assert.Empty(result.HeredocTokens);
+    }
+
+    [Fact]
+    public void RunInstruction_Heredocs_EmptyBody()
+    {
+        string text = "RUN <<EOF\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal(string.Empty, heredocs[0]);
+    }
+
+    [Fact]
+    public void RunInstruction_Heredocs_MultiLineBody()
+    {
+        string text = "RUN <<EOF\n#!/bin/bash\nset -e\napt-get update\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal("#!/bin/bash\nset -e\napt-get update\n", heredocs[0]);
+    }
+
+    [Fact]
+    public void RunInstruction_Heredocs_WithMountFlag()
+    {
+        string text = "RUN --mount=type=secret,id=id <<EOF\necho hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal("echo hello\n", heredocs[0]);
+        Assert.Single(result.Mounts);
+    }
+
+    [Fact]
+    public void RunInstruction_HeredocTokens_MatchesHeredocs()
+    {
+        string text = "RUN <<EOF\necho hello\nEOF\n";
+        RunInstruction result = RunInstruction.Parse(text);
+
+        // HeredocTokens and Heredocs should have the same count
+        Assert.Equal(result.HeredocTokens.Count(), result.Heredocs.Count());
+        // Each Heredocs element should equal the corresponding HeredocToken.Body
+        Assert.Equal(
+            result.HeredocTokens.Select(h => h.Body).ToArray(),
+            result.Heredocs.ToArray());
+    }
+
+    // ==============================
+    // FileTransferInstruction.Heredocs property tests (via COPY and ADD)
+    // ==============================
+
+    [Fact]
+    public void CopyInstruction_Heredocs_WithHeredoc()
+    {
+        string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal("echo hello\n", heredocs[0]);
+    }
+
+    [Fact]
+    public void CopyInstruction_Heredocs_WithoutHeredoc_IsEmpty()
+    {
+        CopyInstruction result = CopyInstruction.Parse("COPY src dst");
+
+        Assert.Empty(result.Heredocs);
+        Assert.Empty(result.HeredocTokens);
+    }
+
+    [Fact]
+    public void CopyInstruction_Heredocs_MultiLineBody()
+    {
+        string text = "COPY <<EOF /app/config.txt\nline 1\nline 2\nline 3\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal("line 1\nline 2\nline 3\n", heredocs[0]);
+    }
+
+    [Fact]
+    public void AddInstruction_Heredocs_WithHeredoc()
+    {
+        string text = "ADD <<EOF /app/script.sh\necho hello\nEOF\n";
+        AddInstruction result = AddInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal("echo hello\n", heredocs[0]);
+    }
+
+    [Fact]
+    public void AddInstruction_Heredocs_WithoutHeredoc_IsEmpty()
+    {
+        AddInstruction result = AddInstruction.Parse("ADD src dst");
+
+        Assert.Empty(result.Heredocs);
+        Assert.Empty(result.HeredocTokens);
+    }
+
+    [Fact]
+    public void AddInstruction_Heredocs_MultiLineBody()
+    {
+        string text = "ADD <<EOF /app/config\nline1\nline2\nline3\nEOF\n";
+        AddInstruction result = AddInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal("line1\nline2\nline3\n", heredocs[0]);
+    }
+
+    [Fact]
+    public void CopyInstruction_HeredocTokens_MatchesHeredocs()
+    {
+        string text = "COPY <<EOF /app/script.sh\necho hello\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+
+        // HeredocTokens and Heredocs should have the same count
+        Assert.Equal(result.HeredocTokens.Count(), result.Heredocs.Count());
+        // Each Heredocs element should equal the corresponding HeredocToken.Body
+        Assert.Equal(
+            result.HeredocTokens.Select(h => h.Body).ToArray(),
+            result.Heredocs.ToArray());
+    }
+
+    [Fact]
+    public void AddInstruction_Heredocs_WithSpecialCharacters()
+    {
+        string text = "ADD <<EOF /app/config\n$HOME=/root\nPATH=\"/usr/bin\"\nEOF\n";
+        AddInstruction result = AddInstruction.Parse(text);
+
+        string[] heredocs = result.Heredocs.ToArray();
+        Assert.Single(heredocs);
+        Assert.Equal("$HOME=/root\nPATH=\"/usr/bin\"\n", heredocs[0]);
+    }
 }
