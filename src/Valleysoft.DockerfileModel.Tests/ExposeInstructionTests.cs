@@ -153,6 +153,12 @@ public class ExposeInstructionTests
         ExposeInstruction result = new("$var/tcp");
         Assert.Equal("$var/tcp", result.Ports[0]);
         Assert.Equal("EXPOSE $var/tcp", result.ToString());
+        Assert.Collection(result.PortTokens[0].Tokens, new Action<Token>[]
+        {
+            token => ValidateAggregate<VariableRefToken>(token, "$var",
+                token => ValidateString(token, "var")),
+            token => ValidateString(token, "/tcp")
+        });
     }
 
     public static IEnumerable<object[]> ParseTestInput()
