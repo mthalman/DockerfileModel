@@ -991,10 +991,8 @@ internal static class ParseHelper
     /// </summary>
     private class HeredocMarkerInfo
     {
-        public string MarkerText { get; set; } = "";
         public string DelimiterName { get; set; } = "";
         public bool Chomp { get; set; }
-        public bool IsQuoted { get; set; }
         public char? QuoteChar { get; set; }
         /// <summary>Position in source where this marker starts.</summary>
         public int MarkerStartPos { get; set; }
@@ -1079,10 +1077,8 @@ internal static class ParseHelper
                     {
                         markers.Add(new HeredocMarkerInfo
                         {
-                            MarkerText = m.Value,
                             DelimiterName = m.Groups[3].Success ? m.Groups[3].Value : m.Groups[4].Value,
                             Chomp = m.Groups[1].Value == "-",
-                            IsQuoted = m.Groups[2].Success && m.Groups[2].Value != "",
                             QuoteChar = m.Groups[2].Success && m.Groups[2].Value != "" ? m.Groups[2].Value[0] : null,
                             MarkerStartPos = pos + m.Index,
                             MarkerEndPos = pos + m.Index + m.Length
