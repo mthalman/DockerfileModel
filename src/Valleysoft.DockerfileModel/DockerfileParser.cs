@@ -155,8 +155,9 @@ internal static class DockerfileParser
 
                 constructBuilder.Append(line);
 
-                // Check for heredoc markers in the line (only for instruction lines, not comments)
-                if (!Comment.IsComment(line))
+                // Check for heredoc markers in the line — only for RUN, COPY, and ADD
+                // (heredoc syntax is not supported for other instructions like ENV)
+                if (!Comment.IsComment(line) && IsHeredocCapableInstruction(constructBuilder.ToString()))
                 {
                     List<HeredocDelimiterInfo> delimiters = ExtractHeredocDelimiters(line);
                     if (delimiters.Count > 0)
@@ -205,6 +206,18 @@ internal static class DockerfileParser
         }
 
         return new Dockerfile(dockerfileConstructs);
+    }
+
+    /// <summary>
+    /// Returns true when the accumulated construct text begins with an instruction
+    /// keyword that supports heredoc syntax (RUN, COPY, ADD).
+    /// </summary>
+    private static bool IsHeredocCapableInstruction(string constructText)
+    {
+        string trimmed = constructText.TrimStart();
+        return trimmed.StartsWith("RUN", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("COPY", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("ADD", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Parser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
