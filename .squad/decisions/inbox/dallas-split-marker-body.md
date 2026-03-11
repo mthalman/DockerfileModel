@@ -31,19 +31,19 @@ KeywordToken("RUN"), WhitespaceToken(" "), HeredocMarkerToken("<<EOF"), NewLineT
 
 For `COPY <<EOF /dest\nhello\nEOF\n`:
 ```
-KeywordToken("COPY"), WhitespaceToken(" "), HeredocMarkerToken("<<EOF"), StringToken(" /dest"), NewLineToken("\n"), HeredocBodyToken(...)
+KeywordToken("COPY"), WhitespaceToken(" "), HeredocMarkerToken("<<EOF"), WhitespaceToken(" "), LiteralToken("/dest"), NewLineToken("\n"), HeredocBodyToken(...)
 ```
 
 For `RUN <<A <<B\nbody_a\nA\nbody_b\nB\n`:
 ```
-KeywordToken("RUN"), WhitespaceToken(" "), HeredocMarkerToken("<<A"), StringToken(" "), HeredocMarkerToken("<<B"), NewLineToken("\n"), HeredocBodyToken(...A...), HeredocBodyToken(...B...)
+KeywordToken("RUN"), WhitespaceToken(" "), HeredocMarkerToken("<<A"), WhitespaceToken(" "), HeredocMarkerToken("<<B"), NewLineToken("\n"), HeredocBodyToken(...A...), HeredocBodyToken(...B...)
 ```
 
 ## Consequences
 
 - **Round-trip fidelity preserved**: `Parse(text).ToString() == text` for all inputs.
 - **Multi-heredoc naturally supported**: Each marker and body is its own token; no special metadata needed.
-- **COPY/ADD destination works**: Destination text remains as a StringToken in the command stream, not absorbed.
+- **COPY/ADD destination works**: Destination text is tokenized as WhitespaceToken + LiteralToken segments in the command stream, not absorbed.
 - **Breaking change**: `HeredocToken` type removed. Code referencing it must use `HeredocMarkerToken`/`HeredocBodyToken`.
 - **New API surface**: `HeredocList` property returns `IReadOnlyList<Heredoc>` with paired marker+body objects.
 - **All 1038 tests pass** including 204 heredoc-specific tests.
