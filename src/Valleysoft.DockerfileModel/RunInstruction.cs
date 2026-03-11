@@ -55,10 +55,11 @@ public class RunInstruction : CommandInstruction
 
             Requires.NotNull(value!, nameof(value));
             Command? current = Command;
-            if (current is not null)
+            if (current is null)
             {
-                SetToken(current, value);
+                throw new InvalidOperationException("No Command token exists to replace.");
             }
+            SetToken(current, value);
         }
     }
 
