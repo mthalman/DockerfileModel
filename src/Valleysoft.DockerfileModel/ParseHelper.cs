@@ -976,8 +976,8 @@ internal static class ParseHelper
     /// a NewLineToken for the end of the command line, then HeredocBodyTokens sequentially.
     /// </summary>
     /// <returns>A parser that produces a flat list of instruction-level tokens.</returns>
-    public static Parser<IEnumerable<Token>> HeredocTokenParser() =>
-        input => HeredocTokenParseImpl(input);
+    public static Parser<IEnumerable<Token>> HeredocTokenParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        input => HeredocTokenParseImpl(input, escapeChar);
 
     private static readonly Regex HeredocMarkerRegex = new(
         @"^<<(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
@@ -1007,7 +1007,7 @@ internal static class ParseHelper
     /// HeredocMarkerToken(s) inline, StringToken(s) for text between markers,
     /// NewLineToken for end of command line, HeredocBodyToken(s) in marker order.
     /// </summary>
-    private static IResult<IEnumerable<Token>> HeredocTokenParseImpl(IInput input)
+    private static IResult<IEnumerable<Token>> HeredocTokenParseImpl(IInput input, char escapeChar)
     {
         string source = input.Source;
         int pos = input.Position;
@@ -1103,7 +1103,7 @@ internal static class ParseHelper
         if (lineEndPos > cursor)
         {
             string restOfLine = source.Substring(cursor, lineEndPos - cursor);
-            TokenizeRestOfLine(restOfLine, resultTokens);
+            TokenizeRestOfLine(restOfLine, resultTokens, escapeChar);
         }
 
         // Newline after command line
@@ -1189,7 +1189,7 @@ internal static class ParseHelper
     /// WhitespaceToken and LiteralToken segments. This allows FileTransferInstruction.DestinationToken
     /// to find the destination path as a LiteralToken for COPY/ADD heredocs.
     /// </summary>
-    private static void TokenizeRestOfLine(string text, List<Token> tokens)
+    private static void TokenizeRestOfLine(string text, List<Token> tokens, char escapeChar)
     {
         int i = 0;
         while (i < text.Length)
@@ -1210,7 +1210,7 @@ internal static class ParseHelper
                 {
                     i++;
                 }
-                tokens.Add(new LiteralToken(text.Substring(start, i - start), canContainVariables: true));
+                tokens.Add(new LiteralToken(text.Substring(start, i - start), canContainVariables: true, escapeChar));
             }
         }
     }

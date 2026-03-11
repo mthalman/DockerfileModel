@@ -199,7 +199,7 @@ public class RunInstruction : CommandInstruction
     private new static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from options in Options(escapeChar)
         from whitespace in Whitespace()
-        from command in HeredocTokenParser()
+        from command in HeredocTokenParser(escapeChar)
             .Or(ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar))
         select ConcatTokens(options, whitespace, command);
 

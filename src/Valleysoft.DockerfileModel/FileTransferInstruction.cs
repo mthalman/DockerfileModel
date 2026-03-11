@@ -196,7 +196,7 @@ public abstract class FileTransferInstruction : Instruction
             from flag in FlagOption(escapeChar, optionalFlagParser).Optional()
             select flag.GetOrDefault(), escapeChar).Many().Flatten()
         from whitespace in Whitespace()
-        from files in HeredocTokenParser()
+        from files in HeredocTokenParser(escapeChar)
             .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar))
             .Or(from literals in ArgTokens(
                     LiteralWithVariables(escapeChar).AsEnumerable(),
