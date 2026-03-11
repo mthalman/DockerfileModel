@@ -9,7 +9,7 @@ internal static class DockerfileParser
     // Matches heredoc markers: <<[-][QUOTE]DELIMITER[QUOTE]
     // Supports any non-whitespace for unquoted delimiters and any non-quote for quoted delimiters.
     private static readonly Regex HeredocDelimiterRegex = new(
-        @"<<(-?)\s*(?:(['""])(.*?)\2|([^\s'""]+))");
+        @"<<(-?)(?:(['""])(.*?)\2|([^\s'""]+))");
 
     /// <summary>
     /// Represents a detected heredoc delimiter with its properties.

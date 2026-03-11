@@ -980,11 +980,11 @@ internal static class ParseHelper
         input => HeredocTokenParseImpl(input);
 
     private static readonly Regex HeredocMarkerRegex = new(
-        @"^<<(-?)\s*(?:(['""])([^\r\n]*?)\2|([^\s]+))");
+        @"^<<(-?)(?:(['""])([^\r\n]*?)\2|([^\s]+))");
 
     // Regex for scanning the rest of the line for additional markers.
     private static readonly Regex HeredocMarkerScanRegex = new(
-        @"<<(-?)\s*(?:(['""])([^\r\n]*?)\2|([^\s]+))");
+        @"<<(-?)(?:(['""])([^\r\n]*?)\2|([^\s]+))");
 
     /// <summary>
     /// Holds parsed information about a heredoc marker found on the command line.
