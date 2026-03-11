@@ -250,9 +250,25 @@ internal static class DockerfileParser
     private static bool IsHeredocCapableInstruction(string constructText)
     {
         string trimmed = constructText.TrimStart();
-        return trimmed.StartsWith("RUN", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("COPY", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("ADD", StringComparison.OrdinalIgnoreCase);
+        return StartsWithInstructionKeyword(trimmed, "RUN")
+            || StartsWithInstructionKeyword(trimmed, "COPY")
+            || StartsWithInstructionKeyword(trimmed, "ADD");
+    }
+
+    /// <summary>
+    /// Checks whether <paramref name="text"/> starts with the given instruction
+    /// <paramref name="keyword"/> followed by whitespace or end-of-string, ensuring
+    /// a proper word boundary (e.g. "RUN" does not match "RUNNING").
+    /// </summary>
+    private static bool StartsWithInstructionKeyword(string text, string keyword)
+    {
+        if (!text.StartsWith(keyword, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Ensure word boundary: next character must be whitespace or end-of-string
+        return text.Length == keyword.Length || char.IsWhiteSpace(text[keyword.Length]);
     }
 
     private static Parser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
