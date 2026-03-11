@@ -1295,18 +1295,44 @@ internal static class ParseHelper
 
     /// <summary>
     /// Lightweight <see cref="IInput"/> that jumps to an arbitrary position
-    /// without walking character-by-character.  Line/column are not tracked
-    /// because the heredoc parser operates on raw indices.
+    /// without walking character-by-character.  Line and column are computed
+    /// by scanning the source string up to the target position.
     /// </summary>
     private sealed class OffsetInput : IInput, IEquatable<IInput>
     {
         private readonly string _source;
         private readonly int _position;
+        private readonly int _line;
+        private readonly int _column;
 
         public OffsetInput(string source, int position)
         {
             _source = source;
             _position = position;
+
+            // Compute line and column by scanning source up to position
+            int line = 1;
+            int lastNewlinePos = -1;
+            for (int i = 0; i < position && i < source.Length; i++)
+            {
+                if (source[i] == '\n')
+                {
+                    line++;
+                    lastNewlinePos = i;
+                }
+            }
+            _line = line;
+            _column = position - lastNewlinePos;
+
+            Memos = new Dictionary<object, object>();
+        }
+
+        private OffsetInput(string source, int position, int line, int column)
+        {
+            _source = source;
+            _position = position;
+            _line = line;
+            _column = column;
             Memos = new Dictionary<object, object>();
         }
 
@@ -1314,8 +1340,8 @@ internal static class ParseHelper
         public int Position => _position;
         public bool AtEnd => _position >= _source.Length;
         public char Current => _source[_position];
-        public int Line => 1;
-        public int Column => 1;
+        public int Line => _line;
+        public int Column => _column;
         public IDictionary<object, object> Memos { get; }
 
         public IInput Advance()
@@ -1324,7 +1350,15 @@ internal static class ParseHelper
             {
                 throw new InvalidOperationException("The input is already at the end of the source.");
             }
-            return new OffsetInput(_source, _position + 1);
+
+            int newLine = _line;
+            int newColumn = _column + 1;
+            if (_source[_position] == '\n')
+            {
+                newLine++;
+                newColumn = 1;
+            }
+            return new OffsetInput(_source, _position + 1, newLine, newColumn);
         }
 
         public bool Equals(IInput? other)
