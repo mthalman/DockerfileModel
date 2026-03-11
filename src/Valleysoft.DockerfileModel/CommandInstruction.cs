@@ -14,13 +14,13 @@ public abstract class CommandInstruction : Instruction
     {
     }
 
-    public Command Command
+    public virtual Command? Command
     {
         get => this.Tokens.OfType<Command>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
-            SetToken(Command, value);
+            Requires.NotNull(value!, nameof(value));
+            SetToken(Command!, value);
         }
     }
 

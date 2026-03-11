@@ -1,10 +1,83 @@
-﻿using System.Text;
+using System.Text;
+using System.Text.RegularExpressions;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
 internal static class DockerfileParser
 {
+    // Matches heredoc markers: <<[-][QUOTE]DELIMITER[QUOTE]
+    // Supports unquoted delimiters with [A-Za-z0-9_.] and quoted delimiters with [A-Za-z0-9_.\-]
+    private static readonly Regex HeredocDelimiterRegex = new(
+        @"<<(-?)(?:(['""])([A-Za-z0-9_.\-]+)\2|([A-Za-z0-9_.]+))");
+
+    /// <summary>
+    /// Represents a detected heredoc delimiter with its properties.
+    /// </summary>
+    public class HeredocDelimiterInfo
+    {
+        public HeredocDelimiterInfo(string delimiter, bool hasChomp)
+        {
+            Delimiter = delimiter;
+            HasChomp = hasChomp;
+        }
+
+        public string Delimiter { get; }
+        public bool HasChomp { get; }
+    }
+
+    /// <summary>
+    /// Extracts all heredoc delimiter markers from a line of text.
+    /// Strips trailing comments before scanning for markers.
+    /// </summary>
+    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(string line)
+    {
+        List<HeredocDelimiterInfo> result = new();
+
+        // Strip trailing comment before searching for heredoc markers
+        string strippedLine = StripTrailingComment(line);
+
+        MatchCollection matches = HeredocDelimiterRegex.Matches(strippedLine);
+        foreach (Match match in matches)
+        {
+            bool hasChomp = match.Groups[1].Value == "-";
+            string delimiterName = match.Groups[3].Success ? match.Groups[3].Value : match.Groups[4].Value;
+            result.Add(new HeredocDelimiterInfo(delimiterName, hasChomp));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Strips a trailing comment from a line, respecting quoted strings.
+    /// A '#' character inside single or double quotes is NOT treated as a comment.
+    /// </summary>
+    public static string StripTrailingComment(string line)
+    {
+        bool inSingleQuote = false;
+        bool inDoubleQuote = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char ch = line[i];
+
+            if (ch == '\'' && !inDoubleQuote)
+            {
+                inSingleQuote = !inSingleQuote;
+            }
+            else if (ch == '"' && !inSingleQuote)
+            {
+                inDoubleQuote = !inDoubleQuote;
+            }
+            else if (ch == '#' && !inSingleQuote && !inDoubleQuote)
+            {
+                return line.Substring(0, i);
+            }
+        }
+
+        return line;
+    }
+
     public static Dockerfile ParseContent(string text)
     {
         bool parserDirectivesComplete = false;
@@ -15,6 +88,8 @@ internal static class DockerfileParser
         List<string> constructLines = new();
         StringBuilder constructBuilder = new();
         StringBuilder lineBuilder = new();
+        List<HeredocDelimiterInfo> pendingDelimiters = new();
+
         for (int i = 0; i < text.Length; i++)
         {
             char ch = text[i];
@@ -46,9 +121,52 @@ internal static class DockerfileParser
                     }
                 }
 
+                // If we have pending heredoc delimiters, check if this line closes one
+                if (pendingDelimiters.Count > 0)
+                {
+                    constructBuilder.Append(line);
+
+                    // Check if current line is the closing delimiter for the first pending heredoc
+                    string lineWithoutNewline = line.TrimEnd('\r', '\n');
+                    HeredocDelimiterInfo currentDelimiter = pendingDelimiters[0];
+
+                    // For chomp mode, strip leading tabs before checking
+                    string trimmedLine = currentDelimiter.HasChomp
+                        ? lineWithoutNewline.TrimStart('\t')
+                        : lineWithoutNewline;
+
+                    if (trimmedLine == currentDelimiter.Delimiter)
+                    {
+                        pendingDelimiters.RemoveAt(0);
+
+                        // If all delimiters are closed, finish this construct
+                        if (pendingDelimiters.Count == 0)
+                        {
+                            constructLines.Add(constructBuilder.ToString());
+                            constructBuilder = new StringBuilder();
+                        }
+                    }
+
+                    lineBuilder = new StringBuilder();
+                    continue;
+                }
+
                 bool inLineContinuation = constructBuilder.Length > 0;
 
                 constructBuilder.Append(line);
+
+                // Check for heredoc markers in the line (only for instruction lines, not comments)
+                if (!Comment.IsComment(line))
+                {
+                    List<HeredocDelimiterInfo> delimiters = ExtractHeredocDelimiters(line);
+                    if (delimiters.Count > 0)
+                    {
+                        pendingDelimiters.AddRange(delimiters);
+                        lineBuilder = new StringBuilder();
+                        continue;
+                    }
+                }
+
                 if (!EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful &&
                     !(Comment.IsComment(line) && inLineContinuation))
                 {
@@ -62,6 +180,8 @@ internal static class DockerfileParser
 
         string lastConstruct = constructBuilder.ToString() + lineBuilder.ToString();
 
+        // If we still have pending delimiters and text, it's an unterminated heredoc
+        // but we still need to add the construct
         if (lastConstruct.Length > 0)
         {
             constructLines.Add(lastConstruct);

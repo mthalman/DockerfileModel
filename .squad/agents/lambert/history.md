@@ -211,3 +211,25 @@ Decision merged to decisions.md documenting comprehensive heredoc test suite str
 **160 test cases** provide executable specification covering all edge cases (delimiter names matching instructions, body content with heredoc syntax, chomp modes, single-character delimiters). Dependencies on Dallas's implementation tracked (HeredocToken, Body property, HeredocTokens/Heredocs properties, DockerfileParser.ExtractHeredocDelimiters, TestHelper.RunParseTest).
 
 **Impact:** Dallas must ensure implementation passes all test cases. API surface changes require coordination for test updates.
+
+### 2026-03-10 — Multi-Heredoc Token Tree Structure Validation Tests (Issue #245)
+
+Added 6 new `[Fact]` tests to `HeredocTests.cs` that walk the `Tokens` collection to validate token tree structure for multi-heredoc instructions. These tests fill the gap identified by Matt: existing multi-heredoc tests verified round-trip fidelity, counts, delimiter names, body strings, and property values, but none walked the `Tokens` collection to validate the actual token tree structure.
+
+**Tests added:**
+1. `Run_TwoHeredocs_TokenTreeStructure` — Validates instruction-level tokens (KeywordToken, WhitespaceToken, HeredocToken x2) and each HeredocToken's child tokens for `RUN <<FILE1 cat > /file1 && <<FILE2 cat > /file2`
+2. `Run_TwoHeredocs_EmptyBodies_TokenTreeStructure` — Validates token tree for `RUN <<FILE1 <<FILE2` with empty bodies (no body StringTokens, just closing delimiters)
+3. `Copy_TwoHeredocs_TokenTreeStructure` — Validates COPY instruction token tree including how destination text is embedded in the first HeredocToken's rest-of-line StringToken
+4. `Run_ThreeHeredocs_TokenTreeStructure` — Validates token tree for 3-heredoc instruction (first has marker + rest-of-line, second/third have body+delimiter only with explicit metadata)
+5. `Run_TwoHeredocs_ChildTokenTypesAndValues` — Deep-walks each HeredocToken's child tokens with explicit Assert.IsType<> and Assert.Equal for every token type and value, plus property verification (DelimiterName, Body, Chomp, IsQuoted)
+6. `Run_MixedChompQuoted_TokenTreeStructure` — Validates token tree for `RUN <<-FILE1 <<"FILE2"` with deep property assertions on both heredocs (chomp on first, quoted on second)
+
+**Key structural findings validated by tests:**
+- First HeredocToken in multi-heredoc contains: marker StringToken, rest-of-line StringToken (includes subsequent markers), NewLineToken, body StringTokens, closing delimiter StringToken, trailing NewLineToken
+- Subsequent HeredocTokens contain: body StringTokens, closing delimiter StringToken, trailing NewLineToken (metadata stored explicitly via constructor)
+- Body lines are each a single StringToken with trailing `\n` included
+- The `ValidateAggregate<HeredocToken>` pattern from existing single-heredoc tests was reused for consistency
+
+**Test results:** All 1034 tests pass (0 failures, 0 skipped). 6 new tests confirmed green.
+
+**File modified:** `src/Valleysoft.DockerfileModel.Tests/HeredocTests.cs` — added ~190 lines in new "Multi-heredoc token tree structure validation" section after existing multi-heredoc edge case tests

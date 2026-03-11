@@ -750,3 +750,91 @@ Architecture designed and approved by Ripley for heredoc support on Issue #245 (
 **Lambert's test suite (1859 lines, ~160 tests)** provides executable specification. Tests lock in API surface and expected behavior — any API changes require coordinated updates.
 
 **Branch:** `squad/245-heredoc-syntax-heredocs-property` — implementation in progress (foreground mode).
+
+### 2026-03-10 — Multi-Heredoc Per Instruction Support Implemented
+
+**Problem:** `HeredocTokenParseImpl` in `ParseHelper.cs` only handled a single heredoc per instruction. When it encountered `<<MARKER`, it read the rest of the line as a single `StringToken`, swallowing any subsequent `<<MARKER2` references.
+
+**Solution — Option B (Multiple HeredocTokens with explicit metadata):**
+
+1. **Modified `HeredocToken.cs`**: Added a second internal constructor that accepts explicit `body`, `delimiterName`, `chomp`, and `isQuoted` parameters. When these are set, the computed properties (`Body`, `DelimiterName`, `Chomp`, `IsQuoted`) return the explicit values instead of computing from child tokens. This is needed because in multi-heredoc, non-first heredoc tokens don't contain their body in their own child tokens (bodies live in the first token's children for round-trip fidelity).
+
+2. **Refactored `HeredocTokenParseImpl` in `ParseHelper.cs`**: Split into three methods:
+   - `HeredocTokenParseImpl` — entry point that scans the command line for all `<<MARKER` references using `HeredocMarkerScanRegex`
+   - `HeredocTokenParseSingle` — original single-heredoc logic (backward compatible)
+   - `HeredocTokenParseMultiple` — new multi-heredoc logic
+
+3. **Multi-heredoc token partitioning for round-trip fidelity:**
+   - First `HeredocToken` contains: its marker + the entire rest-of-command-line (including other markers) + newline + its own body lines + its closing delimiter. Properties (`Body`, `DelimiterName`, etc.) are computed from child tokens as before.
+   - Subsequent `HeredocToken`s contain: only their body lines + closing delimiter as child tokens, with explicit metadata for `Body`, `DelimiterName`, `Chomp`, `IsQuoted`.
+   - Concatenation of all `HeredocToken.ToString()` values produces the exact original text.
+
+4. **No changes to instruction parsers needed**: `RunInstruction`, `FileTransferInstruction` (COPY/ADD) already use `HeredocTokenParser()` which returns `IEnumerable<Token>`. Multiple `HeredocToken`s flow through `ConcatTokens` into the instruction's token list. `HeredocTokens => Tokens.OfType<HeredocToken>()` finds all of them.
+
+5. **No changes to `DockerfileParser.cs`**: Phase 1 line accumulation already handles multiple markers via `ExtractHeredocDelimiters` and `pendingDelimiters`.
+
+**Tests:** 36 new multi-heredoc tests added to `HeredocTests.cs`:
+- RUN with 2 heredocs: round-trip, delimiter names, bodies, Heredocs property, Command-is-null
+- RUN with 3 heredocs: round-trip, delimiter names, bodies
+- COPY with 2 heredocs: round-trip, delimiter names, bodies, Heredocs property, Destination-is-null
+- ADD with 2 heredocs: round-trip, count, bodies
+- Edge cases: empty bodies, CRLF, no trailing newline, complex command text, mixed quoting, chomp flags, mount flags
+- Dockerfile-level: multi-heredoc followed by instructions, 3 heredocs
+- ExtractHeredocDelimiters: multiple markers, three markers, markers with command text
+
+**Test count:** 992 → 1028 (36 new tests). All pass.
+
+**Key files modified:**
+- `src/Valleysoft.DockerfileModel/Tokens/HeredocToken.cs` — explicit metadata constructor + refactored properties
+- `src/Valleysoft.DockerfileModel/ParseHelper.cs` — multi-heredoc parsing logic
+- `src/Valleysoft.DockerfileModel.Tests/HeredocTests.cs` — 36 new tests
+
+### 2026-03-10 — Heredoc Architecture Rework: Split Marker/Body Model (Issue #245)
+
+**Problem:** The single `HeredocToken` bundled marker + rest-of-line + body into one aggregate. For multi-heredoc instructions, the second `<<MARKER` got buried as plain text in the first token's rest-of-line. COPY/ADD destinations were absorbed into the heredoc token, making `Destination` return null.
+
+**Solution — Split Marker/Body Architecture (from Ripley's design doc):**
+
+1. **Replaced `HeredocToken` with two new token types:**
+   - `HeredocMarkerToken : AggregateToken` — represents `<<[-][QUOTE]DELIM[QUOTE]` inline in command stream. Properties: `DelimiterName`, `Chomp`, `IsQuoted`, `QuoteChar`, `Expand`.
+   - `HeredocBodyToken : AggregateToken` — represents body lines + closing delimiter, appearing after the command line's newline. Properties: `Content`, `ClosingDelimiter`.
+   - Both are instruction-level siblings of `KeywordToken`, `StringToken`, etc.
+
+2. **Created `Heredoc` semantic wrapper class:**
+   - Pairs a `HeredocMarkerToken` with its `HeredocBodyToken` by position (first marker = first body).
+   - Properties: `Name`, `Content`, `Chomp`, `Expand`.
+
+3. **Rewrote `HeredocTokenParseImpl` in `ParseHelper.cs`:**
+   - Produces `HeredocMarkerToken`s inline for each `<<MARKER` occurrence.
+   - Produces `StringToken`s for text between markers (command text, destinations).
+   - Produces `NewLineToken` for end of command line.
+   - Produces `HeredocBodyToken`s sequentially in marker order.
+   - Single unified code path for both single and multi-heredoc cases.
+
+4. **Updated instruction classes:**
+   - `RunInstruction`: `HeredocMarkerTokens`, `HeredocBodyTokens`, `HeredocList` (paired markers+bodies), `HeredocTokens` (backward-compat alias for markers), `Heredocs` (body content strings).
+   - `FileTransferInstruction`: Same properties. `Destination`/`DestinationToken` no longer forced to null for heredoc instructions (destination text is now a proper StringToken in the command stream).
+
+5. **Deleted `HeredocToken.cs`** — replaced by `HeredocMarkerToken.cs` + `HeredocBodyToken.cs`.
+
+**Token structure example** for `RUN <<EOF\necho hello\nEOF\n`:
+```
+KeywordToken("RUN"), WhitespaceToken(" "), HeredocMarkerToken("<<EOF"), NewLineToken("\n"), HeredocBodyToken("echo hello\nEOF\n")
+```
+
+For `COPY <<EOF /app/script.sh\necho hello\nEOF\n`:
+```
+KeywordToken("COPY"), WhitespaceToken(" "), HeredocMarkerToken("<<EOF"), StringToken(" /app/script.sh"), NewLineToken("\n"), HeredocBodyToken("echo hello\nEOF\n")
+```
+
+**Tests:** Full test rewrite — 204 heredoc-specific tests, all 1038 tests pass.
+
+**Key files:**
+- `src/Valleysoft.DockerfileModel/Tokens/HeredocMarkerToken.cs` — NEW
+- `src/Valleysoft.DockerfileModel/Tokens/HeredocBodyToken.cs` — NEW
+- `src/Valleysoft.DockerfileModel/Heredoc.cs` — NEW semantic wrapper
+- `src/Valleysoft.DockerfileModel/Tokens/HeredocToken.cs` — DELETED
+- `src/Valleysoft.DockerfileModel/ParseHelper.cs` — rewritten heredoc parsing
+- `src/Valleysoft.DockerfileModel/RunInstruction.cs` — updated properties
+- `src/Valleysoft.DockerfileModel/FileTransferInstruction.cs` — updated properties, Destination works for heredocs
+- `src/Valleysoft.DockerfileModel.Tests/HeredocTests.cs` — full rewrite for new architecture
