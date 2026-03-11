@@ -980,7 +980,7 @@ internal static class ParseHelper
         input => HeredocTokenParseImpl(input, escapeChar);
 
     private static readonly Regex HeredocMarkerRegex = new(
-        @"^<<(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
+        @"<<(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
 
     // Regex for scanning the rest of the line for additional markers.
     private static readonly Regex HeredocMarkerScanRegex = new(
@@ -1020,9 +1020,8 @@ internal static class ParseHelper
         }
 
         // Match the first marker using regex starting from current position
-        string remaining = source.Substring(pos);
-        Match firstMatch = HeredocMarkerRegex.Match(remaining);
-        if (!firstMatch.Success)
+        Match firstMatch = HeredocMarkerRegex.Match(source, pos);
+        if (!firstMatch.Success || firstMatch.Index != pos)
         {
             return Result.Failure<IEnumerable<Token>>(
                 input, "Invalid heredoc marker", Array.Empty<string>());
