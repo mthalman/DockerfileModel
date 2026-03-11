@@ -1041,21 +1041,58 @@ internal static class ParseHelper
         // does not pick up `<<BAR` as a second marker (matches DockerfileParser behaviour).
         string strippedCommandLine = DockerfileParser.StripTrailingComment(commandLine);
 
-        // Scan the (comment-stripped) command line for all heredoc markers
+        // Scan the (comment-stripped) command line for all heredoc markers,
+        // respecting shell quoting so that e.g. `echo "<<BAR"` does not
+        // produce a spurious marker for <<BAR.
         List<HeredocMarkerInfo> markers = new();
-        MatchCollection allMatches = HeredocMarkerScanRegex.Matches(strippedCommandLine);
-        foreach (Match m in allMatches)
         {
-            markers.Add(new HeredocMarkerInfo
+            bool inSingleQuote = false;
+            bool inDoubleQuote = false;
+            for (int scanIdx = 0; scanIdx < strippedCommandLine.Length; scanIdx++)
             {
-                MarkerText = m.Value,
-                DelimiterName = m.Groups[3].Success ? m.Groups[3].Value : m.Groups[4].Value,
-                Chomp = m.Groups[1].Value == "-",
-                IsQuoted = m.Groups[2].Success && m.Groups[2].Value != "",
-                QuoteChar = m.Groups[2].Success && m.Groups[2].Value != "" ? m.Groups[2].Value[0] : null,
-                MarkerStartPos = pos + m.Index,
-                MarkerEndPos = pos + m.Index + m.Length
-            });
+                char sc = strippedCommandLine[scanIdx];
+
+                // Skip escaped characters (backslash is not special inside single quotes)
+                if (sc == '\\' && !inSingleQuote && scanIdx + 1 < strippedCommandLine.Length)
+                {
+                    scanIdx++; // skip next character
+                    continue;
+                }
+
+                if (sc == '\'' && !inDoubleQuote)
+                {
+                    inSingleQuote = !inSingleQuote;
+                    continue;
+                }
+
+                if (sc == '"' && !inSingleQuote)
+                {
+                    inDoubleQuote = !inDoubleQuote;
+                    continue;
+                }
+
+                // Only look for << when outside quotes
+                if (!inSingleQuote && !inDoubleQuote
+                    && sc == '<' && scanIdx + 1 < strippedCommandLine.Length && strippedCommandLine[scanIdx + 1] == '<')
+                {
+                    Match m = HeredocMarkerScanRegex.Match(strippedCommandLine, scanIdx);
+                    if (m.Success && m.Index == scanIdx)
+                    {
+                        markers.Add(new HeredocMarkerInfo
+                        {
+                            MarkerText = m.Value,
+                            DelimiterName = m.Groups[3].Success ? m.Groups[3].Value : m.Groups[4].Value,
+                            Chomp = m.Groups[1].Value == "-",
+                            IsQuoted = m.Groups[2].Success && m.Groups[2].Value != "",
+                            QuoteChar = m.Groups[2].Success && m.Groups[2].Value != "" ? m.Groups[2].Value[0] : null,
+                            MarkerStartPos = pos + m.Index,
+                            MarkerEndPos = pos + m.Index + m.Length
+                        });
+                        // Advance past the matched marker text
+                        scanIdx += m.Length - 1;
+                    }
+                }
+            }
         }
 
         // Build the flat list of instruction-level tokens
