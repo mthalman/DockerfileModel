@@ -44,10 +44,11 @@ public abstract class FileTransferInstruction : Instruction
         {
             Requires.NotNullOrEmpty(value!, nameof(value));
             LiteralToken? destToken = DestinationToken;
-            if (destToken is not null)
+            if (destToken is null)
             {
-                destToken.Value = value;
+                throw new InvalidOperationException("No destination token exists to update.");
             }
+            destToken.Value = value;
         }
     }
 
