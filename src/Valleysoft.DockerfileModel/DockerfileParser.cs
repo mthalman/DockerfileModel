@@ -37,12 +37,47 @@ internal static class DockerfileParser
         // Strip trailing comment before searching for heredoc markers
         string strippedLine = StripTrailingComment(line);
 
-        MatchCollection matches = HeredocDelimiterRegex.Matches(strippedLine);
-        foreach (Match match in matches)
+        // Use a quote-aware scan so that `<<` inside quoted strings
+        // (e.g. `RUN echo "<<EOF"`) is not treated as a heredoc marker.
+        bool inSingleQuote = false;
+        bool inDoubleQuote = false;
+        for (int i = 0; i < strippedLine.Length; i++)
         {
-            bool hasChomp = match.Groups[1].Value == "-";
-            string delimiterName = match.Groups[3].Success ? match.Groups[3].Value : match.Groups[4].Value;
-            result.Add(new HeredocDelimiterInfo(delimiterName, hasChomp));
+            char ch = strippedLine[i];
+
+            // Skip escaped characters (backslash is not special inside single quotes)
+            if (ch == '\\' && !inSingleQuote && i + 1 < strippedLine.Length)
+            {
+                i++; // skip next character
+                continue;
+            }
+
+            if (ch == '\'' && !inDoubleQuote)
+            {
+                inSingleQuote = !inSingleQuote;
+                continue;
+            }
+
+            if (ch == '"' && !inSingleQuote)
+            {
+                inDoubleQuote = !inDoubleQuote;
+                continue;
+            }
+
+            // Only match << when outside quotes
+            if (!inSingleQuote && !inDoubleQuote
+                && ch == '<' && i + 1 < strippedLine.Length && strippedLine[i + 1] == '<')
+            {
+                Match match = HeredocDelimiterRegex.Match(strippedLine, i);
+                if (match.Success && match.Index == i)
+                {
+                    bool hasChomp = match.Groups[1].Value == "-";
+                    string delimiterName = match.Groups[3].Success ? match.Groups[3].Value : match.Groups[4].Value;
+                    result.Add(new HeredocDelimiterInfo(delimiterName, hasChomp));
+                    // Advance past the matched marker text
+                    i += match.Length - 1;
+                }
+            }
         }
 
         return result;
