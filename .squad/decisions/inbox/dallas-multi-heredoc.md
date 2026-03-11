@@ -2,35 +2,32 @@
 
 **Date:** 2026-03-10
 **Author:** Dallas (Core Dev)
-**Status:** Implemented
-**Scope:** HeredocToken, ParseHelper.HeredocTokenParseImpl
+**Status:** ~~Implemented~~ **Superseded** by heredoc marker/body token split (2026-03-10)
+**Scope:** ~~HeredocToken, ParseHelper.HeredocTokenParseImpl~~ → HeredocMarkerToken, HeredocBodyToken, Heredoc, ParseHelper.HeredocTokenParseImpl
 
 ## Context
 
-Issue #245 requires supporting multiple heredoc markers per instruction (e.g., `RUN <<FILE1 cmd1 && <<FILE2 cmd2`). The existing `HeredocTokenParseImpl` only handled a single heredoc per instruction.
+Issue #245 requires supporting multiple heredoc markers per instruction (e.g., `RUN <<FILE1 cmd1 && <<FILE2 cmd2`).
 
-## Decision
+## Current Design (supersedes original decision below)
 
-Chose **Option B — Multiple HeredocTokens with explicit metadata** over Ripley's original split-token design (HeredocMarkerToken/HeredocBodyToken). The split-token approach would have required new token classes, changes to instruction parsers, and updates to the differential testing serializer. Option B is a minimal, backward-compatible change.
+The implementation now uses a **split marker/body token architecture**:
+- **`HeredocMarkerToken`** — inline in the command stream, decomposes to `SymbolToken('<') + SymbolToken('<') + [SymbolToken('-')] + [quote SymbolTokens] + HeredocDelimiterToken`
+- **`HeredocBodyToken`** — sequential after the command line, contains body `StringToken` + closing `HeredocDelimiterToken` + optional trailing `NewLineToken`
+- **`Heredoc`** — semantic wrapper pairing marker+body positionally via `HeredocList` property
+- **`HeredocDelimiterToken`** — extends `IdentifierToken`, used in both marker and body tokens
 
-## Token Partitioning for Round-Trip Fidelity
+This design provides uniform metadata access regardless of position: all markers have full token decomposition, all bodies have consistent structure. `Heredocs` is derived as `HeredocBodyTokens.Select(h => h.Content)`.
 
-The key challenge: in multi-heredoc, markers appear on the same command line but bodies appear sequentially afterward. For `Parse(text).ToString() == text` to hold, the text must be partitioned across HeredocTokens such that concatenation reproduces the original.
+## Original Decision (obsolete — retained for historical context)
 
-**Partition strategy:**
-- **First HeredocToken** — contains its marker + the entire rest-of-command-line (including subsequent markers and interleaved text) + newline + its own body + its closing delimiter. Properties computed from child tokens (backward compatible).
-- **Subsequent HeredocTokens** — contain only their body lines + closing delimiter as child tokens. Store explicit metadata (`body`, `delimiterName`, `chomp`, `isQuoted`) because these can't be computed from their limited child tokens.
+Originally chose multiple `HeredocToken` instances with explicit metadata fields on subsequent tokens. This was superseded because it created an asymmetric token structure where first vs. subsequent heredocs had fundamentally different internal representations.
 
-This partition preserves round-trip fidelity: HT1.ToString() + HT2.ToString() + ... = original text.
+## Files Changed (current)
 
-## Trade-offs
-
-- First heredoc's child tokens include other markers in its rest-of-line StringToken. This is consistent with how single-heredoc COPY already works (destination absorbed into rest-of-line StringToken).
-- Subsequent heredocs have limited child tokens (no marker in children). The explicit metadata fields compensate for this.
-- Single-heredoc path is preserved exactly as-is (zero behavioral change for existing code).
-
-## Files Changed
-
-- `src/Valleysoft.DockerfileModel/Tokens/HeredocToken.cs`
+- `src/Valleysoft.DockerfileModel/Tokens/HeredocMarkerToken.cs`
+- `src/Valleysoft.DockerfileModel/Tokens/HeredocBodyToken.cs`
+- `src/Valleysoft.DockerfileModel/Tokens/HeredocDelimiterToken.cs`
+- `src/Valleysoft.DockerfileModel/Heredoc.cs`
 - `src/Valleysoft.DockerfileModel/ParseHelper.cs`
 - `src/Valleysoft.DockerfileModel.Tests/HeredocTests.cs`
