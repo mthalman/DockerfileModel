@@ -1290,7 +1290,7 @@ internal static class ParseHelper
     /// </summary>
     private static IInput AdvanceInput(IInput input, int count)
     {
-        return new OffsetInput(input.Source, input.Position + count);
+        return new OffsetInput(input.Source, input.Position + count, input.Memos);
     }
 
     /// <summary>
@@ -1305,7 +1305,7 @@ internal static class ParseHelper
         private readonly int _line;
         private readonly int _column;
 
-        public OffsetInput(string source, int position)
+        public OffsetInput(string source, int position, IDictionary<object, object> memos)
         {
             _source = source;
             _position = position;
@@ -1324,16 +1324,16 @@ internal static class ParseHelper
             _line = line;
             _column = position - lastNewlinePos;
 
-            Memos = new Dictionary<object, object>();
+            Memos = memos;
         }
 
-        private OffsetInput(string source, int position, int line, int column)
+        private OffsetInput(string source, int position, int line, int column, IDictionary<object, object> memos)
         {
             _source = source;
             _position = position;
             _line = line;
             _column = column;
-            Memos = new Dictionary<object, object>();
+            Memos = memos;
         }
 
         public string Source => _source;
@@ -1358,7 +1358,7 @@ internal static class ParseHelper
                 newLine++;
                 newColumn = 1;
             }
-            return new OffsetInput(_source, _position + 1, newLine, newColumn);
+            return new OffsetInput(_source, _position + 1, newLine, newColumn, Memos);
         }
 
         public bool Equals(IInput? other)
