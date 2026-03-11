@@ -1140,10 +1140,12 @@ internal static class ParseHelper
             string argsOnly = DockerfileParser.StripTrailingComment(restOfLine);
             TokenizeRestOfLine(argsOnly, resultTokens, escapeChar);
 
-            // Preserve the comment portion as a StringToken for round-trip fidelity
+            // Preserve the comment portion as a CommentToken so that
+            // Instruction.Comments and ExcludeComments work correctly.
             if (argsOnly.Length < restOfLine.Length)
             {
-                resultTokens.Add(new StringToken(restOfLine.Substring(argsOnly.Length)));
+                string commentSegment = restOfLine.Substring(argsOnly.Length);
+                resultTokens.Add(CommentToken.Parse(commentSegment));
             }
         }
 
