@@ -1284,9 +1284,9 @@ internal static class ParseHelper
     }
 
     /// <summary>
-    /// Advances the input by the specified number of characters.
-    /// Constructs a new <see cref="OffsetInput"/> directly instead of looping,
-    /// giving O(1) performance regardless of <paramref name="count"/>.
+    /// Advances the input by the specified number of characters using direct position offset.
+    /// Line and column are computed by scanning the source up to the target position,
+    /// so the runtime complexity scales with the position in the source.
     /// </summary>
     private static IInput AdvanceInput(IInput input, int count)
     {
