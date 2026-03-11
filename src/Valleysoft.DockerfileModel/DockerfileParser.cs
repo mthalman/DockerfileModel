@@ -69,7 +69,7 @@ internal static class DockerfileParser
             {
                 inDoubleQuote = !inDoubleQuote;
             }
-            else if (ch == '#' && !inSingleQuote && !inDoubleQuote)
+            else if (ch == '#' && !inSingleQuote && !inDoubleQuote && (i == 0 || char.IsWhiteSpace(line[i - 1])))
             {
                 return line.Substring(0, i);
             }
