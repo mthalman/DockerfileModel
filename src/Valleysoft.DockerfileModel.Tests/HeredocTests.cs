@@ -359,7 +359,8 @@ public class HeredocTests
                         token => ValidateSymbol(token, '<'),
                         token => ValidateSymbol(token, '<'),
                         token => ValidateIdentifier<HeredocDelimiterToken>(token, "EOF")),
-                    token => ValidateString(token, " /app/script.sh"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/script.sh"),
                     token => ValidateNewLine(token, "\n"),
                     token => ValidateAggregate<HeredocBodyToken>(token, "echo hello\nEOF\n",
                         token => ValidateString(token, "echo hello\n"),
@@ -370,6 +371,7 @@ public class HeredocTests
                 {
                     Assert.Equal("COPY", result.InstructionName);
                     Assert.Single(result.HeredocTokens);
+                    Assert.Equal("/app/script.sh", result.Destination);
                 }
             },
             // COPY with double-quoted delimiter
@@ -386,7 +388,8 @@ public class HeredocTests
                         token => ValidateSymbol(token, '"'),
                         token => ValidateIdentifier<HeredocDelimiterToken>(token, "EOF"),
                         token => ValidateSymbol(token, '"')),
-                    token => ValidateString(token, " /app/script.sh"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/script.sh"),
                     token => ValidateNewLine(token, "\n"),
                     token => ValidateAggregate<HeredocBodyToken>(token, "echo hello\nEOF\n",
                         token => ValidateString(token, "echo hello\n"),
@@ -396,6 +399,7 @@ public class HeredocTests
                 Validate = result =>
                 {
                     Assert.Single(result.HeredocTokens);
+                    Assert.Equal("/app/script.sh", result.Destination);
                 }
             },
             // COPY with multi-line body
@@ -410,7 +414,8 @@ public class HeredocTests
                         token => ValidateSymbol(token, '<'),
                         token => ValidateSymbol(token, '<'),
                         token => ValidateIdentifier<HeredocDelimiterToken>(token, "EOF")),
-                    token => ValidateString(token, " /app/config.txt"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/config.txt"),
                     token => ValidateNewLine(token, "\n"),
                     token => ValidateAggregate<HeredocBodyToken>(token, "line 1\nline 2\nline 3\nEOF\n",
                         token => ValidateString(token, "line 1\nline 2\nline 3\n"),
@@ -420,6 +425,7 @@ public class HeredocTests
                 Validate = result =>
                 {
                     Assert.Single(result.HeredocTokens);
+                    Assert.Equal("/app/config.txt", result.Destination);
                 }
             },
         };
@@ -452,7 +458,8 @@ public class HeredocTests
                         token => ValidateSymbol(token, '<'),
                         token => ValidateSymbol(token, '<'),
                         token => ValidateIdentifier<HeredocDelimiterToken>(token, "EOF")),
-                    token => ValidateString(token, " /app/script.sh"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/script.sh"),
                     token => ValidateNewLine(token, "\n"),
                     token => ValidateAggregate<HeredocBodyToken>(token, "echo hello\nEOF\n",
                         token => ValidateString(token, "echo hello\n"),
@@ -463,6 +470,7 @@ public class HeredocTests
                 {
                     Assert.Equal("ADD", result.InstructionName);
                     Assert.Single(result.HeredocTokens);
+                    Assert.Equal("/app/script.sh", result.Destination);
                 }
             },
             // ADD with double-quoted delimiter
@@ -479,7 +487,8 @@ public class HeredocTests
                         token => ValidateSymbol(token, '"'),
                         token => ValidateIdentifier<HeredocDelimiterToken>(token, "EOF"),
                         token => ValidateSymbol(token, '"')),
-                    token => ValidateString(token, " /app/script.sh"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/script.sh"),
                     token => ValidateNewLine(token, "\n"),
                     token => ValidateAggregate<HeredocBodyToken>(token, "echo hello\nEOF\n",
                         token => ValidateString(token, "echo hello\n"),
@@ -489,6 +498,7 @@ public class HeredocTests
                 Validate = result =>
                 {
                     Assert.Single(result.HeredocTokens);
+                    Assert.Equal("/app/script.sh", result.Destination);
                 }
             },
             // ADD with multi-line body
@@ -503,7 +513,8 @@ public class HeredocTests
                         token => ValidateSymbol(token, '<'),
                         token => ValidateSymbol(token, '<'),
                         token => ValidateIdentifier<HeredocDelimiterToken>(token, "EOF")),
-                    token => ValidateString(token, " /app/config"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/config"),
                     token => ValidateNewLine(token, "\n"),
                     token => ValidateAggregate<HeredocBodyToken>(token, "line1\nline2\nline3\nEOF\n",
                         token => ValidateString(token, "line1\nline2\nline3\n"),
@@ -513,6 +524,7 @@ public class HeredocTests
                 Validate = result =>
                 {
                     Assert.Single(result.HeredocTokens);
+                    Assert.Equal("/app/config", result.Destination);
                 }
             },
         };
@@ -1622,11 +1634,13 @@ public class HeredocTests
     }
 
     [Fact]
-    public void ExtractHeredocDelimiters_ArbitraryQuotedCharsNotMatched()
+    public void ExtractHeredocDelimiters_QuotedDelimiterWithSpaces()
     {
-        // Characters outside [A-Za-z0-9_.\-] in a quoted delimiter should not match
+        // Quoted delimiters accept any non-quote characters, including spaces
         var delimiters = DockerfileParser.ExtractHeredocDelimiters("RUN <<'EOF SPACE'\n");
-        Assert.Empty(delimiters);
+        Assert.Single(delimiters);
+        Assert.Equal("EOF SPACE", delimiters[0].Delimiter);
+        Assert.False(delimiters[0].HasChomp);
     }
 
     [Fact]
@@ -2289,7 +2303,9 @@ public class HeredocTests
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
 
-        // Instruction-level tokens: KeywordToken, WhitespaceToken, HeredocMarkerToken, StringToken, HeredocMarkerToken, StringToken, NewLineToken, HeredocBodyToken, HeredocBodyToken
+        // Instruction-level tokens: KeywordToken, WhitespaceToken, HeredocMarkerToken, StringToken (gap),
+        // HeredocMarkerToken, then rest-of-line tokenized into WhitespaceToken + LiteralToken segments,
+        // NewLineToken, HeredocBodyToken, HeredocBodyToken
         Assert.Collection(result.Tokens,
             token => ValidateKeyword(token, "RUN"),
             token => ValidateWhitespace(token, " "),
@@ -2302,7 +2318,12 @@ public class HeredocTests
                 t => ValidateSymbol(t, '<'),
                 t => ValidateSymbol(t, '<'),
                 t => ValidateIdentifier<HeredocDelimiterToken>(t, "FILE2")),
-            token => ValidateString(token, " cat > /file2"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "cat"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, ">"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "/file2"),
             token => ValidateNewLine(token, "\n"),
             token => ValidateAggregate<HeredocBodyToken>(token,
                 "content of file1\nFILE1\n",
@@ -2363,7 +2384,8 @@ public class HeredocTests
                 t => ValidateSymbol(t, '<'),
                 t => ValidateSymbol(t, '<'),
                 t => ValidateIdentifier<HeredocDelimiterToken>(t, "file2.txt")),
-            token => ValidateString(token, " /dest/"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLiteral(token, "/dest/"),
             token => ValidateNewLine(token, "\n"),
             token => ValidateAggregate<HeredocBodyToken>(token, "content1\nfile1.txt\n",
                 t => ValidateString(t, "content1\n"),
@@ -2373,6 +2395,9 @@ public class HeredocTests
                 t => ValidateString(t, "content2\n"),
                 t => ValidateIdentifier<HeredocDelimiterToken>(t, "file2.txt"),
                 t => ValidateNewLine(t, "\n")));
+
+        // Verify destination is properly tokenized
+        Assert.Equal("/dest/", result.Destination);
     }
 
     [Fact]

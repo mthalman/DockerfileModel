@@ -75,7 +75,7 @@ public class HeredocBodyToken : AggregateToken
     }
 
     /// <summary>
-    /// Gets the closing delimiter text (e.g. "EOF" or "\tEOF" for chomped heredocs).
+    /// Gets the closing delimiter name (e.g. "EOF").
     /// </summary>
     public string ClosingDelimiter
     {

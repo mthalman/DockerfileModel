@@ -980,11 +980,11 @@ internal static class ParseHelper
         input => HeredocTokenParseImpl(input);
 
     private static readonly Regex HeredocMarkerRegex = new(
-        @"^<<(-?)(?:(['""])([A-Za-z0-9_.\-]+)\2|([A-Za-z0-9_.]+))");
+        @"^<<(-?)\s*(?:(['""])([^\r\n]*?)\2|([^\s]+))");
 
     // Regex for scanning the rest of the line for additional markers.
     private static readonly Regex HeredocMarkerScanRegex = new(
-        @"<<(-?)(?:(['""])([A-Za-z0-9_.\-]+)\2|([A-Za-z0-9_.]+))");
+        @"<<(-?)\s*(?:(['""])([^\r\n]*?)\2|([^\s]+))");
 
     /// <summary>
     /// Holds parsed information about a heredoc marker found on the command line.
@@ -1093,11 +1093,13 @@ internal static class ParseHelper
             cursor = markers[i].MarkerEndPos;
         }
 
-        // Text after the last marker to end of command line
+        // Text after the last marker to end of command line —
+        // tokenize into WhitespaceToken + LiteralToken segments so that
+        // FileTransferInstruction.DestinationToken can find the destination.
         if (lineEndPos > cursor)
         {
             string restOfLine = source.Substring(cursor, lineEndPos - cursor);
-            resultTokens.Add(new StringToken(restOfLine));
+            TokenizeRestOfLine(restOfLine, resultTokens);
         }
 
         // Newline after command line
@@ -1179,26 +1181,32 @@ internal static class ParseHelper
     }
 
     /// <summary>
-    /// Adds body line tokens to a token list. Each line (including its trailing newline) is a StringToken.
+    /// Tokenizes the rest-of-line text (after the last heredoc marker) into alternating
+    /// WhitespaceToken and LiteralToken segments. This allows FileTransferInstruction.DestinationToken
+    /// to find the destination path as a LiteralToken for COPY/ADD heredocs.
     /// </summary>
-    private static void AddBodyLineTokens(List<Token> tokens, string bodyText)
+    private static void TokenizeRestOfLine(string text, List<Token> tokens)
     {
-        int start = 0;
-        while (start < bodyText.Length)
+        int i = 0;
+        while (i < text.Length)
         {
-            int nlPos = bodyText.IndexOf('\n', start);
-            if (nlPos >= 0)
+            if (char.IsWhiteSpace(text[i]))
             {
-                // Include the newline character(s)
-                int lineEnd = nlPos + 1;
-                tokens.Add(new StringToken(bodyText.Substring(start, lineEnd - start)));
-                start = lineEnd;
+                int start = i;
+                while (i < text.Length && char.IsWhiteSpace(text[i]))
+                {
+                    i++;
+                }
+                tokens.Add(new WhitespaceToken(text.Substring(start, i - start)));
             }
             else
             {
-                // No more newlines; add remaining text
-                tokens.Add(new StringToken(bodyText.Substring(start)));
-                break;
+                int start = i;
+                while (i < text.Length && !char.IsWhiteSpace(text[i]))
+                {
+                    i++;
+                }
+                tokens.Add(new LiteralToken(text.Substring(start, i - start)));
             }
         }
     }

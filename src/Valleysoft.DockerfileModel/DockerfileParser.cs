@@ -7,9 +7,9 @@ namespace Valleysoft.DockerfileModel;
 internal static class DockerfileParser
 {
     // Matches heredoc markers: <<[-][QUOTE]DELIMITER[QUOTE]
-    // Supports unquoted delimiters with [A-Za-z0-9_.] and quoted delimiters with [A-Za-z0-9_.\-]
+    // Supports any non-whitespace for unquoted delimiters and any non-quote for quoted delimiters.
     private static readonly Regex HeredocDelimiterRegex = new(
-        @"<<(-?)(?:(['""])([A-Za-z0-9_.\-]+)\2|([A-Za-z0-9_.]+))");
+        @"<<(-?)\s*(?:(['""])(.*?)\2|([^\s'""]+))");
 
     /// <summary>
     /// Represents a detected heredoc delimiter with its properties.

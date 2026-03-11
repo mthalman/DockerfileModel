@@ -1,3 +1,4 @@
+using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
@@ -22,11 +23,50 @@ public class Heredoc
 
     /// <summary>
     /// Gets the body content of the heredoc (text between the command line and closing delimiter).
+    /// When <see cref="Chomp"/> is true, leading tab characters are stripped from each body line.
+    /// <see cref="HeredocBodyToken.Content"/> always returns the raw (unprocessed) content
+    /// for round-trip fidelity.
     /// </summary>
-    public string Content => Body.Content;
+    public string Content
+    {
+        get
+        {
+            string raw = Body.Content;
+            if (!Chomp)
+            {
+                return raw;
+            }
+
+            // Strip leading tabs from each line
+            StringBuilder sb = new();
+            int i = 0;
+            while (i < raw.Length)
+            {
+                // Skip leading tabs
+                while (i < raw.Length && raw[i] == '\t')
+                {
+                    i++;
+                }
+
+                // Copy the rest of the line (up to and including newline)
+                while (i < raw.Length)
+                {
+                    char ch = raw[i];
+                    sb.Append(ch);
+                    i++;
+                    if (ch == '\n')
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return sb.ToString();
+        }
+    }
 
     /// <summary>
-    /// True if the heredoc uses <<- (tab-stripping chomp mode).
+    /// True if the heredoc uses &lt;&lt;- (tab-stripping chomp mode).
     /// </summary>
     public bool Chomp => Marker.Chomp;
 
