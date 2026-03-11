@@ -1037,9 +1037,13 @@ internal static class ParseHelper
 
         string commandLine = source.Substring(pos, lineEndPos - pos);
 
-        // Scan the entire command line for all heredoc markers
+        // Strip trailing comments before scanning so that `RUN <<EOF # <<BAR`
+        // does not pick up `<<BAR` as a second marker (matches DockerfileParser behaviour).
+        string strippedCommandLine = DockerfileParser.StripTrailingComment(commandLine);
+
+        // Scan the (comment-stripped) command line for all heredoc markers
         List<HeredocMarkerInfo> markers = new();
-        MatchCollection allMatches = HeredocMarkerScanRegex.Matches(commandLine);
+        MatchCollection allMatches = HeredocMarkerScanRegex.Matches(strippedCommandLine);
         foreach (Match m in allMatches)
         {
             markers.Add(new HeredocMarkerInfo
