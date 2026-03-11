@@ -1531,6 +1531,20 @@ public class HeredocTests
         Assert.Empty(result.Sources);
     }
 
+    [Fact]
+    public void Copy_Heredoc_TrailingComment_DestinationNotPolluted()
+    {
+        string text = "COPY <<EOF /dest # comment\nfile content\nEOF\n";
+        CopyInstruction result = CopyInstruction.Parse(text);
+
+        // The trailing comment should NOT be tokenized as LiteralTokens,
+        // so DestinationToken (LastOrDefault LiteralToken) should be "/dest", not "comment"
+        Assert.Equal("/dest", result.Destination);
+
+        // Round-trip fidelity must be preserved
+        Assert.Equal(text, result.ToString());
+    }
+
     // ================================================================
     // SECTION: Variable resolution with heredoc
     // ================================================================

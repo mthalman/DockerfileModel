@@ -1100,10 +1100,19 @@ internal static class ParseHelper
         // Text after the last marker to end of command line —
         // tokenize into WhitespaceToken + LiteralToken segments so that
         // FileTransferInstruction.DestinationToken can find the destination.
+        // Strip trailing comments first so that `# comment` is not tokenized
+        // as LiteralTokens (which would confuse DestinationToken).
         if (lineEndPos > cursor)
         {
             string restOfLine = source.Substring(cursor, lineEndPos - cursor);
-            TokenizeRestOfLine(restOfLine, resultTokens, escapeChar);
+            string argsOnly = DockerfileParser.StripTrailingComment(restOfLine);
+            TokenizeRestOfLine(argsOnly, resultTokens, escapeChar);
+
+            // Preserve the comment portion as a StringToken for round-trip fidelity
+            if (argsOnly.Length < restOfLine.Length)
+            {
+                resultTokens.Add(new StringToken(restOfLine.Substring(argsOnly.Length)));
+            }
         }
 
         // Newline after command line
