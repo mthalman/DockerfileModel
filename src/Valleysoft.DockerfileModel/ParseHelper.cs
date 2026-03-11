@@ -1283,15 +1283,56 @@ internal static class ParseHelper
 
     /// <summary>
     /// Advances the input by the specified number of characters.
+    /// Constructs a new <see cref="OffsetInput"/> directly instead of looping,
+    /// giving O(1) performance regardless of <paramref name="count"/>.
     /// </summary>
     private static IInput AdvanceInput(IInput input, int count)
     {
-        IInput current = input;
-        for (int i = 0; i < count; i++)
+        return new OffsetInput(input.Source, input.Position + count);
+    }
+
+    /// <summary>
+    /// Lightweight <see cref="IInput"/> that jumps to an arbitrary position
+    /// without walking character-by-character.  Line/column are not tracked
+    /// because the heredoc parser operates on raw indices.
+    /// </summary>
+    private sealed class OffsetInput : IInput, IEquatable<IInput>
+    {
+        private readonly string _source;
+        private readonly int _position;
+
+        public OffsetInput(string source, int position)
         {
-            current = current.Advance();
+            _source = source;
+            _position = position;
+            Memos = new Dictionary<object, object>();
         }
-        return current;
+
+        public string Source => _source;
+        public int Position => _position;
+        public bool AtEnd => _position >= _source.Length;
+        public char Current => _source[_position];
+        public int Line => 1;
+        public int Column => 1;
+        public IDictionary<object, object> Memos { get; }
+
+        public IInput Advance()
+        {
+            if (AtEnd)
+            {
+                throw new InvalidOperationException("The input is already at the end of the source.");
+            }
+            return new OffsetInput(_source, _position + 1);
+        }
+
+        public bool Equals(IInput? other)
+        {
+            return other is not null && _source == other.Source && _position == other.Position;
+        }
+
+        public override bool Equals(object? obj) => obj is IInput other && Equals(other);
+
+        public override int GetHashCode() => (_source?.GetHashCode() ?? 0) ^ _position;
     }
 
     /// <summary>
