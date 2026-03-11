@@ -64,10 +64,11 @@ public abstract class FileTransferInstruction : Instruction
         {
             Requires.NotNull(value!, nameof(value));
             LiteralToken? current = DestinationToken;
-            if (current is not null)
+            if (current is null)
             {
-                SetToken(current, value);
+                throw new InvalidOperationException("No destination token exists to replace.");
             }
+            SetToken(current, value);
         }
     }
 
