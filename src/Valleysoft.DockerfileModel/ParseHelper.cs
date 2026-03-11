@@ -1210,7 +1210,7 @@ internal static class ParseHelper
                 {
                     i++;
                 }
-                tokens.Add(new LiteralToken(text.Substring(start, i - start)));
+                tokens.Add(new LiteralToken(text.Substring(start, i - start), canContainVariables: true));
             }
         }
     }
