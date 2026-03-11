@@ -92,6 +92,39 @@ gh api "repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies" \
   -f "body=Fixed in {commit_sha}"
 ```
 
+### Step 4.5 — Resolve the conversation thread
+
+After replying to each comment, **resolve the review thread** so it no longer appears as unresolved on the PR. This requires the GraphQL API.
+
+**Find the thread ID** for the comment:
+
+```bash
+THREAD_ID=$(gh api graphql -f query='{ repository(owner: "{owner}", name: "{repo}") { pullRequest(number: {pr_number}) { reviewThreads(first: 50) { nodes { id isResolved comments(first: 1) { nodes { databaseId } } } } } } }' \
+  --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.comments.nodes[0].databaseId == {comment_id}) | .id')
+```
+
+**Resolve it:**
+
+```bash
+QUERY=$(printf 'mutation { resolveReviewThread(input: {threadId: "%s"}) { thread { isResolved } } }' "$THREAD_ID")
+gh api graphql -f query="$QUERY" --jq '.data.resolveReviewThread.thread.isResolved'
+```
+
+**Batch resolution** — to resolve ALL unresolved threads at once (useful for catching up):
+
+```bash
+for tid in $(gh api graphql -f query='{ repository(owner: "{owner}", name: "{repo}") { pullRequest(number: {pr_number}) { reviewThreads(first: 50) { nodes { id isResolved } } } } }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id'); do
+  QUERY=$(printf 'mutation { resolveReviewThread(input: {threadId: "%s"}) { thread { isResolved } } }' "$tid")
+  gh api graphql -f query="$QUERY" --jq '.data.resolveReviewThread.thread.isResolved'
+  echo " resolved: $tid"
+done
+```
+
+**Rules:**
+- Always resolve after replying — unresolved threads block clean PR state
+- Use `printf` for the mutation query to avoid shell escaping issues with `$THREAD_ID`
+- Never use `-F` or variable interpolation inside the query string — it breaks GraphQL parsing
+
 ### Step 5 — Re-request Copilot review
 
 After addressing ALL comments, re-request Copilot's review:
