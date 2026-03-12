@@ -22,16 +22,45 @@
   2. The heredoc BODY (everything until the closing delimiter on its own line)
      is consumed as a separate pass.
 
-  Token structure produced:
-    Token.aggregate .heredoc [
-      Token.mkString "<<",          -- redirect operator
-      Token.mkString "-",           -- optional chomp flag
-      Token.mkString "EOF",         -- delimiter (or quoted variant)
-      Token.mkNewLine "\n",         -- separator
-      Token.mkString "line1\n",     -- body content lines
-      Token.mkString "line2\n",
-      Token.mkString "EOF",         -- closing delimiter
-      Token.mkNewLine "\n"          -- trailing newline
+  Token structure produced (matching C#):
+
+  Marker (unquoted):
+    Token.aggregate .construct [
+      Token.mkSymbol '<',
+      Token.mkSymbol '<',
+      Token.mkIdentifier [Token.mkString "EOF"]
+    ]
+
+  Marker (chomp):
+    Token.aggregate .construct [
+      Token.mkSymbol '<',
+      Token.mkSymbol '<',
+      Token.mkSymbol '-',
+      Token.mkIdentifier [Token.mkString "EOF"]
+    ]
+
+  Marker (quoted):
+    Token.aggregate .construct [
+      Token.mkSymbol '<',
+      Token.mkSymbol '<',
+      Token.mkSymbol '"',
+      Token.mkIdentifier [Token.mkString "EOF"],
+      Token.mkSymbol '"'
+    ]
+
+  Body:
+    Token.aggregate .construct [
+      Token.mkString "body content...",
+      Token.mkIdentifier [Token.mkString "EOF"],
+      Token.mkNewLine "\n"
+    ]
+
+  Body (chomp, with tab prefix on delimiter line):
+    Token.aggregate .construct [
+      Token.mkString "body content...",
+      Token.mkString "\t",
+      Token.mkIdentifier [Token.mkString "EOF"],
+      Token.mkNewLine "\n"
     ]
 -/
 
@@ -47,10 +76,14 @@ open Parser
 
 -- ============================================================
 -- Heredoc marker parser: detects <<[-][']DELIM[']
+-- Produces structured tokens matching C# HeredocMarkerToken
 -- ============================================================
 
 /-- Parse a heredoc redirect marker: <<[-][']DELIM[']
-    Returns: (delimiter : String, chomp : Bool, quoted : Bool)
+    Returns: (delimiter : String, chomp : Bool, quoteChar : Option Char, markerToken : Token)
+
+    The marker token is a construct aggregate containing:
+      symbol(<), symbol(<), [symbol(-)], [symbol(quote)], identifier(delim), [symbol(quote)]
 
     The marker appears on the instruction line itself. Examples:
       <<EOF        — unquoted, no chomp
@@ -58,42 +91,53 @@ open Parser
       <<"EOF"      — double-quoted, no variable expansion in body
       <<'EOF'      — single-quoted, no variable expansion in body
       <<-"EOF"     — double-quoted with chomp -/
-def heredocMarkerParser : Parser (String × Bool × Bool) := do
+def heredocMarkerParser : Parser (String × Bool × Option Char × Token) := do
   -- Parse the << operator
-  let _ ← char '<'
-  let _ ← char '<'
+  let lt1 ← char '<'
+  let lt2 ← char '<'
   -- Parse optional chomp flag (-)
   let chompOpt ← optional (char '-')
   let chomp := chompOpt.isSome
   -- Skip optional whitespace between << and delimiter
   let _ ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
   -- Parse the delimiter: quoted or unquoted
-  let result ← or'
+  let (delim, quoteChar) ← or'
     -- Double-quoted delimiter
     (do
+      let q ← char '"'
+      let d ← many1Chars (satisfy (fun c => c != '"' && !isLineTerminator c) "delimiter char")
       let _ ← char '"'
-      let delim ← many1Chars (satisfy (fun c => c != '"' && !isLineTerminator c) "delimiter char")
-      let _ ← char '"'
-      Parser.pure (delim, chomp, true))
+      Parser.pure (d, some q))
     (or'
       -- Single-quoted delimiter
       (do
+        let q ← char '\''
+        let d ← many1Chars (satisfy (fun c => c != '\'' && !isLineTerminator c) "delimiter char")
         let _ ← char '\''
-        let delim ← many1Chars (satisfy (fun c => c != '\'' && !isLineTerminator c) "delimiter char")
-        let _ ← char '\''
-        Parser.pure (delim, chomp, true))
+        Parser.pure (d, some q))
       -- Unquoted delimiter
       (do
-        let delim ← many1Chars (satisfy (fun c =>
+        let d ← many1Chars (satisfy (fun c =>
           c != ' ' && c != '\t' && !isLineTerminator c && c != '<') "delimiter char")
-        Parser.pure (delim, chomp, false)))
-  Parser.pure result
+        Parser.pure (d, none)))
+  -- Build the marker token as a construct
+  let markerChildren : List Token :=
+    [Token.mkSymbol lt1, Token.mkSymbol lt2] ++
+    (if chomp then match chompOpt with
+      | some c => [Token.mkSymbol c]
+      | none => []
+    else []) ++
+    (match quoteChar with
+      | some q => [Token.mkSymbol q, Token.mkIdentifier [Token.mkString delim], Token.mkSymbol q]
+      | none => [Token.mkIdentifier [Token.mkString delim]])
+  let markerToken := Token.mkConstruct markerChildren
+  Parser.pure (delim, chomp, quoteChar, markerToken)
 
 -- ============================================================
 -- Heredoc body parser: consume lines until closing delimiter
 -- ============================================================
 
-/-- Check if a line consists only of the delimiter (with optional leading whitespace
+/-- Check if a line consists only of the delimiter (with optional leading tabs
     when chomp is enabled). Returns true if this is the closing delimiter line. -/
 private def isClosingLine (line : String) (delimiter : String) (chomp : Bool) : Bool :=
   if chomp then
@@ -107,15 +151,19 @@ private def isClosingLine (line : String) (delimiter : String) (chomp : Bool) : 
     alone on its own line.
 
     delimiter: the closing delimiter string
-    chomp: if true, strip leading tabs from each body line
+    chomp: if true, the closing delimiter may have leading tabs (for matching)
+           but body content is preserved as-is (no tab stripping)
 
-    Returns: Token with kind .heredoc containing the body text as primitive string tokens.
+    Returns: Token with kind .construct containing:
+      - A single StringToken with all body content concatenated
+      - An optional StringToken for tab prefix on delimiter line (chomp mode)
+      - An IdentifierToken wrapping the closing delimiter name
+      - An optional NewLineToken for the trailing newline
 
-    The body includes everything from the first line after the marker up to (and
-    including) the closing delimiter line. Lines are stored as string tokens. -/
+    This matches C#'s HeredocBodyToken structure. -/
 partial def heredocBodyParser (delimiter : String) (chomp : Bool) : Parser Token :=
   fun pos =>
-    let rec consumeLines (acc : List Token) (curPos : Position) : ParseResult Token :=
+    let rec consumeLines (bodyAcc : String) (curPos : Position) : ParseResult Token :=
       -- Try to read a complete line
       let lineStart := curPos
       let rec readLine (chars : List Char) (p : Position) : (String × Position × Bool) :=
@@ -145,16 +193,25 @@ partial def heredocBodyParser (delimiter : String) (chomp : Bool) : Parser Token
             String.ofList chars.dropLast
         else lineText
       if isClosingLine lineContent delimiter chomp then
-        -- This is the closing delimiter line. Build the heredoc token.
-        let closingTokens := [Token.mkString lineContent]
-        let nlToken := if hasNewline then
+        -- This is the closing delimiter line. Build the body construct token.
+        let bodyChildren : List Token :=
+          -- Body content as a single string (only if non-empty)
+          (if bodyAcc.isEmpty then [] else [Token.mkString bodyAcc]) ++
+          -- For chomp mode with tab prefix on delimiter line, emit prefix as StringToken
+          (if chomp && lineContent.length > delimiter.length then
+            let tabPrefix := String.ofList (lineContent.toList.take (lineContent.length - delimiter.length))
+            [Token.mkString tabPrefix]
+          else []) ++
+          -- Closing delimiter as IdentifierToken
+          [Token.mkIdentifier [Token.mkString delimiter]] ++
+          -- Trailing newline
+          (if hasNewline then
             let nlStr := if lineText.endsWith "\r\n" then "\r\n"
                          else if lineText.endsWith "\n" then "\n"
                          else ""
             if nlStr.isEmpty then [] else [Token.mkNewLine nlStr]
-          else []
-        let allTokens := acc.reverse ++ closingTokens ++ nlToken
-        .ok (Token.mkHeredoc allTokens) nextPos
+          else [])
+        .ok (Token.mkConstruct bodyChildren) nextPos
       else if !hasNewline && lineText.isEmpty then
         -- End of input without finding closing delimiter
         .error s!"heredoc: closing delimiter '{delimiter}' not found" lineStart
@@ -162,43 +219,9 @@ partial def heredocBodyParser (delimiter : String) (chomp : Bool) : Parser Token
         -- End of input mid-line without finding closing delimiter
         .error s!"heredoc: closing delimiter '{delimiter}' not found" lineStart
       else
-        -- Regular body line: apply chomp if needed and accumulate
-        let bodyLine := if chomp then
-            -- Strip leading tabs from the content
-            String.ofList (lineText.toList.dropWhile (· == '\t'))
-          else lineText
-        consumeLines (Token.mkString bodyLine :: acc) nextPos
-    consumeLines [] pos
-
--- ============================================================
--- Combined heredoc parser: marker + body
--- ============================================================
-
-/-- Parse a complete heredoc: the opening marker on the current line, then consume
-    the body lines after a newline.
-
-    Returns a list of tokens representing the heredoc construct:
-    - String tokens for the marker components (<<, chomp flag, delimiter)
-    - The heredoc body as a .heredoc aggregate token
-
-    This is intended to be called from instruction parsers (RUN, COPY, ADD) when
-    they detect a `<<` sequence. -/
-partial def heredocParser : Parser (List Token) := do
-  let (delimiter, chomp, quoted) ← heredocMarkerParser
-  -- Build tokens for the marker itself
-  let markerTokens : List Token := [
-    Token.mkString "<<"
-  ] ++ (if chomp then [Token.mkString "-"] else [])
-    ++ (if quoted then
-          -- Represent the quoted delimiter
-          [Token.mkString s!"'{delimiter}'"]  -- simplified: store quote representation
-        else
-          [Token.mkString delimiter])
-  -- The body starts after the next newline, but the instruction parser
-  -- handles consuming the rest of the instruction line. The body parser
-  -- should be called after that newline.
-  let bodyToken ← heredocBodyParser delimiter chomp
-  Parser.pure (markerTokens ++ [bodyToken])
+        -- Regular body line: accumulate raw content (no tab stripping)
+        consumeLines (bodyAcc ++ lineText) nextPos
+    consumeLines "" pos
 
 -- ============================================================
 -- Heredoc-aware instruction argument parser
@@ -208,38 +231,32 @@ partial def heredocParser : Parser (List Token) := do
     the rest of the line and newline, then the heredoc body.
 
     This parser handles the full sequence:
-    1. Parse the heredoc marker (<<DELIM)
+    1. Parse the heredoc marker (<<DELIM) → construct token
     2. Consume rest of instruction line (optional trailing content)
     3. Consume newline
-    4. Parse heredoc body until closing delimiter
+    4. Parse heredoc body until closing delimiter → construct token
 
     Returns a flat list of tokens for embedding in instruction token lists. -/
 partial def heredocInstructionArg : Parser (List Token) := do
-  let (delimiter, chomp, _quoted) ← heredocMarkerParser
-  -- Build marker tokens
-  let markerStr := "<<" ++ (if chomp then "-" else "") ++ delimiter
-  let markerTokens := [Token.mkString markerStr]
-  -- Consume rest of instruction line (e.g., destination path for COPY)
+  let (delimiter, chomp, _quoteChar, markerToken) ← heredocMarkerParser
+  -- Consume rest of instruction line (e.g., nothing for RUN)
   let restOfLine ← many (satisfy (fun c => !isLineTerminator c) "rest of line char")
   let restTokens := if restOfLine.isEmpty then []
-    else [Token.mkWhitespace " ", Token.mkString (String.ofList restOfLine)]
+    else [Token.mkString (String.ofList restOfLine)]
   -- Consume the newline
   let nl ← lineEnd
   let nlToken := Token.mkNewLine nl
   -- Parse heredoc body
   let bodyToken ← heredocBodyParser delimiter chomp
-  Parser.pure (markerTokens ++ restTokens ++ [nlToken, bodyToken])
+  Parser.pure ([markerToken] ++ restTokens ++ [nlToken, bodyToken])
 
 /-- Parse a heredoc opening for file-transfer instructions (COPY, ADD).
     These expect: <<DELIMITER [whitespace] destination_path
     followed by the heredoc body.
 
-    Returns: (heredoc tokens, destination tokens) -/
+    Returns a flat list of tokens. -/
 partial def heredocWithDestination : Parser (List Token) := do
-  let (delimiter, chomp, _quoted) ← heredocMarkerParser
-  -- Build marker tokens
-  let markerStr := "<<" ++ (if chomp then "-" else "") ++ delimiter
-  let markerTokens := [Token.mkString markerStr]
+  let (delimiter, chomp, _quoteChar, markerToken) ← heredocMarkerParser
   -- Parse whitespace before destination
   let wsChars ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
   let wsTokens := if wsChars.isEmpty then []
@@ -253,6 +270,6 @@ partial def heredocWithDestination : Parser (List Token) := do
   let nlToken := Token.mkNewLine nl
   -- Parse heredoc body
   let bodyToken ← heredocBodyParser delimiter chomp
-  Parser.pure (markerTokens ++ wsTokens ++ destTokens ++ [nlToken, bodyToken])
+  Parser.pure ([markerToken] ++ wsTokens ++ destTokens ++ [nlToken, bodyToken])
 
 end DockerfileModel.Parser.Heredoc

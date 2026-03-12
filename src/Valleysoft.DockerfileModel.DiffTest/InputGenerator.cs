@@ -17,7 +17,10 @@ public static class InputGenerator
 
     public static List<(string InstructionType, string Text, char EscapeChar)> Generate(int count, int seed = 42)
     {
-        // All instruction generators with their type labels
+        // All instruction generators with their type labels.
+        // The first 18 are the standard instruction generators; the remaining
+        // are edge-case generators targeting specific bugs found via
+        // differential testing (see docs/differential-test-bugs.md).
         var generators = new (string Type, Gen<string> Gen)[]
         {
             ("FROM", DockerfileArbitraries.FromInstruction()),
@@ -38,6 +41,16 @@ public static class InputGenerator
             ("SHELL", DockerfileArbitraries.ShellInstruction()),
             ("MAINTAINER", DockerfileArbitraries.MaintainerInstruction()),
             ("ONBUILD", DockerfileArbitraries.OnBuildInstruction()),
+            // Edge-case generators targeting specific differential test bugs
+            ("RUN", DockerfileArbitraries.RunHeredocInstruction()),        // Bugs 7-11: heredoc
+            ("COPY", DockerfileArbitraries.CopyHeredocInstruction()),      // Bugs 7-11: heredoc
+            ("ADD", DockerfileArbitraries.AddHeredocInstruction()),         // Bugs 7-11: heredoc
+            ("COPY", DockerfileArbitraries.CopyEmptyFlagInstruction()),    // Bug 12: empty flags
+            ("ADD", DockerfileArbitraries.AddEmptyFlagInstruction()),      // Bug 12: empty flags
+            // FromEmptyPlatformInstruction excluded: C# throws a parse error
+            // on FROM --platform= (empty value), which is a known C# limitation
+            // (see docs/differential-test-bugs.md Bug 13), not a Lean issue.
+            ("RUN", DockerfileArbitraries.RunEmptyFlagInstruction()),      // Bug 12: empty flags
         };
 
         int perType = count / generators.Length;

@@ -50,11 +50,13 @@ open DockerfileModel.Parser.Heredoc
 -- ============================================================
 
 /-- Parse a single RUN flag: --mount=..., --network=..., or --security=...
-    All are key-value flags. Returns the flag token wrapped in argTokens
-    (with leading whitespace). -/
+    Mount uses `flagParserStrict` (no whitespace absorption) because C#'s
+    mount value parser is structured (MountParser) and rejects empty values.
+    Network and security use the regular `flagParser` which absorbs whitespace.
+    Returns the flag token wrapped in argTokens (with leading whitespace). -/
 private def runFlagParser (escapeChar : Char) : Parser (List Token) :=
   argTokens (do
-    let flag ← or' (flagParser "mount" escapeChar)
+    let flag ← or' (flagParserStrict "mount" escapeChar)
                (or' (flagParser "network" escapeChar)
                     (flagParser "security" escapeChar))
     Parser.pure [flag]) escapeChar (excludeTrailingWhitespace := true)
