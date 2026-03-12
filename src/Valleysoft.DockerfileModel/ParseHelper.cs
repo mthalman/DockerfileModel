@@ -371,8 +371,8 @@ internal static class ParseHelper
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether variables are allowed to be contained in the strings.</param>
     /// <param name="allowEmpty">When true, allows parsing an empty array (e.g. [] or [ ]). Defaults to false.
-    /// Only exec-form command parsers should pass true; file transfer instructions (COPY/ADD) should
-    /// reject empty arrays to avoid runtime errors when accessing destination tokens.</param>
+    /// VOLUME, COPY, ADD, and exec-form command parsers all pass true to match BuildKit behavior,
+    /// which accepts empty JSON arrays as a no-op.</param>
     public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false) =>
         from openingBracket in Symbol('[').AsEnumerable()
         // Consume optional whitespace after '[' at the array level (not inside

@@ -52,7 +52,7 @@ public class VolumeInstruction : Instruction
             mounts.Flatten(), whitespace, command);
 
     private static Parser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
-        JsonArray(escapeChar, canContainVariables: false)
+        JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
             .XOr(NonJsonPaths(escapeChar));
 
     private static Parser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
