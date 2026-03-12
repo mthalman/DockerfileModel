@@ -168,3 +168,68 @@ Added 30 new tests to HeredocTests.cs covering the newly added `Body` property o
 - Edge cases: CRLF, whitespace-only lines, empty body between markers, no trailing newline after delimiter
 
 **Test suite: 809 total tests, 0 failures.**
+
+### 2026-03-10 — Comprehensive Heredoc Test Suite Rewrite (Issue #245)
+
+Rewrote HeredocTests.cs from scratch as a comprehensive 1859-line test file covering all heredoc syntax for RUN, COPY, and ADD instructions. Written against the expected API surface (HeredocToken, Body, HeredocTokens, Heredocs, DockerfileParser.ExtractHeredocDelimiters, StripTrailingComment) that Dallas is implementing.
+
+**Test count: 139 [Fact] tests + 3 [Theory] tests with 22 data scenarios (~160 total test cases)**
+
+**Coverage categories:**
+- **Theory-based token validation** (22 scenarios across 3 Theory methods): RUN (13), COPY (3), ADD (3) — full token tree validation with ValidateAggregate/ValidateString/ValidateNewLine
+- **RUN round-trip fidelity** (20 Fact tests): simple, chomp, double-quoted, single-quoted, multi-line, empty body, custom delimiter, no trailing newline, chomp+quoted, shebang, mount flag, extra whitespace
+- **COPY round-trip fidelity** (6 Fact tests): simple, quoted, single-quoted, multi-line, empty body
+- **ADD round-trip fidelity** (6 Fact tests): simple, quoted, single-quoted, multi-line, empty body
+- **HeredocToken.Body extraction** (14 Fact tests): single-line, multi-line, empty, no trailing newline, special chars ($, ", ', \, `), empty lines, whitespace-only, chomp, double/single-quoted, shebang, COPY, ADD, CRLF
+- **RunInstruction.Heredocs property** (7 Fact tests): single, shell-form empty, exec-form empty, empty body, multi-line, mount flag, consistency with HeredocTokens
+- **COPY Heredocs property** (4 Fact tests): with heredoc, without (empty), multi-line, consistency
+- **ADD Heredocs property** (4 Fact tests): with heredoc, without (empty), multi-line, special chars
+- **Child token inspection** (3 Fact tests): marker string, chomp marker, quoted marker
+- **Edge cases** (21 Fact tests): whitespace preservation, empty lines, special chars, backslash/backtick, delimiter-like instruction names (<<RUN, <<FROM, <<COPY), very long body, mixed tabs/spaces, non-chomp tab-indented delimiter, chomp closes, multi-tab chomp, body with << syntax, substring of delimiter, single-char delimiter, dot in delimiter, long lines, blank-only body, heredoc-in-body syntax
+- **Dockerfile-level** (17 Fact tests): RUN/COPY/ADD heredoc, followed by instruction, multiple heredocs, between instructions, multi-stage, ADD between, COPY between FROMs, end-of-file, mixed types, non-chomp tab, comment before/after, 3-stage, complex multi-stage, escape directive, ARG/ENV context
+- **Command/Destination known limitations** (5 Fact tests): Command null, SetCommand throws, Destination null, Sources empty, SetDestination throws
+- **Variable resolution** (1 Fact test): heredoc body not resolved
+- **ExtractHeredocDelimiters** (11 Fact tests): unquoted, double-quoted, single-quoted, chomp, no heredoc, custom name, chomp+quoted, hyphenated, charset alignment, arbitrary chars rejected, dot delimiter, COPY/ADD
+- **Trailing comment stripping** (5 Fact tests): no comment, with comment, hash in single quotes, hash in double quotes, hash after closing quote
+- **Case insensitivity** (3 Fact tests): lowercase run, copy, add with heredoc
+
+**Key design decisions:**
+- Used [Fact] for most tests (each scenario is distinct), [Theory/MemberData] for token-validation scenarios following RunInstructionTests pattern
+- Used TestHelper.RunParseTest (added by Dallas on heredoc branch) for Theory-based parse tests
+- All round-trip tests assert `Parse(text).ToString() == text` — the foundational fidelity guarantee
+- Tests written against expected API that Dallas is implementing; minor adjustments may be needed
+- Covered known limitations (Destination null for COPY/ADD heredoc) with explicit assertion tests
+
+**File created:** `src/Valleysoft.DockerfileModel.Tests/HeredocTests.cs` (1859 lines, 142 test attributes)
+
+---
+
+## Team update (2026-03-10T12:30:00Z): Heredoc test suite decision merged, architecture finalized
+
+Decision merged to decisions.md documenting comprehensive heredoc test suite strategy. Test-first approach locks in API surface before implementation lands on dev. Dual strategy: [Theory]/[MemberData] for token-tree structural validation, [Fact] for round-trip, property extraction, edge case, and Dockerfile-level tests. Known limitations (COPY/ADD Destination-is-null, Command-setter-throws) explicitly tested as assertions — any future fix will break tests intentionally and force coordinated update.
+
+**160 test cases** provide executable specification covering all edge cases (delimiter names matching instructions, body content with heredoc syntax, chomp modes, single-character delimiters). Dependencies on Dallas's implementation tracked (HeredocToken, Body property, HeredocTokens/Heredocs properties, DockerfileParser.ExtractHeredocDelimiters, TestHelper.RunParseTest).
+
+**Impact:** Dallas must ensure implementation passes all test cases. API surface changes require coordination for test updates.
+
+### 2026-03-10 — Multi-Heredoc Token Tree Structure Validation Tests (Issue #245)
+
+Added 6 new `[Fact]` tests to `HeredocTests.cs` that walk the `Tokens` collection to validate token tree structure for multi-heredoc instructions. These tests fill the gap identified by Matt: existing multi-heredoc tests verified round-trip fidelity, counts, delimiter names, body strings, and property values, but none walked the `Tokens` collection to validate the actual token tree structure.
+
+**Tests added:**
+1. `Run_TwoHeredocs_TokenTreeStructure` — Validates instruction-level tokens (KeywordToken, WhitespaceToken, HeredocToken x2) and each HeredocToken's child tokens for `RUN <<FILE1 cat > /file1 && <<FILE2 cat > /file2`
+2. `Run_TwoHeredocs_EmptyBodies_TokenTreeStructure` — Validates token tree for `RUN <<FILE1 <<FILE2` with empty bodies (no body StringTokens, just closing delimiters)
+3. `Copy_TwoHeredocs_TokenTreeStructure` — Validates COPY instruction token tree including how destination text is embedded in the first HeredocToken's rest-of-line StringToken
+4. `Run_ThreeHeredocs_TokenTreeStructure` — Validates token tree for 3-heredoc instruction (first has marker + rest-of-line, second/third have body+delimiter only with explicit metadata)
+5. `Run_TwoHeredocs_ChildTokenTypesAndValues` — Deep-walks each HeredocToken's child tokens with explicit Assert.IsType<> and Assert.Equal for every token type and value, plus property verification (DelimiterName, Body, Chomp, IsQuoted)
+6. `Run_MixedChompQuoted_TokenTreeStructure` — Validates token tree for `RUN <<-FILE1 <<"FILE2"` with deep property assertions on both heredocs (chomp on first, quoted on second)
+
+**Key structural findings validated by tests:**
+- First HeredocToken in multi-heredoc contains: marker StringToken, rest-of-line StringToken (includes subsequent markers), NewLineToken, body StringTokens, closing delimiter StringToken, trailing NewLineToken
+- Subsequent HeredocTokens contain: body StringTokens, closing delimiter StringToken, trailing NewLineToken (metadata stored explicitly via constructor)
+- Body lines are each a single StringToken with trailing `\n` included
+- The `ValidateAggregate<HeredocToken>` pattern from existing single-heredoc tests was reused for consistency
+
+**Test results:** All 1034 tests pass (0 failures, 0 skipped). 6 new tests confirmed green.
+
+**File modified:** `src/Valleysoft.DockerfileModel.Tests/HeredocTests.cs` — added ~190 lines in new "Multi-heredoc token tree structure validation" section after existing multi-heredoc edge case tests

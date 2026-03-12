@@ -95,3 +95,20 @@ Team update (2026-03-06T00:12:22Z): Phase 5 Capstone proofs completed: 12 new th
 
 ## Team update (2026-03-09T12:49:57Z): Copilot review workflow directive
 Added to shared decisions: Copilot PR review workflow (add reviewer via API, respond per comment, re-request until resolved). Note: `gh pr edit --add-reviewer` does NOT work for bots; must use API directly with bot name `copilot-pull-request-reviewer[bot]`. — decided by Scribe
+
+---
+
+## Team update (2026-03-10T12:30:00Z): Heredoc architecture design finalized and merged to decisions.md
+
+Designed comprehensive heredoc token architecture for Issue #245 (RUN, COPY, ADD instructions). Architecture decision merged to .squad/decisions.md.
+
+**Token Model:** `HeredocMarkerToken` (inline, contains `<<delimiter` with optional `<<-` chomp and EOF redirect) paired with `HeredocBodyToken` (sequential, contains body lines and closing delimiter). Semantic `Heredoc` wrapper encapsulates marker+body into semantic unit for instruction consumption.
+
+**Architecture Layers:**
+1. Parser combinators in ParseHelper (`HeredocMarker`, `HeredocBody`, `Heredoc`)
+2. Instruction integration via `RunInstruction.HeredocTokens` and `FileTransferInstruction.HeredocTokens`
+3. High-level accessors `Heredocs` property returning `IEnumerable<string>`
+
+**Implementation Plan:** 10-step progression produced for Dallas covering token class creation, integration with argument parsing, and full instruction support.
+
+**Coordination:** Decision locked for review before implementation lands on dev. Lambert's test suite (160 test cases) provides executable specification. Dallas continues implementation on `squad/245-heredoc-syntax-heredocs-property` branch.

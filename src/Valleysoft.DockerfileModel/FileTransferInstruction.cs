@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.ParseHelper;
 
@@ -29,25 +29,83 @@ public abstract class FileTransferInstruction : Instruction
 
     public IList<LiteralToken> SourceTokens { get; }
 
-    public string Destination
+    /// <summary>
+    /// Gets or sets the destination path. For heredoc instructions, the destination is
+    /// properly tokenized as a separate LiteralToken after the marker.
+    /// </summary>
+    public string? Destination
     {
-        get => DestinationToken.Value;
+        get
+        {
+            LiteralToken? destToken = DestinationToken;
+            return destToken?.Value;
+        }
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
-            DestinationToken.Value = value;
+            Requires.NotNullOrEmpty(value!, nameof(value));
+            LiteralToken? destToken = DestinationToken;
+            if (destToken is null)
+            {
+                throw new InvalidOperationException("No destination token exists to update.");
+            }
+            destToken.Value = value;
         }
     }
 
-    public LiteralToken DestinationToken
+    /// <summary>
+    /// Gets or sets the destination token. For heredoc instructions, the destination
+    /// is a LiteralToken that appears after the marker in the command stream.
+    /// Returns null only if no LiteralToken exists.
+    /// </summary>
+    public LiteralToken? DestinationToken
     {
-        get => Tokens.OfType<LiteralToken>().Last();
+        get => Tokens.OfType<LiteralToken>().LastOrDefault();
         set
         {
-            Requires.NotNull(value, nameof(value));
-            SetToken(DestinationToken, value);
+            Requires.NotNull(value!, nameof(value));
+            LiteralToken? current = DestinationToken;
+            if (current is null)
+            {
+                throw new InvalidOperationException("No destination token exists to replace.");
+            }
+            SetToken(current, value);
         }
     }
+
+    /// <summary>
+    /// Gets the heredoc marker tokens in this instruction.
+    /// </summary>
+    public IEnumerable<HeredocMarkerToken> HeredocMarkerTokens => Tokens.OfType<HeredocMarkerToken>();
+
+    /// <summary>
+    /// Gets the heredoc body tokens in this instruction.
+    /// </summary>
+    public IEnumerable<HeredocBodyToken> HeredocBodyTokens => Tokens.OfType<HeredocBodyToken>();
+
+    /// <summary>
+    /// Gets the paired heredoc marker+body objects in this instruction.
+    /// Association is positional: first marker pairs with first body, etc.
+    /// </summary>
+    public IReadOnlyList<Heredoc> Heredocs
+    {
+        get
+        {
+            var markerList = HeredocMarkerTokens.ToList();
+            var bodyList = HeredocBodyTokens.ToList();
+            int count = Math.Min(markerList.Count, bodyList.Count);
+            List<Heredoc> result = new(count);
+            for (int i = 0; i < count; i++)
+            {
+                result.Add(new Heredoc(markerList[i], bodyList[i]));
+            }
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Gets the heredoc tokens in this instruction (marker tokens, for backward compatibility checks).
+    /// </summary>
+    public IEnumerable<HeredocMarkerToken> HeredocTokens => HeredocMarkerTokens;
 
     public string? ChangeOwner
     {
@@ -133,11 +191,12 @@ public abstract class FileTransferInstruction : Instruction
             from flag in FlagOption(escapeChar, optionalFlagParser).Optional()
             select flag.GetOrDefault(), escapeChar).Many().Flatten()
         from whitespace in Whitespace()
-        from files in ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar).Or(
-            from literals in ArgTokens(
-                LiteralWithVariables(escapeChar).AsEnumerable(),
-                escapeChar).Many()
-            select literals.Flatten())
+        from files in HeredocTokenParser(escapeChar)
+            .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar))
+            .Or(from literals in ArgTokens(
+                    LiteralWithVariables(escapeChar).AsEnumerable(),
+                    escapeChar).Many()
+                select literals.Flatten())
         select ConcatTokens(flags, whitespace, files);
 
     private static Parser<IEnumerable<Token>?> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>

@@ -1748,3 +1748,121 @@ Since Lean is the authoritative spec, the long-term direction is clear: the pars
 **By:** Matt Thalman (via Copilot)
 **What:** Shell form whitespace splitting (C# uses single StringToken vs Lean splitting by whitespace) is BY DESIGN. BuildKit does not split shell form command text into separate whitespace tokens at the parser layer. The C# behavior is correct. Do not log issues for this behavior. Issue #243 was closed as duplicate of #190 for this reason.
 **Why:** User request — captured for team memory
+
+### 2026-03-09: EXPOSE Port Specs Are Opaque Values
+**Author:** Dallas (Core Dev)
+**Date:** 2026-03-09
+**PR:** #252 — branch `squad/242-expose-multi-port`
+
+#### Context
+
+BuildKit's parser treats `80/tcp` as a single opaque string — it does NOT decompose port and protocol into separate tokens. The prior C# implementation diverged by splitting `80/tcp` into `LiteralToken("80")`, `SymbolToken("/")`, `LiteralToken("tcp")`. The Lean spec already matched BuildKit.
+
+#### Decision
+
+**Treat EXPOSE port specs as opaque values.** Each whitespace-separated argument to EXPOSE is a single `LiteralToken` regardless of whether it contains a `/protocol` suffix.
+
+##### What Changed
+
+**Parser:** `GetArgsParser` changed from a two-stage combinator (port literal excluding `/`, then optional `/protocol`) to:
+```csharp
+ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar).AtLeastOnce().Flatten()
+```
+The `/` is no longer excluded from the literal parser, so `80/tcp` is consumed as a single token.
+
+**Removed APIs:**
+- `GetProtocolTokenForPort(LiteralToken portToken)` — protocol is now part of the opaque string
+- `SetProtocolForPort(LiteralToken portToken, string? protocol)` — same reason
+- `GetProtocolTokenForPortInternal` — private helper, no longer needed
+- `ValidatePortToken` — no longer needed
+- `FilterPortTokens` — no longer needed (all LiteralTokens are port specs)
+- `IsSlashSymbol` — no longer needed
+
+**Constructor:** Changed from `(string port, string? protocol = null, char escapeChar = ...)` to `(string portSpec, char escapeChar = ...)`. Callers pass `"80/tcp"` directly.
+
+**Kept APIs:**
+- `IList<string> Ports` — projected from PortTokens, each string is the full opaque spec
+- `IList<LiteralToken> PortTokens` — the underlying tokens
+
+##### Token Structure Before vs After
+
+| Input | Before | After |
+|-------|--------|-------|
+| `EXPOSE 80` | `[Keyword, WS, Literal("80")]` | `[Keyword, WS, Literal("80")]` |
+| `EXPOSE 80/tcp` | `[Keyword, WS, Literal("80"), Symbol("/"), Literal("tcp")]` | `[Keyword, WS, Literal("80/tcp")]` |
+| `EXPOSE 80/tcp 443/udp` | `[Keyword, WS, Literal("80"), Symbol("/"), Literal("tcp"), WS, Literal("443"), Symbol("/"), Literal("udp")]` | `[Keyword, WS, Literal("80/tcp"), WS, Literal("443/udp")]` |
+
+#### Rationale
+
+- Matches BuildKit's parser behavior exactly
+- Aligns with the Lean formal spec
+- Simpler implementation — 50 lines vs 185 lines
+- Round-trip fidelity preserved (all 708 tests pass)
+- The `Ports` and `PortTokens` list APIs already existed for multi-port support and remain unchanged
+
+#### Migration Guide
+
+| Before | After |
+|--------|-------|
+| `instruction.Port` | `instruction.Ports[0]` |
+| `instruction.Protocol` | Parse from `instruction.Ports[0]` (e.g., split on `/`) |
+| `instruction.PortToken` | `instruction.PortTokens[0]` |
+| `instruction.ProtocolToken` | N/A — protocol is part of the opaque port spec |
+| `new ExposeInstruction("80", "tcp")` | `new ExposeInstruction("80/tcp")` |
+| `instruction.SetProtocolForPort(token, "tcp")` | `instruction.Ports[i] = instruction.Ports[i].Split('/')[0] + "/tcp"` |
+
+#### Files Changed
+
+- `src/Valleysoft.DockerfileModel/ExposeInstruction.cs` — reworked (185 → 50 lines)
+- `src/Valleysoft.DockerfileModel/DockerfileBuilder.cs` — updated builder method signature
+- `src/Valleysoft.DockerfileModel.Tests/ExposeInstructionTests.cs` — complete test rewrite
+
+### 2026-03-09: HeredocToken.Body as the projection target for Heredocs property
+**Date:** 2026-03-09
+**Author:** Dallas (Core Dev)
+**Status:** ~~Implemented~~ **Superseded** by heredoc marker/body token split (2026-03-10)
+
+#### Context
+
+The task required adding a simple-typed `Heredocs` property (`IEnumerable<string>`) to `FileTransferInstruction` and `RunInstruction`, analogous to how `Command` returns the command string from a `CommandToken`.
+
+#### Decision
+
+This decision has been **superseded** by a later heredoc token-model refactor that split the single `HeredocToken` into `HeredocMarkerToken` / `HeredocBodyToken` plus a `Heredoc` wrapper / `HeredocList`. The current implementation derives `Heredocs` from `HeredocBodyToken.Content` rather than from a unified `HeredocToken` with a `Body` property. The notes below describe the original (now obsolete) approach only.
+
+#### Original Approach (obsolete)
+
+Added a `Body` property directly on `HeredocToken` to encapsulate body-extraction logic. The `Heredocs` property was `HeredocTokens.Select(h => h.Body)`.
+
+#### Consequences
+
+- This decision is retained for historical context only and does **not** describe the current heredoc token model or `Heredocs` implementation.
+- Future work should follow the later "heredoc marker/body split" decision and its `HeredocMarkerToken` / `HeredocBodyToken` / `HeredocList` abstractions rather than the original single-token plan.
+
+### 2026-03-10: Comprehensive Heredoc Test Suite Strategy
+**Author:** Lambert (Tester)
+**Date:** 2026-03-10
+**Context:** Issue #245 — Heredoc support for RUN, COPY, ADD
+
+#### Decision
+
+Wrote HeredocTests.cs (1859 lines, ~160 test cases) as a comprehensive test-first specification for heredoc support. The tests are written against the expected API surface from Dallas's implementation on the `squad/245-heredoc-syntax-heredocs-property` branch.
+
+#### Key Choices
+
+1. **Test-first approach**: Tests written before implementation lands on the dev branch. Some tests may need minor adjustments when Dallas's code is merged, but the expected behavior is locked in.
+
+2. **Dual test strategy**: Used `[Theory]/[MemberData]` for token-tree validation scenarios (following RunInstructionTests pattern) and `[Fact]` for round-trip, property extraction, edge case, and Dockerfile-level tests. This gives both structural validation and behavioral coverage.
+
+3. **Known limitations documented as tests**: The COPY/ADD heredoc Destination-is-null limitation and Command-setter-throws behavior are explicitly tested with assertions, so any future fix will break these tests (intentionally) and force a test update.
+
+4. **Edge cases prioritized**: Tests cover delimiter names that match Dockerfile instructions (<<RUN, <<FROM), body content with << syntax, non-chomp vs chomp tab-indented delimiter behavior, substring-of-delimiter in body, and single-character delimiters. These are the cases most likely to reveal parser bugs.
+
+#### Dependencies
+
+- Requires Dallas's HeredocToken class, RunInstruction.HeredocTokens/Heredocs properties, FileTransferInstruction.HeredocTokens/Heredocs properties, DockerfileParser.ExtractHeredocDelimiters, and ParseTestScenario.EscapeChar property.
+- Requires TestHelper.RunParseTest method (added in heredoc branch).
+
+#### Impact
+
+Dallas: Needs to ensure implementation passes all 160 test cases. Any API surface changes require coordinating with Lambert for test updates.

@@ -40,7 +40,65 @@ public class RunInstruction : CommandInstruction
             (flag, mount) => flag.ValueToken = mount);
     }
 
+    /// <summary>
+    /// Gets or sets the command. Returns null when the instruction uses heredoc syntax.
+    /// </summary>
+    public override Command? Command
+    {
+        get => this.Tokens.OfType<Command>().FirstOrDefault();
+        set
+        {
+            if (HeredocMarkerTokens.Any())
+            {
+                throw new InvalidOperationException("Cannot set Command on a heredoc RUN instruction.");
+            }
+
+            Requires.NotNull(value!, nameof(value));
+            Command? current = Command;
+            if (current is null)
+            {
+                throw new InvalidOperationException("No Command token exists to replace.");
+            }
+            SetToken(current, value);
+        }
+    }
+
     public IList<Mount> Mounts { get; }
+
+    /// <summary>
+    /// Gets the heredoc marker tokens in this instruction.
+    /// </summary>
+    public IEnumerable<HeredocMarkerToken> HeredocMarkerTokens => Tokens.OfType<HeredocMarkerToken>();
+
+    /// <summary>
+    /// Gets the heredoc body tokens in this instruction.
+    /// </summary>
+    public IEnumerable<HeredocBodyToken> HeredocBodyTokens => Tokens.OfType<HeredocBodyToken>();
+
+    /// <summary>
+    /// Gets the paired heredoc marker+body objects in this instruction.
+    /// Association is positional: first marker pairs with first body, etc.
+    /// </summary>
+    public IReadOnlyList<Heredoc> Heredocs
+    {
+        get
+        {
+            var markerList = HeredocMarkerTokens.ToList();
+            var bodyList = HeredocBodyTokens.ToList();
+            int count = Math.Min(markerList.Count, bodyList.Count);
+            List<Heredoc> result = new(count);
+            for (int i = 0; i < count; i++)
+            {
+                result.Add(new Heredoc(markerList[i], bodyList[i]));
+            }
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Gets the heredoc tokens in this instruction (marker tokens, for backward compatibility checks).
+    /// </summary>
+    public IEnumerable<HeredocMarkerToken> HeredocTokens => HeredocMarkerTokens;
 
     public string? Network
     {
@@ -136,7 +194,8 @@ public class RunInstruction : CommandInstruction
     private new static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from options in Options(escapeChar)
         from whitespace in Whitespace()
-        from command in ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar)
+        from command in HeredocTokenParser(escapeChar)
+            .Or(ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar))
         select ConcatTokens(options, whitespace, command);
 
     private static Parser<IEnumerable<Token>> Options(char escapeChar) =>

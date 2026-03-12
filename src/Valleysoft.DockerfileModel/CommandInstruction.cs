@@ -14,13 +14,18 @@ public abstract class CommandInstruction : Instruction
     {
     }
 
-    public Command Command
+    public virtual Command? Command
     {
-        get => this.Tokens.OfType<Command>().First();
+        get => this.Tokens.OfType<Command>().FirstOrDefault();
         set
         {
-            Requires.NotNull(value, nameof(value));
-            SetToken(Command, value);
+            Requires.NotNull(value!, nameof(value));
+            Command? current = Command;
+            if (current is null)
+            {
+                throw new InvalidOperationException("No Command token exists to replace.");
+            }
+            SetToken(current, value);
         }
     }
 
