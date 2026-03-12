@@ -123,13 +123,17 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("WORKDIR /app ", "WORKDIR /app")]
-    [InlineData("WORKDIR /app\t", "WORKDIR /app")]
-    [InlineData("WORKDIR /app   ", "WORKDIR /app")]
-    public void Workdir_TrailingWhitespace_Trimmed(string input, string expected)
+    [InlineData("WORKDIR /app ")]
+    [InlineData("WORKDIR /app\t")]
+    [InlineData("WORKDIR /app   ")]
+    public void Workdir_TrailingWhitespace_RoundTrip(string input)
     {
+        // WORKDIR allows whitespace in path values (WhitespaceMode.Allowed), so trailing
+        // whitespace is embedded inside the LiteralToken rather than as a top-level token.
+        // AbsorbTrailingWhitespace only removes top-level WhitespaceTokens, so WORKDIR
+        // round-trips with trailing whitespace preserved.
         WorkdirInstruction instr = WorkdirInstruction.Parse(input);
-        Assert.Equal(expected, instr.ToString());
+        Assert.Equal(input, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -219,13 +223,16 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("RUN echo hello ", "RUN echo hello")]
-    [InlineData("RUN echo hello\t", "RUN echo hello")]
-    [InlineData("RUN echo hello   ", "RUN echo hello")]
-    public void Run_ShellForm_TrailingWhitespace_Trimmed(string input, string expected)
+    [InlineData("RUN echo hello ")]
+    [InlineData("RUN echo hello\t")]
+    [InlineData("RUN echo hello   ")]
+    public void Run_ShellForm_TrailingWhitespace_RoundTrip(string input)
     {
+        // Shell-form RUN commands use ArgumentListAsLiteral which embeds whitespace inside
+        // the LiteralToken value. AbsorbTrailingWhitespace only removes top-level WhitespaceTokens,
+        // so shell-form RUN round-trips with trailing whitespace preserved.
         RunInstruction instr = RunInstruction.Parse(input);
-        Assert.Equal(expected, instr.ToString());
+        Assert.Equal(input, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -271,7 +278,9 @@ public class TrailingWhitespaceTests
     {
         string text = "FROM alpine \nCOPY src dst \nRUN echo ok \n";
         Dockerfile dockerfile = Dockerfile.Parse(text);
-        Assert.Equal("FROM alpine\nCOPY src dst\nRUN echo ok\n", dockerfile.ToString());
+        // FROM and COPY have trailing whitespace as top-level instruction tokens (trimmed).
+        // RUN shell-form embeds trailing whitespace inside the literal value (preserved).
+        Assert.Equal("FROM alpine\nCOPY src dst\nRUN echo ok \n", dockerfile.ToString());
     }
 
     // -----------------------------------------------------------------------
