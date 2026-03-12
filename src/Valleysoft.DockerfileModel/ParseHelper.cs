@@ -205,18 +205,35 @@ internal static class ParseHelper
                     select ConcatTokens(leadingWhitespace, token);
             }
 
-            return WithTrailingComments(
+            return
                 from tokens in primaryParser
                 from trailingWhitespace in
+                    // After at least one line continuation, comments (# ...) at the start of the
+                    // next line are recognized as Dockerfile comments. This matches BuildKit, which
+                    // only treats # as a comment delimiter at the beginning of a line — including
+                    // continuation lines within a multi-line instruction. Inline # (not preceded
+                    // by a newline) is NOT a comment and is treated as regular argument text.
                     (from trailingWhitespace in Whitespace()
-                        from lineContinuation in LineContinuations(escapeChar)
-                        select ConcatTokens(trailingWhitespace, lineContinuation)).Or(
+                        from firstContinuation in LineContinuationToken.GetParser(escapeChar)
+                        from moreContinuations in LineContinuations(escapeChar)
+                        from trailingComments in CommentText().Many()
+                        select ConcatTokens(
+                            trailingWhitespace,
+                            new Token[] { firstContinuation },
+                            moreContinuations,
+                            trailingComments.SelectMany(c => c))).Or(
+                    // Whitespace with no line continuation (trailing space, optional more
+                    // continuations are allowed but produce no comments).
+                        from trailingWhitespace in Whitespace()
+                        from lineContinuations in LineContinuations(escapeChar)
+                        select ConcatTokens(trailingWhitespace, lineContinuations)).Or(
+                    // Plain newline (end of line without preceding space).
                         from whitespace in WhitespaceWithoutNewLine()
                         from newLine in NewLine()
                         select ConcatTokens(whitespace, newLine)).Optional()
                 select ConcatTokens(
                     tokens,
-                    trailingWhitespace.GetOrDefault()));
+                    trailingWhitespace.GetOrDefault());
         }
     }
 

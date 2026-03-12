@@ -42,9 +42,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     instruction whitespace as a standalone WhitespaceToken sibling at instruction level.
 ///     (The Lean argTokens fix removed the guard that prevented capturing trailing whitespace
 ///     without a line continuation; C# already emitted it the same way.)
-///   - #265 (hash as comment in shell-form and LABEL values): C# parses # mid-text as a
-///     comment aggregate inside a literal; Lean treats it as plain text. Workaround merges
-///     the comment children back into the preceding string token.
 ///   - #266 (flag line continuation): COPY/ADD/RUN keyValue flags with LineContinuation tokens
 ///     inside their value differ structurally. Workaround flattens the entire keyValue into an
 ///     opaque literal matching Lean's flat representation.
@@ -153,14 +150,12 @@ public static class TokenJsonSerializer
 
         if (token is LiteralToken literal)
         {
-            // Workaround for #265: hash treated as comment in literal values (LABEL, etc.).
             // Workaround for #266: raw symbol("\\") + newLine pairs in literals should be
             // wrapped in lineContinuation aggregates to match Lean's structure.
-            bool hasComments = literal.Tokens.Any(t => t is CommentToken);
             bool hasRawLineContinuations = HasRawLineContinuationPair(literal.Tokens);
-            if (hasComments || hasRawLineContinuations)
+            if (hasRawLineContinuations)
             {
-                SerializeLiteralNormalized(sb, literal, hasComments, hasRawLineContinuations);
+                SerializeLiteralNormalized(sb, literal, hasRawLineContinuations);
             }
             else
             {
@@ -191,17 +186,7 @@ public static class TokenJsonSerializer
         // KeyValueToken<,> is generic — check via base-type walk
         if (IsKeyValueToken(token))
         {
-            // Workaround for #265: CommentToken as direct keyValue child (LABEL key=# case).
-            // When a CommentToken appears as the value of a key=value pair (after "="),
-            // C# emits it as a comment aggregate, but Lean expects a literal.
-            if (HasCommentTokenValue((AggregateToken)token))
-            {
-                SerializeKeyValueWithCommentMerge(sb, (AggregateToken)token);
-            }
-            else
-            {
-                SerializeAggregate(sb, "keyValue", token);
-            }
+            SerializeAggregate(sb, "keyValue", token);
             return;
         }
 
@@ -212,15 +197,7 @@ public static class TokenJsonSerializer
             // It functions as a key-value pair in the token tree
             if (token is IKeyValuePair)
             {
-                // Also apply #265 workaround for ArgDeclaration
-                if (HasCommentTokenValue((AggregateToken)token))
-                {
-                    SerializeKeyValueWithCommentMerge(sb, (AggregateToken)token);
-                }
-                else
-                {
-                    SerializeAggregate(sb, "keyValue", token);
-                }
+                SerializeAggregate(sb, "keyValue", token);
                 return;
             }
 
@@ -331,16 +308,6 @@ public static class TokenJsonSerializer
         SerializeAggregate(sb, "literal", literal);
     }
 
-    // ===================================================================
-    // Workaround: #265 — hash treated as comment in shell-form commands
-    // C# parses a '#' character mid-command as a CommentToken inside a
-    // LiteralToken. Lean (following BuildKit) treats '#' as plain text.
-    // Merge: string("echo ") + comment[symbol("#"), string("text")]
-    //      → string("echo #text")
-    // The merge replaces CommentToken children with their text content
-    // appended to the preceding StringToken.
-    // ===================================================================
-
     /// <summary>
     /// Returns true if a token list contains a raw "symbol('\\') + NewLineToken" pair
     /// that should be wrapped in a lineContinuation aggregate (workaround for #266).
@@ -360,84 +327,12 @@ public static class TokenJsonSerializer
         return false;
     }
 
-    // ===================================================================
-    // Workaround: #265 — CommentToken as direct keyValue value child
-    // When LABEL key=#value is parsed, C# produces:
-    //   keyValue[identifier["key"], symbol["="], comment[symbol["#"], string["value"]]]
-    // Lean produces:
-    //   keyValue[identifier["key"], symbol["="], literal[string["#value"]]]
-    // Convert CommentToken to literal when it appears as a keyValue's value.
-    // ===================================================================
-
-    /// <summary>
-    /// Returns true if an aggregate token (keyValue) has a CommentToken as a direct child
-    /// that appears in the value position (after the "=" symbol).
-    /// </summary>
-    private static bool HasCommentTokenValue(AggregateToken aggregate)
-    {
-        bool seenEquals = false;
-        foreach (Token child in aggregate.Tokens)
-        {
-            if (child is SymbolToken sym && sym.Value == "=")
-            {
-                seenEquals = true;
-            }
-            else if (seenEquals && child is CommentToken)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Serialize a keyValue aggregate where a CommentToken appears in the value position.
-    /// Converts the CommentToken to a literal[string[text]] matching Lean's output.
-    /// </summary>
-    private static void SerializeKeyValueWithCommentMerge(StringBuilder sb, AggregateToken keyValue)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        bool seenEquals = false;
-
-        foreach (Token child in keyValue.Tokens)
-        {
-            if (child is SymbolToken sym && sym.Value == "=")
-            {
-                seenEquals = true;
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-            else if (seenEquals && child is CommentToken comment)
-            {
-                // Convert comment to literal[string[text]]
-                string commentText = ExtractCommentText(comment);
-                if (!first) sb.Append(',');
-                first = false;
-                sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-                SerializePrimitive(sb, "string", commentText);
-                sb.Append("]}");
-            }
-            else
-            {
-                if (!first) sb.Append(',');
-                SerializeToken(sb, child);
-                first = false;
-            }
-        }
-
-        sb.Append("]}");
-    }
-
     /// <summary>
     /// Serialize a LiteralToken with normalization for known C# vs Lean differences:
-    ///   - #265: merge embedded CommentToken children back into plain string text
     ///   - #266: wrap raw symbol("\\") + NewLineToken pairs into lineContinuation aggregates
     /// </summary>
     private static void SerializeLiteralNormalized(
-        StringBuilder sb, LiteralToken literal, bool hasComments, bool hasRawLineContinuations)
+        StringBuilder sb, LiteralToken literal, bool hasRawLineContinuations)
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
         if (literal.QuoteChar.HasValue)
@@ -455,8 +350,6 @@ public static class TokenJsonSerializer
         List<Token> tokens = literal.Tokens.ToList();
 
         // Apply normalizations in order
-        if (hasComments)
-            tokens = FlattenCommentTokens(tokens);
         if (hasRawLineContinuations || HasRawLineContinuationPair(tokens))
             tokens = WrapRawLineContinuations(tokens);
 
@@ -469,15 +362,6 @@ public static class TokenJsonSerializer
         }
 
         sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Serialize a LiteralToken, merging any embedded CommentToken children back into
-    /// plain string text (workaround for #265). Applies to all literal contexts (LABEL, etc.).
-    /// </summary>
-    private static void SerializeLiteralWithHashMerge(StringBuilder sb, LiteralToken literal)
-    {
-        SerializeLiteralNormalized(sb, literal, hasComments: true, hasRawLineContinuations: false);
     }
 
     /// <summary>
@@ -515,133 +399,6 @@ public static class TokenJsonSerializer
         return result;
     }
 
-    /// <summary>
-    /// Serialize a shell-form LiteralToken, merging any embedded CommentToken
-    /// children back into plain string text (workaround for #265).
-    /// Also validates that no VariableRefToken children are present.
-    /// </summary>
-    private static void SerializeShellFormLiteralWithHashMerge(StringBuilder sb, LiteralToken literal)
-    {
-        foreach (Token child in literal.Tokens)
-        {
-            if (child is VariableRefToken)
-            {
-                throw new InvalidOperationException(
-                    "Unexpected VariableRefToken in shell form LiteralToken. " +
-                    "Shell form commands should be parsed as opaque text without variable expansion.");
-            }
-        }
-
-        // Check if any CommentToken children exist
-        bool hasComments = literal.Tokens.Any(t => t is CommentToken);
-        if (!hasComments)
-        {
-            SerializeAggregate(sb, "literal", literal);
-            return;
-        }
-
-        // Merge comment tokens back into preceding string content
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
-        if (literal.QuoteChar.HasValue)
-        {
-            sb.Append('"');
-            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
-            sb.Append('"');
-        }
-        else
-        {
-            sb.Append("null");
-        }
-        sb.Append(",\"children\":[");
-
-        // Flatten: collect all string content (merging comment text with preceding string)
-        // Strategy: build a list of tokens, collapsing CommentToken children into strings.
-        List<Token> flatTokens = FlattenCommentTokens(literal.Tokens.ToList());
-
-        bool first = true;
-        foreach (Token t in flatTokens)
-        {
-            if (!first) sb.Append(',');
-            SerializeToken(sb, t);
-            first = false;
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Flatten a token list by merging CommentToken children (which represent mid-text #...)
-    /// back into adjacent StringToken content. A CommentToken contains: symbol("#") + string(...).
-    /// The preceding StringToken gets the "#" appended, then the comment's string text appended.
-    /// If no preceding StringToken exists, a new StringToken with "#text" is inserted.
-    /// </summary>
-    private static List<Token> FlattenCommentTokens(List<Token> tokens)
-    {
-        var result = new List<Token>();
-
-        foreach (Token token in tokens)
-        {
-            if (token is CommentToken comment)
-            {
-                // Extract the comment text: "#" + the string content of the comment
-                string commentText = "#";
-                foreach (Token ct in comment.Tokens)
-                {
-                    if (ct is StringToken s)
-                        commentText += s.Value;
-                    else if (ct is SymbolToken sym && sym.Value == "#")
-                    {
-                        // The "#" symbol is the start of the comment token — skip it
-                        // since we're already prepending "#" above.
-                        // Actually: don't double-add. The symbol("#") is the "#" itself.
-                        // We've already set commentText = "#" above; so strip that and
-                        // reconstruct from the symbol.
-                    }
-                }
-                // Re-extract properly: gather the full comment text from all children
-                commentText = ExtractCommentText(comment);
-
-                // Merge with preceding StringToken if one exists
-                if (result.Count > 0 && result[result.Count - 1] is StringToken prevStr)
-                {
-                    result[result.Count - 1] = new StringToken(prevStr.Value + commentText);
-                }
-                else
-                {
-                    result.Add(new StringToken(commentText));
-                }
-            }
-            else if (token is StringToken str && result.Count > 0 && result[result.Count - 1] is StringToken prevStr2)
-            {
-                // Merge adjacent StringTokens
-                result[result.Count - 1] = new StringToken(prevStr2.Value + str.Value);
-            }
-            else
-            {
-                result.Add(token);
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Extract the full text that a CommentToken represents, including the leading "#".
-    /// CommentToken structure: symbol("#") + string("text...")
-    /// </summary>
-    private static string ExtractCommentText(CommentToken comment)
-    {
-        var sb2 = new StringBuilder();
-        foreach (Token child in comment.Tokens)
-        {
-            if (child is StringToken s)
-                sb2.Append(s.Value);
-            else if (child is SymbolToken sym)
-                sb2.Append(sym.Value);
-        }
-        return sb2.ToString();
-    }
-
     // ===================================================================
     // Shell form instructions (CMD, ENTRYPOINT, HEALTHCHECK)
     // Shell form commands are parsed as opaque text. The Command wrapper
@@ -667,8 +424,7 @@ public static class TokenJsonSerializer
                     // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
-                        // Workaround for #265: hash treated as comment in shell-form commands.
-                        SerializeShellFormLiteralWithHashMerge(sb, lit);
+                        SerializeShellFormLiteral(sb, lit);
                     }
                     else
                     {
@@ -1365,8 +1121,7 @@ public static class TokenJsonSerializer
                     // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
-                        // Workaround for #265: hash treated as comment in shell-form commands.
-                        SerializeShellFormLiteralWithHashMerge(sb, lit);
+                        SerializeShellFormLiteral(sb, lit);
                     }
                     else
                     {
