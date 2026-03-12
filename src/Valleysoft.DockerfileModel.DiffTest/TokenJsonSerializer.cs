@@ -155,7 +155,7 @@ public static class TokenJsonSerializer
             bool hasRawLineContinuations = HasRawLineContinuationPair(literal.Tokens);
             if (hasRawLineContinuations)
             {
-                SerializeLiteralNormalized(sb, literal, hasRawLineContinuations);
+                SerializeLiteralNormalized(sb, literal);
             }
             else
             {
@@ -332,7 +332,7 @@ public static class TokenJsonSerializer
     ///   - #266: wrap raw symbol("\\") + NewLineToken pairs into lineContinuation aggregates
     /// </summary>
     private static void SerializeLiteralNormalized(
-        StringBuilder sb, LiteralToken literal, bool hasRawLineContinuations)
+        StringBuilder sb, LiteralToken literal)
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
         if (literal.QuoteChar.HasValue)
@@ -349,9 +349,8 @@ public static class TokenJsonSerializer
 
         List<Token> tokens = literal.Tokens.ToList();
 
-        // Apply normalizations in order
-        if (hasRawLineContinuations)
-            tokens = WrapRawLineContinuations(tokens);
+        // Always wrap raw symbol("\\") + NewLineToken pairs into lineContinuation aggregates
+        tokens = WrapRawLineContinuations(tokens);
 
         bool first = true;
         foreach (Token t in tokens)
