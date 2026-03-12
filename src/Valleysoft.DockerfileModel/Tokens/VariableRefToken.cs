@@ -225,6 +225,18 @@ public class VariableRefToken : AggregateToken
         from tokens in GetInnerParser(escapeChar)
         select new VariableRefToken(tokens, escapeChar);
 
+    /// <summary>
+    /// Parses a variable reference.
+    /// </summary>
+    /// <param name="createModifierValueTokenParser">Ignored. Modifier values are always parsed with
+    /// <see cref="ModifierValueParser"/> to allow horizontal whitespace.</param>
+    /// <param name="escapeChar">Escape character.</param>
+    /// <returns>Parsed variable reference token.</returns>
+    [Obsolete("The createModifierValueTokenParser parameter is no longer used. Use GetParser(char) instead.")]
+    public static Parser<VariableRefToken> GetParser(
+        CreateTokenParserDelegate createModifierValueTokenParser, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        GetParser(escapeChar);
+
     private static IEnumerable<Token> GetTokens(string variableName, string modifier, string modifierValue, char escapeChar)
     {
         Requires.NotNullOrEmpty(variableName, nameof(variableName));
