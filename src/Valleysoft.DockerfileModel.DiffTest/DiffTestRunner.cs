@@ -158,9 +158,6 @@ public class DiffTestRunner
                 $"C# parse error: {errorMessage}");
         }
 
-        // Workaround for #260: COPY/ADD with quoted file paths causes C# to truncate all
-        // file args — the resulting JSON contains only keyword+whitespace tokens.
-        // Structural data loss cannot be repaired in the serializer; skip comparison.
         // Workaround for #261: ARG with :? modifier causes C# to truncate the value after =.
         // The keyValue child is missing its value token; skip comparison.
         if (IsKnownTruncatedOutput(instructionType, input, csharpJson))
@@ -228,45 +225,12 @@ public class DiffTestRunner
     /// and cannot be repaired by the serializer — the comparison must be skipped.
     ///
     /// Covered cases:
-    ///   #260: COPY/ADD with quoted file paths — C# truncates file arg tokens when
-    ///         a quoted argument with spaces is present. The input contains '"' or "'"
-    ///         followed by a space, indicating a quoted multi-word path.
     ///   #261: ARG with :? modifier — C# truncates the value child of the keyValue,
     ///         producing a keyValue with only a name (Variable) and no LiteralToken value.
     /// </summary>
     private static bool IsKnownTruncatedOutput(string instructionType, string input, string csharpJson)
     {
         string upper = instructionType.ToUpperInvariant();
-
-        // Workaround for #260: COPY/ADD with quoted file paths containing spaces.
-        // C# fails to parse quoted arguments that contain spaces and truncates subsequent tokens.
-        // Detect: the input contains a quoted segment with an embedded space (a multi-word path).
-        // Pattern: quote char + word + space + word + quote char in the args portion.
-        // Also handles: single-quoted paths and double-quoted paths without spaces (which
-        // C# also truncates — see generator: "COPY \"{seg}\" /{dst}/" baseline case).
-        // The most reliable signal: input contains a quote char ('" or "'") in the args
-        // and C# output has fewer literals than expected.
-        if (upper == "COPY" || upper == "ADD")
-        {
-            // Check if the input contains a quoted file path argument
-            // Strip the instruction keyword first
-            string trimmed = input.TrimStart();
-            int firstSpace = trimmed.IndexOfAny(new[] { ' ', '\t' });
-            string argsOnly = firstSpace >= 0 ? trimmed.Substring(firstSpace).TrimStart() : "";
-
-            // Input has a quoted argument if it contains " or ' in the args section
-            // AND it's not part of a JSON array (which uses \" differently)
-            bool hasQuotedArg = ContainsQuotedFileArg(argsOnly);
-            if (hasQuotedArg)
-            {
-                // C# truncation produces fewer literals than a normal instruction.
-                // A normal COPY/ADD with N files has N literal children (after flags).
-                // When truncated, the number of literals is less than what quotes suggest.
-                // Simple check: if any quote appears in the args (and it's not an empty exec form),
-                // skip the comparison.
-                return true;
-            }
-        }
 
         // Workaround for #266: COPY/ADD/RUN with line continuation inside a flag value.
         // C# and Lean parse these fundamentally differently — C# may absorb the LC into
@@ -330,45 +294,6 @@ public class DiffTestRunner
             }
         }
         return false;
-    }
-
-    /// <summary>
-    /// Returns true if the args string contains a quoted file argument:
-    /// either "word ..." (double-quoted with content) or 'word...' (single-quoted with content).
-    /// Excludes JSON exec-form arrays like ["cmd", "arg"].
-    /// </summary>
-    private static bool ContainsQuotedFileArg(string args)
-    {
-        // Skip leading flags (--from=, --chown=, etc.)
-        string remaining = args;
-        while (remaining.StartsWith("--"))
-        {
-            int nextSpace = remaining.IndexOfAny(new[] { ' ', '\t', '\n', '\r' });
-            if (nextSpace < 0) break;
-            remaining = remaining.Substring(nextSpace).TrimStart();
-        }
-
-        // Check for double-quote or single-quote that is NOT part of a JSON array
-        if (remaining.StartsWith("["))
-        {
-            return false; // JSON exec-form array
-        }
-
-        // Look for " or ' characters in the remaining args
-        return remaining.IndexOf('"') >= 0 || remaining.IndexOf('\'') >= 0;
-    }
-
-    /// <summary>Count occurrences of a substring in a string.</summary>
-    private static int CountOccurrences(string text, string pattern)
-    {
-        int count = 0;
-        int idx = 0;
-        while ((idx = text.IndexOf(pattern, idx, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            idx += pattern.Length;
-        }
-        return count;
     }
 
     /// <summary>
