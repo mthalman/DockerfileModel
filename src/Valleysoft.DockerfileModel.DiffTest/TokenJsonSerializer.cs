@@ -350,7 +350,7 @@ public static class TokenJsonSerializer
         List<Token> tokens = literal.Tokens.ToList();
 
         // Apply normalizations in order
-        if (hasRawLineContinuations || HasRawLineContinuationPair(tokens))
+        if (hasRawLineContinuations)
             tokens = WrapRawLineContinuations(tokens);
 
         bool first = true;
