@@ -2117,11 +2117,11 @@ public static class DockerfileArbitraries
             from name in Identifier()
             from msg in SimpleAlphaNum()
             select $"FROM ${{{name}:?{msg}}}",
-            // FROM with :? error modifier (message with spaces via concatenation)
+            // FROM with :? error modifier (message with spaces — now supported)
             from name in Identifier()
             from w1 in SimpleAlphaNum()
             from w2 in SimpleAlphaNum()
-            select $"FROM ${{{name}:?{w1}_{w2}}}",
+            select $"FROM ${{{name}:?{w1} {w2}}}",
             // FROM with ? (no-colon) error modifier
             from name in Identifier()
             from msg in SimpleAlphaNum()
@@ -2145,15 +2145,22 @@ public static class DockerfileArbitraries
 
     /// <summary>
     /// Generates ARG instructions with :? (error) modifier in variable references.
-    /// Targets #261 (error modifier mismatch).
+    /// Targets #261 (error modifier mismatch). Now also tests space-containing messages
+    /// since the parser was fixed to support whitespace in modifier values.
     /// </summary>
     public static Gen<string> ArgErrorModifierInstruction() =>
         Gen.OneOf(
-            // ARG with :? in default value
+            // ARG with :? in default value (simple message)
             from name in Identifier()
             from refVar in Identifier()
             from msg in SimpleAlphaNum()
             select $"ARG {name}=${{{refVar}:?{msg}}}",
+            // ARG with :? in default value (message with spaces — now supported)
+            from name in Identifier()
+            from refVar in Identifier()
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"ARG {name}=${{{refVar}:?{w1} {w2}}}",
             // ARG with ? (no-colon) in default value
             from name in Identifier()
             from refVar in Identifier()

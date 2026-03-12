@@ -426,6 +426,52 @@ public class FromInstructionTests
                 Text = "FROM alpine AS",
                 ParseExceptionPosition = new Position(1, 1, 13)
             },
+            // FROM with :? modifier containing spaces — should not crash
+            new ParseTestScenario<FromInstruction>
+            {
+                Text = "FROM ${IMAGE:?must set image}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "FROM"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "${IMAGE:?must set image}", null,
+                        token => ValidateAggregate<VariableRefToken>(token, "${IMAGE:?must set image}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "IMAGE"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateSymbol(token, '?'),
+                            token => ValidateLiteral(token, "must set image"),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("${IMAGE:?must set image}", result.ImageName);
+                    Assert.Equal("FROM ${IMAGE:?must set image}", result.ToString());
+                }
+            },
+            // FROM with :- default containing spaces — round-trip fidelity
+            new ParseTestScenario<FromInstruction>
+            {
+                Text = "FROM ${BASE:-ubuntu focal}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "FROM"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "${BASE:-ubuntu focal}", null,
+                        token => ValidateAggregate<VariableRefToken>(token, "${BASE:-ubuntu focal}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "BASE"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateLiteral(token, "ubuntu focal"),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("${BASE:-ubuntu focal}", result.ImageName);
+                    Assert.Equal("FROM ${BASE:-ubuntu focal}", result.ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
