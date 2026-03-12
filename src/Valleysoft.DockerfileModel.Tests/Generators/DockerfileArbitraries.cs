@@ -1936,6 +1936,641 @@ public static class DockerfileArbitraries
             select $"SHELL [ \"{shell}\" , \"{flag}\" ]");
 
     // ──────────────────────────────────────────────
+    // #259: Empty exec-form arrays
+    // (VOLUME [] crashes C#, COPY [] and ADD []
+    //  produce mismatches)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates VOLUME instructions with empty exec-form arrays [] and minimal arrays [""].
+    /// Targets #259 (empty exec-form crashes/mismatches).
+    /// </summary>
+    public static Gen<string> VolumeEmptyExecInstruction() =>
+        Gen.OneOf(
+            // VOLUME [] — empty JSON array
+            Gen.Constant("VOLUME []"),
+            // VOLUME [""] — single empty-string element
+            Gen.Constant("VOLUME [\"\"]"),
+            // VOLUME with whitespace inside empty array
+            Gen.Constant("VOLUME [ ]"),
+            // VOLUME ["", ""] — two empty-string elements
+            Gen.Constant("VOLUME [\"\", \"\"]"),
+            // Case-varied keyword with empty array
+            from kw in RandomCaseKeyword("VOLUME")
+            select $"{kw} []",
+            // Tab whitespace before empty array
+            from ws in FlexibleWhitespace()
+            select $"VOLUME{ws}[]",
+            // VOLUME [""] with extra whitespace
+            Gen.Constant("VOLUME [ \"\" ]"));
+
+    /// <summary>
+    /// Generates COPY instructions with empty exec-form arrays [] and minimal arrays [""].
+    /// Targets #259 (empty exec-form mismatches).
+    /// </summary>
+    public static Gen<string> CopyEmptyExecInstruction() =>
+        Gen.OneOf(
+            // COPY [] — empty JSON array
+            Gen.Constant("COPY []"),
+            // COPY [""] — single empty-string element
+            Gen.Constant("COPY [\"\"]"),
+            // COPY ["", ""] — two empty-string elements
+            Gen.Constant("COPY [\"\", \"\"]"),
+            // COPY ["", "/dst"] — empty source + destination
+            from dst in PathSegment()
+            select $"COPY [\"\", \"/{dst}\"]",
+            // COPY with whitespace inside empty array
+            Gen.Constant("COPY [ ]"),
+            // Case-varied keyword with empty array
+            from kw in RandomCaseKeyword("COPY")
+            select $"{kw} []",
+            // COPY with --from and empty array
+            from stage in StageName()
+            select $"COPY --from={stage} []");
+
+    /// <summary>
+    /// Generates ADD instructions with empty exec-form arrays [] and minimal arrays [""].
+    /// Targets #259 (empty exec-form mismatches).
+    /// </summary>
+    public static Gen<string> AddEmptyExecInstruction() =>
+        Gen.OneOf(
+            // ADD [] — empty JSON array
+            Gen.Constant("ADD []"),
+            // ADD [""] — single empty-string element
+            Gen.Constant("ADD [\"\"]"),
+            // ADD ["", ""] — two empty-string elements
+            Gen.Constant("ADD [\"\", \"\"]"),
+            // ADD ["", "/dst"] — empty source + destination
+            from dst in PathSegment()
+            select $"ADD [\"\", \"/{dst}\"]",
+            // ADD with whitespace inside empty array
+            Gen.Constant("ADD [ ]"),
+            // Case-varied keyword with empty array
+            from kw in RandomCaseKeyword("ADD")
+            select $"{kw} []",
+            // ADD with --chown and empty array
+            from owner in Identifier()
+            select $"ADD --chown={owner} []");
+
+    // ──────────────────────────────────────────────
+    // #260: Quoted file paths in COPY/ADD
+    // (COPY "my file.txt" /app/ — C# truncates)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates COPY instructions with double-quoted and single-quoted file paths containing spaces.
+    /// Targets #260 (quoted path truncation).
+    /// </summary>
+    public static Gen<string> CopyQuotedPathInstruction() =>
+        Gen.OneOf(
+            // Double-quoted source with space
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            from dst in PathSegment()
+            select $"COPY \"{w1} {w2}\" /{dst}/",
+            // Single-quoted source with space
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            from dst in PathSegment()
+            select $"COPY '{w1} {w2}' /{dst}/",
+            // Double-quoted destination with space
+            from src in PathSegment()
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"COPY {src} \"{w1} {w2}\"",
+            // Both source and destination double-quoted
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            from d1 in SimpleAlphaNum()
+            from d2 in SimpleAlphaNum()
+            select $"COPY \"{w1} {w2}\" \"{d1} {d2}\"",
+            // Double-quoted source without spaces (baseline)
+            from seg in PathSegment()
+            from dst in PathSegment()
+            select $"COPY \"{seg}\" /{dst}/",
+            // COPY with --from and quoted source
+            from stage in StageName()
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            from dst in PathSegment()
+            select $"COPY --from={stage} \"{w1} {w2}\" /{dst}/",
+            // Quoted path with variable ref
+            from varRef in VariableRef()
+            from dst in PathSegment()
+            select $"COPY \"{varRef}\" /{dst}/");
+
+    /// <summary>
+    /// Generates ADD instructions with double-quoted and single-quoted file paths containing spaces.
+    /// Targets #260 (quoted path truncation).
+    /// </summary>
+    public static Gen<string> AddQuotedPathInstruction() =>
+        Gen.OneOf(
+            // Double-quoted source with space
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            from dst in PathSegment()
+            select $"ADD \"{w1} {w2}\" /{dst}/",
+            // Single-quoted source with space
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            from dst in PathSegment()
+            select $"ADD '{w1} {w2}' /{dst}/",
+            // Double-quoted destination with space
+            from src in PathSegment()
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"ADD {src} \"{w1} {w2}\"",
+            // Both source and destination double-quoted
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            from d1 in SimpleAlphaNum()
+            from d2 in SimpleAlphaNum()
+            select $"ADD \"{w1} {w2}\" \"{d1} {d2}\"",
+            // Double-quoted source without spaces (baseline)
+            from seg in PathSegment()
+            from dst in PathSegment()
+            select $"ADD \"{seg}\" /{dst}/",
+            // ADD with --chown and quoted source
+            from owner in Identifier()
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            from dst in PathSegment()
+            select $"ADD --chown={owner} \"{w1} {w2}\" /{dst}/",
+            // Quoted path with variable ref
+            from varRef in VariableRef()
+            from dst in PathSegment()
+            select $"ADD \"{varRef}\" /{dst}/");
+
+    // ──────────────────────────────────────────────
+    // #261: Variable :? modifier
+    // (FROM ${IMAGE:?must set} crashes C#;
+    //  ARG ${VAR:?msg} mismatches)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates FROM instructions with :? (error) modifier in variable references.
+    /// Targets #261 (error modifier crash/mismatch).
+    /// </summary>
+    public static Gen<string> FromErrorModifierInstruction() =>
+        Gen.OneOf(
+            // FROM with :? error modifier (simple message)
+            from name in Identifier()
+            from msg in SimpleAlphaNum()
+            select $"FROM ${{{name}:?{msg}}}",
+            // FROM with :? error modifier (message with spaces via concatenation)
+            from name in Identifier()
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"FROM ${{{name}:?{w1}_{w2}}}",
+            // FROM with ? (no-colon) error modifier
+            from name in Identifier()
+            from msg in SimpleAlphaNum()
+            select $"FROM ${{{name}?{msg}}}",
+            // FROM with :? and AS stage
+            from name in Identifier()
+            from msg in SimpleAlphaNum()
+            from stage in StageName()
+            select $"FROM ${{{name}:?{msg}}} AS {stage}",
+            // FROM with :? and --platform
+            from name in Identifier()
+            from msg in SimpleAlphaNum()
+            from platform in Gen.Elements("linux/amd64", "linux/arm64")
+            select $"FROM --platform={platform} ${{{name}:?{msg}}}",
+            // FROM with :? containing path-like message
+            from name in Identifier()
+            select $"FROM ${{{name}:?must_set_image}}",
+            // FROM with :? containing hyphenated message
+            from name in Identifier()
+            select $"FROM ${{{name}:?image-not-defined}}");
+
+    /// <summary>
+    /// Generates ARG instructions with :? (error) modifier in variable references.
+    /// Targets #261 (error modifier mismatch).
+    /// </summary>
+    public static Gen<string> ArgErrorModifierInstruction() =>
+        Gen.OneOf(
+            // ARG with :? in default value
+            from name in Identifier()
+            from refVar in Identifier()
+            from msg in SimpleAlphaNum()
+            select $"ARG {name}=${{{refVar}:?{msg}}}",
+            // ARG with ? (no-colon) in default value
+            from name in Identifier()
+            from refVar in Identifier()
+            from msg in SimpleAlphaNum()
+            select $"ARG {name}=${{{refVar}?{msg}}}",
+            // ARG with :? and surrounding literal text
+            from name in Identifier()
+            from refVar in Identifier()
+            from msg in SimpleAlphaNum()
+            from prefix in SimpleAlphaNum()
+            select $"ARG {name}={prefix}${{{refVar}:?{msg}}}",
+            // Multiple ARG declarations, one with :?
+            from n1 in Identifier()
+            from n2 in Identifier()
+            from refVar in Identifier()
+            from msg in SimpleAlphaNum()
+            select $"ARG {n1} {n2}=${{{refVar}:?{msg}}}",
+            // ARG with :? containing underscores (common in error msgs)
+            from name in Identifier()
+            from refVar in Identifier()
+            select $"ARG {name}=${{{refVar}:?not_set}}",
+            // ARG with :? and quoted default
+            from name in Identifier()
+            from refVar in Identifier()
+            from msg in SimpleAlphaNum()
+            select $"ARG {name}=\"${{{refVar}:?{msg}}}\"");
+
+    // ──────────────────────────────────────────────
+    // #262: Variable default value with slash
+    // (WORKDIR ${BASE:-/opt}/... — C# splits /
+    //  as symbol in defaults)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates WORKDIR instructions with :- defaults containing path-like values with /.
+    /// Targets #262 (slash in variable default).
+    /// </summary>
+    public static Gen<string> WorkdirSlashDefaultInstruction() =>
+        Gen.OneOf(
+            // WORKDIR with :- default containing /
+            from name in Identifier()
+            from seg in PathSegment()
+            select $"WORKDIR ${{{name}:-/{seg}}}",
+            // WORKDIR with :- default containing /opt
+            from name in Identifier()
+            select $"WORKDIR ${{{name}:-/opt}}",
+            // WORKDIR with :- default path + trailing segment
+            from name in Identifier()
+            from seg in PathSegment()
+            select $"WORKDIR ${{{name}:-/opt/{seg}}}/app",
+            // WORKDIR with :- default multi-level path
+            from name in Identifier()
+            from s1 in PathSegment()
+            from s2 in PathSegment()
+            select $"WORKDIR ${{{name}:-/{s1}/{s2}}}",
+            // WORKDIR with - (no-colon) default containing /
+            from name in Identifier()
+            from seg in PathSegment()
+            select $"WORKDIR ${{{name}-/{seg}}}",
+            // WORKDIR with :- default /usr/local
+            from name in Identifier()
+            select $"WORKDIR ${{{name}:-/usr/local}}/bin",
+            // WORKDIR with :+ alternative containing /
+            from name in Identifier()
+            from seg in PathSegment()
+            select $"WORKDIR ${{{name}:+/{seg}}}");
+
+    /// <summary>
+    /// Generates ENV instructions with :- defaults containing path-like values with /.
+    /// Targets #262 (slash in variable default).
+    /// </summary>
+    public static Gen<string> EnvSlashDefaultInstruction() =>
+        Gen.OneOf(
+            // ENV with :- default containing /
+            from key in Identifier()
+            from name in Identifier()
+            from seg in PathSegment()
+            select $"ENV {key}=${{{name}:-/{seg}}}",
+            // ENV with :- default /opt path
+            from key in Identifier()
+            from name in Identifier()
+            select $"ENV {key}=${{{name}:-/opt}}",
+            // ENV with :- default multi-level path
+            from key in Identifier()
+            from name in Identifier()
+            from s1 in PathSegment()
+            from s2 in PathSegment()
+            select $"ENV {key}=${{{name}:-/{s1}/{s2}}}",
+            // ENV with - (no-colon) default containing /
+            from key in Identifier()
+            from name in Identifier()
+            from seg in PathSegment()
+            select $"ENV {key}=${{{name}-/{seg}}}",
+            // ENV with :- default path in quoted value
+            from key in Identifier()
+            from name in Identifier()
+            from seg in PathSegment()
+            select $"ENV {key}=\"${{{name}:-/{seg}}}\"",
+            // ENV with :+ alternative containing /
+            from key in Identifier()
+            from name in Identifier()
+            from seg in PathSegment()
+            select $"ENV {key}=${{{name}:+/{seg}}}");
+
+    // ──────────────────────────────────────────────
+    // #263: Mount value trailing whitespace
+    // (RUN --mount=type=ssh echo hello — C#
+    //  absorbs trailing space into mount value)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates RUN instructions with minimal mount values (type=ssh, type=cache without extra options).
+    /// Targets #263 (mount value trailing whitespace absorption).
+    /// </summary>
+    public static Gen<string> RunMinimalMountInstruction() =>
+        Gen.OneOf(
+            // RUN --mount=type=ssh (minimal)
+            from cmd in ShellCommand()
+            select $"RUN --mount=type=ssh {cmd}",
+            // RUN --mount=type=cache,target=/tmp (minimal cache)
+            from cmd in ShellCommand()
+            select $"RUN --mount=type=cache,target=/tmp {cmd}",
+            // RUN --mount=type=secret,id=mysecret (minimal secret)
+            from cmd in ShellCommand()
+            select $"RUN --mount=type=secret,id=mysecret {cmd}",
+            // RUN --mount=type=tmpfs (minimal tmpfs)
+            from cmd in ShellCommand()
+            select $"RUN --mount=type=tmpfs {cmd}",
+            // RUN --mount=type=ssh with exec form
+            from cmd in ExecFormCommand()
+            select $"RUN --mount=type=ssh {cmd}",
+            // RUN --mount=type=ssh with --network
+            from network in Gen.Elements("default", "none", "host")
+            from cmd in ShellCommand()
+            select $"RUN --mount=type=ssh --network={network} {cmd}",
+            // RUN --mount=type=ssh with varied whitespace after mount
+            from ws in FlexibleWhitespace()
+            from cmd in ShellCommand()
+            select $"RUN --mount=type=ssh{ws}{cmd}",
+            // Two minimal mounts
+            from cmd in ShellCommand()
+            select $"RUN --mount=type=ssh --mount=type=tmpfs {cmd}");
+
+    // ──────────────────────────────────────────────
+    // #264: Trailing whitespace
+    // (FROM alpine<space> — C# preserves trailing
+    //  ws, Lean doesn't)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates FROM instructions with trailing spaces and tabs.
+    /// Targets #264 (trailing whitespace differences).
+    /// </summary>
+    public static Gen<string> FromTrailingWhitespaceInstruction() =>
+        Gen.OneOf(
+            // FROM with trailing space
+            from image in ImageName()
+            select $"FROM {image} ",
+            // FROM with trailing tab
+            from image in ImageName()
+            select $"FROM {image}\t",
+            // FROM with multiple trailing spaces
+            from image in ImageName()
+            select $"FROM {image}   ",
+            // FROM with trailing space+tab
+            from image in ImageName()
+            select $"FROM {image} \t",
+            // FROM with AS and trailing space
+            from image in ImageName()
+            from stage in StageName()
+            select $"FROM {image} AS {stage} ",
+            // FROM with --platform and trailing space
+            from platform in Gen.Elements("linux/amd64", "linux/arm64")
+            from image in ImageName()
+            select $"FROM --platform={platform} {image} ",
+            // FROM scratch with trailing space
+            Gen.Constant("FROM scratch "),
+            // FROM with trailing tab
+            from image in ImageName()
+            select $"FROM {image}\t ");
+
+    /// <summary>
+    /// Generates ENV instructions with trailing spaces and tabs.
+    /// Targets #264 (trailing whitespace differences).
+    /// </summary>
+    public static Gen<string> EnvTrailingWhitespaceInstruction() =>
+        Gen.OneOf(
+            // ENV key=value with trailing space
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ENV {key}={value} ",
+            // ENV key=value with trailing tab
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ENV {key}={value}\t",
+            // ENV key=value with multiple trailing spaces
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ENV {key}={value}   ",
+            // ENV legacy form with trailing space
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ENV {key} {value} ",
+            // Multiple key=value pairs with trailing space
+            from k1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from k2 in Identifier()
+            from v2 in SimpleAlphaNum()
+            select $"ENV {k1}={v1} {k2}={v2} ",
+            // ENV with quoted value and trailing space
+            from key in Identifier()
+            from value in SimpleAlphaNum()
+            select $"ENV {key}=\"{value}\" ");
+
+    /// <summary>
+    /// Generates COPY instructions with trailing spaces and tabs.
+    /// Targets #264 (trailing whitespace differences).
+    /// </summary>
+    public static Gen<string> CopyTrailingWhitespaceInstruction() =>
+        Gen.OneOf(
+            // COPY with trailing space
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY {src} {dst} ",
+            // COPY with trailing tab
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY {src} {dst}\t",
+            // COPY with multiple trailing spaces
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY {src} {dst}   ",
+            // COPY with --from and trailing space
+            from stage in StageName()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from={stage} {src} {dst} ",
+            // COPY with --link and trailing space
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --link {src} {dst} ",
+            // COPY with trailing space+tab
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY {src} {dst} \t");
+
+    // ──────────────────────────────────────────────
+    // #265: Hash in shell-form and values
+    // (RUN echo #not-a-comment — C# treats # as
+    //  comment)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates RUN instructions with # in the middle of shell-form commands.
+    /// Targets #265 (hash treated as comment).
+    /// </summary>
+    public static Gen<string> RunHashInShellInstruction() =>
+        Gen.OneOf(
+            // RUN echo with # in argument
+            from word in SimpleAlphaNum()
+            select $"RUN echo #{word}",
+            // RUN echo with # between words
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"RUN echo {w1} #{w2}",
+            // RUN with # in a path argument
+            from seg in PathSegment()
+            select $"RUN echo /path/to#{seg}",
+            // RUN with # as part of a color code
+            Gen.Constant("RUN echo #FF0000"),
+            // RUN with # in a URL fragment
+            Gen.Constant("RUN echo https://example.com/page#section"),
+            // RUN with # after &&
+            from w1 in SimpleAlphaNum()
+            select $"RUN echo ok && echo #{w1}",
+            // RUN with multiple # characters
+            from word in SimpleAlphaNum()
+            select $"RUN echo #{word} #{word}");
+
+    /// <summary>
+    /// Generates CMD instructions with # in the middle of shell-form commands.
+    /// Targets #265 (hash treated as comment).
+    /// </summary>
+    public static Gen<string> CmdHashInShellInstruction() =>
+        Gen.OneOf(
+            // CMD echo with # in argument
+            from word in SimpleAlphaNum()
+            select $"CMD echo #{word}",
+            // CMD echo with # between words
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"CMD echo {w1} #{w2}",
+            // CMD with # in a path argument
+            from seg in PathSegment()
+            select $"CMD echo /path/to#{seg}",
+            // CMD with # as part of text
+            Gen.Constant("CMD echo #not-a-comment"),
+            // CMD with # after pipe
+            from word in SimpleAlphaNum()
+            select $"CMD echo ok | grep #{word}");
+
+    /// <summary>
+    /// Generates LABEL instructions with # in values.
+    /// Targets #265 (hash treated as comment).
+    /// </summary>
+    public static Gen<string> LabelHashInValueInstruction() =>
+        Gen.OneOf(
+            // LABEL with # in unquoted value
+            from key in Identifier()
+            from word in SimpleAlphaNum()
+            select $"LABEL {key}=#{word}",
+            // LABEL with # in quoted value
+            from key in Identifier()
+            from word in SimpleAlphaNum()
+            select $"LABEL {key}=\"#{word}\"",
+            // LABEL with # in the middle of quoted value
+            from key in Identifier()
+            from w1 in SimpleAlphaNum()
+            from w2 in SimpleAlphaNum()
+            select $"LABEL {key}=\"{w1}#{w2}\"",
+            // LABEL color code value
+            from key in Identifier()
+            select $"LABEL {key}=#FF0000",
+            // LABEL with # in single-quoted value
+            from key in Identifier()
+            from word in SimpleAlphaNum()
+            select $"LABEL {key}='#{word}'",
+            // Multiple labels, one with #
+            from k1 in Identifier()
+            from v1 in SimpleAlphaNum()
+            from k2 in Identifier()
+            from word in SimpleAlphaNum()
+            select $"LABEL {k1}={v1} {k2}=#{word}");
+
+    // ──────────────────────────────────────────────
+    // #266: Line continuation in flag values
+    // (COPY --from=\<newline>builder — different
+    //  parsing of flag value across continuations)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates COPY instructions with flag values split across line continuations.
+    /// Targets #266 (line continuation in flag values).
+    /// </summary>
+    public static Gen<string> CopyFlagLineContinuationInstruction() =>
+        Gen.OneOf(
+            // COPY --from=\<newline>stagename
+            from stage in StageName()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from=\\\n{stage} {src} {dst}",
+            // COPY --from=\<newline>  stagename (with leading whitespace after continuation)
+            from stage in StageName()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from=\\\n  {stage} {src} {dst}",
+            // COPY --chown=\<newline>user
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --chown=\\\n{owner} {src} {dst}",
+            // COPY --chmod=\<newline>755
+            from mode in Gen.Elements("755", "644", "777")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --chmod=\\\n{mode} {src} {dst}",
+            // COPY --from=\r\n stagename (CRLF continuation)
+            from stage in StageName()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from=\\\r\n{stage} {src} {dst}",
+            // COPY --from=sta\<newline>ge (split in middle of value)
+            from s1 in Gen.Elements("buil", "sta", "bas")
+            from s2 in Gen.Elements("der", "ge", "e")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from={s1}\\\n{s2} {src} {dst}");
+
+    /// <summary>
+    /// Generates ADD instructions with flag values split across line continuations.
+    /// Targets #266 (line continuation in flag values).
+    /// </summary>
+    public static Gen<string> AddFlagLineContinuationInstruction() =>
+        Gen.OneOf(
+            // ADD --chown=\<newline>user
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chown=\\\n{owner} {src} {dst}",
+            // ADD --chown=\<newline>  user (with leading whitespace after continuation)
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chown=\\\n  {owner} {src} {dst}",
+            // ADD --chmod=\<newline>755
+            from mode in Gen.Elements("755", "644", "777")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chmod=\\\n{mode} {src} {dst}",
+            // ADD --checksum=\<newline>sha256:hash
+            from hash in SimpleHexString()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --checksum=\\\nsha256:{hash} {src} {dst}",
+            // ADD --chown=\r\n user (CRLF continuation)
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chown=\\\r\n{owner} {src} {dst}",
+            // ADD --chown=us\<newline>er (split in middle of value)
+            from p1 in Gen.Elements("us", "roo", "ww")
+            from p2 in Gen.Elements("er", "t", "w-data")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chown={p1}\\\n{p2} {src} {dst}");
+
+    // ──────────────────────────────────────────────
     // Dockerfile-level generators
     // ──────────────────────────────────────────────
 

@@ -2031,3 +2031,60 @@ Modified the Lean parser to match C# output for all identified categories. The 3
 
 - The `flagParser` whitespace absorption may cause unexpected behavior if new flag types are added without considering whether they need `flagParserStrict`. Document this pattern.
 - The `heredoc` AggregateKind remains defined in Token.lean but is no longer used by any parser. It could be removed in a cleanup pass, but keeping it avoids breaking any external references.
+# Decision: Expanded Differential Test Bug Inventory (Categories F-M)
+
+**Author:** Dallas (Core Dev)
+**Date:** 2026-03-12
+
+## Context
+
+Targeted manual differential testing between the C# and Lean/BuildKit parsers has uncovered 14 additional bugs beyond the original 14 found via automated fuzz testing. The bug summary document at `docs/differential-test-bugs.md` has been expanded from Categories A-E (Bugs 1-14) to Categories A-M (Bugs 1-28).
+
+## Key Findings
+
+### High-Severity Bugs Requiring Prioritization
+
+1. **Category G (Bug 18): Quoted file paths in COPY/ADD** — Silent data loss. C# truncates all file arguments when a quote character appears at the start of a path argument. This affects real-world Dockerfiles with `COPY "file with spaces" /dest/`.
+
+2. **Category L (Bugs 24-27): Hash treated as comment in shell commands** — Semantically incorrect. C#'s `WithTrailingComments()` parser splits `RUN echo #not-a-comment` at the `#`, treating the rest as a comment. BuildKit treats `#` as a regular character within instruction arguments.
+
+3. **Category H (Bug 19): FROM with `:?` modifier crash** — Parser crash on `FROM ${IMAGE:?must set}` when the error message modifier contains spaces.
+
+4. **Category F (Bug 15): VOLUME [] crash** — Parser crash on empty exec-form array input.
+
+### Medium-Severity Structural Differences
+
+- Categories I, J, K, M are structural token-tree differences that do not affect round-trip fidelity or semantic correctness. These are lower priority for fixing.
+
+## Decision
+
+Document all 28 bugs in a single comprehensive reference. The document serves as the team's bug backlog for C# parser conformance work. Fix priority should follow severity: G and L first (silent data loss and semantic errors), then H and F (crashes), then the medium-severity structural differences.
+
+## Files Changed
+
+- `docs/differential-test-bugs.md` — expanded with Categories F-M (Bugs 15-28)
+### 2026-03-12: Category F-M Edge-Case Generators for Differential Testing
+**Author:** Lambert (Tester)
+**Date:** 2026-03-12
+
+#### Context
+Differential testing identified 8 new bug categories (F through M) that were not covered by existing FsCheck generators. These categories cover: empty exec-form arrays, quoted file paths, variable `:?` error modifier, slash in variable defaults, mount trailing whitespace, trailing whitespace on instructions, hash characters in shell-form commands, and line continuations inside flag values.
+
+#### Decision
+Added 19 new `public static Gen<string>` methods to `DockerfileArbitraries.cs` following the established generator pattern (FsCheck `Gen` combinators with LINQ syntax, returning full instruction text). All 19 generators registered in `InputGenerator.cs` with instruction type labels. Generator array grew from 25 to 44 entries.
+
+Each generator produces 5-8 variants covering the specific edge case plus related combinations (flags, variable refs, case variation, whitespace variation, CRLF line endings).
+
+#### Rationale
+- Each bug category needs dedicated generators because the edge cases are unlikely to be produced by the general-purpose instruction generators (e.g., trailing whitespace, empty arrays, `#` in shell commands).
+- Generators follow the established pattern exactly: `public static Gen<string>` methods on `DockerfileArbitraries`, registered by instruction type label in `InputGenerator.cs`.
+- Variants within each generator cover both the minimal reproducer and related combinations to maximize differential test surface area.
+
+#### Impact
+- Differential test input count per run increases proportionally (44 generators vs 25).
+- Dallas will need to add serializer workarounds in `TokenJsonSerializer.cs` for any confirmed C# bugs these generators expose.
+- No changes to existing generators or test infrastructure.
+
+#### Files Changed
+- `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` (modified)
+- `src/Valleysoft.DockerfileModel.DiffTest/InputGenerator.cs` (modified)

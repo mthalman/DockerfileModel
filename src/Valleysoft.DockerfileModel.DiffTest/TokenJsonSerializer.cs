@@ -34,6 +34,22 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     them as opaque literal file-path tokens. Lean recognizes them and emits keyValue tokens.
 ///     Workaround converts literal["--flagname[=value]"] → keyValue[-, -, keyword["flagname"],
 ///     optionally =, literal["value"]] when the literal starts with "--".
+///   - #259 (COPY/ADD empty exec-form arrays): C# produces a literal with value "[]" instead
+///     of two symbol tokens. Workaround splits literal["[]"] into symbol["["] + symbol["]"].
+///   - #262 (slash in variable default values): For ":-/opt" and ":+/opt" style modifiers,
+///     C# emits symbol("/") as a sibling before the modifier value LiteralToken, but Lean
+///     merges it into the literal. Workaround merges symbol("/") + literal["opt"] into
+///     literal["/opt"]. Not applied for POSIX "/" and "//" modifiers where C# and Lean agree.
+///   - #263 (mount value trailing whitespace): mount.ToString() absorbs trailing whitespace
+///     into the mount value string. Workaround trims and emits a separate whitespace token.
+///   - #264 (trailing whitespace on instructions): C# preserves trailing whitespace as a
+///     token; Lean trims it. Workaround removes the last child if it is a whitespace token.
+///   - #265 (hash as comment in shell-form and LABEL values): C# parses # mid-text as a
+///     comment aggregate inside a literal; Lean treats it as plain text. Workaround merges
+///     the comment children back into the preceding string token.
+///   - #266 (flag line continuation): COPY/ADD/RUN keyValue flags with LineContinuation tokens
+///     inside their value differ structurally. Workaround flattens the entire keyValue into an
+///     opaque literal matching Lean's flat representation.
 /// </summary>
 public static class TokenJsonSerializer
 {
@@ -115,7 +131,10 @@ public static class TokenJsonSerializer
 
         if (token is Instruction)
         {
-            SerializeAggregate(sb, "instruction", token);
+            // Workaround for #264: trailing whitespace on instructions.
+            // C# preserves a trailing WhitespaceToken; Lean trims it.
+            // Applies to all instructions not handled by a dedicated serializer above.
+            SerializeInstructionWithTrailingWsTrimmed(sb, (Instruction)token);
             return;
         }
 
@@ -131,15 +150,30 @@ public static class TokenJsonSerializer
             return;
         }
 
-        if (token is VariableRefToken)
+        if (token is VariableRefToken varRef)
         {
-            SerializeAggregate(sb, "variableRef", token);
+            // Workaround for #262: slash in variable default values.
+            // For ":-/opt" and ":+/opt" modifiers, C# emits symbol("/") as a separate sibling
+            // of the modifier value LiteralToken, but Lean merges it into the literal.
+            SerializeVariableRef(sb, varRef);
             return;
         }
 
-        if (token is LiteralToken)
+        if (token is LiteralToken literal)
         {
-            SerializeAggregate(sb, "literal", token);
+            // Workaround for #265: hash treated as comment in literal values (LABEL, etc.).
+            // Workaround for #266: raw symbol("\\") + newLine pairs in literals should be
+            // wrapped in lineContinuation aggregates to match Lean's structure.
+            bool hasComments = literal.Tokens.Any(t => t is CommentToken);
+            bool hasRawLineContinuations = HasRawLineContinuationPair(literal.Tokens);
+            if (hasComments || hasRawLineContinuations)
+            {
+                SerializeLiteralNormalized(sb, literal, hasComments, hasRawLineContinuations);
+            }
+            else
+            {
+                SerializeAggregate(sb, "literal", literal);
+            }
             return;
         }
 
@@ -165,7 +199,17 @@ public static class TokenJsonSerializer
         // KeyValueToken<,> is generic — check via base-type walk
         if (IsKeyValueToken(token))
         {
-            SerializeAggregate(sb, "keyValue", token);
+            // Workaround for #265: CommentToken as direct keyValue child (LABEL key=# case).
+            // When a CommentToken appears as the value of a key=value pair (after "="),
+            // C# emits it as a comment aggregate, but Lean expects a literal.
+            if (HasCommentTokenValue((AggregateToken)token))
+            {
+                SerializeKeyValueWithCommentMerge(sb, (AggregateToken)token);
+            }
+            else
+            {
+                SerializeAggregate(sb, "keyValue", token);
+            }
             return;
         }
 
@@ -176,7 +220,15 @@ public static class TokenJsonSerializer
             // It functions as a key-value pair in the token tree
             if (token is IKeyValuePair)
             {
-                SerializeAggregate(sb, "keyValue", token);
+                // Also apply #265 workaround for ArgDeclaration
+                if (HasCommentTokenValue((AggregateToken)token))
+                {
+                    SerializeKeyValueWithCommentMerge(sb, (AggregateToken)token);
+                }
+                else
+                {
+                    SerializeAggregate(sb, "keyValue", token);
+                }
                 return;
             }
 
@@ -234,6 +286,36 @@ public static class TokenJsonSerializer
         sb.Append("]}");
     }
 
+    // ===================================================================
+    // Workaround: trailing whitespace on instructions (#264)
+    // C# preserves a trailing WhitespaceToken (including tabs/spaces) at
+    // the end of an instruction's token list. Lean trims trailing whitespace.
+    // For all instructions not handled by a dedicated serializer, we strip
+    // the last child if it is a (non-newline) whitespace token.
+    // ===================================================================
+
+    private static void SerializeInstructionWithTrailingWsTrimmed(StringBuilder sb, Instruction instruction)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
+
+        List<Token> tokens = instruction.Tokens.ToList();
+        // Workaround for #264: remove trailing whitespace token(s)
+        while (tokens.Count > 0
+               && tokens[tokens.Count - 1] is WhitespaceToken tw
+               && tw is not NewLineToken)
+        {
+            tokens.RemoveAt(tokens.Count - 1);
+        }
+
+        bool first = true;
+        foreach (Token child in tokens)
+        {
+            EmitChild(sb, child, ref first);
+        }
+
+        sb.Append("]}");
+    }
+
     /// <summary>
     /// Emit a single child token, handling transparent wrappers.
     /// </summary>
@@ -255,6 +337,128 @@ public static class TokenJsonSerializer
             SerializeToken(sb, child);
             first = false;
         }
+    }
+
+    // ===================================================================
+    // Workaround: #262 — slash in variable default values
+    // For ":-/opt" and ":+/opt" style modifiers, C# emits symbol("/") as a
+    // separate sibling of the modifier value LiteralToken, but Lean merges
+    // the "/" into the literal's content.
+    //
+    // C# structure: variableRef[{, "VAR", :, -, symbol("/"), literal["opt"], }]
+    // Lean structure: variableRef[{, "VAR", :, -, literal["/opt"], }]
+    //
+    // POSIX slash modifiers ("/", "//") do NOT need this workaround — for those,
+    // both C# and Lean emit the slash symbol(s) as separate modifier tokens:
+    //   /modifier:  C# = {, "VAR", symbol("/"), literal["value"], }
+    //               Lean = {, "VAR", symbol("/"), literal["value"], }
+    //   //modifier: C# = {, "VAR", symbol("/"), symbol("/"), literal["value"], }
+    //               Lean = {, "VAR", symbol("/"), symbol("/"), literal["value"], }
+    // ===================================================================
+
+    /// <summary>
+    /// Serialize a VariableRefToken, applying the #262 workaround for ":-/opt"-style defaults.
+    /// When the modifier is NOT a POSIX slash modifier ("/" or "//"), a symbol("/") that
+    /// immediately precedes the modifier value LiteralToken is merged into the literal,
+    /// matching Lean's output. For POSIX slash modifiers, the structure is emitted as-is
+    /// since C# and Lean already agree.
+    ///
+    /// C# raw:  variableRef[{, "VAR", :, -, symbol("/"), literal["opt"], }]
+    /// C# out:  variableRef[{, "VAR", :, -, literal["/opt"], }]
+    /// Lean:    variableRef[{, "VAR", :, -, literal["/opt"], }]
+    /// </summary>
+    private static void SerializeVariableRef(StringBuilder sb, VariableRefToken varRef)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"variableRef\",\"quoteChar\":null,\"children\":[");
+
+        List<Token> children = varRef.Tokens.ToList();
+        bool first = true;
+        LiteralToken? modifierValue = varRef.ModifierValueToken;
+
+        // For POSIX "/" and "//" modifiers, C# and Lean already agree — no transformation needed.
+        // Only apply the symbol("/") merge for other modifiers (e.g., ":-", ":+", "-", "+").
+        string? modifier = varRef.Modifier;
+        bool isPosixSlashModifier = modifier == "/" || modifier == "//";
+
+        for (int i = 0; i < children.Count; i++)
+        {
+            Token child = children[i];
+
+            // Workaround for #262: merge symbol("/") + modifierValue into literal["/..."]
+            // Only applies when the modifier is NOT "/" or "//" (i.e., the slash is not the
+            // modifier itself but a leading "/" in the default value like ":-/opt").
+            if (!isPosixSlashModifier
+                && child is SymbolToken slashSym && slashSym.Value == "/"
+                && modifierValue != null
+                && i + 1 < children.Count && children[i + 1] == modifierValue)
+            {
+                if (!first) sb.Append(',');
+                first = false;
+                // Prepend "/" to the modifier value literal's first string token
+                SerializeModifierValueLiteralWithSlashPrefix(sb, modifierValue, "/");
+                i++; // skip the literal (consumed)
+                continue;
+            }
+
+            if (!first) sb.Append(',');
+            SerializeToken(sb, child);
+            first = false;
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Serialize a modifier value LiteralToken with a "/" prefix prepended to its content.
+    /// Merges: prefix="/" + literal[string("opt")] → literal[string("/opt")]
+    /// </summary>
+    private static void SerializeModifierValueLiteralWithSlashPrefix(
+        StringBuilder sb, LiteralToken literal, string prefix)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
+        if (literal.QuoteChar.HasValue)
+        {
+            sb.Append('"');
+            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
+            sb.Append('"');
+        }
+        else
+        {
+            sb.Append("null");
+        }
+        sb.Append(",\"children\":[");
+
+        List<Token> innerChildren = literal.Tokens.ToList();
+        bool prefixApplied = false;
+        bool first = true;
+
+        for (int j = 0; j < innerChildren.Count; j++)
+        {
+            Token innerChild = innerChildren[j];
+
+            // Apply prefix to the first string token
+            if (!prefixApplied && innerChild is StringToken firstStr)
+            {
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "string", prefix + firstStr.Value);
+                first = false;
+                prefixApplied = true;
+                continue;
+            }
+
+            if (!first) sb.Append(',');
+            SerializeToken(sb, innerChild);
+            first = false;
+        }
+
+        // If prefix was never applied (empty literal), emit prefix as its own string
+        if (!prefixApplied)
+        {
+            if (!first) sb.Append(',');
+            SerializePrimitive(sb, "string", prefix);
+        }
+
+        sb.Append("]}");
     }
 
     // ===================================================================
@@ -288,6 +492,317 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
+    // Workaround: #265 — hash treated as comment in shell-form commands
+    // C# parses a '#' character mid-command as a CommentToken inside a
+    // LiteralToken. Lean (following BuildKit) treats '#' as plain text.
+    // Merge: string("echo ") + comment[symbol("#"), string("text")]
+    //      → string("echo #text")
+    // The merge replaces CommentToken children with their text content
+    // appended to the preceding StringToken.
+    // ===================================================================
+
+    /// <summary>
+    /// Returns true if a token list contains a raw "symbol('\\') + NewLineToken" pair
+    /// that should be wrapped in a lineContinuation aggregate (workaround for #266).
+    /// </summary>
+    private static bool HasRawLineContinuationPair(IEnumerable<Token> tokens)
+    {
+        Token? prev = null;
+        foreach (Token t in tokens)
+        {
+            if (prev is SymbolToken sym && (sym.Value == "\\" || sym.Value == "`")
+                && t is NewLineToken)
+            {
+                return true;
+            }
+            prev = t;
+        }
+        return false;
+    }
+
+    // ===================================================================
+    // Workaround: #265 — CommentToken as direct keyValue value child
+    // When LABEL key=#value is parsed, C# produces:
+    //   keyValue[identifier["key"], symbol["="], comment[symbol["#"], string["value"]]]
+    // Lean produces:
+    //   keyValue[identifier["key"], symbol["="], literal[string["#value"]]]
+    // Convert CommentToken to literal when it appears as a keyValue's value.
+    // ===================================================================
+
+    /// <summary>
+    /// Returns true if an aggregate token (keyValue) has a CommentToken as a direct child
+    /// that appears in the value position (after the "=" symbol).
+    /// </summary>
+    private static bool HasCommentTokenValue(AggregateToken aggregate)
+    {
+        bool seenEquals = false;
+        foreach (Token child in aggregate.Tokens)
+        {
+            if (child is SymbolToken sym && sym.Value == "=")
+            {
+                seenEquals = true;
+            }
+            else if (seenEquals && child is CommentToken)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Serialize a keyValue aggregate where a CommentToken appears in the value position.
+    /// Converts the CommentToken to a literal[string[text]] matching Lean's output.
+    /// </summary>
+    private static void SerializeKeyValueWithCommentMerge(StringBuilder sb, AggregateToken keyValue)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        bool seenEquals = false;
+
+        foreach (Token child in keyValue.Tokens)
+        {
+            if (child is SymbolToken sym && sym.Value == "=")
+            {
+                seenEquals = true;
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+            else if (seenEquals && child is CommentToken comment)
+            {
+                // Convert comment to literal[string[text]]
+                string commentText = ExtractCommentText(comment);
+                if (!first) sb.Append(',');
+                first = false;
+                sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
+                SerializePrimitive(sb, "string", commentText);
+                sb.Append("]}");
+            }
+            else
+            {
+                if (!first) sb.Append(',');
+                SerializeToken(sb, child);
+                first = false;
+            }
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Serialize a LiteralToken with normalization for known C# vs Lean differences:
+    ///   - #265: merge embedded CommentToken children back into plain string text
+    ///   - #266: wrap raw symbol("\\") + NewLineToken pairs into lineContinuation aggregates
+    /// </summary>
+    private static void SerializeLiteralNormalized(
+        StringBuilder sb, LiteralToken literal, bool hasComments, bool hasRawLineContinuations)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
+        if (literal.QuoteChar.HasValue)
+        {
+            sb.Append('"');
+            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
+            sb.Append('"');
+        }
+        else
+        {
+            sb.Append("null");
+        }
+        sb.Append(",\"children\":[");
+
+        List<Token> tokens = literal.Tokens.ToList();
+
+        // Apply normalizations in order
+        if (hasComments)
+            tokens = FlattenCommentTokens(tokens);
+        if (hasRawLineContinuations || HasRawLineContinuationPair(tokens))
+            tokens = WrapRawLineContinuations(tokens);
+
+        bool first = true;
+        foreach (Token t in tokens)
+        {
+            if (!first) sb.Append(',');
+            SerializeToken(sb, t);
+            first = false;
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Serialize a LiteralToken, merging any embedded CommentToken children back into
+    /// plain string text (workaround for #265). Applies to all literal contexts (LABEL, etc.).
+    /// </summary>
+    private static void SerializeLiteralWithHashMerge(StringBuilder sb, LiteralToken literal)
+    {
+        SerializeLiteralNormalized(sb, literal, hasComments: true, hasRawLineContinuations: false);
+    }
+
+    /// <summary>
+    /// Wrap raw symbol("\\") + NewLineToken pairs into lineContinuation aggregates.
+    /// C# may emit backslash+newline as separate tokens inside a literal; Lean always
+    /// wraps them as lineContinuation[symbol("\\"), newLine(...)].
+    ///
+    /// Returns a new list where each matched pair is replaced by a
+    /// RawLineContinuationMarker sentinel, which SerializeToken handles specially.
+    /// </summary>
+    private static List<Token> WrapRawLineContinuations(List<Token> tokens)
+    {
+        var result = new List<Token>();
+
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            Token token = tokens[i];
+
+            if (token is SymbolToken sym && (sym.Value == "\\" || sym.Value == "`")
+                && i + 1 < tokens.Count && tokens[i + 1] is NewLineToken newLine)
+            {
+                // Build a synthetic LineContinuationToken containing the symbol + newLine.
+                // The escape char is the first character of sym.Value.
+                char escapeChar = sym.Value[0];
+                var lc = LineContinuationToken.Parse(sym.Value + newLine.Value, escapeChar);
+                result.Add(lc);
+                i++; // skip the newLine token
+            }
+            else
+            {
+                result.Add(token);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Serialize a shell-form LiteralToken, merging any embedded CommentToken
+    /// children back into plain string text (workaround for #265).
+    /// Also validates that no VariableRefToken children are present.
+    /// </summary>
+    private static void SerializeShellFormLiteralWithHashMerge(StringBuilder sb, LiteralToken literal)
+    {
+        foreach (Token child in literal.Tokens)
+        {
+            if (child is VariableRefToken)
+            {
+                throw new InvalidOperationException(
+                    "Unexpected VariableRefToken in shell form LiteralToken. " +
+                    "Shell form commands should be parsed as opaque text without variable expansion.");
+            }
+        }
+
+        // Check if any CommentToken children exist
+        bool hasComments = literal.Tokens.Any(t => t is CommentToken);
+        if (!hasComments)
+        {
+            SerializeAggregate(sb, "literal", literal);
+            return;
+        }
+
+        // Merge comment tokens back into preceding string content
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
+        if (literal.QuoteChar.HasValue)
+        {
+            sb.Append('"');
+            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
+            sb.Append('"');
+        }
+        else
+        {
+            sb.Append("null");
+        }
+        sb.Append(",\"children\":[");
+
+        // Flatten: collect all string content (merging comment text with preceding string)
+        // Strategy: build a list of tokens, collapsing CommentToken children into strings.
+        List<Token> flatTokens = FlattenCommentTokens(literal.Tokens.ToList());
+
+        bool first = true;
+        foreach (Token t in flatTokens)
+        {
+            if (!first) sb.Append(',');
+            SerializeToken(sb, t);
+            first = false;
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Flatten a token list by merging CommentToken children (which represent mid-text #...)
+    /// back into adjacent StringToken content. A CommentToken contains: symbol("#") + string(...).
+    /// The preceding StringToken gets the "#" appended, then the comment's string text appended.
+    /// If no preceding StringToken exists, a new StringToken with "#text" is inserted.
+    /// </summary>
+    private static List<Token> FlattenCommentTokens(List<Token> tokens)
+    {
+        var result = new List<Token>();
+
+        foreach (Token token in tokens)
+        {
+            if (token is CommentToken comment)
+            {
+                // Extract the comment text: "#" + the string content of the comment
+                string commentText = "#";
+                foreach (Token ct in comment.Tokens)
+                {
+                    if (ct is StringToken s)
+                        commentText += s.Value;
+                    else if (ct is SymbolToken sym && sym.Value == "#")
+                    {
+                        // The "#" symbol is the start of the comment token — skip it
+                        // since we're already prepending "#" above.
+                        // Actually: don't double-add. The symbol("#") is the "#" itself.
+                        // We've already set commentText = "#" above; so strip that and
+                        // reconstruct from the symbol.
+                    }
+                }
+                // Re-extract properly: gather the full comment text from all children
+                commentText = ExtractCommentText(comment);
+
+                // Merge with preceding StringToken if one exists
+                if (result.Count > 0 && result[result.Count - 1] is StringToken prevStr)
+                {
+                    result[result.Count - 1] = new StringToken(prevStr.Value + commentText);
+                }
+                else
+                {
+                    result.Add(new StringToken(commentText));
+                }
+            }
+            else if (token is StringToken str && result.Count > 0 && result[result.Count - 1] is StringToken prevStr2)
+            {
+                // Merge adjacent StringTokens
+                result[result.Count - 1] = new StringToken(prevStr2.Value + str.Value);
+            }
+            else
+            {
+                result.Add(token);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extract the full text that a CommentToken represents, including the leading "#".
+    /// CommentToken structure: symbol("#") + string("text...")
+    /// </summary>
+    private static string ExtractCommentText(CommentToken comment)
+    {
+        var sb2 = new StringBuilder();
+        foreach (Token child in comment.Tokens)
+        {
+            if (child is StringToken s)
+                sb2.Append(s.Value);
+            else if (child is SymbolToken sym)
+                sb2.Append(sym.Value);
+        }
+        return sb2.ToString();
+    }
+
+    // ===================================================================
     // Shell form instructions (CMD, ENTRYPOINT, HEALTHCHECK)
     // Shell form commands are parsed as opaque text. The Command wrapper
     // (ShellFormCommand) is transparent, so the LiteralToken appears
@@ -298,8 +813,18 @@ public static class TokenJsonSerializer
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
 
+        List<Token> tokens = instruction.Tokens.ToList();
+
+        // Workaround for #264: remove trailing whitespace token(s)
+        while (tokens.Count > 0
+               && tokens[tokens.Count - 1] is WhitespaceToken tw
+               && tw is not NewLineToken)
+        {
+            tokens.RemoveAt(tokens.Count - 1);
+        }
+
         bool first = true;
-        foreach (Token child in instruction.Tokens)
+        foreach (Token child in tokens)
         {
             // ShellFormCommand is a transparent wrapper — inline its children
             if (child is Command cmd)
@@ -311,7 +836,8 @@ public static class TokenJsonSerializer
                     // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
-                        SerializeShellFormLiteral(sb, lit);
+                        // Workaround for #265: hash treated as comment in shell-form commands.
+                        SerializeShellFormLiteralWithHashMerge(sb, lit);
                     }
                     else
                     {
@@ -701,11 +1227,32 @@ public static class TokenJsonSerializer
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
 
         List<Token> tokens = instruction.Tokens.ToList();
+
+        // Workaround for #264: remove trailing whitespace token(s)
+        while (tokens.Count > 0
+               && tokens[tokens.Count - 1] is WhitespaceToken tw
+               && tw is not NewLineToken)
+        {
+            tokens.RemoveAt(tokens.Count - 1);
+        }
+
         bool first = true;
 
         for (int i = 0; i < tokens.Count; i++)
         {
             Token child = tokens[i];
+
+            // Workaround for #266: keyValue flag that contains a LineContinuationToken
+            // inside its value. C# parses the flag into a structured keyValue with a
+            // lineContinuation child; Lean treats the entire flag as an opaque literal.
+            // Flatten the keyValue into a literal[string("--key="), lineContinuation[...], string("value")].
+            if (child is AggregateToken && IsKeyValueToken(child) && FlagKeyValueHasLineContinuation((AggregateToken)child))
+            {
+                if (!first) sb.Append(',');
+                first = false;
+                SerializeFlagKeyValueAsLiteral(sb, (AggregateToken)child);
+                continue;
+            }
 
             // Workaround #238/#239/#240/#241: LiteralToken whose value starts with "--" is
             // an unrecognized flag. Emit as keyValue[-, -, keyword["name"], optionally =, literal["value"]].
@@ -715,6 +1262,32 @@ public static class TokenJsonSerializer
                 first = false;
                 SerializeUnrecognizedFlagAsKeyValue(sb, flagName!, flagValue);
                 continue;
+            }
+
+            // Workaround for #259: COPY/ADD [] produces a LiteralToken with string value "[]".
+            // Lean emits two symbol tokens: symbol["["] + symbol["]"].
+            if (child is LiteralToken emptyArrayLit && GetLiteralText(emptyArrayLit) == "[]")
+            {
+                if (!first) sb.Append(',');
+                SerializePrimitive(sb, "symbol", "[");
+                sb.Append(',');
+                SerializePrimitive(sb, "symbol", "]");
+                first = false;
+                continue;
+            }
+
+            // Workaround for #259: COPY/ADD [ ] (with whitespace) — C# produces
+            // literal["["] and literal["]"] as separate tokens. Lean emits them as symbols.
+            if (child is LiteralToken bracketLit)
+            {
+                string bracketText = GetLiteralText(bracketLit);
+                if (bracketText == "[" || bracketText == "]")
+                {
+                    if (!first) sb.Append(',');
+                    SerializePrimitive(sb, "symbol", bracketText);
+                    first = false;
+                    continue;
+                }
             }
 
             if (!first) sb.Append(',');
@@ -744,9 +1317,27 @@ public static class TokenJsonSerializer
     /// Parses the flag name and optional value from the literal text.
     /// For example: "--parents" → flagName="parents", flagValue=null
     ///              "--exclude=*.txt" → flagName="exclude", flagValue="*.txt"
+    ///
+    /// Returns false if the literal contains non-string tokens (symbols, newlines) that
+    /// represent line continuations — those are the #266 case and should not be converted
+    /// to keyValue structures.
     /// </summary>
     private static bool IsUnrecognizedFlagLiteral(LiteralToken literal, out string? flagName, out string? flagValue)
     {
+        // Workaround for #266: literals that contain non-string tokens (symbol+newLine pairs
+        // representing line continuations) should NOT be converted to keyValue — they represent
+        // flags with line continuations that C# failed to parse as structured flags.
+        // Only convert if all tokens are StringTokens.
+        foreach (Token child in literal.Tokens)
+        {
+            if (child is not StringToken)
+            {
+                flagName = null;
+                flagValue = null;
+                return false;
+            }
+        }
+
         string text = GetLiteralText(literal);
         if (text.StartsWith("--") && text.Length > 2)
         {
@@ -806,6 +1397,102 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
+    // Workaround: #266 — flag keyValue with LineContinuation in value
+    // COPY/ADD/RUN flags like --from=\<newline>builder produce a structured
+    // keyValue with a LineContinuationToken inside the value. Lean does not
+    // parse this as a structured keyValue at all — it treats the whole flag
+    // as an opaque literal. Flatten to: literal[string("--key="), LC[...], string("val")].
+    // ===================================================================
+
+    /// <summary>
+    /// Returns true if an AggregateToken representing a keyValue flag contains
+    /// a LineContinuationToken anywhere inside its value subtree.
+    /// </summary>
+    private static bool FlagKeyValueHasLineContinuation(AggregateToken keyValue)
+    {
+        foreach (Token child in keyValue.Tokens)
+        {
+            if (child is LineContinuationToken)
+                return true;
+            // Also check inside the value aggregate (the flag value is often a LiteralToken)
+            if (child is AggregateToken agg)
+            {
+                foreach (Token grandchild in agg.Tokens)
+                {
+                    if (grandchild is LineContinuationToken)
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Flatten a flag keyValue that contains LineContinuation tokens into an
+    /// opaque literal matching Lean's representation.
+    ///
+    /// C# structure (example):  keyValue[--, --, keyword("from"), =, literal(lineCont, string("builder"))]
+    /// Lean structure:          literal[string("--from="), lineContinuation[...], string("builder")]
+    ///
+    /// The flatten strategy: collect the raw string of the key (without the leading "--")
+    /// then emit: literal[string("--key="), then all value subtokens inline].
+    /// </summary>
+    private static void SerializeFlagKeyValueAsLiteral(StringBuilder sb, AggregateToken keyValue)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
+
+        // Reconstruct the "--flagname=" prefix from the keyValue tokens.
+        // The key tokens are: symbol[-], symbol[-], keyword[string["name"]]
+        // Find the keyword name.
+        string flagName = "";
+        bool seenEquals = false;
+        var valueTokens = new List<Token>();
+
+        foreach (Token child in keyValue.Tokens)
+        {
+            if (child is KeywordToken kw)
+            {
+                // Concatenate keyword string tokens
+                foreach (Token kwChild in kw.Tokens)
+                {
+                    if (kwChild is StringToken s)
+                        flagName += s.Value;
+                }
+            }
+            else if (child is SymbolToken sym && sym.Value == "=")
+            {
+                seenEquals = true;
+            }
+            else if (seenEquals)
+            {
+                // Everything after the "=" is the value subtree
+                if (child is AggregateToken valAgg)
+                {
+                    // Inline children of the value aggregate (usually a LiteralToken)
+                    foreach (Token valChild in valAgg.Tokens)
+                        valueTokens.Add(valChild);
+                }
+                else
+                {
+                    valueTokens.Add(child);
+                }
+            }
+        }
+
+        // Emit: string("--flagname=")
+        SerializePrimitive(sb, "string", "--" + flagName + "=");
+
+        // Emit the value tokens (may include LineContinuationTokens and StringTokens)
+        foreach (Token vt in valueTokens)
+        {
+            sb.Append(',');
+            SerializeToken(sb, vt);
+        }
+
+        sb.Append("]}");
+    }
+
+    // ===================================================================
     // Workaround: RUN instruction — mount value flattening (see issue #200)
     // C# over-parses mount flag values into structured KeyValueToken children
     // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
@@ -818,8 +1505,18 @@ public static class TokenJsonSerializer
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
 
+        List<Token> tokens = instruction.Tokens.ToList();
+
+        // Workaround for #264: remove trailing whitespace token(s)
+        while (tokens.Count > 0
+               && tokens[tokens.Count - 1] is WhitespaceToken tw
+               && tw is not NewLineToken)
+        {
+            tokens.RemoveAt(tokens.Count - 1);
+        }
+
         bool first = true;
-        foreach (Token child in instruction.Tokens)
+        foreach (Token child in tokens)
         {
             // MountFlag is a KeyValueToken<KeywordToken, Mount>.
             // Its Mount value child is an AggregateToken with structured children
@@ -828,7 +1525,22 @@ public static class TokenJsonSerializer
             {
                 if (!first) sb.Append(',');
                 first = false;
-                SerializeMountFlag(sb, mountFlag);
+                // Workaround for #263: SerializeMountFlag returns absorbed trailing whitespace.
+                // Emit the whitespace at instruction level (after the keyValue).
+                string trailingWs = SerializeMountFlag(sb, mountFlag);
+                if (trailingWs.Length > 0)
+                {
+                    sb.Append(',');
+                    SerializePrimitive(sb, "whitespace", trailingWs);
+                }
+            }
+            // Workaround for #266: other keyValue flags (--network, --security) that
+            // contain a LineContinuationToken in their value subtree.
+            else if (child is AggregateToken && IsKeyValueToken(child) && FlagKeyValueHasLineContinuation((AggregateToken)child))
+            {
+                if (!first) sb.Append(',');
+                first = false;
+                SerializeFlagKeyValueAsLiteral(sb, (AggregateToken)child);
             }
             // ShellFormCommand is a transparent wrapper — inline its children
             else if (child is Command cmd)
@@ -840,7 +1552,8 @@ public static class TokenJsonSerializer
                     // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
-                        SerializeShellFormLiteral(sb, lit);
+                        // Workaround for #265: hash treated as comment in shell-form commands.
+                        SerializeShellFormLiteralWithHashMerge(sb, lit);
                     }
                     else
                     {
@@ -864,21 +1577,35 @@ public static class TokenJsonSerializer
     /// C# structure: keyValue [ --, --, keyword("mount"), =, Mount [ keyValue(type=...), comma, keyValue(id=...), ... ] ]
     /// Lean structure: keyValue [ --, --, keyword("mount"), =, literal("type=secret,id=mysecret,...") ]
     /// </summary>
-    private static void SerializeMountFlag(StringBuilder sb, MountFlag mountFlag)
+    /// <summary>
+    /// Serialize a MountFlag, flattening its Mount value to an opaque LiteralToken.
+    /// Returns any trailing whitespace that was absorbed into the mount string —
+    /// the caller must emit this whitespace at the instruction level (outside the keyValue).
+    /// </summary>
+    private static string SerializeMountFlag(StringBuilder sb, MountFlag mountFlag)
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
 
         bool first = true;
+        string absorbedTrailingWs = "";
+
         foreach (Token child in mountFlag.Tokens)
         {
             if (child is Mount mount)
             {
-                // Flatten the Mount aggregate to an opaque literal
+                // Workaround for #263: mount.ToString() absorbs trailing whitespace into the
+                // mount value string (C# includes the trailing space; Lean does not).
+                // Trim the trailing whitespace from the mount text; return it to caller.
                 if (!first) sb.Append(',');
                 first = false;
                 string mountText = mount.ToString();
+                string trimmedMount = mountText.TrimEnd(' ', '\t');
+                absorbedTrailingWs = mountText.Length > trimmedMount.Length
+                    ? mountText.Substring(trimmedMount.Length)
+                    : "";
+
                 sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-                SerializePrimitive(sb, "string", mountText);
+                SerializePrimitive(sb, "string", trimmedMount);
                 sb.Append("]}");
             }
             else
@@ -890,6 +1617,7 @@ public static class TokenJsonSerializer
         }
 
         sb.Append("]}");
+        return absorbedTrailingWs;
     }
 
     /// <summary>

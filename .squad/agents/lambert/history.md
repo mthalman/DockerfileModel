@@ -233,3 +233,39 @@ Added 6 new `[Fact]` tests to `HeredocTests.cs` that walk the `Tokens` collectio
 **Test results:** All 1034 tests pass (0 failures, 0 skipped). 6 new tests confirmed green.
 
 **File modified:** `src/Valleysoft.DockerfileModel.Tests/HeredocTests.cs` — added ~190 lines in new "Multi-heredoc token tree structure validation" section after existing multi-heredoc edge case tests
+
+### 2026-03-12 — Category F-M Edge-Case Generators for Differential Testing
+
+**What was implemented:** 19 new FsCheck generators in `DockerfileArbitraries.cs` targeting 8 bug categories (F through M) discovered via differential testing. All generators registered in `InputGenerator.cs` for automated differential test coverage.
+
+**Generator counts by category:**
+- **Category F (empty exec-form arrays):** 3 generators — `VolumeEmptyExecInstruction()`, `CopyEmptyExecInstruction()`, `AddEmptyExecInstruction()` (7 variants each covering `[]`, `[""]`, `["", ""]`, whitespace inside arrays, case variation, flag combinations)
+- **Category G (quoted file paths):** 2 generators — `CopyQuotedPathInstruction()`, `AddQuotedPathInstruction()` (7 variants each covering double-quoted with spaces, single-quoted with spaces, quoted destination, both quoted, with flags, with variable refs)
+- **Category H (variable :? error modifier):** 2 generators — `FromErrorModifierInstruction()`, `ArgErrorModifierInstruction()` (7 and 6 variants respectively covering `:?`, `?` without colon, with AS/platform, path-like messages, surrounding literals, quoted defaults)
+- **Category I (variable default with slash):** 2 generators — `WorkdirSlashDefaultInstruction()`, `EnvSlashDefaultInstruction()` (7 and 6 variants respectively covering `:-/path`, multi-level paths, no-colon `-`, `:+` alternative, quoted values)
+- **Category J (mount trailing whitespace):** 1 generator — `RunMinimalMountInstruction()` (8 variants covering type=ssh, type=cache, type=secret, type=tmpfs, with exec form, with --network, varied whitespace, dual mounts)
+- **Category K (trailing whitespace):** 3 generators — `FromTrailingWhitespaceInstruction()`, `EnvTrailingWhitespaceInstruction()`, `CopyTrailingWhitespaceInstruction()` (8, 6, 6 variants covering trailing spaces, tabs, mixed, with flags)
+- **Category L (hash in shell-form):** 3 generators — `RunHashInShellInstruction()`, `CmdHashInShellInstruction()`, `LabelHashInValueInstruction()` (7, 5, 6 variants covering `#` in arguments, paths, URLs, after `&&`, in quoted/unquoted label values)
+- **Category M (line continuation in flags):** 2 generators — `CopyFlagLineContinuationInstruction()`, `AddFlagLineContinuationInstruction()` (6 variants each covering `--from=\\\n`, `--chown=\\\n`, `--chmod=\\\n`, `--checksum=\\\n`, CRLF continuations, split-in-middle-of-value)
+
+**Build results:** Both `Valleysoft.DockerfileModel.DiffTest` and `Valleysoft.DockerfileModel.Tests` build successfully. Zero errors, pre-existing CS0436 warnings only (shared type between projects).
+
+**InputGenerator.cs:** Total generator count increased from 25 to 44 (19 new entries). Differential test coverage now spans 8 additional bug categories.
+
+**Files modified:**
+- `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` — added 19 public generator methods (~450 lines) in new category sections F through M
+- `src/Valleysoft.DockerfileModel.DiffTest/InputGenerator.cs` — added 19 entries to the generators array with category labels
+
+---
+
+### Targeted Differential Testing Session (2026-03-12)
+
+- **Session Date:** 2026-03-12T20:30:00Z
+- **Type:** Generator creation for new differential test bug categories
+- **Outcome:** 19 new generators added, test infrastructure expanded
+
+Dallas identified 14 new bugs (Categories F-M) through targeted manual differential testing. Wrote 19 new `public static Gen<string>` methods in `DockerfileArbitraries.cs` covering all 8 new bug categories (F-M), with 5-8 variants each. Registered all 19 generators in `InputGenerator.cs`. Generator array expanded from 25 to 44 entries. Build verified successfully.
+
+**Files:** `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs`, `src/Valleysoft.DockerfileModel.DiffTest/InputGenerator.cs`
+
+**Cross-agent:** Dallas documented all 28 bugs in `docs/differential-test-bugs.md` with detailed descriptions and fix priorities.
