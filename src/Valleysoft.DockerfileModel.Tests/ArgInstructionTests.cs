@@ -332,7 +332,7 @@ public class ArgInstructionTests
                 Text = "ARG =",
                 ParseExceptionPosition = new Position(1, 1, 5)
             },
-            // ARG with :? modifier containing spaces — should not truncate
+            // ARG with :? modifier containing spaces - should not truncate
             new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG MY_ARG=${VAR:?must set}",
@@ -359,7 +359,7 @@ public class ArgInstructionTests
                     Assert.Equal("ARG MY_ARG=${VAR:?must set}", result.ToString());
                 }
             },
-            // ARG with :- default containing spaces — round-trip fidelity
+            // ARG with :- default containing spaces - round-trip fidelity
             new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG MY_ARG=${VAR:-some default}",
