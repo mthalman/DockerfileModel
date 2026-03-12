@@ -426,7 +426,7 @@ public class FromInstructionTests
                 Text = "FROM alpine AS",
                 ParseExceptionPosition = new Position(1, 1, 13)
             },
-            // FROM with :? modifier containing spaces — should not crash
+            // FROM with :? modifier containing spaces - should not crash
             new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM ${IMAGE:?must set image}",
@@ -449,7 +449,7 @@ public class FromInstructionTests
                     Assert.Equal("FROM ${IMAGE:?must set image}", result.ToString());
                 }
             },
-            // FROM with :- default containing spaces — round-trip fidelity
+            // FROM with :- default containing spaces - round-trip fidelity
             new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM ${BASE:-ubuntu focal}",
