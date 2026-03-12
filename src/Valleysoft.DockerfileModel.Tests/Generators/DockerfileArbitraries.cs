@@ -2117,7 +2117,7 @@ public static class DockerfileArbitraries
             from name in Identifier()
             from msg in SimpleAlphaNum()
             select $"FROM ${{{name}:?{msg}}}",
-            // FROM with :? error modifier (message with spaces — now supported)
+            // FROM with :? error modifier (message with spaces - now supported)
             from name in Identifier()
             from w1 in SimpleAlphaNum()
             from w2 in SimpleAlphaNum()
@@ -2155,7 +2155,7 @@ public static class DockerfileArbitraries
             from refVar in Identifier()
             from msg in SimpleAlphaNum()
             select $"ARG {name}=${{{refVar}:?{msg}}}",
-            // ARG with :? in default value (message with spaces — now supported)
+            // ARG with :? in default value (message with spaces - now supported)
             from name in Identifier()
             from refVar in Identifier()
             from w1 in SimpleAlphaNum()
