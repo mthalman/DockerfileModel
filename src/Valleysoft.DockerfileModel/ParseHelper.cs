@@ -283,8 +283,9 @@ internal static class ParseHelper
 
     /// <summary>
     /// Scans the combined instruction token list and removes any trailing whitespace
-    /// token (before an optional newline), matching BuildKit behavior of trimming
-    /// trailing whitespace from instructions.
+    /// token that appears immediately before any trailing newline and/or line
+    /// continuation tokens, matching BuildKit behavior of trimming trailing
+    /// whitespace from instructions.
     /// </summary>
     internal static IEnumerable<Token> DropTrailingWhitespace(IEnumerable<Token> tokens)
     {

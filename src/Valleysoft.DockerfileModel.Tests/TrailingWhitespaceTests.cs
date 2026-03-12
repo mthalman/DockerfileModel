@@ -130,7 +130,7 @@ public class TrailingWhitespaceTests
     {
         // WORKDIR allows whitespace in path values (WhitespaceMode.Allowed), so trailing
         // whitespace is embedded inside the LiteralToken rather than as a top-level token.
-        // AbsorbTrailingWhitespace only removes top-level WhitespaceTokens, so WORKDIR
+        // DropTrailingWhitespace only removes top-level WhitespaceTokens, so WORKDIR
         // round-trips with trailing whitespace preserved.
         WorkdirInstruction instr = WorkdirInstruction.Parse(input);
         Assert.Equal(input, instr.ToString());
@@ -229,7 +229,7 @@ public class TrailingWhitespaceTests
     public void Run_ShellForm_TrailingWhitespace_RoundTrip(string input)
     {
         // Shell-form RUN commands use ArgumentListAsLiteral which embeds whitespace inside
-        // the LiteralToken value. AbsorbTrailingWhitespace only removes top-level WhitespaceTokens,
+        // the LiteralToken value. DropTrailingWhitespace only removes top-level WhitespaceTokens,
         // so shell-form RUN round-trips with trailing whitespace preserved.
         RunInstruction instr = RunInstruction.Parse(input);
         Assert.Equal(input, instr.ToString());
