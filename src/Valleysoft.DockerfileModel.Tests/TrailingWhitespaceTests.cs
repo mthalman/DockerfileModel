@@ -305,7 +305,7 @@ public class TrailingWhitespaceTests
             Token lastMeaningful = tokens[lastIndex];
             Assert.False(
                 lastMeaningful is WhitespaceToken && lastMeaningful is not NewLineToken,
-                $"Expected no trailing WhitespaceToken at instruction level for input: {inputForDiagnostics!.Replace("\n", "\\n").Replace("\t", "\\t")}. " +
+                $"Expected no trailing WhitespaceToken at instruction level for input: {inputForDiagnostics.Replace("\n", "\\n").Replace("\t", "\\t")}. " +
                 $"Last token is {lastMeaningful.GetType().Name}(\"{lastMeaningful}\").");
         }
     }

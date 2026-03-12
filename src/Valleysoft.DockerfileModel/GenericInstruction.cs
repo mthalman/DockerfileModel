@@ -37,7 +37,7 @@ public class GenericInstruction : Instruction
         from instruction in TokenWithTrailingWhitespace(InstructionIdentifier(escapeChar))
         from lineContinuation in LineContinuations(escapeChar).Optional()
         from instructionArgs in InstructionArgs(escapeChar)
-        select AbsorbTrailingWhitespace(ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs));
+        select DropTrailingWhitespace(ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs));
 
     protected static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
         from lineSets in (CommentText().Or(InstructionArgLine(escapeChar))).Many()
