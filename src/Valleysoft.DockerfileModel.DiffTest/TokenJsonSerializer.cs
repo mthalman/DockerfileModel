@@ -488,7 +488,7 @@ public static class TokenJsonSerializer
         // Apply normalizations in order
         if (hasComments)
             tokens = FlattenCommentTokens(tokens);
-        if (hasRawLineContinuations || HasRawLineContinuationPair(tokens))
+        if (hasRawLineContinuations)
             tokens = WrapRawLineContinuations(tokens);
 
         bool first = true;
