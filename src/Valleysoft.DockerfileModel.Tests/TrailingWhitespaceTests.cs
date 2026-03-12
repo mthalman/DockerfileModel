@@ -292,6 +292,40 @@ public class TrailingWhitespaceTests
     }
 
     // -----------------------------------------------------------------------
+    // Heredoc instruction (RUN) — whitespace before command-line newline
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void Run_Heredoc_TrailingWhitespaceBeforeCommandNewline_NoStandaloneWhitespaceToken()
+    {
+        // In heredoc form the instruction token list ends with:
+        //   [..., HeredocMarkerToken, WhitespaceToken(" "), NewLineToken, HeredocBodyToken]
+        // DropTrailingWhitespace must skip the HeredocBodyToken and NewLineToken to
+        // reach and drop the trailing WhitespaceToken before the command-line newline.
+        RunInstruction instr = RunInstruction.Parse("RUN <<EOF \nline\nEOF\n");
+
+        // Verify a HeredocBodyToken is present so we know the heredoc path was taken.
+        Assert.Contains(instr.Tokens, t => t is HeredocBodyToken);
+
+        // Walk backward past HeredocBodyToken(s), NewLineToken(s), and LineContinuationToken(s).
+        List<Token> tokens = instr.Tokens.ToList();
+        int lastIdx = tokens.Count - 1;
+        while (lastIdx >= 0 &&
+               (tokens[lastIdx] is NewLineToken ||
+                tokens[lastIdx] is LineContinuationToken ||
+                tokens[lastIdx] is HeredocBodyToken))
+            lastIdx--;
+
+        if (lastIdx >= 0)
+        {
+            Assert.False(
+                tokens[lastIdx] is WhitespaceToken && tokens[lastIdx] is not NewLineToken,
+                $"Expected no trailing WhitespaceToken before heredoc command-line newline. " +
+                $"Last meaningful token: {tokens[lastIdx].GetType().Name}(\"{tokens[lastIdx]}\").");
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Dockerfile-embedded parse (multi-line context)
     // -----------------------------------------------------------------------
 

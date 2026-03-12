@@ -285,8 +285,10 @@ internal static class ParseHelper
     /// Scans the combined instruction token list and removes any trailing whitespace
     /// token. The trailing whitespace token may be the final token in the list, or it
     /// may appear immediately before any trailing newline and/or line-continuation
-    /// tokens. Matches BuildKit behavior of trimming trailing whitespace from
-    /// instructions.
+    /// tokens. For heredoc instructions, HeredocBodyToken(s) that trail the command-line
+    /// newline are skipped so that whitespace immediately before the command-line
+    /// NewLineToken is also trimmed. Matches BuildKit behavior of trimming trailing
+    /// whitespace from instructions.
     /// </summary>
     internal static IEnumerable<Token> DropTrailingWhitespace(IEnumerable<Token> tokens)
     {
@@ -294,13 +296,15 @@ internal static class ParseHelper
         // returns one), avoiding an unnecessary allocation and copy.
         List<Token> list = tokens as List<Token> ?? tokens.ToList();
 
-        // Scan backward from the end, skipping any trailing NewLineToken and
-        // LineContinuationToken, to find the last WhitespaceToken before them.
+        // Scan backward from the end, skipping any trailing NewLineToken,
+        // LineContinuationToken, and HeredocBodyToken (heredoc bodies follow the
+        // command-line NewLineToken at instruction level), to find the last
+        // WhitespaceToken before them.
         int wsIndex = -1;
         for (int i = list.Count - 1; i >= 0; i--)
         {
             Token t = list[i];
-            if (t is NewLineToken || t is LineContinuationToken)
+            if (t is NewLineToken || t is LineContinuationToken || t is HeredocBodyToken)
                 continue;
             if (t is WhitespaceToken)
                 wsIndex = i;
