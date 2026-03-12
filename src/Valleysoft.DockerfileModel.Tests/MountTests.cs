@@ -228,6 +228,35 @@ public class MountTests
                     Assert.Equal("type=secret,id=mysecret,required,mode=0400", result.ToString());
                 }
             },
+            // Single-key mounts (type=X with no additional pairs).
+            // The mount value must NOT include any trailing whitespace — that whitespace
+            // belongs to the surrounding instruction context as a separate token.
+            new ParseTestScenario<Mount>
+            {
+                Text = "type=ssh",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyValue(token, "type", "ssh"),
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("ssh", result.Type);
+                    Assert.Equal("type=ssh", result.ToString());
+                }
+            },
+            new ParseTestScenario<Mount>
+            {
+                Text = "type=cache",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyValue(token, "type", "cache"),
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("cache", result.Type);
+                    Assert.Equal("type=cache", result.ToString());
+                }
+            },
             // Bare keyword after line continuation with indentation whitespace
             new ParseTestScenario<Mount>
             {
