@@ -45,6 +45,21 @@
 - **Private helper `ShellCommandWithVariedWhitespace()`** added and integrated into existing RUN/CMD/ENTRYPOINT/HEALTHCHECK/ONBUILD generators to exercise whitespace collapsing bug without breaking existing generator structures.
 - **ONBUILD generator expanded** to cover HEALTHCHECK, SHELL, and exec-form variants for CMD/ENTRYPOINT/RUN inner instructions (previously missing).
 
+### Targeted Differential Testing — New Bug Categories F-M (2026-03-12)
+
+- **Bug summary document expanded** from 14 bugs (Categories A-E) to 28 bugs (Categories A-M) at `docs/differential-test-bugs.md`.
+- **14 new bugs documented** via targeted manual differential testing, covering 8 new categories:
+  - **(F) Empty exec-form array handling** — VOLUME `[]` crashes C#, COPY/ADD `[]` treated as literal path instead of symbol tokens.
+  - **(G) Quoted file paths in COPY/ADD** — HIGH severity silent data loss; C# truncates all file arguments when encountering quote characters at the start of file path arguments.
+  - **(H) Variable `:?` modifier with spaces** — FROM crashes when `:?` error message contains whitespace; ARG produces mismatch.
+  - **(I) Variable default value slash splitting** — C# splits `/opt` into `symbol(/) + literal(opt)` inside variableRef defaults; Lean keeps as single string.
+  - **(J) Mount value trailing whitespace** — C# absorbs trailing space into mount value string via `ToString()` in serializer.
+  - **(K) Trailing whitespace preservation** — C# emits trailing whitespace token on most instructions; Lean trims it. Widespread but cosmetic.
+  - **(L) Hash as comment in non-comment contexts** — HIGH severity semantic error; `WithTrailingComments()` incorrectly treats `#` as comment delimiter in shell-form commands and instruction values.
+  - **(M) Line continuation in flag values** — C# maintains structured keyValue token across line continuations; Lean treats as opaque literal. Cosmetic only.
+- **Key root cause patterns identified:** `WithTrailingComments()` is the root cause of Category L (4 bugs). The file transfer argument parser's quote handling is the root cause of Category G. Variable ref parsing has symbol-character leakage (Category I) and incomplete modifier support (Category H).
+- **Crash bugs:** 3 new crash-causing inputs identified (Bugs 15, 19 are crashes; Bug 13 was previously known).
+
 ## Core Context
 
 ### Comprehensive Implementation & Verification Sprint (2026-03-04 to 2026-03-08)
@@ -859,3 +874,17 @@ KeywordToken("COPY"), WhitespaceToken(" "), HeredocMarkerToken("<<EOF"), StringT
 - `src/Valleysoft.DockerfileModel/RunInstruction.cs` — updated properties
 - `src/Valleysoft.DockerfileModel/FileTransferInstruction.cs` — updated properties, Destination works for heredocs
 - `src/Valleysoft.DockerfileModel.Tests/HeredocTests.cs` — full rewrite for new architecture
+
+---
+
+### Targeted Differential Testing Session (2026-03-12)
+
+- **Session Date:** 2026-03-12T20:30:00Z
+- **Type:** Differential testing sprint to find high-impact parsing bugs
+- **Outcome:** Expanded bug inventory from 14 to 28 bugs (Categories A-M)
+
+Completed targeted manual differential testing across all 18 Dockerfile instruction types, identifying 14 new bugs in Categories F-M. Documented all 28 bugs in `docs/differential-test-bugs.md` (363 lines) with severity assessments and fix priorities. Key findings include silent data loss bugs (Category G: quoted paths), semantic errors (Category L: hash-as-comment), and parser crashes (Categories H, F).
+
+**Files:** `docs/differential-test-bugs.md`
+
+**Cross-agent:** Lambert wrote 19 new generators (InputGenerator expanded from 25 to 44 entries) to ensure these bug categories remain covered in differential tests.
