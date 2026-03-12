@@ -952,11 +952,21 @@ internal static class ParseHelper
     /// <param name="instructionName">Name of the instruction.</param>
     /// <param name="escapeChar">Escape character.</param>
     private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
-        WithTrailingComments(
-            from leading in Whitespace()
-            from instruction in TokenWithTrailingWhitespace(KeywordToken.GetParser(instructionName, escapeChar))
-            from lineContinuation in LineContinuations(escapeChar).Optional()
-            select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault()));
+        // Comments (# ...) are only recognized after a mandatory line continuation,
+        // never directly after the instruction keyword. This prevents "RUN #arg" from
+        // incorrectly treating "#arg" as a comment.
+        from leading in Whitespace()
+        from instruction in TokenWithTrailingWhitespace(KeywordToken.GetParser(instructionName, escapeChar))
+        from lineContinuationAndComments in (
+            from firstContinuation in LineContinuationToken.GetParser(escapeChar)
+            from moreContinuations in LineContinuations(escapeChar)
+            from trailingComments in CommentText().Many()
+            select ConcatTokens(
+                new Token[] { firstContinuation },
+                moreContinuations,
+                trailingComments.SelectMany(c => c))
+        ).Optional()
+        select ConcatTokens(leading, instruction, lineContinuationAndComments.GetOrDefault());
 
     /// <summary>
     /// Parses a set of tokens and any trailing comments.
