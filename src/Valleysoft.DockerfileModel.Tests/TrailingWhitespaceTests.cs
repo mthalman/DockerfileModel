@@ -61,6 +61,35 @@ public class TrailingWhitespaceTests
     }
 
     // -----------------------------------------------------------------------
+    // DropTrailingWhitespace — whitespace before line-continuation
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void Generic_TrailingWhitespaceBeforeLineContinuation_NoStandaloneWhitespaceToken()
+    {
+        // Whitespace immediately before a trailing line-continuation token should be
+        // dropped just as whitespace before a trailing newline is dropped.
+        // Input: "CMD arg \\" — the whitespace between "arg" and "\\" should not appear
+        // as a standalone WhitespaceToken at the end of the instruction token list.
+        GenericInstruction instr = GenericInstruction.Parse("CMD arg \\");
+
+        // Walk backward past any trailing NewLineToken or LineContinuationToken and
+        // assert the token just before them is not a standalone WhitespaceToken.
+        List<Token> tokens = instr.Tokens.ToList();
+        int lastIdx = tokens.Count - 1;
+        while (lastIdx >= 0 && (tokens[lastIdx] is NewLineToken || tokens[lastIdx] is LineContinuationToken))
+            lastIdx--;
+
+        if (lastIdx >= 0)
+        {
+            Assert.False(
+                tokens[lastIdx] is WhitespaceToken && tokens[lastIdx] is not NewLineToken,
+                $"Expected no trailing WhitespaceToken before line-continuation. " +
+                $"Last meaningful token: {tokens[lastIdx].GetType().Name}(\"{tokens[lastIdx]}\").");
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // ENV instruction
     // -----------------------------------------------------------------------
 
