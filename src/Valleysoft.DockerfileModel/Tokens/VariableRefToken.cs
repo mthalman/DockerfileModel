@@ -214,18 +214,15 @@ public class VariableRefToken : AggregateToken
     }
 
     public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar, DefaultValueParser())), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     /// <summary>
     /// Parses a variable reference.
     /// </summary>
-    /// <typeparam name="TPrimitiveToken">Type of the token for the variable.</typeparam>
     /// <param name="escapeChar">Escape character.</param>
-    /// <param name="createModifierValueTokenParser">Delegate to create tokens nested within a modifier value.</param>
     /// <returns>Parsed variable reference token.</returns>
-    public static Parser<VariableRefToken> GetParser(
-        CreateTokenParserDelegate createModifierValueTokenParser, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        from tokens in GetInnerParser(escapeChar, createModifierValueTokenParser)
+    public static Parser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        from tokens in GetInnerParser(escapeChar)
         select new VariableRefToken(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string variableName, string modifier, string modifierValue, char escapeChar)
@@ -235,9 +232,9 @@ public class VariableRefToken : AggregateToken
         Requires.NotNullOrEmpty(modifierValue, nameof(modifierValue));
         ValidateModifier(modifier);
 
-        return GetTokens($"${{{variableName}{modifier}{modifierValue}}}", GetInnerParser(escapeChar, DefaultValueParser()));
+        return GetTokens($"${{{variableName}{modifier}{modifierValue}}}", GetInnerParser(escapeChar));
     }
-        
+
     private static IEnumerable<Token> GetTokens(string variableName, bool includeBraces, char escapeChar)
     {
         Requires.NotNullOrEmpty(variableName, nameof(variableName));
@@ -253,7 +250,7 @@ public class VariableRefToken : AggregateToken
             builder.Append('}');
         }
 
-        return GetTokens(builder.ToString(), GetInnerParser(escapeChar, DefaultValueParser()));
+        return GetTokens(builder.ToString(), GetInnerParser(escapeChar));
     }
 
     private static void ValidateModifier(string? modifier)
@@ -265,18 +262,9 @@ public class VariableRefToken : AggregateToken
         }
     }
 
-    private static CreateTokenParserDelegate DefaultValueParser() =>
-        (char escapeChar, IEnumerable<char> excludedChars) => LiteralString(escapeChar, excludedChars);
-
-    private static Parser<IEnumerable<Token>> GetInnerParser(
-        char escapeChar,
-        CreateTokenParserDelegate createModifierValueTokenParser)
-    {
-        Requires.NotNull(createModifierValueTokenParser, nameof(createModifierValueTokenParser));
-
-        return SimpleVariableReference()
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+        SimpleVariableReference()
             .Or(BracedVariableReference(escapeChar));
-    }
 
 
     /// <summary>
