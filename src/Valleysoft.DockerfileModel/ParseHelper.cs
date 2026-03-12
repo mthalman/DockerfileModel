@@ -290,7 +290,9 @@ internal static class ParseHelper
     /// </summary>
     internal static IEnumerable<Token> DropTrailingWhitespace(IEnumerable<Token> tokens)
     {
-        List<Token> list = tokens.ToList();
+        // Reuse the list when the input is already a List<Token> (ConcatTokens always
+        // returns one), avoiding an unnecessary allocation and copy.
+        List<Token> list = tokens as List<Token> ?? tokens.ToList();
 
         // Scan backward from the end, skipping any trailing NewLineToken and
         // LineContinuationToken, to find the last WhitespaceToken before them.
