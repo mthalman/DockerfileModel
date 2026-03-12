@@ -275,9 +275,9 @@ public class VariableRefToken : AggregateToken
         Requires.NotNull(createModifierValueTokenParser, nameof(createModifierValueTokenParser));
 
         return SimpleVariableReference()
-            .Or(BracedVariableReference(escapeChar, createModifierValueTokenParser));
+            .Or(BracedVariableReference(escapeChar));
     }
-            
+
 
     /// <summary>
     /// Parses a variable reference using the simple variable syntax.
@@ -290,12 +290,14 @@ public class VariableRefToken : AggregateToken
 
     /// <summary>
     /// Parses a variable reference using the braced variable syntax.
+    /// Modifier values (the portion after the modifier symbol, e.g., "must set" in
+    /// "${VAR:?must set}") are always parsed with <see cref="ModifierValueParser"/>,
+    /// which allows horizontal whitespace within the braces.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
-    /// <param name="createModifierValueToken">Delegate to create a non-quoted token.</param>
     /// <returns>Parsed variable reference token.</returns>
     private static Parser<IEnumerable<Token>> BracedVariableReference(
-        char escapeChar, CreateTokenParserDelegate createModifierValueToken) =>
+        char escapeChar) =>
         from variableChar in Sprache.Parse.Char('$')
         from opening in Symbol('{').AsEnumerable()
         from varNameToken in
@@ -316,8 +318,8 @@ public class VariableRefToken : AggregateToken
 
     /// <summary>
     /// Creates a parser delegate for modifier values inside braces. Modifier values may
-    /// contain whitespace (e.g., "${VAR:?must set}"), so this parser allows spaces and
-    /// reads until the closing brace.
+    /// contain whitespace (e.g., "${VAR:?must set}" or "${IMAGE:?must set}"), so this
+    /// parser allows spaces in the message portion and reads until the closing brace.
     /// </summary>
     private static CreateTokenParserDelegate ModifierValueParser() =>
         (char escapeChar, IEnumerable<char> excludedChars) => LiteralStringAllowingSpaces(escapeChar, excludedChars);
