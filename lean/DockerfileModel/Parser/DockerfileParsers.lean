@@ -556,8 +556,12 @@ def instructionParser (instructionName : String) (escapeChar : Char)
 
 /-- Parse a generic key-value flag: `--name=value`.
     The value is parsed via `literalWithVariables` (supports variable substitution).
+    When the value is separated from `=` by whitespace (e.g., `--name= value`),
+    the whitespace is absorbed into the KeyValueToken and the next token is used
+    as the value, matching C#'s behavior.
     Returns a KeyValueToken containing:
-      SymbolToken('-'), SymbolToken('-'), KeywordToken(name), SymbolToken('='), LiteralToken(value)
+      SymbolToken('-'), SymbolToken('-'), KeywordToken(name), SymbolToken('='),
+      [WhitespaceToken?], LiteralToken(value)
     Corresponds to the C# `KeywordLiteralFlag` pattern.
 
     This is the shared implementation used by `platformFlagParser` and by
@@ -568,24 +572,61 @@ def flagParser (name : String) (escapeChar : Char) : Parser Token := do
   let dash2 ← char '-'
   let kw ← keywordParser name escapeChar
   let eq ← char '='
-  let value ← literalWithVariables escapeChar
-  Parser.pure (Token.mkKeyValue [
-    Token.mkSymbol dash1,
-    Token.mkSymbol dash2,
-    kw,
-    Token.mkSymbol eq,
-    value
-  ])
+  -- Try value immediately after '='; if that fails, consume whitespace then value
+  let result : List Token × Token ← or'
+    (do let v ← literalWithVariables escapeChar
+        let empty : List Token := []
+        Parser.pure (empty, v))
+    (do let ws ← whitespace
+        if ws.isEmpty then Parser.fail "expected whitespace before flag value"
+        let v ← literalWithVariables escapeChar
+        Parser.pure (ws, v))
+  let (wsTokens, value) := result
+  Parser.pure (Token.mkKeyValue (
+    [Token.mkSymbol dash1,
+     Token.mkSymbol dash2,
+     kw,
+     Token.mkSymbol eq] ++ wsTokens ++ [value]
+  ))
 
 /-- Parse a --name=value flag where the value is a plain literal (no variable reference parsing).
-    Used for flags like --from where variable references are not supported by BuildKit. -/
+    Used for flags like --from where variable references are not supported by BuildKit.
+    Like `flagParser`, absorbs whitespace between `=` and value when value is not
+    immediately adjacent. -/
 def flagParserNoVars (name : String) (escapeChar : Char) : Parser Token := do
   let dash1 ← char '-'
   let dash2 ← char '-'
   let kw ← keywordParser name escapeChar
   let eq ← char '='
-  let parts ← literalString escapeChar [] (excludeVariableRefChars := false)
-  let value := Token.mkLiteral (collapseStringTokens parts)
+  -- Try value immediately after '='; if that fails, consume whitespace then value
+  let result : List Token × Token ← or'
+    (do let parts ← literalString escapeChar [] (excludeVariableRefChars := false)
+        let empty : List Token := []
+        Parser.pure (empty, Token.mkLiteral (collapseStringTokens parts)))
+    (do let ws ← whitespace
+        if ws.isEmpty then Parser.fail "expected whitespace before flag value"
+        let parts ← literalString escapeChar [] (excludeVariableRefChars := false)
+        Parser.pure (ws, Token.mkLiteral (collapseStringTokens parts)))
+  let (wsTokens, value) := result
+  Parser.pure (Token.mkKeyValue (
+    [Token.mkSymbol dash1,
+     Token.mkSymbol dash2,
+     kw,
+     Token.mkSymbol eq] ++ wsTokens ++ [value]
+  ))
+
+/-- Parse a key-value flag that requires the value immediately after `=` (no
+    whitespace absorption). Used for mount flags where C# uses a structured
+    value parser (MountParser) that fails on empty values — causing the entire
+    flag to fail and the instruction to fall through to shell form.
+    The value is parsed as an opaque literal matching Lean's treatment of mount
+    values as opaque strings. -/
+def flagParserStrict (name : String) (escapeChar : Char) : Parser Token := do
+  let dash1 ← char '-'
+  let dash2 ← char '-'
+  let kw ← keywordParser name escapeChar
+  let eq ← char '='
+  let value ← literalWithVariables escapeChar
   Parser.pure (Token.mkKeyValue [
     Token.mkSymbol dash1,
     Token.mkSymbol dash2,

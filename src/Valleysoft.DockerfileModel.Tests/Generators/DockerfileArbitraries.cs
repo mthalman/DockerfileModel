@@ -382,6 +382,259 @@ public static class DockerfileArbitraries
             select $"type=tmpfs,target=/{tgt}");
 
     // ──────────────────────────────────────────────
+    // Shell-form whitespace variation generators
+    // (Bug category A: tests multi-word commands with
+    //  tabs, multiple spaces, and special characters)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates shell-form commands with varied internal whitespace:
+    /// multiple spaces, tabs, mixed whitespace between words.
+    /// Targets Bug 1-4 (whitespace collapsing differences).
+    /// </summary>
+    private static Gen<string> ShellCommandWithVariedWhitespace() =>
+        Gen.OneOf(
+            // Two words separated by tab
+            from c1 in Gen.Elements("echo", "ls", "cat", "mkdir", "chmod")
+            from c2 in Gen.Elements("hello", "-la", "/etc/hosts", "-p", "755")
+            select $"{c1}\t{c2}",
+            // Two words separated by multiple spaces
+            from c1 in Gen.Elements("echo", "ls", "cat", "mkdir")
+            from c2 in Gen.Elements("hello", "-la", "/etc/hosts", "-p")
+            select $"{c1}  {c2}",
+            // Three words with mixed whitespace
+            from c1 in Gen.Elements("apt-get", "pip", "npm")
+            from c2 in Gen.Elements("install", "run", "build")
+            from c3 in Gen.Elements("curl", "flask", "webpack")
+            select $"{c1}\t {c2}  {c3}",
+            // Four words with tabs between each
+            from c1 in Gen.Elements("echo", "printf")
+            from c2 in Gen.Elements("hello", "world", "test")
+            from c3 in Gen.Elements("from", "to", "at")
+            from c4 in Gen.Elements("container", "image", "stage")
+            select $"{c1}\t{c2}\t{c3}\t{c4}",
+            // Command with three spaces between words
+            from c1 in Gen.Elements("echo", "cat")
+            from c2 in Gen.Elements("hello", "world")
+            select $"{c1}   {c2}",
+            // Mixed tabs and spaces
+            from c1 in Gen.Elements("apt-get", "yum")
+            from c2 in Gen.Elements("install", "update")
+            from c3 in Gen.Elements("-y", "--quiet")
+            from c4 in Gen.Elements("curl", "wget", "vim")
+            select $"{c1} {c2} \t{c3}\t {c4}");
+
+    // ──────────────────────────────────────────────
+    // Heredoc generators
+    // (Bug category C: heredoc syntax differences)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates a heredoc delimiter name.
+    /// </summary>
+    private static Gen<string> HeredocDelimiter() =>
+        Gen.Elements("EOF", "SCRIPT", "HEREDOC", "END", "DATA", "BLOCK");
+
+    /// <summary>
+    /// Generates simple heredoc body content (one or more lines).
+    /// </summary>
+    private static Gen<string> HeredocBodyLines() =>
+        Gen.OneOf(
+            // Single line body
+            from line in Gen.Elements(
+                "echo hello", "apt-get update", "set -e", "ls -la",
+                "mkdir -p /app", "some content here")
+            select line + "\n",
+            // Two-line body
+            from l1 in Gen.Elements("echo hello", "set -e", "apt-get update")
+            from l2 in Gen.Elements("echo world", "apt-get install -y curl", "ls -la")
+            select $"{l1}\n{l2}\n",
+            // Three-line body
+            from l1 in Gen.Elements("set -e", "#!/bin/bash")
+            from l2 in Gen.Elements("echo building", "apt-get update")
+            from l3 in Gen.Elements("echo done", "apt-get clean")
+            select $"{l1}\n{l2}\n{l3}\n");
+
+    /// <summary>
+    /// Generates heredoc body content with leading tabs (for <<- tab-stripping tests).
+    /// Targets Bug 10 (tab-stripping differences).
+    /// </summary>
+    private static Gen<string> HeredocBodyLinesWithTabs() =>
+        Gen.OneOf(
+            from line in Gen.Elements("echo hello", "apt-get update", "set -e")
+            select $"\t{line}\n",
+            from l1 in Gen.Elements("echo hello", "set -e")
+            from l2 in Gen.Elements("echo world", "ls -la")
+            select $"\t{l1}\n\t{l2}\n",
+            from l1 in Gen.Elements("set -e")
+            from l2 in Gen.Elements("echo building")
+            from l3 in Gen.Elements("echo done")
+            select $"\t{l1}\n\t{l2}\n\t{l3}\n");
+
+    /// <summary>
+    /// Generates RUN instructions with heredoc syntax.
+    /// Targets Bugs 7-11 (heredoc structural differences).
+    /// </summary>
+    public static Gen<string> RunHeredocInstruction() =>
+        Gen.OneOf(
+            // Basic heredoc: RUN <<EOF\ncontent\nEOF
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLines()
+            select $"RUN <<{delim}\n{body}{delim}",
+            // Tab-stripping heredoc: RUN <<-EOF\n\tcontent\n\tEOF
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLinesWithTabs()
+            select $"RUN <<-{delim}\n{body}\t{delim}",
+            // Double-quoted delimiter: RUN <<"EOF"\ncontent\nEOF
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLines()
+            select $"RUN <<\"{delim}\"\n{body}{delim}",
+            // Single-quoted delimiter: RUN <<'EOF'\ncontent\nEOF
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLines()
+            select $"RUN <<'{delim}'\n{body}{delim}",
+            // Tab-stripping with double-quoted delimiter
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLinesWithTabs()
+            select $"RUN <<-\"{delim}\"\n{body}\t{delim}",
+            // Tab-stripping with single-quoted delimiter
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLinesWithTabs()
+            select $"RUN <<-'{delim}'\n{body}\t{delim}");
+
+    /// <summary>
+    /// Generates COPY instructions with heredoc syntax.
+    /// Targets Bugs 7-11 (heredoc structural differences).
+    /// </summary>
+    public static Gen<string> CopyHeredocInstruction() =>
+        Gen.OneOf(
+            // COPY heredoc to file
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLines()
+            from dst in PathSegment()
+            select $"COPY <<{delim} /{dst}\n{body}{delim}",
+            // COPY heredoc with tab-stripping
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLinesWithTabs()
+            from dst in PathSegment()
+            select $"COPY <<-{delim} /{dst}\n{body}\t{delim}",
+            // COPY heredoc with quoted delimiter
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLines()
+            from dst in PathSegment()
+            select $"COPY <<\"{delim}\" /{dst}\n{body}{delim}");
+
+    /// <summary>
+    /// Generates ADD instructions with heredoc syntax.
+    /// Targets Bugs 7-11 (heredoc structural differences).
+    /// </summary>
+    public static Gen<string> AddHeredocInstruction() =>
+        Gen.OneOf(
+            // ADD heredoc to file
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLines()
+            from dst in PathSegment()
+            select $"ADD <<{delim} /{dst}\n{body}{delim}",
+            // ADD heredoc with tab-stripping
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLinesWithTabs()
+            from dst in PathSegment()
+            select $"ADD <<-{delim} /{dst}\n{body}\t{delim}",
+            // ADD heredoc with quoted delimiter
+            from delim in HeredocDelimiter()
+            from body in HeredocBodyLines()
+            from dst in PathSegment()
+            select $"ADD <<\"{delim}\" /{dst}\n{body}{delim}");
+
+    // ──────────────────────────────────────────────
+    // Empty flag value generators
+    // (Bug category D: empty flag value absorption)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates COPY instructions with empty flag values (--flag= with no value after =).
+    /// Targets Bug 12 (empty flag value absorption).
+    /// </summary>
+    public static Gen<string> CopyEmptyFlagInstruction() =>
+        Gen.OneOf(
+            // COPY --from= (empty)
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from= {src} {dst}",
+            // COPY --chown= (empty)
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --chown= {src} {dst}",
+            // COPY --chmod= (empty)
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --chmod= {src} {dst}",
+            // COPY --from= with multiple sources
+            from s1 in PathSegment()
+            from s2 in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --from= {s1} {s2} /{dst}/",
+            // COPY --chown= --chmod= both empty
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"COPY --chown= --chmod= {src} {dst}");
+
+    /// <summary>
+    /// Generates ADD instructions with empty flag values.
+    /// Targets Bug 12 (empty flag value absorption).
+    /// </summary>
+    public static Gen<string> AddEmptyFlagInstruction() =>
+        Gen.OneOf(
+            // ADD --chown= (empty)
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chown= {src} {dst}",
+            // ADD --checksum= (empty)
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --checksum= {src} {dst}",
+            // ADD --chown= with multiple sources
+            from s1 in PathSegment()
+            from s2 in PathSegment()
+            from dst in PathSegment()
+            select $"ADD --chown= {s1} {s2} /{dst}/");
+
+    /// <summary>
+    /// Generates FROM instructions with empty --platform= flag.
+    /// Targets Bug 13 (parser crash on empty platform).
+    /// </summary>
+    public static Gen<string> FromEmptyPlatformInstruction() =>
+        Gen.OneOf(
+            // FROM --platform= (empty) image
+            from image in ImageName()
+            select $"FROM --platform= {image}",
+            // FROM --platform= (empty) image AS stage
+            from image in ImageName()
+            from stage in StageName()
+            select $"FROM --platform= {image} AS {stage}",
+            // FROM --platform= (empty) scratch
+            Gen.Constant("FROM --platform= scratch"));
+
+    /// <summary>
+    /// Generates RUN instructions with empty flag values.
+    /// Targets Bug 12 (empty flag value absorption).
+    /// </summary>
+    public static Gen<string> RunEmptyFlagInstruction() =>
+        Gen.OneOf(
+            // RUN --network= (empty)
+            from cmd in ShellCommand()
+            select $"RUN --network= {cmd}",
+            // RUN --security= (empty)
+            from cmd in ShellCommand()
+            select $"RUN --security= {cmd}",
+            // RUN --network= with exec form
+            from cmd in ExecFormCommand()
+            select $"RUN --network= {cmd}",
+            // RUN --mount= (empty — though unusual)
+            from cmd in ShellCommand()
+            select $"RUN --mount= {cmd}");
+
+    // ──────────────────────────────────────────────
     // Instruction string generators
     // ──────────────────────────────────────────────
 
@@ -535,7 +788,14 @@ public static class DockerfileArbitraries
             // Gen.Constant("RUN echo hello \\   \n  && echo world"),
             from arg in Gen.Elements("hello", "-c", "test")
             select $"RUN [\"\", \"{arg}\"]",
-            Gen.Constant("RUN []"));
+            Gen.Constant("RUN []"),
+            // Shell form with varied internal whitespace (Bug 1: whitespace collapsing)
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"RUN {cmd}",
+            // Shell form with tab after keyword + multi-word command
+            from ws in FlexibleWhitespace()
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"RUN{ws}{cmd}");
 
     /// <summary>
     /// Generates a valid CMD instruction string.
@@ -588,7 +848,14 @@ public static class DockerfileArbitraries
             from c3 in Gen.Elements("echo line3")
             select $"CMD {c1} \\\n  && {c2} \\\n  && {c3}",
             // Empty exec form array
-            Gen.Constant("CMD []"));
+            Gen.Constant("CMD []"),
+            // Shell form with varied internal whitespace (Bug 2: whitespace collapsing)
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"CMD {cmd}",
+            // Shell form with tab after keyword + multi-word command
+            from ws in FlexibleWhitespace()
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"CMD{ws}{cmd}");
 
     /// <summary>
     /// Generates a valid ENTRYPOINT instruction string.
@@ -635,7 +902,14 @@ public static class DockerfileArbitraries
             from c2 in Gen.Elements("--config /etc/app.conf", "--port 8080")
             select $"ENTRYPOINT {c1} \\\r\n  {c2}",
             // Empty exec form array
-            Gen.Constant("ENTRYPOINT []"));
+            Gen.Constant("ENTRYPOINT []"),
+            // Shell form with varied internal whitespace (Bug 3: whitespace collapsing)
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"ENTRYPOINT {cmd}",
+            // Shell form with tab after keyword + multi-word command
+            from ws in FlexibleWhitespace()
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"ENTRYPOINT{ws}{cmd}");
 
     /// <summary>
     /// Generates a valid COPY instruction string.
@@ -1178,7 +1452,14 @@ public static class DockerfileArbitraries
             from timeout in Duration()
             from retries in Gen.Choose(1, 10)
             from cmd in ShellCommand()
-            select $"HEALTHCHECK --interval={interval} \\\n  --timeout={timeout} \\\n  --retries={retries} \\\n  CMD {cmd}");
+            select $"HEALTHCHECK --interval={interval} \\\n  --timeout={timeout} \\\n  --retries={retries} \\\n  CMD {cmd}",
+            // HEALTHCHECK CMD with varied internal whitespace (Bug 4: whitespace collapsing)
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"HEALTHCHECK CMD {cmd}",
+            // HEALTHCHECK CMD with varied whitespace and flags
+            from interval in Duration()
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"HEALTHCHECK --interval={interval} CMD {cmd}");
 
     /// <summary>
     /// Generates a valid LABEL instruction string.
@@ -1393,7 +1674,42 @@ public static class DockerfileArbitraries
             from stage in StageName()
             from src in PathSegment()
             from dst in PathSegment()
-            select $"ONBUILD COPY --from={stage} {src} {dst}");
+            select $"ONBUILD COPY --from={stage} {src} {dst}",
+            // ONBUILD HEALTHCHECK (Bug 5: missing inner instruction coverage)
+            from cmd in ShellCommand()
+            select $"ONBUILD HEALTHCHECK CMD {cmd}",
+            // ONBUILD HEALTHCHECK NONE
+            Gen.Constant("ONBUILD HEALTHCHECK NONE"),
+            // ONBUILD SHELL
+            Gen.Constant("ONBUILD SHELL [\"/bin/bash\", \"-c\"]"),
+            // ONBUILD CMD exec-form (Bug 6: ONBUILD with exec-form)
+            from cmd in ExecFormCommand()
+            select $"ONBUILD CMD {cmd}",
+            // ONBUILD ENTRYPOINT exec-form (Bug 6)
+            from cmd in ExecFormCommand()
+            select $"ONBUILD ENTRYPOINT {cmd}",
+            // ONBUILD RUN exec-form (Bug 6)
+            from cmd in ExecFormCommand()
+            select $"ONBUILD RUN {cmd}",
+            // ONBUILD CMD shell-form (ensures whitespace collapsing + recursive parse both hit)
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"ONBUILD CMD {cmd}",
+            // ONBUILD RUN shell-form with varied whitespace
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"ONBUILD RUN {cmd}",
+            // ONBUILD ENTRYPOINT shell-form with varied whitespace
+            from cmd in ShellCommandWithVariedWhitespace()
+            select $"ONBUILD ENTRYPOINT {cmd}",
+            // ONBUILD ADD with flags
+            from owner in Identifier()
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ONBUILD ADD --chown={owner} {src} {dst}",
+            // ONBUILD COPY with --chmod
+            from mode in Gen.Elements("755", "644")
+            from src in PathSegment()
+            from dst in PathSegment()
+            select $"ONBUILD COPY --chmod={mode} {src} {dst}");
 
     /// <summary>
     /// Generates a valid STOPSIGNAL instruction string.
