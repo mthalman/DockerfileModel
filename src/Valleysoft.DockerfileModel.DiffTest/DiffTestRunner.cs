@@ -232,18 +232,6 @@ public class DiffTestRunner
     {
         string upper = instructionType.ToUpperInvariant();
 
-        // Workaround for #266: COPY/ADD/RUN with line continuation inside a flag value.
-        // C# and Lean parse these fundamentally differently — C# may absorb the LC into
-        // the flag value string, Lean may terminate the flag or break the instruction at
-        // the LC. Skip comparison for all such inputs.
-        if (upper == "COPY" || upper == "ADD" || upper == "RUN")
-        {
-            if (ContainsFlagLineContinuation(input))
-            {
-                return true;
-            }
-        }
-
         // Workaround for #261: ARG with :? modifier truncates the value child.
         // The keyValue aggregate for the arg declaration will have a Variable child
         // but no LiteralToken value child. After serialization, the keyValue children
@@ -264,35 +252,6 @@ public class DiffTestRunner
             }
         }
 
-        return false;
-    }
-
-    /// <summary>
-    /// Returns true if the input string contains a line continuation (\<LF> or \<CRLF>
-    /// or `<LF> or `<CRLF>) inside a flag argument (i.e., after "--").
-    /// This covers the #266 case where C# and Lean disagree on how to parse LCs in flag values.
-    /// </summary>
-    private static bool ContainsFlagLineContinuation(string input)
-    {
-        // Find if input contains "--" followed by "=" followed by (optionally some chars) then a LC
-        // Pattern: --flag=...\<LF> or --flag=...\<CRLF> or --flag=...`<LF>
-        // Simple heuristic: check for "--" in input AND (\ + \n or \ + \r\n or ` + \n)
-        if (!input.Contains("--"))
-            return false;
-
-        // Check for line continuation characters after a flag argument
-        // A LC is \<LF>, \<CRLF>, `<LF>, or `<CRLF>
-        for (int i = 0; i < input.Length - 1; i++)
-        {
-            char c = input[i];
-            if ((c == '\\' || c == '`') && (input[i + 1] == '\n' || input[i + 1] == '\r'))
-            {
-                // LC found — check if it appears inside a flag (after "--")
-                // Simple: if "--" appears before position i, it's a flag LC
-                if (input.LastIndexOf("--", i, StringComparison.Ordinal) >= 0)
-                    return true;
-            }
-        }
         return false;
     }
 
