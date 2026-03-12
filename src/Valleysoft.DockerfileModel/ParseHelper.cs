@@ -282,11 +282,9 @@ internal static class ParseHelper
         select AbsorbTrailingWhitespace(ConcatTokens(instructionNameTokens, instructionArgs));
 
     /// <summary>
-    /// Scans the combined instruction token list and absorbs any trailing whitespace
-    /// token (before an optional newline) into the preceding content token.
-    /// This eliminates standalone trailing-whitespace tokens at instruction level,
-    /// matching BuildKit behavior of trimming trailing whitespace while still
-    /// preserving round-trip fidelity via the content token string value.
+    /// Scans the combined instruction token list and removes any trailing whitespace
+    /// token (before an optional newline), matching BuildKit behavior of trimming
+    /// trailing whitespace from instructions.
     /// </summary>
     internal static IEnumerable<Token> AbsorbTrailingWhitespace(IEnumerable<Token> tokens)
     {
@@ -306,56 +304,14 @@ internal static class ParseHelper
             break;
         }
 
-        // Nothing to absorb: no trailing whitespace, or whitespace is at index 0
-        // (no preceding content token), or index is negative.
-        if (wsIndex <= 0)
+        // No trailing whitespace found.
+        if (wsIndex < 0)
             return list;
 
-        Token preceding = list[wsIndex - 1];
-        WhitespaceToken trailingWs = (WhitespaceToken)list[wsIndex];
-
-        // Absorb the whitespace value into the last StringToken of the preceding
-        // content token. Skip KeywordToken - instruction-name keywords must not
-        // accumulate trailing spaces.
-        if (TryAbsorbWhitespaceIntoLastStringToken(preceding, trailingWs.Value))
-            list.RemoveAt(wsIndex);
+        // Drop the trailing whitespace token entirely, matching Lean/BuildKit behavior.
+        list.RemoveAt(wsIndex);
 
         return list;
-    }
-
-    /// <summary>
-    /// Recursively finds the last StringToken inside the given token
-    /// and appends the whitespace string to its value.
-    /// Returns true if absorption succeeded, false otherwise.
-    /// KeywordToken nodes are never modified.
-    /// </summary>
-    private static bool TryAbsorbWhitespaceIntoLastStringToken(Token token, string whitespace)
-    {
-        // KeywordToken represents instruction-name keywords (FROM, COPY, AS, etc.).
-        // Their text must never be modified to include trailing whitespace.
-        if (token is KeywordToken)
-            return false;
-
-        if (token is AggregateToken agg)
-        {
-            // Scan the children in reverse order so we reach the last content child first.
-            List<Token> inner = agg.TokenList;
-            for (int i = inner.Count - 1; i >= 0; i--)
-            {
-                if (TryAbsorbWhitespaceIntoLastStringToken(inner[i], whitespace))
-                    return true;
-            }
-
-            return false;
-        }
-
-        if (token is StringToken st)
-        {
-            st.Value += whitespace;
-            return true;
-        }
-
-        return false;
     }
 
     /// <summary>

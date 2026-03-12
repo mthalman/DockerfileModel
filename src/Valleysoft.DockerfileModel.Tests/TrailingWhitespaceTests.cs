@@ -4,8 +4,8 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 /// <summary>
 /// Tests verifying that trailing whitespace at the end of instruction argument lines
-/// is absorbed into the preceding content token rather than emitted as a standalone
-/// WhitespaceToken. Round-trip fidelity (ToString() == original text) is also verified.
+/// is dropped from the token list, matching BuildKit behavior of trimming trailing
+/// whitespace from instructions.
 /// </summary>
 public class TrailingWhitespaceTests
 {
@@ -25,13 +25,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("FROM alpine ")]
-    [InlineData("FROM alpine\t")]
-    [InlineData("FROM alpine   ")]
-    public void From_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("FROM alpine ", "FROM alpine")]
+    [InlineData("FROM alpine\t", "FROM alpine")]
+    [InlineData("FROM alpine   ", "FROM alpine")]
+    public void From_TrailingWhitespace_Trimmed(string input, string expected)
     {
         FromInstruction instr = FromInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class TrailingWhitespaceTests
     {
         FromInstruction instr = FromInstruction.Parse("FROM alpine  \n");
         AssertNoTrailingWhitespaceToken(instr, "FROM alpine  \n");
-        Assert.Equal("FROM alpine  \n", instr.ToString());
+        Assert.Equal("FROM alpine\n", instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -75,13 +75,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("ENV FOO=bar ")]
-    [InlineData("ENV FOO=bar\t")]
-    [InlineData("ENV FOO=bar   ")]
-    public void Env_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("ENV FOO=bar ", "ENV FOO=bar")]
+    [InlineData("ENV FOO=bar\t", "ENV FOO=bar")]
+    [InlineData("ENV FOO=bar   ", "ENV FOO=bar")]
+    public void Env_TrailingWhitespace_Trimmed(string input, string expected)
     {
         EnvInstruction instr = EnvInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -99,13 +99,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("EXPOSE 80 ")]
-    [InlineData("EXPOSE 80\t")]
-    [InlineData("EXPOSE 80   ")]
-    public void Expose_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("EXPOSE 80 ", "EXPOSE 80")]
+    [InlineData("EXPOSE 80\t", "EXPOSE 80")]
+    [InlineData("EXPOSE 80   ", "EXPOSE 80")]
+    public void Expose_TrailingWhitespace_Trimmed(string input, string expected)
     {
         ExposeInstruction instr = ExposeInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -123,13 +123,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("WORKDIR /app ")]
-    [InlineData("WORKDIR /app\t")]
-    [InlineData("WORKDIR /app   ")]
-    public void Workdir_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("WORKDIR /app ", "WORKDIR /app")]
+    [InlineData("WORKDIR /app\t", "WORKDIR /app")]
+    [InlineData("WORKDIR /app   ", "WORKDIR /app")]
+    public void Workdir_TrailingWhitespace_Trimmed(string input, string expected)
     {
         WorkdirInstruction instr = WorkdirInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -147,13 +147,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("LABEL foo=bar ")]
-    [InlineData("LABEL foo=bar\t")]
-    [InlineData("LABEL foo=bar   ")]
-    public void Label_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("LABEL foo=bar ", "LABEL foo=bar")]
+    [InlineData("LABEL foo=bar\t", "LABEL foo=bar")]
+    [InlineData("LABEL foo=bar   ", "LABEL foo=bar")]
+    public void Label_TrailingWhitespace_Trimmed(string input, string expected)
     {
         LabelInstruction instr = LabelInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -171,13 +171,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("COPY src dst ")]
-    [InlineData("COPY src dst\t")]
-    [InlineData("COPY src dst   ")]
-    public void Copy_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("COPY src dst ", "COPY src dst")]
+    [InlineData("COPY src dst\t", "COPY src dst")]
+    [InlineData("COPY src dst   ", "COPY src dst")]
+    public void Copy_TrailingWhitespace_Trimmed(string input, string expected)
     {
         CopyInstruction instr = CopyInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -195,13 +195,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("ADD src dst ")]
-    [InlineData("ADD src dst\t")]
-    [InlineData("ADD src dst   ")]
-    public void Add_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("ADD src dst ", "ADD src dst")]
+    [InlineData("ADD src dst\t", "ADD src dst")]
+    [InlineData("ADD src dst   ", "ADD src dst")]
+    public void Add_TrailingWhitespace_Trimmed(string input, string expected)
     {
         AddInstruction instr = AddInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -219,13 +219,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("RUN echo hello ")]
-    [InlineData("RUN echo hello\t")]
-    [InlineData("RUN echo hello   ")]
-    public void Run_ShellForm_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("RUN echo hello ", "RUN echo hello")]
+    [InlineData("RUN echo hello\t", "RUN echo hello")]
+    [InlineData("RUN echo hello   ", "RUN echo hello")]
+    public void Run_ShellForm_TrailingWhitespace_Trimmed(string input, string expected)
     {
         RunInstruction instr = RunInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -243,13 +243,13 @@ public class TrailingWhitespaceTests
     }
 
     [Theory]
-    [InlineData("run echo hello ")]
-    [InlineData("run echo hello\t")]
-    [InlineData("run echo hello   ")]
-    public void Generic_TrailingWhitespace_RoundTrip(string input)
+    [InlineData("run echo hello ", "run echo hello")]
+    [InlineData("run echo hello\t", "run echo hello")]
+    [InlineData("run echo hello   ", "run echo hello")]
+    public void Generic_TrailingWhitespace_Trimmed(string input, string expected)
     {
         GenericInstruction instr = GenericInstruction.Parse(input);
-        Assert.Equal(input, instr.ToString());
+        Assert.Equal(expected, instr.ToString());
     }
 
     // -----------------------------------------------------------------------
@@ -263,15 +263,15 @@ public class TrailingWhitespaceTests
         Dockerfile dockerfile = Dockerfile.Parse(text);
         FromInstruction from = dockerfile.Items.OfType<FromInstruction>().First();
         AssertNoTrailingWhitespaceToken(from, "FROM alpine   \n");
-        Assert.Equal(text, dockerfile.ToString());
+        Assert.Equal("FROM alpine\nRUN echo hello\n", dockerfile.ToString());
     }
 
     [Fact]
-    public void Dockerfile_MultipleInstructionsWithTrailingWhitespace_RoundTrip()
+    public void Dockerfile_MultipleInstructionsWithTrailingWhitespace_Trimmed()
     {
         string text = "FROM alpine \nCOPY src dst \nRUN echo ok \n";
         Dockerfile dockerfile = Dockerfile.Parse(text);
-        Assert.Equal(text, dockerfile.ToString());
+        Assert.Equal("FROM alpine\nCOPY src dst\nRUN echo ok\n", dockerfile.ToString());
     }
 
     // -----------------------------------------------------------------------

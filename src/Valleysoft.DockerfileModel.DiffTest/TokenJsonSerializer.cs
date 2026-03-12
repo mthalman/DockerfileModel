@@ -42,8 +42,8 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     literal["/opt"]. Not applied for POSIX "/" and "//" modifiers where C# and Lean agree.
 ///   - #263 (mount value trailing whitespace): mount.ToString() absorbs trailing whitespace
 ///     into the mount value string. Workaround trims and emits a separate whitespace token.
-///   - #264 (trailing whitespace on instructions): FIXED. The C# parser now absorbs trailing
-///     whitespace into the preceding content token, matching Lean's behavior.
+///   - #264 (trailing whitespace on instructions): FIXED. The C# parser now drops trailing
+///     whitespace tokens from instruction token lists, matching Lean's behavior.
 ///   - #265 (hash as comment in shell-form and LABEL values): C# parses # mid-text as a
 ///     comment aggregate inside a literal; Lean treats it as plain text. Workaround merges
 ///     the comment children back into the preceding string token.
