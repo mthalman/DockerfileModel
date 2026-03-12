@@ -302,7 +302,7 @@ public class VariableRefToken : AggregateToken
             from varName in VariableIdentifier()
             select new StringToken(varName)
         from modifierTokens in (
-            from modifier in OrConcat(variableSubstitutionModifiers).Once()
+            from modifier in variableSubstitutionModifiers.Aggregate((current, next) => current.Or(next)).Once()
             from modifierValueTokens in ValueOrVariableRef(escapeChar, createModifierValueToken, new char[] { '}' })
                 .AtLeastOnce()
                 .Flatten()

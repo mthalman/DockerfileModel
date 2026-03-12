@@ -98,6 +98,37 @@ public class WorkdirInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "/test")
                 }
+            },
+            // Variable reference with path default value — slash must not be split into a separate symbol token
+            new ParseTestScenario<WorkdirInstruction>
+            {
+                Text = "WORKDIR ${BASE:-/opt}/${APP:-myapp}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "WORKDIR"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "${BASE:-/opt}/${APP:-myapp}",
+                        token => ValidateAggregate<VariableRefToken>(token, "${BASE:-/opt}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "BASE"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateLiteral(token, "/opt"),
+                            token => ValidateSymbol(token, '}')),
+                        token => ValidateString(token, "/"),
+                        token => ValidateAggregate<VariableRefToken>(token, "${APP:-myapp}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "APP"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateLiteral(token, "myapp"),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("${BASE:-/opt}/${APP:-myapp}", result.Path);
+                    Assert.Equal("WORKDIR ${BASE:-/opt}/${APP:-myapp}", result.ToString());
+                }
             }
         };
 

@@ -485,6 +485,41 @@ public class EnvInstructionTests
                             token => ValidateWhitespace(token, "  "),
                             token => ValidateString(token, "bar")))
                 }
+            },
+            // Variable reference default value with path — leading slash must stay in the literal
+            new ParseTestScenario<EnvInstruction>
+            {
+                Text = "ENV PATH=${BASE:-/usr/local}/bin",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENV"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "PATH=${BASE:-/usr/local}/bin",
+                        token => ValidateIdentifier<Variable>(token, "PATH"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<LiteralToken>(token, "${BASE:-/usr/local}/bin",
+                            token => ValidateAggregate<VariableRefToken>(token, "${BASE:-/usr/local}",
+                                token => ValidateSymbol(token, '{'),
+                                token => ValidateString(token, "BASE"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateSymbol(token, '-'),
+                                token => ValidateLiteral(token, "/usr/local"),
+                                token => ValidateSymbol(token, '}')),
+                            token => ValidateString(token, "/bin")))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("ENV", result.InstructionName);
+                    Assert.Collection(result.Variables, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("PATH", pair.Key);
+                            Assert.Equal("${BASE:-/usr/local}/bin", pair.Value);
+                        }
+                    });
+                    Assert.Equal("ENV PATH=${BASE:-/usr/local}/bin", result.ToString());
+                }
             }
         };
 
