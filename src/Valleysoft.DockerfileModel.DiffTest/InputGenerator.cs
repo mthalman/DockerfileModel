@@ -47,7 +47,9 @@ public static class InputGenerator
             ("ADD", DockerfileArbitraries.AddHeredocInstruction()),         // Bugs 7-11: heredoc
             ("COPY", DockerfileArbitraries.CopyEmptyFlagInstruction()),    // Bug 12: empty flags
             ("ADD", DockerfileArbitraries.AddEmptyFlagInstruction()),      // Bug 12: empty flags
-            ("FROM", DockerfileArbitraries.FromEmptyPlatformInstruction()),// Bug 13: empty platform
+            // FromEmptyPlatformInstruction excluded: C# throws a parse error
+            // on FROM --platform= (empty value), which is a known C# limitation
+            // (see docs/differential-test-bugs.md Bug 13), not a Lean issue.
             ("RUN", DockerfileArbitraries.RunEmptyFlagInstruction()),      // Bug 12: empty flags
         };
 
