@@ -20,7 +20,7 @@ public static class InputGenerator
         // All instruction generators with their type labels.
         // The first 18 are the standard instruction generators; the remaining
         // are edge-case generators targeting specific bugs found via
-        // differential testing (see docs/differential-test-bugs.md).
+        // differential testing.
         var generators = new (string Type, Gen<string> Gen)[]
         {
             ("FROM", DockerfileArbitraries.FromInstruction()),
@@ -48,9 +48,35 @@ public static class InputGenerator
             ("COPY", DockerfileArbitraries.CopyEmptyFlagInstruction()),    // Bug 12: empty flags
             ("ADD", DockerfileArbitraries.AddEmptyFlagInstruction()),      // Bug 12: empty flags
             // FromEmptyPlatformInstruction excluded: C# throws a parse error
-            // on FROM --platform= (empty value), which is a known C# limitation
-            // (see docs/differential-test-bugs.md Bug 13), not a Lean issue.
+            // on FROM --platform= (empty value), which is a known C# limitation,
+            // not a Lean issue.
             ("RUN", DockerfileArbitraries.RunEmptyFlagInstruction()),      // Bug 12: empty flags
+            // #259: empty exec-form arrays
+            ("VOLUME", DockerfileArbitraries.VolumeEmptyExecInstruction()),  // #259
+            ("COPY", DockerfileArbitraries.CopyEmptyExecInstruction()),     // #259
+            ("ADD", DockerfileArbitraries.AddEmptyExecInstruction()),       // #259
+            // #260: quoted file paths in COPY/ADD
+            ("COPY", DockerfileArbitraries.CopyQuotedPathInstruction()),    // #260
+            ("ADD", DockerfileArbitraries.AddQuotedPathInstruction()),      // #260
+            // #261: variable :? modifier
+            ("FROM", DockerfileArbitraries.FromErrorModifierInstruction()), // #261
+            ("ARG", DockerfileArbitraries.ArgErrorModifierInstruction()),   // #261
+            // #262: variable default value with slash
+            ("WORKDIR", DockerfileArbitraries.WorkdirSlashDefaultInstruction()), // #262
+            ("ENV", DockerfileArbitraries.EnvSlashDefaultInstruction()),    // #262
+            // #263: mount value trailing whitespace
+            ("RUN", DockerfileArbitraries.RunMinimalMountInstruction()),    // #263
+            // #264: trailing whitespace
+            ("FROM", DockerfileArbitraries.FromTrailingWhitespaceInstruction()),  // #264
+            ("ENV", DockerfileArbitraries.EnvTrailingWhitespaceInstruction()),    // #264
+            ("COPY", DockerfileArbitraries.CopyTrailingWhitespaceInstruction()), // #264
+            // #265: hash in shell-form and values
+            ("RUN", DockerfileArbitraries.RunHashInShellInstruction()),     // #265
+            ("CMD", DockerfileArbitraries.CmdHashInShellInstruction()),     // #265
+            ("LABEL", DockerfileArbitraries.LabelHashInValueInstruction()), // #265
+            // #266: line continuation in flag values
+            ("COPY", DockerfileArbitraries.CopyFlagLineContinuationInstruction()), // #266
+            ("ADD", DockerfileArbitraries.AddFlagLineContinuationInstruction()),   // #266
         };
 
         int perType = count / generators.Length;
