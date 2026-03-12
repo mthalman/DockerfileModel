@@ -222,18 +222,14 @@ internal static class ParseHelper
                             new Token[] { firstContinuation },
                             moreContinuations,
                             trailingComments.SelectMany(c => c))).Or(
-                    // Whitespace with no line continuation (trailing space, optional more
-                    // continuations are allowed but produce no comments).
+                    // Whitespace with no line continuation (trailing space or plain newline).
+                    // LineContinuations uses .Many() so it succeeds with zero matches;
+                    // combined with Whitespace() this branch always succeeds and subsumes
+                    // the previous "plain newline" case, making .Optional() unnecessary.
                         from trailingWhitespace in Whitespace()
                         from lineContinuations in LineContinuations(escapeChar)
-                        select ConcatTokens(trailingWhitespace, lineContinuations)).Or(
-                    // Plain newline (end of line without preceding space).
-                        from whitespace in WhitespaceWithoutNewLine()
-                        from newLine in NewLine()
-                        select ConcatTokens(whitespace, newLine)).Optional()
-                select ConcatTokens(
-                    tokens,
-                    trailingWhitespace.GetOrDefault());
+                        select ConcatTokens(trailingWhitespace, lineContinuations))
+                select ConcatTokens(tokens, trailingWhitespace);
         }
     }
 
