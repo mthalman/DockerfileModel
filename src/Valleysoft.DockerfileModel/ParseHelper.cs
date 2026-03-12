@@ -514,7 +514,7 @@ internal static class ParseHelper
     /// <returns>A token parser.</returns>
     public static Parser<IEnumerable<Token>> ValueOrVariableRef(char escapeChar, CreateTokenParserDelegate createParser,
         IEnumerable<char> excludedChars) =>
-        VariableRefToken.GetParser(createParser, escapeChar).AsEnumerable()
+        VariableRefToken.GetParser(escapeChar).AsEnumerable()
             .Or(createParser(escapeChar, excludedChars));
 
     /// <summary>
@@ -840,10 +840,16 @@ internal static class ParseHelper
             parser = parser.Except(VariableRefChars());
         }
 
+        // Mirror LiteralStringWithoutSpaces: use StringTokenCharWithOptionalLineContinuation
+        // for subsequent characters so that escaped characters and line continuations are
+        // handled consistently throughout the entire value, not just at the first character.
+        Parser<IEnumerable<Token>> charParser =
+            StringTokenCharWithOptionalLineContinuation(escapeChar, parser)
+                .Or(EscapedChar(escapeChar));
+
         return
             from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
-            from rest in ToStringTokens(parser)
-                .Or(EscapedChar(escapeChar))
+            from rest in charParser
                 .Many()
                 .Flatten()
             select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
