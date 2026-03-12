@@ -923,7 +923,7 @@ public class HeredocTests
     }
 
     // ================================================================
-    // SECTION: RunInstruction.Heredocs (string body) property tests
+    // SECTION: RunInstruction.Heredocs property tests
     // ================================================================
 
     [Fact]
@@ -932,7 +932,7 @@ public class HeredocTests
         string text = "RUN <<EOF\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("echo hello\n", result.Heredocs.First());
+        Assert.Equal("echo hello\n", result.Heredocs.First().Content);
     }
 
     [Fact]
@@ -959,7 +959,7 @@ public class HeredocTests
         string text = "RUN <<EOF\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("", result.Heredocs.First());
+        Assert.Equal("", result.Heredocs.First().Content);
     }
 
     [Fact]
@@ -968,7 +968,7 @@ public class HeredocTests
         string text = "RUN <<EOF\nline 1\nline 2\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("line 1\nline 2\n", result.Heredocs.First());
+        Assert.Equal("line 1\nline 2\n", result.Heredocs.First().Content);
     }
 
     [Fact]
@@ -977,17 +977,17 @@ public class HeredocTests
         string text = "RUN --mount=type=secret,id=id <<EOF\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("echo hello\n", result.Heredocs.First());
+        Assert.Equal("echo hello\n", result.Heredocs.First().Content);
     }
 
     [Fact]
-    public void Run_HeredocBodyTokens_MatchesHeredocsProperty()
+    public void Run_HeredocBodyTokens_MatchesHeredocsContent()
     {
         string text = "RUN <<EOF\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(
             result.HeredocBodyTokens.Select(h => h.Content).ToList(),
-            result.Heredocs.ToList());
+            result.Heredocs.Select(h => h.Content).ToList());
     }
 
     // ================================================================
@@ -1000,7 +1000,7 @@ public class HeredocTests
         string text = "COPY <<EOF /app/file.txt\ncontent\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("content\n", result.Heredocs.First());
+        Assert.Equal("content\n", result.Heredocs.First().Content);
     }
 
     [Fact]
@@ -1017,17 +1017,17 @@ public class HeredocTests
         string text = "COPY <<EOF /app/file.txt\nline 1\nline 2\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("line 1\nline 2\n", result.Heredocs.First());
+        Assert.Equal("line 1\nline 2\n", result.Heredocs.First().Content);
     }
 
     [Fact]
-    public void Copy_HeredocBodyTokens_MatchesHeredocs()
+    public void Copy_HeredocBodyTokens_MatchesHeredocsContent()
     {
         string text = "COPY <<EOF /app/file.txt\ncontent\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Equal(
             result.HeredocBodyTokens.Select(h => h.Content).ToList(),
-            result.Heredocs.ToList());
+            result.Heredocs.Select(h => h.Content).ToList());
     }
 
     // ================================================================
@@ -1040,7 +1040,7 @@ public class HeredocTests
         string text = "ADD <<EOF /app/file.txt\ncontent\nEOF\n";
         AddInstruction result = AddInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("content\n", result.Heredocs.First());
+        Assert.Equal("content\n", result.Heredocs.First().Content);
     }
 
     [Fact]
@@ -1057,7 +1057,7 @@ public class HeredocTests
         string text = "ADD <<EOF /app/file.txt\nline 1\nline 2\nEOF\n";
         AddInstruction result = AddInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("line 1\nline 2\n", result.Heredocs.First());
+        Assert.Equal("line 1\nline 2\n", result.Heredocs.First().Content);
     }
 
     [Fact]
@@ -1066,7 +1066,7 @@ public class HeredocTests
         string text = "ADD <<EOF /app/file.txt\n$VAR\n\"quoted\"\n'single'\n\\backslash\nEOF\n";
         AddInstruction result = AddInstruction.Parse(text);
         Assert.Single(result.Heredocs);
-        Assert.Equal("$VAR\n\"quoted\"\n'single'\n\\backslash\n", result.Heredocs.First());
+        Assert.Equal("$VAR\n\"quoted\"\n'single'\n\\backslash\n", result.Heredocs.First().Content);
     }
 
     // ================================================================
@@ -1990,10 +1990,10 @@ public class HeredocTests
     {
         string text = "RUN <<FILE1 cat > /file1 && <<FILE2 cat > /file2\ncontent of file1\nFILE1\ncontent of file2\nFILE2\n";
         RunInstruction result = RunInstruction.Parse(text);
-        var bodies = result.Heredocs.ToList();
-        Assert.Equal(2, bodies.Count);
-        Assert.Equal("content of file1\n", bodies[0]);
-        Assert.Equal("content of file2\n", bodies[1]);
+        var heredocs = result.Heredocs;
+        Assert.Equal(2, heredocs.Count);
+        Assert.Equal("content of file1\n", heredocs[0].Content);
+        Assert.Equal("content of file2\n", heredocs[1].Content);
     }
 
     [Fact]
@@ -2146,10 +2146,10 @@ public class HeredocTests
     {
         string text = "COPY <<file1.txt <<file2.txt /dest/\ncontent1\nfile1.txt\ncontent2\nfile2.txt\n";
         CopyInstruction result = CopyInstruction.Parse(text);
-        var bodies = result.Heredocs.ToList();
-        Assert.Equal(2, bodies.Count);
-        Assert.Equal("content1\n", bodies[0]);
-        Assert.Equal("content2\n", bodies[1]);
+        var heredocs = result.Heredocs;
+        Assert.Equal(2, heredocs.Count);
+        Assert.Equal("content1\n", heredocs[0].Content);
+        Assert.Equal("content2\n", heredocs[1].Content);
     }
 
     // ================================================================
@@ -2507,11 +2507,11 @@ public class HeredocTests
     // ================================================================
 
     [Fact]
-    public void Run_HeredocList_SingleHeredoc()
+    public void Run_Heredocs_Semantic_SingleHeredoc()
     {
         string text = "RUN <<EOF\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
-        var heredocList = result.HeredocList;
+        var heredocList = result.Heredocs;
         Assert.Single(heredocList);
         Assert.Equal("EOF", heredocList[0].Name);
         Assert.Equal("echo hello\n", heredocList[0].Content);
@@ -2520,11 +2520,11 @@ public class HeredocTests
     }
 
     [Fact]
-    public void Run_HeredocList_TwoHeredocs()
+    public void Run_Heredocs_Semantic_TwoHeredocs()
     {
         string text = "RUN <<FILE1 <<FILE2\ncontent1\nFILE1\ncontent2\nFILE2\n";
         RunInstruction result = RunInstruction.Parse(text);
-        var heredocList = result.HeredocList;
+        var heredocList = result.Heredocs;
         Assert.Equal(2, heredocList.Count);
         Assert.Equal("FILE1", heredocList[0].Name);
         Assert.Equal("content1\n", heredocList[0].Content);
@@ -2533,21 +2533,21 @@ public class HeredocTests
     }
 
     [Fact]
-    public void Run_HeredocList_QuotedMarker_ExpandIsFalse()
+    public void Run_Heredocs_Semantic_QuotedMarker_ExpandIsFalse()
     {
         string text = "RUN <<\"EOF\"\necho hello\nEOF\n";
         RunInstruction result = RunInstruction.Parse(text);
-        var heredocList = result.HeredocList;
+        var heredocList = result.Heredocs;
         Assert.Single(heredocList);
         Assert.False(heredocList[0].Expand);
     }
 
     [Fact]
-    public void Copy_HeredocList_SingleHeredoc()
+    public void Copy_Heredocs_Semantic_SingleHeredoc()
     {
         string text = "COPY <<EOF /app/file.txt\ncontent\nEOF\n";
         CopyInstruction result = CopyInstruction.Parse(text);
-        var heredocList = result.HeredocList;
+        var heredocList = result.Heredocs;
         Assert.Single(heredocList);
         Assert.Equal("EOF", heredocList[0].Name);
         Assert.Equal("content\n", heredocList[0].Content);

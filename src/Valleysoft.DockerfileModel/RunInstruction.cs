@@ -79,7 +79,7 @@ public class RunInstruction : CommandInstruction
     /// Gets the paired heredoc marker+body objects in this instruction.
     /// Association is positional: first marker pairs with first body, etc.
     /// </summary>
-    public IReadOnlyList<Heredoc> HeredocList
+    public IReadOnlyList<Heredoc> Heredocs
     {
         get
         {
@@ -99,11 +99,6 @@ public class RunInstruction : CommandInstruction
     /// Gets the heredoc tokens in this instruction (marker tokens, for backward compatibility checks).
     /// </summary>
     public IEnumerable<HeredocMarkerToken> HeredocTokens => HeredocMarkerTokens;
-
-    /// <summary>
-    /// Gets the body content strings of all heredocs in this instruction.
-    /// </summary>
-    public IEnumerable<string> Heredocs => HeredocBodyTokens.Select(h => h.Content);
 
     public string? Network
     {
