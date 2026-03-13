@@ -350,7 +350,7 @@ internal static class ParseHelper
             List<Token> inner = agg.TokenList;
             if (inner.Count == 0)
                 return false;
-            return TryAbsorbWhitespaceIntoLastStringToken(inner[^1], whitespace);
+            return TryAbsorbWhitespaceIntoLastStringToken(inner[inner.Count - 1], whitespace);
         }
 
         if (token is StringToken st)
