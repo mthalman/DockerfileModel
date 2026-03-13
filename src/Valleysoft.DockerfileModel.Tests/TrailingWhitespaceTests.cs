@@ -4,10 +4,11 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 /// <summary>
 /// Tests verifying that trailing whitespace at the end of instruction argument lines
-/// is preserved as a standalone WhitespaceToken at instruction level (not absorbed into
-/// a content token's string value). This ensures:
+/// is preserved as a standalone WhitespaceToken at instruction level (not embedded in
+/// a content token's string value). Each test covers one or more of:
 ///   1. Round-trip fidelity: ToString() == original text
 ///   2. Semantic correctness: value properties (ImageName, etc.) do not include trailing spaces
+///   3. Token structure: the final instruction-level token is a WhitespaceToken (not a content token)
 /// </summary>
 public class TrailingWhitespaceTests
 {
@@ -33,6 +34,20 @@ public class TrailingWhitespaceTests
     {
         FromInstruction instr = FromInstruction.Parse(input);
         Assert.Equal("alpine", instr.ImageName);
+    }
+
+    [Theory]
+    [InlineData("FROM alpine ")]
+    [InlineData("FROM alpine\t")]
+    [InlineData("FROM alpine   ")]
+    public void From_TrailingWhitespace_LastTokenIsWhitespaceToken(string input)
+    {
+        // Trailing whitespace should be a standalone WhitespaceToken at instruction level,
+        // not embedded in the preceding content token's string value.
+        FromInstruction instr = FromInstruction.Parse(input);
+        Token last = instr.Tokens.Last();
+        Assert.IsType<WhitespaceToken>(last);
+        Assert.IsNotType<NewLineToken>(last);
     }
 
     [Fact]
