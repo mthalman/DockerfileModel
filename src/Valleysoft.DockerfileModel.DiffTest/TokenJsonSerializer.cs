@@ -1107,8 +1107,9 @@ public static class TokenJsonSerializer
     /// C# structure: keyValue [ --, --, keyword("mount"), =, Mount [ keyValue(type=...), comma, keyValue(id=...), ... ] ]
     /// Lean structure: keyValue [ --, --, keyword("mount"), =, literal("type=secret,id=mysecret,...") ]
     /// The parser (excludeTrailingWhitespace: true) ensures the mount value never includes
-    /// trailing whitespace; any trailing whitespace appears as a separate WhitespaceToken at
-    /// the instruction level.
+    /// trailing whitespace. Any whitespace that follows the mount flag at instruction level
+    /// (e.g., the space between "--mount=type=ssh" and the command) is a separate WhitespaceToken
+    /// and is serialized normally by the caller.
     /// </summary>
     private static void SerializeMountFlag(StringBuilder sb, MountFlag mountFlag)
     {
