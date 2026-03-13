@@ -291,31 +291,7 @@ internal static class ParseHelper
     public static Parser<IEnumerable<Token>> Instruction(string instructionName, char escapeChar, Parser<IEnumerable<Token>> instructionArgsParser) =>
         from instructionNameTokens in InstructionNameWithTrailingContent(instructionName, escapeChar)
         from instructionArgs in instructionArgsParser
-        select DropTrailingWhitespace(ConcatTokens(instructionNameTokens, instructionArgs));
-
-    /// <summary>
-    /// Scans the combined instruction token list and drops any trailing whitespace
-    /// token, skipping over any trailing NewLineToken and LineContinuationToken while
-    /// scanning backward. Matches BuildKit/Lean behavior of discarding trailing whitespace.
-    /// </summary>
-    internal static IEnumerable<Token> DropTrailingWhitespace(IEnumerable<Token> tokens)
-    {
-        List<Token> list = tokens.ToList();
-        int wsIndex = -1;
-        for (int i = list.Count - 1; i >= 0; i--)
-        {
-            Token t = list[i];
-            if (t is NewLineToken || t is LineContinuationToken)
-                continue;
-            if (t is WhitespaceToken)
-                wsIndex = i;
-            break;
-        }
-        if (wsIndex < 0)
-            return list;
-        list.RemoveAt(wsIndex);
-        return list;
-    }
+        select ConcatTokens(instructionNameTokens, instructionArgs);
 
 
     /// <summary>
