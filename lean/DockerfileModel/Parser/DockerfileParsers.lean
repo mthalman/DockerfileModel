@@ -541,77 +541,13 @@ def instructionNameWithTrailingContent (instructionName : String) (escapeChar : 
   let commentSets ← many commentText
   Parser.pure (concatTokens [leading, kwTokens, lc.getD [], commentSets.flatten])
 
-/-- Recursively find the last StringToken inside the given token and append the
-    whitespace string to its value. Returns the modified token on success, or none
-    if no StringToken could be found (e.g. for KeywordToken nodes whose text must
-    not be modified).
-    Corresponds to ParseHelper.TryAbsorbWhitespaceIntoLastStringToken() -/
-private partial def absorbWsIntoLastStringToken : Token → String → Option Token
-  | .primitive .string val, ws => some (.primitive .string (val ++ ws))
-  | .primitive .., _ => none
-  | .aggregate .keyword _ _, _ => none  -- keyword text must not accumulate trailing spaces
-  | .aggregate .variableRef _ _, _ => none  -- variable name must not be corrupted with trailing spaces
-  | .aggregate kind children qi, ws =>
-    -- Only recurse into the LAST child.  If it cannot absorb, we give up
-    -- (no fallback to earlier children) to prevent absorbing into keys/identifiers
-    -- when the value ends with a VariableRefToken.
-    match children.getLast? with
-    | none => none
-    | some lastChild =>
-      match absorbWsIntoLastStringToken lastChild ws with
-      | none => none
-      | some modified =>
-        some (.aggregate kind (children.dropLast ++ [modified]) qi)
-
-/-- Scan a token list from right-to-left skipping NewLineToken/LineContinuationToken,
-    and return the (prefix-list, whitespace-value, suffix-list) split when the
-    rightmost non-skip token is a WhitespaceToken; otherwise returns none.
-    Avoids index-based access by working directly with list structure. -/
-private def splitTrailingWs (tokens : List Token)
-    : Option (List Token × String × List Token) :=
-  -- Separate any trailing skip tokens (newLines, lineContinuations) from the rest
-  let rec splitSkip (rev : List Token) (skip : List Token) : List Token × List Token :=
-    match rev with
-    | [] => ([], skip)
-    | t :: ts =>
-      match t with
-      | .primitive .newLine _ => splitSkip ts (t :: skip)
-      | .aggregate .lineContinuation _ _ => splitSkip ts (t :: skip)
-      | _ => (t :: ts, skip)
-  let (revFront, trailingSkip) := splitSkip tokens.reverse []
-  -- Now revFront is reversed, so the first element is the rightmost non-skip token
-  match revFront with
-  | .primitive .whitespace v :: revRest =>
-    some (revRest.reverse, v, trailingSkip)
-  | _ => none
-
-/-- Scan the combined instruction token list and absorb any trailing whitespace
-    token (before an optional newline) into the preceding content token.
-    This eliminates standalone trailing-whitespace tokens at instruction level,
-    matching BuildKit behavior of trimming trailing whitespace while still
-    preserving round-trip fidelity via the content token string value.
-    Corresponds to ParseHelper.AbsorbTrailingWhitespace() -/
-def absorbTrailingWhitespace (tokens : List Token) : List Token :=
-  match splitTrailingWs tokens with
-  | none => tokens  -- no trailing whitespace to absorb
-  | some (front, wsVal, suffix) =>
-    -- front is the token list before the trailing WhitespaceToken (in order)
-    -- We need to absorb wsVal into the last token of front
-    match front.getLast? with
-    | none => tokens  -- no preceding token (whitespace was at index 0)
-    | some preceding =>
-      match absorbWsIntoLastStringToken preceding wsVal with
-      | none => tokens  -- couldn't absorb (e.g. preceding ends with VariableRefToken)
-      | some modified =>
-        front.dropLast ++ [modified] ++ suffix
-
 /-- Parse a complete instruction: keyword + args.
     Corresponds to ParseHelper.Instruction() -/
 def instructionParser (instructionName : String) (escapeChar : Char)
     (argsParser : Parser (List Token)) : Parser (List Token) := do
   let nameTokens ← instructionNameWithTrailingContent instructionName escapeChar
   let argTokens ← argsParser
-  Parser.pure (absorbTrailingWhitespace (concatTokens [nameTokens, argTokens]))
+  Parser.pure (concatTokens [nameTokens, argTokens])
 
 -- ============================================================
 -- Generic key-value flag parser (--name=value)
