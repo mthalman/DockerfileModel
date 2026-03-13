@@ -292,6 +292,54 @@ public class TrailingWhitespaceTests
     }
 
     // -----------------------------------------------------------------------
+    // ARG instruction (representative of ParseHelper.Instruction() coverage)
+    // -----------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("ARG foo=bar ")]
+    [InlineData("ARG foo=bar\t")]
+    [InlineData("ARG foo=bar   ")]
+    public void Arg_TrailingWhitespace_NoStandaloneWhitespaceToken(string input)
+    {
+        ArgInstruction instr = ArgInstruction.Parse(input);
+        AssertNoTrailingWhitespaceToken(instr, input);
+    }
+
+    [Theory]
+    [InlineData("ARG foo=bar ", "ARG foo=bar")]
+    [InlineData("ARG foo=bar\t", "ARG foo=bar")]
+    [InlineData("ARG foo=bar   ", "ARG foo=bar")]
+    public void Arg_TrailingWhitespace_Trimmed(string input, string expected)
+    {
+        ArgInstruction instr = ArgInstruction.Parse(input);
+        Assert.Equal(expected, instr.ToString());
+    }
+
+    // -----------------------------------------------------------------------
+    // USER instruction (representative of ParseHelper.Instruction() coverage)
+    // -----------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("USER nobody ")]
+    [InlineData("USER nobody\t")]
+    [InlineData("USER nobody   ")]
+    public void User_TrailingWhitespace_NoStandaloneWhitespaceToken(string input)
+    {
+        UserInstruction instr = UserInstruction.Parse(input);
+        AssertNoTrailingWhitespaceToken(instr, input);
+    }
+
+    [Theory]
+    [InlineData("USER nobody ", "USER nobody")]
+    [InlineData("USER nobody\t", "USER nobody")]
+    [InlineData("USER nobody   ", "USER nobody")]
+    public void User_TrailingWhitespace_Trimmed(string input, string expected)
+    {
+        UserInstruction instr = UserInstruction.Parse(input);
+        Assert.Equal(expected, instr.ToString());
+    }
+
+    // -----------------------------------------------------------------------
     // Heredoc instruction (RUN) — whitespace before command-line newline
     // -----------------------------------------------------------------------
 
