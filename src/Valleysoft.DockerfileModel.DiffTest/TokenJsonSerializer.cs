@@ -36,10 +36,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     optionally =, literal["value"]] when the literal starts with "--".
 ///   - #259 (COPY/ADD empty exec-form arrays): C# produces a literal with value "[]" instead
 ///     of two symbol tokens. Workaround splits literal["[]"] into symbol["["] + symbol["]"].
-///   - #262 (slash in variable default values): For ":-/opt" and ":+/opt" style modifiers,
-///     C# emits symbol("/") as a sibling before the modifier value LiteralToken, but Lean
-///     merges it into the literal. Workaround merges symbol("/") + literal["opt"] into
-///     literal["/opt"]. Not applied for POSIX "/" and "//" modifiers where C# and Lean agree.
 ///   - #263 (mount value trailing whitespace): mount.ToString() absorbs trailing whitespace
 ///     into the mount value string. Workaround trims and emits a separate whitespace token.
 ///   - #264 (trailing whitespace on instructions): C# preserves trailing whitespace as a
@@ -150,12 +146,9 @@ public static class TokenJsonSerializer
             return;
         }
 
-        if (token is VariableRefToken varRef)
+        if (token is VariableRefToken)
         {
-            // Workaround for #262: slash in variable default values.
-            // For ":-/opt" and ":+/opt" modifiers, C# emits symbol("/") as a separate sibling
-            // of the modifier value LiteralToken, but Lean merges it into the literal.
-            SerializeVariableRef(sb, varRef);
+            SerializeAggregate(sb, "variableRef", token);
             return;
         }
 
@@ -337,128 +330,6 @@ public static class TokenJsonSerializer
             SerializeToken(sb, child);
             first = false;
         }
-    }
-
-    // ===================================================================
-    // Workaround: #262 — slash in variable default values
-    // For ":-/opt" and ":+/opt" style modifiers, C# emits symbol("/") as a
-    // separate sibling of the modifier value LiteralToken, but Lean merges
-    // the "/" into the literal's content.
-    //
-    // C# structure: variableRef[{, "VAR", :, -, symbol("/"), literal["opt"], }]
-    // Lean structure: variableRef[{, "VAR", :, -, literal["/opt"], }]
-    //
-    // POSIX slash modifiers ("/", "//") do NOT need this workaround — for those,
-    // both C# and Lean emit the slash symbol(s) as separate modifier tokens:
-    //   /modifier:  C# = {, "VAR", symbol("/"), literal["value"], }
-    //               Lean = {, "VAR", symbol("/"), literal["value"], }
-    //   //modifier: C# = {, "VAR", symbol("/"), symbol("/"), literal["value"], }
-    //               Lean = {, "VAR", symbol("/"), symbol("/"), literal["value"], }
-    // ===================================================================
-
-    /// <summary>
-    /// Serialize a VariableRefToken, applying the #262 workaround for ":-/opt"-style defaults.
-    /// When the modifier is NOT a POSIX slash modifier ("/" or "//"), a symbol("/") that
-    /// immediately precedes the modifier value LiteralToken is merged into the literal,
-    /// matching Lean's output. For POSIX slash modifiers, the structure is emitted as-is
-    /// since C# and Lean already agree.
-    ///
-    /// C# raw:  variableRef[{, "VAR", :, -, symbol("/"), literal["opt"], }]
-    /// C# out:  variableRef[{, "VAR", :, -, literal["/opt"], }]
-    /// Lean:    variableRef[{, "VAR", :, -, literal["/opt"], }]
-    /// </summary>
-    private static void SerializeVariableRef(StringBuilder sb, VariableRefToken varRef)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"variableRef\",\"quoteChar\":null,\"children\":[");
-
-        List<Token> children = varRef.Tokens.ToList();
-        bool first = true;
-        LiteralToken? modifierValue = varRef.ModifierValueToken;
-
-        // For POSIX "/" and "//" modifiers, C# and Lean already agree — no transformation needed.
-        // Only apply the symbol("/") merge for other modifiers (e.g., ":-", ":+", "-", "+").
-        string? modifier = varRef.Modifier;
-        bool isPosixSlashModifier = modifier == "/" || modifier == "//";
-
-        for (int i = 0; i < children.Count; i++)
-        {
-            Token child = children[i];
-
-            // Workaround for #262: merge symbol("/") + modifierValue into literal["/..."]
-            // Only applies when the modifier is NOT "/" or "//" (i.e., the slash is not the
-            // modifier itself but a leading "/" in the default value like ":-/opt").
-            if (!isPosixSlashModifier
-                && child is SymbolToken slashSym && slashSym.Value == "/"
-                && modifierValue != null
-                && i + 1 < children.Count && children[i + 1] == modifierValue)
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                // Prepend "/" to the modifier value literal's first string token
-                SerializeModifierValueLiteralWithSlashPrefix(sb, modifierValue, "/");
-                i++; // skip the literal (consumed)
-                continue;
-            }
-
-            if (!first) sb.Append(',');
-            SerializeToken(sb, child);
-            first = false;
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Serialize a modifier value LiteralToken with a "/" prefix prepended to its content.
-    /// Merges: prefix="/" + literal[string("opt")] → literal[string("/opt")]
-    /// </summary>
-    private static void SerializeModifierValueLiteralWithSlashPrefix(
-        StringBuilder sb, LiteralToken literal, string prefix)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
-        if (literal.QuoteChar.HasValue)
-        {
-            sb.Append('"');
-            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
-            sb.Append('"');
-        }
-        else
-        {
-            sb.Append("null");
-        }
-        sb.Append(",\"children\":[");
-
-        List<Token> innerChildren = literal.Tokens.ToList();
-        bool prefixApplied = false;
-        bool first = true;
-
-        for (int j = 0; j < innerChildren.Count; j++)
-        {
-            Token innerChild = innerChildren[j];
-
-            // Apply prefix to the first string token
-            if (!prefixApplied && innerChild is StringToken firstStr)
-            {
-                if (!first) sb.Append(',');
-                SerializePrimitive(sb, "string", prefix + firstStr.Value);
-                first = false;
-                prefixApplied = true;
-                continue;
-            }
-
-            if (!first) sb.Append(',');
-            SerializeToken(sb, innerChild);
-            first = false;
-        }
-
-        // If prefix was never applied (empty literal), emit prefix as its own string
-        if (!prefixApplied)
-        {
-            if (!first) sb.Append(',');
-            SerializePrimitive(sb, "string", prefix);
-        }
-
-        sb.Append("]}");
     }
 
     // ===================================================================

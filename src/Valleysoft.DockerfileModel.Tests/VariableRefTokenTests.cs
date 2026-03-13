@@ -292,6 +292,66 @@ public class VariableRefTokenTests
                     Assert.Equal("//", result.Modifier);
                     Assert.Equal("old/new", result.ModifierValue);
                 }
+            },
+            // Default value with leading slash — slash must not be split into a separate symbol token
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${BASE:-/opt}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "BASE"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateLiteral(token, "/opt"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("BASE", result.VariableName);
+                    Assert.Equal(":-", result.Modifier);
+                    Assert.Equal("/opt", result.ModifierValue);
+                }
+            },
+            // Default value with longer path — entire path stays as one literal
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${BASE:-/usr/local}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "BASE"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateLiteral(token, "/usr/local"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("BASE", result.VariableName);
+                    Assert.Equal(":-", result.Modifier);
+                    Assert.Equal("/usr/local", result.ModifierValue);
+                }
+            },
+            // Alternate-value modifier with leading slash
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${APP:+/run}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "APP"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '+'),
+                    token => ValidateLiteral(token, "/run"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("APP", result.VariableName);
+                    Assert.Equal(":+", result.Modifier);
+                    Assert.Equal("/run", result.ModifierValue);
+                }
             }
         };
 
