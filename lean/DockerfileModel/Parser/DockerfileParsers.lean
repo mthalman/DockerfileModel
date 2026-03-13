@@ -508,8 +508,7 @@ def argTokens (tokenParser : Parser (List Token)) (escapeChar : Char)
           (do
             let tw ← whitespace
             let lc ← lineContinuations escapeChar
-            if lc.isEmpty then Parser.fail "expected line continuation"
-            else Parser.pure (concatTokens [tw, lc]))
+            Parser.pure (concatTokens [tw, lc]))
           (do
             let ws ← whitespaceWithoutNewLine
             let nl ← newLine
@@ -542,13 +541,79 @@ def instructionNameWithTrailingContent (instructionName : String) (escapeChar : 
   let commentSets ← many commentText
   Parser.pure (concatTokens [leading, kwTokens, lc.getD [], commentSets.flatten])
 
+/-- Recursively find the last StringToken inside the given token and append the
+    whitespace string to its value. Returns the modified token on success, or none
+    if no StringToken could be found (e.g. for KeywordToken nodes whose text must
+    not be modified).
+    Corresponds to ParseHelper.TryAbsorbWhitespaceIntoLastStringToken() -/
+private def absorbWsIntoLastStringToken (tok : Token) (ws : String) : Option Token :=
+  match tok with
+  | .primitive .string val => some (.primitive .string (val ++ ws))
+  | .primitive .. => none
+  | .aggregate .keyword _ _ => none  -- keyword text must not accumulate trailing spaces
+  | .aggregate kind children qi =>
+    -- Scan children in reverse to reach the last content child first
+    let rec tryChildren (remaining : List Token) : Option (List Token) :=
+      match remaining with
+      | [] => none
+      | t :: ts =>
+        match absorbWsIntoLastStringToken t ws with
+        | some t' => some (t' :: ts)
+        | none => match tryChildren ts with
+          | some ts' => some (t :: ts')
+          | none => none
+    -- Reverse children, try to absorb, reverse back
+    match tryChildren children.reverse with
+    | some revModified => some (.aggregate kind revModified.reverse qi)
+    | none => none
+
+/-- Scan the combined instruction token list and absorb any trailing whitespace
+    token (before an optional newline) into the preceding content token.
+    This eliminates standalone trailing-whitespace tokens at instruction level,
+    matching BuildKit behavior of trimming trailing whitespace while still
+    preserving round-trip fidelity via the content token string value.
+    Corresponds to ParseHelper.AbsorbTrailingWhitespace() -/
+def absorbTrailingWhitespace (tokens : List Token) : List Token :=
+  -- Find the last WhitespaceToken, scanning backward and skipping NewLineToken
+  -- and LineContinuationToken.
+  let rec findWsIndex (i : Nat) : Option Nat :=
+    if i = 0 then none
+    else
+      let idx := i - 1
+      match tokens.get? idx with
+      | none => none
+      | some t =>
+        match t with
+        | .primitive .newLine _ => findWsIndex idx
+        | .aggregate .lineContinuation _ _ => findWsIndex idx
+        | .primitive .whitespace _ => some idx
+        | _ => none  -- stop at first non-skip, non-whitespace token
+  match findWsIndex tokens.length with
+  | none => tokens  -- no trailing whitespace to absorb
+  | some wsIdx =>
+    if wsIdx = 0 then tokens  -- whitespace at index 0, no preceding token
+    else
+      let wsVal := match tokens.get? wsIdx with
+        | some (.primitive .whitespace v) => v
+        | _ => ""
+      match tokens.get? (wsIdx - 1) with
+      | none => tokens
+      | some preceding =>
+        match absorbWsIntoLastStringToken preceding wsVal with
+        | none => tokens  -- couldn't absorb (e.g. preceding is KeywordToken)
+        | some modified =>
+          -- Replace preceding token, remove trailing whitespace token
+          let before := tokens.take (wsIdx - 1)
+          let after := tokens.drop (wsIdx + 1)
+          before ++ [modified] ++ after
+
 /-- Parse a complete instruction: keyword + args.
     Corresponds to ParseHelper.Instruction() -/
 def instructionParser (instructionName : String) (escapeChar : Char)
     (argsParser : Parser (List Token)) : Parser (List Token) := do
   let nameTokens ← instructionNameWithTrailingContent instructionName escapeChar
   let argTokens ← argsParser
-  Parser.pure (concatTokens [nameTokens, argTokens])
+  Parser.pure (absorbTrailingWhitespace (concatTokens [nameTokens, argTokens]))
 
 -- ============================================================
 -- Generic key-value flag parser (--name=value)
