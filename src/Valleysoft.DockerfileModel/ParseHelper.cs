@@ -336,17 +336,21 @@ internal static class ParseHelper
         if (token is KeywordToken)
             return false;
 
+        // VariableRefToken carries the variable name in its StringToken children.
+        // Absorbing whitespace into the variable name would corrupt VariableName and
+        // break ResolveVariables() lookups.
+        if (token is VariableRefToken)
+            return false;
+
         if (token is AggregateToken agg)
         {
-            // Scan the children in reverse order so we reach the last content child first.
+            // Only recurse into the LAST child.  Do not scan backwards through all children:
+            // if the value ends with a VariableRefToken, scanning backwards would skip it and
+            // absorb into a key or identifier token instead.
             List<Token> inner = agg.TokenList;
-            for (int i = inner.Count - 1; i >= 0; i--)
-            {
-                if (TryAbsorbWhitespaceIntoLastStringToken(inner[i], whitespace))
-                    return true;
-            }
-
-            return false;
+            if (inner.Count == 0)
+                return false;
+            return TryAbsorbWhitespaceIntoLastStringToken(inner[^1], whitespace);
         }
 
         if (token is StringToken st)

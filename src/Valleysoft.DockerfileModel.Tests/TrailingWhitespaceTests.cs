@@ -253,6 +253,43 @@ public class TrailingWhitespaceTests
     }
 
     // -----------------------------------------------------------------------
+    // VariableRefToken — trailing whitespace must not corrupt the variable name
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void Env_TrailingWhitespace_VariableRef_RoundTrip()
+    {
+        EnvInstruction instr = EnvInstruction.Parse("ENV FOO=$BAR ");
+        Assert.Equal("ENV FOO=$BAR ", instr.ToString());
+    }
+
+    [Fact]
+    public void Env_TrailingWhitespace_VariableRef_VariableNameNotCorrupted()
+    {
+        EnvInstruction instr = EnvInstruction.Parse("ENV FOO=$BAR ");
+        VariableRefToken? varRef = FindFirstVariableRefToken(instr.Tokens);
+        Assert.NotNull(varRef);
+        Assert.Equal("BAR", varRef.VariableName);
+    }
+
+    [Fact]
+    public void From_TrailingWhitespace_VariableRef_RoundTrip()
+    {
+        // FROM with a variable as image name (e.g. FROM $BASE_IMAGE )
+        FromInstruction instr = FromInstruction.Parse("FROM $BASE ");
+        Assert.Equal("FROM $BASE ", instr.ToString());
+    }
+
+    [Fact]
+    public void From_TrailingWhitespace_VariableRef_VariableNameNotCorrupted()
+    {
+        FromInstruction instr = FromInstruction.Parse("FROM $BASE ");
+        VariableRefToken? varRef = FindFirstVariableRefToken(instr.Tokens);
+        Assert.NotNull(varRef);
+        Assert.Equal("BASE", varRef.VariableName);
+    }
+
+    // -----------------------------------------------------------------------
     // Dockerfile-embedded parse (multi-line context)
     // -----------------------------------------------------------------------
 
@@ -277,6 +314,26 @@ public class TrailingWhitespaceTests
     // -----------------------------------------------------------------------
     // Helper
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Recursively searches a token sequence (including children of AggregateTokens) and
+    /// returns the first VariableRefToken found, or null if none is present.
+    /// </summary>
+    private static VariableRefToken? FindFirstVariableRefToken(IEnumerable<Token> tokens)
+    {
+        foreach (Token token in tokens)
+        {
+            if (token is VariableRefToken vr)
+                return vr;
+            if (token is AggregateToken agg)
+            {
+                VariableRefToken? found = FindFirstVariableRefToken(agg.Tokens);
+                if (found is not null)
+                    return found;
+            }
+        }
+        return null;
+    }
 
     /// <summary>
     /// Asserts that the instruction's final meaningful token is not a standalone
