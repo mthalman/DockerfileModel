@@ -68,10 +68,12 @@ private def copyFlagParser (escapeChar : Char) : Parser (List Token) :=
 /-- Parse space-separated file arguments (source(s) + destination).
     Each literal token is separated by whitespace. The last token is the
     destination; all preceding are sources.
-    Falls back from exec form to this space-separated form. -/
+    Falls back from exec form to this space-separated form.
+    Uses WhitespaceMode.AllowedInQuotes so that quoted paths like "my file.txt"
+    are parsed as a single literal token with quoteChar set, matching C# behavior. -/
 private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List Token) := do
   -- Parse at least one literal argument
-  let first ← literalWithVariables escapeChar
+  let first ← literalWithVariables escapeChar (whitespaceMode := .allowedInQuotes)
   -- Parse additional space-separated arguments
   let rest ← many (do
     let ws ← whitespace
@@ -81,7 +83,7 @@ private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List To
                      else do
                        let w ← whitespace
                        Parser.pure w
-    let arg ← literalWithVariables escapeChar
+    let arg ← literalWithVariables escapeChar (whitespaceMode := .allowedInQuotes)
     Parser.pure (concatTokens [ws, lc, wsAfterLc, [arg]]))
   Parser.pure (concatTokens [[first], rest.flatten])
 

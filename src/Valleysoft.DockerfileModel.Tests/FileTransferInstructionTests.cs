@@ -80,6 +80,54 @@ public abstract class FileTransferInstructionTests<TInstruction>
     }
 
     [Fact]
+    public void QuotedPathsWithSpaces_DoubleQuote()
+    {
+        TInstruction instruction = this.parse($"{instructionName} \"my file.txt\" /app/", Dockerfile.DefaultEscapeChar);
+        Assert.Equal($"{instructionName} \"my file.txt\" /app/", instruction.ToString());
+        Assert.Equal(new string[] { "my file.txt" }, instruction.Sources.ToArray());
+        Assert.Equal("/app/", instruction.Destination);
+
+        LiteralToken sourceToken = instruction.SourceTokens.Single();
+        Assert.Equal(ParseHelper.DoubleQuote, sourceToken.QuoteChar);
+        Assert.Equal("my file.txt", sourceToken.Value);
+    }
+
+    [Fact]
+    public void QuotedPathsWithSpaces_SingleQuote()
+    {
+        TInstruction instruction = this.parse($"{instructionName} 'my file.txt' /app/", Dockerfile.DefaultEscapeChar);
+        Assert.Equal($"{instructionName} 'my file.txt' /app/", instruction.ToString());
+        Assert.Equal(new string[] { "my file.txt" }, instruction.Sources.ToArray());
+        Assert.Equal("/app/", instruction.Destination);
+
+        LiteralToken sourceToken = instruction.SourceTokens.Single();
+        Assert.Equal('\'', sourceToken.QuoteChar);
+        Assert.Equal("my file.txt", sourceToken.Value);
+    }
+
+    [Fact]
+    public void QuotedPathsWithSpaces_QuotedDestination()
+    {
+        TInstruction instruction = this.parse($"{instructionName} src \"/my dst/\"", Dockerfile.DefaultEscapeChar);
+        Assert.Equal($"{instructionName} src \"/my dst/\"", instruction.ToString());
+        Assert.Equal(new string[] { "src" }, instruction.Sources.ToArray());
+        Assert.Equal("/my dst/", instruction.Destination);
+
+        LiteralToken destToken = instruction.DestinationToken!;
+        Assert.Equal(ParseHelper.DoubleQuote, destToken.QuoteChar);
+        Assert.Equal("/my dst/", destToken.Value);
+    }
+
+    [Fact]
+    public void QuotedPathsWithSpaces_BothQuoted()
+    {
+        TInstruction instruction = this.parse($"{instructionName} \"my file.txt\" \"/my dst/\"", Dockerfile.DefaultEscapeChar);
+        Assert.Equal($"{instructionName} \"my file.txt\" \"/my dst/\"", instruction.ToString());
+        Assert.Equal(new string[] { "my file.txt" }, instruction.Sources.ToArray());
+        Assert.Equal("/my dst/", instruction.Destination);
+    }
+
+    [Fact]
     public void ChangeOwner()
     {
         void Validate(TInstruction instruction, string owner)
@@ -510,6 +558,82 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Empty(result.Comments);
                     Assert.Equal(instructionName, result.InstructionName);
                     Assert.Equal(new string[] { "source 1.txt", "path/to/source 2.txt" }, result.Sources.ToArray());
+                    Assert.Equal("/my dst/", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} \"my file.txt\" /app/",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "my file.txt", ParseHelper.DoubleQuote),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "my file.txt" }, result.Sources.ToArray());
+                    Assert.Equal("/app/", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} 'my file.txt' /app/",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "my file.txt", '\''),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "my file.txt" }, result.Sources.ToArray());
+                    Assert.Equal("/app/", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} src \"/my dst/\"",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/my dst/", ParseHelper.DoubleQuote)
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("/my dst/", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} \"my file.txt\" \"/my dst/\"",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "my file.txt", ParseHelper.DoubleQuote),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/my dst/", ParseHelper.DoubleQuote)
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "my file.txt" }, result.Sources.ToArray());
                     Assert.Equal("/my dst/", result.Destination);
                 }
             }

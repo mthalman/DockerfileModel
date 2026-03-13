@@ -69,9 +69,11 @@ private def addFlagParser (escapeChar : Char) : Parser (List Token) :=
 -- ============================================================
 
 /-- Parse space-separated file arguments (source(s) + destination).
-    Each literal token is separated by whitespace. -/
+    Each literal token is separated by whitespace.
+    Uses WhitespaceMode.AllowedInQuotes so that quoted paths like "my file.txt"
+    are parsed as a single literal token with quoteChar set, matching C# behavior. -/
 private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List Token) := do
-  let first ← literalWithVariables escapeChar
+  let first ← literalWithVariables escapeChar (whitespaceMode := .allowedInQuotes)
   let rest ← many (do
     let ws ← whitespace
     if ws.isEmpty then Parser.fail "expected whitespace between file args"
@@ -80,7 +82,7 @@ private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List To
                      else do
                        let w ← whitespace
                        Parser.pure w
-    let arg ← literalWithVariables escapeChar
+    let arg ← literalWithVariables escapeChar (whitespaceMode := .allowedInQuotes)
     Parser.pure (concatTokens [ws, lc, wsAfterLc, [arg]]))
   Parser.pure (concatTokens [[first], rest.flatten])
 

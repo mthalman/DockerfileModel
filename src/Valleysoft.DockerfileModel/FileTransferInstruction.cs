@@ -194,7 +194,7 @@ public abstract class FileTransferInstruction : Instruction
         from files in HeredocTokenParser(escapeChar)
             .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar))
             .Or(from literals in ArgTokens(
-                    LiteralWithVariables(escapeChar).AsEnumerable(),
+                    LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
                     escapeChar).Many()
                 select literals.Flatten())
         select ConcatTokens(flags, whitespace, files);
