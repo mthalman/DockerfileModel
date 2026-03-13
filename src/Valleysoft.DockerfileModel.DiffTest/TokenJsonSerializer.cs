@@ -1106,6 +1106,9 @@ public static class TokenJsonSerializer
     /// Serialize a MountFlag, flattening its Mount value to an opaque LiteralToken.
     /// C# structure: keyValue [ --, --, keyword("mount"), =, Mount [ keyValue(type=...), comma, keyValue(id=...), ... ] ]
     /// Lean structure: keyValue [ --, --, keyword("mount"), =, literal("type=secret,id=mysecret,...") ]
+    /// The parser (excludeTrailingWhitespace: true) ensures the mount value never includes
+    /// trailing whitespace; any trailing whitespace appears as a separate WhitespaceToken at
+    /// the instruction level.
     /// </summary>
     private static void SerializeMountFlag(StringBuilder sb, MountFlag mountFlag)
     {
