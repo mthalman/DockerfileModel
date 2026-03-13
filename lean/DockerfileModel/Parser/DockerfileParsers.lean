@@ -546,7 +546,7 @@ def instructionNameWithTrailingContent (instructionName : String) (escapeChar : 
     if no StringToken could be found (e.g. for KeywordToken nodes whose text must
     not be modified).
     Corresponds to ParseHelper.TryAbsorbWhitespaceIntoLastStringToken() -/
-private def absorbWsIntoLastStringToken : Token → String → Option Token
+private partial def absorbWsIntoLastStringToken : Token → String → Option Token
   | .primitive .string val, ws => some (.primitive .string (val ++ ws))
   | .primitive .., _ => none
   | .aggregate .keyword _ _, _ => none  -- keyword text must not accumulate trailing spaces
@@ -594,16 +594,16 @@ private def splitTrailingWs (tokens : List Token)
 def absorbTrailingWhitespace (tokens : List Token) : List Token :=
   match splitTrailingWs tokens with
   | none => tokens  -- no trailing whitespace to absorb
-  | some (prefix, wsVal, suffix) =>
-    -- prefix is the token list before the trailing WhitespaceToken (in order)
-    -- We need to absorb wsVal into the last token of prefix
-    match prefix.getLast? with
+  | some (front, wsVal, suffix) =>
+    -- front is the token list before the trailing WhitespaceToken (in order)
+    -- We need to absorb wsVal into the last token of front
+    match front.getLast? with
     | none => tokens  -- no preceding token (whitespace was at index 0)
     | some preceding =>
       match absorbWsIntoLastStringToken preceding wsVal with
       | none => tokens  -- couldn't absorb (e.g. preceding ends with VariableRefToken)
       | some modified =>
-        prefix.dropLast ++ [modified] ++ suffix
+        front.dropLast ++ [modified] ++ suffix
 
 /-- Parse a complete instruction: keyword + args.
     Corresponds to ParseHelper.Instruction() -/
