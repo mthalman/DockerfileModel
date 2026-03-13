@@ -546,26 +546,44 @@ def instructionNameWithTrailingContent (instructionName : String) (escapeChar : 
     if no StringToken could be found (e.g. for KeywordToken nodes whose text must
     not be modified).
     Corresponds to ParseHelper.TryAbsorbWhitespaceIntoLastStringToken() -/
-private def absorbWsIntoLastStringToken (tok : Token) (ws : String) : Option Token :=
-  match tok with
-  | .primitive .string val => some (.primitive .string (val ++ ws))
-  | .primitive .. => none
-  | .aggregate .keyword _ _ => none  -- keyword text must not accumulate trailing spaces
-  | .aggregate kind children qi =>
-    -- Scan children in reverse to reach the last content child first
-    let rec tryChildren (remaining : List Token) : Option (List Token) :=
-      match remaining with
-      | [] => none
-      | t :: ts =>
-        match absorbWsIntoLastStringToken t ws with
-        | some t' => some (t' :: ts)
-        | none => match tryChildren ts with
-          | some ts' => some (t :: ts')
-          | none => none
-    -- Reverse children, try to absorb, reverse back
-    match tryChildren children.reverse with
-    | some revModified => some (.aggregate kind revModified.reverse qi)
+private def absorbWsIntoLastStringToken : Token → String → Option Token
+  | .primitive .string val, ws => some (.primitive .string (val ++ ws))
+  | .primitive .., _ => none
+  | .aggregate .keyword _ _, _ => none  -- keyword text must not accumulate trailing spaces
+  | .aggregate .variableRef _ _, _ => none  -- variable name must not be corrupted with trailing spaces
+  | .aggregate kind children qi, ws =>
+    -- Only recurse into the LAST child.  If it cannot absorb, we give up
+    -- (no fallback to earlier children) to prevent absorbing into keys/identifiers
+    -- when the value ends with a VariableRefToken.
+    match children.getLast? with
     | none => none
+    | some lastChild =>
+      match absorbWsIntoLastStringToken lastChild ws with
+      | none => none
+      | some modified =>
+        some (.aggregate kind (children.dropLast ++ [modified]) qi)
+
+/-- Scan a token list from right-to-left skipping NewLineToken/LineContinuationToken,
+    and return the (prefix-list, whitespace-value, suffix-list) split when the
+    rightmost non-skip token is a WhitespaceToken; otherwise returns none.
+    Avoids index-based access by working directly with list structure. -/
+private def splitTrailingWs (tokens : List Token)
+    : Option (List Token × String × List Token) :=
+  -- Separate any trailing skip tokens (newLines, lineContinuations) from the rest
+  let rec splitSkip (rev : List Token) (skip : List Token) : List Token × List Token :=
+    match rev with
+    | [] => ([], skip)
+    | t :: ts =>
+      match t with
+      | .primitive .newLine _ => splitSkip ts (t :: skip)
+      | .aggregate .lineContinuation _ _ => splitSkip ts (t :: skip)
+      | _ => (t :: ts, skip)
+  let (revFront, trailingSkip) := splitSkip tokens.reverse []
+  -- Now revFront is reversed, so the first element is the rightmost non-skip token
+  match revFront with
+  | .primitive .whitespace v :: revRest =>
+    some (revRest.reverse, v, trailingSkip)
+  | _ => none
 
 /-- Scan the combined instruction token list and absorb any trailing whitespace
     token (before an optional newline) into the preceding content token.
@@ -574,38 +592,18 @@ private def absorbWsIntoLastStringToken (tok : Token) (ws : String) : Option Tok
     preserving round-trip fidelity via the content token string value.
     Corresponds to ParseHelper.AbsorbTrailingWhitespace() -/
 def absorbTrailingWhitespace (tokens : List Token) : List Token :=
-  -- Find the last WhitespaceToken, scanning backward and skipping NewLineToken
-  -- and LineContinuationToken.
-  let rec findWsIndex (i : Nat) : Option Nat :=
-    if i = 0 then none
-    else
-      let idx := i - 1
-      match tokens.get? idx with
-      | none => none
-      | some t =>
-        match t with
-        | .primitive .newLine _ => findWsIndex idx
-        | .aggregate .lineContinuation _ _ => findWsIndex idx
-        | .primitive .whitespace _ => some idx
-        | _ => none  -- stop at first non-skip, non-whitespace token
-  match findWsIndex tokens.length with
+  match splitTrailingWs tokens with
   | none => tokens  -- no trailing whitespace to absorb
-  | some wsIdx =>
-    if wsIdx = 0 then tokens  -- whitespace at index 0, no preceding token
-    else
-      let wsVal := match tokens.get? wsIdx with
-        | some (.primitive .whitespace v) => v
-        | _ => ""
-      match tokens.get? (wsIdx - 1) with
-      | none => tokens
-      | some preceding =>
-        match absorbWsIntoLastStringToken preceding wsVal with
-        | none => tokens  -- couldn't absorb (e.g. preceding is KeywordToken)
-        | some modified =>
-          -- Replace preceding token, remove trailing whitespace token
-          let before := tokens.take (wsIdx - 1)
-          let after := tokens.drop (wsIdx + 1)
-          before ++ [modified] ++ after
+  | some (prefix, wsVal, suffix) =>
+    -- prefix is the token list before the trailing WhitespaceToken (in order)
+    -- We need to absorb wsVal into the last token of prefix
+    match prefix.getLast? with
+    | none => tokens  -- no preceding token (whitespace was at index 0)
+    | some preceding =>
+      match absorbWsIntoLastStringToken preceding wsVal with
+      | none => tokens  -- couldn't absorb (e.g. preceding ends with VariableRefToken)
+      | some modified =>
+        prefix.dropLast ++ [modified] ++ suffix
 
 /-- Parse a complete instruction: keyword + args.
     Corresponds to ParseHelper.Instruction() -/
