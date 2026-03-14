@@ -465,6 +465,33 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
         Assert.Equal("755", instruction.Permissions);
     }
 
+    [Fact]
+    public void ChownFlag_LineContinuationInValue()
+    {
+        // ADD --chown=\<newline>root src /app/ — line continuation inside the chown flag value
+        string text = "ADD --chown=\\\nroot src /app/";
+        AddInstruction instruction = AddInstruction.Parse(text);
+
+        // The instruction should parse without error and extract the correct owner value
+        Assert.Equal("root", instruction.ChangeOwner);
+
+        // The --chown flag should be a structured ChangeOwnerFlag (keyValue token), not a literal fallback
+        ChangeOwnerFlag chownFlag = instruction.Tokens.OfType<ChangeOwnerFlag>().Single();
+        Assert.IsType<ChangeOwnerFlag>(chownFlag);
+
+        // The ChangeOwnerFlag contains the line continuation inside it
+        Assert.Collection(chownFlag.Tokens,
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "chown"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLineContinuation(token, '\\', "\n"),
+            token => ValidateLiteral(token, "root"));
+
+        // Round-trip fidelity
+        Assert.Equal(text, instruction.ToString());
+    }
+
     public static IEnumerable<object[]> ParseTestInputBase() => ParseTestInput("ADD");
 
     public static IEnumerable<object[]> CreateTestInputBase() => CreateTestInput("ADD");

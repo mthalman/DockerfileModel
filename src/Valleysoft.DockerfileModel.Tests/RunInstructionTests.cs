@@ -129,6 +129,55 @@ public class RunInstructionTests
             () => instruction.SecurityToken!, token => instruction.SecurityToken = token, val => instruction.Security = val, "var", canContainVariables: true);
     }
 
+    [Fact]
+    public void NetworkFlag_LineContinuationInValue()
+    {
+        // RUN --network=\<newline>host echo hello — line continuation inside the network flag value
+        string text = "RUN --network=\\\nhost echo hello";
+        RunInstruction instruction = RunInstruction.Parse(text);
+
+        // The instruction should parse without error and extract the correct network value
+        Assert.Equal("host", instruction.Network);
+        Assert.NotNull(instruction.NetworkToken);
+        Assert.Equal("host", instruction.NetworkToken!.Value);
+
+        // The --network flag should be a structured NetworkFlag (keyValue token), not a literal fallback
+        NetworkFlag networkFlag = instruction.Tokens.OfType<NetworkFlag>().Single();
+        Assert.IsType<NetworkFlag>(networkFlag);
+
+        // The NetworkFlag contains the line continuation inside it
+        Assert.Collection(networkFlag.Tokens,
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "network"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLineContinuation(token, '\\', "\n"),
+            token => ValidateLiteral(token, "host"));
+
+        // Round-trip fidelity
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void MountFlag_LineContinuationInValue()
+    {
+        // RUN --mount=type=cache\<newline> echo hello — line continuation after the mount value
+        // The line continuation appears at the end of the flag value, before the next arg
+        string text = "RUN --mount=type=cache\\\n echo hello";
+        RunInstruction instruction = RunInstruction.Parse(text);
+
+        // The instruction should parse without error
+        Assert.Single(instruction.Mounts);
+        Assert.Equal("cache", instruction.Mounts.First().Type);
+
+        // The --mount flag should be a structured MountFlag (keyValue token), not a literal fallback
+        MountFlag mountFlag = instruction.Tokens.OfType<MountFlag>().Single();
+        Assert.IsType<MountFlag>(mountFlag);
+
+        // Round-trip fidelity
+        Assert.Equal(text, instruction.ToString());
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<RunInstruction>[] testInputs = new ParseTestScenario<RunInstruction>[]

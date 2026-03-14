@@ -40,9 +40,8 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     instruction whitespace as a standalone WhitespaceToken sibling at instruction level.
 ///     (The Lean argTokens fix removed the guard that prevented capturing trailing whitespace
 ///     without a line continuation; C# already emitted it the same way.)
-///   - #266 (flag line continuation): COPY/ADD/RUN keyValue flags with LineContinuation tokens
-///     inside their value differ structurally. Workaround flattens the entire keyValue into an
-///     opaque literal matching Lean's flat representation.
+///   - #266 (flag line continuation): FIXED. Lean now parses line continuations inside
+///     flag values as structured keyValue tokens, matching C#'s behavior.
 /// </summary>
 public static class TokenJsonSerializer
 {
@@ -148,17 +147,7 @@ public static class TokenJsonSerializer
 
         if (token is LiteralToken literal)
         {
-            // Workaround for #266: raw symbol("\\") + newLine pairs in literals should be
-            // wrapped in lineContinuation aggregates to match Lean's structure.
-            bool hasRawLineContinuations = HasRawLineContinuationPair(literal.Tokens);
-            if (hasRawLineContinuations)
-            {
-                SerializeLiteralNormalized(sb, literal);
-            }
-            else
-            {
-                SerializeAggregate(sb, "literal", literal);
-            }
+            SerializeAggregate(sb, "literal", literal);
             return;
         }
 
@@ -304,96 +293,6 @@ public static class TokenJsonSerializer
         }
 
         SerializeAggregate(sb, "literal", literal);
-    }
-
-    /// <summary>
-    /// Returns true if a token list contains a raw "symbol('\\') + NewLineToken" pair
-    /// that should be wrapped in a lineContinuation aggregate (workaround for #266).
-    /// </summary>
-    private static bool HasRawLineContinuationPair(IEnumerable<Token> tokens)
-    {
-        Token? prev = null;
-        foreach (Token t in tokens)
-        {
-            if (prev is SymbolToken sym && (sym.Value == "\\" || sym.Value == "`")
-                && t is NewLineToken)
-            {
-                return true;
-            }
-            prev = t;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Serialize a LiteralToken with normalization for known C# vs Lean differences:
-    ///   - #266: wrap raw symbol("\\") + NewLineToken pairs into lineContinuation aggregates
-    /// </summary>
-    private static void SerializeLiteralNormalized(
-        StringBuilder sb, LiteralToken literal)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":");
-        if (literal.QuoteChar.HasValue)
-        {
-            sb.Append('"');
-            JsonEscapeString(sb, literal.QuoteChar.Value.ToString());
-            sb.Append('"');
-        }
-        else
-        {
-            sb.Append("null");
-        }
-        sb.Append(",\"children\":[");
-
-        List<Token> tokens = literal.Tokens.ToList();
-
-        // Always wrap raw symbol("\\") + NewLineToken pairs into lineContinuation aggregates
-        tokens = WrapRawLineContinuations(tokens);
-
-        bool first = true;
-        foreach (Token t in tokens)
-        {
-            if (!first) sb.Append(',');
-            SerializeToken(sb, t);
-            first = false;
-        }
-
-        sb.Append("]}");
-    }
-
-    /// <summary>
-    /// Wrap raw symbol("\\") + NewLineToken pairs into lineContinuation aggregates.
-    /// C# may emit backslash+newline as separate tokens inside a literal; Lean always
-    /// wraps them as lineContinuation[symbol("\\"), newLine(...)].
-    ///
-    /// Returns a new list where each matched pair is replaced by a
-    /// RawLineContinuationMarker sentinel, which SerializeToken handles specially.
-    /// </summary>
-    private static List<Token> WrapRawLineContinuations(List<Token> tokens)
-    {
-        var result = new List<Token>();
-
-        for (int i = 0; i < tokens.Count; i++)
-        {
-            Token token = tokens[i];
-
-            if (token is SymbolToken sym && (sym.Value == "\\" || sym.Value == "`")
-                && i + 1 < tokens.Count && tokens[i + 1] is NewLineToken newLine)
-            {
-                // Build a synthetic LineContinuationToken containing the symbol + newLine.
-                // The escape char is the first character of sym.Value.
-                char escapeChar = sym.Value[0];
-                var lc = LineContinuationToken.Parse(sym.Value + newLine.Value, escapeChar);
-                result.Add(lc);
-                i++; // skip the newLine token
-            }
-            else
-            {
-                result.Add(token);
-            }
-        }
-
-        return result;
     }
 
     // ===================================================================
@@ -817,18 +716,6 @@ public static class TokenJsonSerializer
         {
             Token child = tokens[i];
 
-            // Workaround for #266: keyValue flag that contains a LineContinuationToken
-            // inside its value. C# parses the flag into a structured keyValue with a
-            // lineContinuation child; Lean treats the entire flag as an opaque literal.
-            // Flatten the keyValue into a literal[string("--key="), lineContinuation[...], string("value")].
-            if (child is AggregateToken && IsKeyValueToken(child) && FlagKeyValueHasLineContinuation((AggregateToken)child))
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeFlagKeyValueAsLiteral(sb, (AggregateToken)child);
-                continue;
-            }
-
             // Workaround #238/#239/#240/#241: LiteralToken whose value starts with "--" is
             // an unrecognized flag. Emit as keyValue[-, -, keyword["name"], optionally =, literal["value"]].
             if (child is LiteralToken flagLit && IsUnrecognizedFlagLiteral(flagLit, out string? flagName, out string? flagValue))
@@ -866,27 +753,9 @@ public static class TokenJsonSerializer
     /// Parses the flag name and optional value from the literal text.
     /// For example: "--parents" → flagName="parents", flagValue=null
     ///              "--exclude=*.txt" → flagName="exclude", flagValue="*.txt"
-    ///
-    /// Returns false if the literal contains non-string tokens (symbols, newlines) that
-    /// represent line continuations — those are the #266 case and should not be converted
-    /// to keyValue structures.
     /// </summary>
     private static bool IsUnrecognizedFlagLiteral(LiteralToken literal, out string? flagName, out string? flagValue)
     {
-        // Workaround for #266: literals that contain non-string tokens (symbol+newLine pairs
-        // representing line continuations) should NOT be converted to keyValue — they represent
-        // flags with line continuations that C# failed to parse as structured flags.
-        // Only convert if all tokens are StringTokens.
-        foreach (Token child in literal.Tokens)
-        {
-            if (child is not StringToken)
-            {
-                flagName = null;
-                flagValue = null;
-                return false;
-            }
-        }
-
         string text = GetLiteralText(literal);
         if (text.StartsWith("--") && text.Length > 2)
         {
@@ -946,102 +815,6 @@ public static class TokenJsonSerializer
     }
 
     // ===================================================================
-    // Workaround: #266 — flag keyValue with LineContinuation in value
-    // COPY/ADD/RUN flags like --from=\<newline>builder produce a structured
-    // keyValue with a LineContinuationToken inside the value. Lean does not
-    // parse this as a structured keyValue at all — it treats the whole flag
-    // as an opaque literal. Flatten to: literal[string("--key="), LC[...], string("val")].
-    // ===================================================================
-
-    /// <summary>
-    /// Returns true if an AggregateToken representing a keyValue flag contains
-    /// a LineContinuationToken anywhere inside its value subtree.
-    /// </summary>
-    private static bool FlagKeyValueHasLineContinuation(AggregateToken keyValue)
-    {
-        foreach (Token child in keyValue.Tokens)
-        {
-            if (child is LineContinuationToken)
-                return true;
-            // Also check inside the value aggregate (the flag value is often a LiteralToken)
-            if (child is AggregateToken agg)
-            {
-                foreach (Token grandchild in agg.Tokens)
-                {
-                    if (grandchild is LineContinuationToken)
-                        return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Flatten a flag keyValue that contains LineContinuation tokens into an
-    /// opaque literal matching Lean's representation.
-    ///
-    /// C# structure (example):  keyValue[--, --, keyword("from"), =, literal(lineCont, string("builder"))]
-    /// Lean structure:          literal[string("--from="), lineContinuation[...], string("builder")]
-    ///
-    /// The flatten strategy: collect the raw string of the key (without the leading "--")
-    /// then emit: literal[string("--key="), then all value subtokens inline].
-    /// </summary>
-    private static void SerializeFlagKeyValueAsLiteral(StringBuilder sb, AggregateToken keyValue)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-
-        // Reconstruct the "--flagname=" prefix from the keyValue tokens.
-        // The key tokens are: symbol[-], symbol[-], keyword[string["name"]]
-        // Find the keyword name.
-        string flagName = "";
-        bool seenEquals = false;
-        var valueTokens = new List<Token>();
-
-        foreach (Token child in keyValue.Tokens)
-        {
-            if (child is KeywordToken kw)
-            {
-                // Concatenate keyword string tokens
-                foreach (Token kwChild in kw.Tokens)
-                {
-                    if (kwChild is StringToken s)
-                        flagName += s.Value;
-                }
-            }
-            else if (child is SymbolToken sym && sym.Value == "=")
-            {
-                seenEquals = true;
-            }
-            else if (seenEquals)
-            {
-                // Everything after the "=" is the value subtree
-                if (child is AggregateToken valAgg)
-                {
-                    // Inline children of the value aggregate (usually a LiteralToken)
-                    foreach (Token valChild in valAgg.Tokens)
-                        valueTokens.Add(valChild);
-                }
-                else
-                {
-                    valueTokens.Add(child);
-                }
-            }
-        }
-
-        // Emit: string("--flagname=")
-        SerializePrimitive(sb, "string", "--" + flagName + "=");
-
-        // Emit the value tokens (may include LineContinuationTokens and StringTokens)
-        foreach (Token vt in valueTokens)
-        {
-            sb.Append(',');
-            SerializeToken(sb, vt);
-        }
-
-        sb.Append("]}");
-    }
-
-    // ===================================================================
     // Workaround: RUN instruction — mount value flattening (see issue #200)
     // C# over-parses mount flag values into structured KeyValueToken children
     // (type=secret, id=x, etc.), but Lean (and BuildKit) treat the mount
@@ -1073,14 +846,6 @@ public static class TokenJsonSerializer
                     sb.Append(',');
                     SerializePrimitive(sb, "whitespace", trailingWs);
                 }
-            }
-            // Workaround for #266: other keyValue flags (--network, --security) that
-            // contain a LineContinuationToken in their value subtree.
-            else if (child is AggregateToken && IsKeyValueToken(child) && FlagKeyValueHasLineContinuation((AggregateToken)child))
-            {
-                if (!first) sb.Append(',');
-                first = false;
-                SerializeFlagKeyValueAsLiteral(sb, (AggregateToken)child);
             }
             // ShellFormCommand is a transparent wrapper — inline its children
             else if (child is Command cmd)

@@ -571,7 +571,9 @@ def flagParser (name : String) (escapeChar : Char) : Parser Token := do
   let dash2 ← char '-'
   let kw ← keywordParser name escapeChar
   let eq ← char '='
-  -- Try value immediately after '='; if that fails, consume whitespace then value
+  -- Consume any line continuations immediately after '='
+  let lcsAfterEq ← lineContinuations escapeChar
+  -- Try value immediately after '=' (or after line continuations); if that fails, consume whitespace then value
   let result : List Token × Token ← or'
     (do let v ← literalWithVariables escapeChar
         let empty : List Token := []
@@ -585,7 +587,7 @@ def flagParser (name : String) (escapeChar : Char) : Parser Token := do
     [Token.mkSymbol dash1,
      Token.mkSymbol dash2,
      kw,
-     Token.mkSymbol eq] ++ wsTokens ++ [value]
+     Token.mkSymbol eq] ++ lcsAfterEq ++ wsTokens ++ [value]
   ))
 
 /-- Parse a --name=value flag where the value is a plain literal (no variable reference parsing).
@@ -597,7 +599,9 @@ def flagParserNoVars (name : String) (escapeChar : Char) : Parser Token := do
   let dash2 ← char '-'
   let kw ← keywordParser name escapeChar
   let eq ← char '='
-  -- Try value immediately after '='; if that fails, consume whitespace then value
+  -- Consume any line continuations immediately after '='
+  let lcsAfterEq ← lineContinuations escapeChar
+  -- Try value immediately after '=' (or after line continuations); if that fails, consume whitespace then value
   let result : List Token × Token ← or'
     (do let parts ← literalString escapeChar [] (excludeVariableRefChars := false)
         let empty : List Token := []
@@ -611,7 +615,7 @@ def flagParserNoVars (name : String) (escapeChar : Char) : Parser Token := do
     [Token.mkSymbol dash1,
      Token.mkSymbol dash2,
      kw,
-     Token.mkSymbol eq] ++ wsTokens ++ [value]
+     Token.mkSymbol eq] ++ lcsAfterEq ++ wsTokens ++ [value]
   ))
 
 /-- Parse a key-value flag that requires the value immediately after `=` (no
@@ -625,14 +629,15 @@ def flagParserStrict (name : String) (escapeChar : Char) : Parser Token := do
   let dash2 ← char '-'
   let kw ← keywordParser name escapeChar
   let eq ← char '='
+  -- Consume any line continuations immediately after '='
+  let lcsAfterEq ← lineContinuations escapeChar
   let value ← literalWithVariables escapeChar
-  Parser.pure (Token.mkKeyValue [
-    Token.mkSymbol dash1,
-    Token.mkSymbol dash2,
-    kw,
-    Token.mkSymbol eq,
-    value
-  ])
+  Parser.pure (Token.mkKeyValue (
+    [Token.mkSymbol dash1,
+     Token.mkSymbol dash2,
+     kw,
+     Token.mkSymbol eq] ++ lcsAfterEq ++ [value]
+  ))
 
 -- ============================================================
 -- Platform flag parser (--platform=value)

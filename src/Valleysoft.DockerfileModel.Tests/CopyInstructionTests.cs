@@ -352,6 +352,62 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
             instruction.ToString());
     }
 
+    [Fact]
+    public void FromFlag_LineContinuationInValue()
+    {
+        // COPY --from=\<newline>builder src /app/ — line continuation inside the flag value
+        string text = "COPY --from=\\\nbuilder src /app/";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        // The --from flag should be parsed as a FromFlag (structured keyValue), not a literal fallback
+        FromFlag fromFlag = instruction.Tokens.OfType<FromFlag>().Single();
+        Assert.IsType<FromFlag>(fromFlag);
+
+        // The flag value should be correctly extracted across the continuation
+        Assert.Equal("builder", instruction.FromStageName);
+        Assert.NotNull(instruction.FromStageNameToken);
+        Assert.Equal("builder", instruction.FromStageNameToken!.Value);
+
+        // The FromFlag token contains the line continuation inside it
+        Assert.Collection(fromFlag.Tokens,
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "from"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLineContinuation(token, '\\', "\n"),
+            token => ValidateLiteral(token, "builder"));
+
+        // Round-trip fidelity
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void ChmodFlag_LineContinuationInValue()
+    {
+        // COPY --chmod=\<newline>755 src /app/ — line continuation inside the chmod flag value
+        string text = "COPY --chmod=\\\n755 src /app/";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        // The instruction should parse without error and extract the correct permission value
+        Assert.Equal("755", instruction.Permissions);
+
+        // The --chmod flag should be a structured ChangeModeFlag (keyValue token), not a literal fallback
+        ChangeModeFlag chmodFlag = instruction.Tokens.OfType<ChangeModeFlag>().Single();
+        Assert.IsType<ChangeModeFlag>(chmodFlag);
+
+        // The ChangeModeFlag contains the line continuation inside it
+        Assert.Collection(chmodFlag.Tokens,
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "chmod"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLineContinuation(token, '\\', "\n"),
+            token => ValidateLiteral(token, "755"));
+
+        // Round-trip fidelity
+        Assert.Equal(text, instruction.ToString());
+    }
+
     public static IEnumerable<object[]> ParseTestInputBase() => ParseTestInput("COPY");
 
     public static IEnumerable<object[]> CreateTestInputBase() => CreateTestInput("COPY");
