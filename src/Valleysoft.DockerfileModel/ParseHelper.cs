@@ -205,18 +205,30 @@ internal static class ParseHelper
                     select ConcatTokens(leadingWhitespace, token);
             }
 
-            return WithTrailingComments(
+            return
                 from tokens in primaryParser
                 from trailingWhitespace in
-                    (from trailingWhitespace in Whitespace()
-                        from lineContinuation in LineContinuations(escapeChar)
-                        select ConcatTokens(trailingWhitespace, lineContinuation)).Or(
-                        from whitespace in WhitespaceWithoutNewLine()
-                        from newLine in NewLine()
-                        select ConcatTokens(whitespace, newLine)).Optional()
-                select ConcatTokens(
-                    tokens,
-                    trailingWhitespace.GetOrDefault()));
+                    // After at least one line continuation, comments (# ...) at the start of the
+                    // next line are recognized as Dockerfile comments. This matches BuildKit, which
+                    // only treats # as a comment delimiter at the beginning of a line — including
+                    // continuation lines within a multi-line instruction. Inline # (not preceded
+                    // by a newline) is NOT a comment and is treated as regular argument text.
+                    (from whitespaceBeforeContinuation in Whitespace()
+                        from firstContinuation in LineContinuationToken.GetParser(escapeChar)
+                        from moreContinuations in LineContinuations(escapeChar)
+                        from trailingComments in CommentText().Many()
+                        select ConcatTokens(
+                            whitespaceBeforeContinuation,
+                            new Token[] { firstContinuation },
+                            moreContinuations,
+                            trailingComments.SelectMany(c => c))).Or(
+                    // Fallback: whitespace and zero-or-more line continuations with no comments.
+                    // LineContinuations uses .Many() so it succeeds with zero matches,
+                    // making this branch always succeed and subsume any plain-newline case.
+                        from trailingWhitespaceOnly in Whitespace()
+                        from lineContinuations in LineContinuations(escapeChar)
+                        select ConcatTokens(trailingWhitespaceOnly, lineContinuations))
+                select ConcatTokens(tokens, trailingWhitespace);
         }
     }
 
@@ -974,20 +986,22 @@ internal static class ParseHelper
     /// <param name="instructionName">Name of the instruction.</param>
     /// <param name="escapeChar">Escape character.</param>
     private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
-        WithTrailingComments(
-            from leading in Whitespace()
-            from instruction in TokenWithTrailingWhitespace(KeywordToken.GetParser(instructionName, escapeChar))
-            from lineContinuation in LineContinuations(escapeChar).Optional()
-            select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault()));
+        // Comments (# ...) are only recognized after a mandatory line continuation,
+        // never directly after the instruction keyword. This prevents "RUN #arg" from
+        // incorrectly treating "#arg" as a comment.
+        from leading in Whitespace()
+        from instruction in TokenWithTrailingWhitespace(KeywordToken.GetParser(instructionName, escapeChar))
+        from lineContinuationAndComments in (
+            from firstContinuation in LineContinuationToken.GetParser(escapeChar)
+            from moreContinuations in LineContinuations(escapeChar)
+            from trailingComments in CommentText().Many()
+            select ConcatTokens(
+                new Token[] { firstContinuation },
+                moreContinuations,
+                trailingComments.SelectMany(c => c))
+        ).Optional()
+        select ConcatTokens(leading, instruction, lineContinuationAndComments.GetOrDefault());
 
-    /// <summary>
-    /// Parses a set of tokens and any trailing comments.
-    /// </summary>
-    /// <param name="parser">Set of token parsers.</param>
-    private static Parser<IEnumerable<Token>> WithTrailingComments(Parser<IEnumerable<Token>> parser) =>
-        from tokens in parser
-        from commentSets in CommentText().Many()
-        select ConcatTokens(tokens, commentSets.SelectMany(comments => comments));
 
     /// <summary>
     /// Delegate for creating a parser of a token that is wrapped by a set of characters.

@@ -384,6 +384,60 @@ public class LabelInstructionTests
                     });
                 }
             },
+            // Hash (#) in unquoted LABEL values is NOT a comment delimiter — it is regular text.
+            new ParseTestScenario<LabelInstruction>
+            {
+                Text = "LABEL key=#value",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "LABEL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "key=#value",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "key"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "#value"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("LABEL", result.InstructionName);
+                    Assert.Collection(result.Labels, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("key", pair.Key);
+                            Assert.Equal("#value", pair.Value);
+                        }
+                    });
+                }
+            },
+            // Hash in a CSS hex color code LABEL value.
+            new ParseTestScenario<LabelInstruction>
+            {
+                Text = "LABEL color=#FF0000",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "LABEL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "color=#FF0000",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "color"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "#FF0000"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("LABEL", result.InstructionName);
+                    Assert.Collection(result.Labels, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("color", pair.Key);
+                            Assert.Equal("#FF0000", pair.Value);
+                        }
+                    });
+                }
+            },
             new ParseTestScenario<LabelInstruction>
             {
                 Text = "LABEL $var=1",
