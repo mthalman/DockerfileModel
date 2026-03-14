@@ -176,6 +176,69 @@ public class VariableRefTokenTests
                     Assert.Equal("test", result.ModifierValue);
                 }
             },
+            // :? modifier with spaces in message
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${IMAGE:?must set image}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "IMAGE"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '?'),
+                    token => ValidateLiteral(token, "must set image"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("IMAGE", result.VariableName);
+                    Assert.Equal(":?", result.Modifier);
+                    Assert.Equal("must set image", result.ModifierValue);
+                    Assert.Equal("${IMAGE:?must set image}", result.ToString());
+                }
+            },
+            // :- modifier with spaces in default value
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo:-default value}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateLiteral(token, "default value"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal(":-", result.Modifier);
+                    Assert.Equal("default value", result.ModifierValue);
+                    Assert.Equal("${foo:-default value}", result.ToString());
+                }
+            },
+            // :+ modifier with spaces in alternate value
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo:+alt value}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '+'),
+                    token => ValidateLiteral(token, "alt value"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal(":+", result.Modifier);
+                    Assert.Equal("alt value", result.ModifierValue);
+                    Assert.Equal("${foo:+alt value}", result.ToString());
+                }
+            },
             // POSIX prefix removal: # (shortest)
             new ParseTestScenario<VariableRefToken>
             {

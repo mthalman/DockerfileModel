@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel.Tokens;
@@ -214,19 +214,28 @@ public class VariableRefToken : AggregateToken
     }
 
     public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar, DefaultValueParser())), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     /// <summary>
     /// Parses a variable reference.
     /// </summary>
-    /// <typeparam name="TPrimitiveToken">Type of the token for the variable.</typeparam>
     /// <param name="escapeChar">Escape character.</param>
-    /// <param name="createModifierValueTokenParser">Delegate to create tokens nested within a modifier value.</param>
     /// <returns>Parsed variable reference token.</returns>
+    public static Parser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        from tokens in GetInnerParser(escapeChar)
+        select new VariableRefToken(tokens, escapeChar);
+
+    /// <summary>
+    /// Parses a variable reference.
+    /// </summary>
+    /// <param name="createModifierValueTokenParser">Ignored. Modifier values are always parsed with
+    /// <see cref="ModifierValueParser"/> to allow horizontal whitespace.</param>
+    /// <param name="escapeChar">Escape character.</param>
+    /// <returns>Parsed variable reference token.</returns>
+    [Obsolete("The createModifierValueTokenParser parameter is no longer used. Use GetParser(char) instead.")]
     public static Parser<VariableRefToken> GetParser(
         CreateTokenParserDelegate createModifierValueTokenParser, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        from tokens in GetInnerParser(escapeChar, createModifierValueTokenParser)
-        select new VariableRefToken(tokens, escapeChar);
+        GetParser(escapeChar);
 
     private static IEnumerable<Token> GetTokens(string variableName, string modifier, string modifierValue, char escapeChar)
     {
@@ -235,9 +244,9 @@ public class VariableRefToken : AggregateToken
         Requires.NotNullOrEmpty(modifierValue, nameof(modifierValue));
         ValidateModifier(modifier);
 
-        return GetTokens($"${{{variableName}{modifier}{modifierValue}}}", GetInnerParser(escapeChar, DefaultValueParser()));
+        return GetTokens($"${{{variableName}{modifier}{modifierValue}}}", GetInnerParser(escapeChar));
     }
-        
+
     private static IEnumerable<Token> GetTokens(string variableName, bool includeBraces, char escapeChar)
     {
         Requires.NotNullOrEmpty(variableName, nameof(variableName));
@@ -253,7 +262,7 @@ public class VariableRefToken : AggregateToken
             builder.Append('}');
         }
 
-        return GetTokens(builder.ToString(), GetInnerParser(escapeChar, DefaultValueParser()));
+        return GetTokens(builder.ToString(), GetInnerParser(escapeChar));
     }
 
     private static void ValidateModifier(string? modifier)
@@ -265,19 +274,10 @@ public class VariableRefToken : AggregateToken
         }
     }
 
-    private static CreateTokenParserDelegate DefaultValueParser() =>
-        (char escapeChar, IEnumerable<char> excludedChars) => LiteralString(escapeChar, excludedChars);
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+        SimpleVariableReference()
+            .Or(BracedVariableReference(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(
-        char escapeChar,
-        CreateTokenParserDelegate createModifierValueTokenParser)
-    {
-        Requires.NotNull(createModifierValueTokenParser, nameof(createModifierValueTokenParser));
-
-        return SimpleVariableReference()
-            .Or(BracedVariableReference(escapeChar, createModifierValueTokenParser));
-    }
-            
 
     /// <summary>
     /// Parses a variable reference using the simple variable syntax.
@@ -290,12 +290,14 @@ public class VariableRefToken : AggregateToken
 
     /// <summary>
     /// Parses a variable reference using the braced variable syntax.
+    /// Modifier values (the portion after the modifier symbol, e.g., "must set" in
+    /// "${VAR:?must set}") are always parsed with <see cref="ModifierValueParser"/>,
+    /// which allows horizontal whitespace within the braces.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
-    /// <param name="createModifierValueToken">Delegate to create a non-quoted token.</param>
     /// <returns>Parsed variable reference token.</returns>
     private static Parser<IEnumerable<Token>> BracedVariableReference(
-        char escapeChar, CreateTokenParserDelegate createModifierValueToken) =>
+        char escapeChar) =>
         from variableChar in Sprache.Parse.Char('$')
         from opening in Symbol('{').AsEnumerable()
         from varNameToken in
@@ -303,7 +305,7 @@ public class VariableRefToken : AggregateToken
             select new StringToken(varName)
         from modifierTokens in (
             from modifier in variableSubstitutionModifiers.Aggregate((current, next) => current.Or(next)).Once()
-            from modifierValueTokens in ValueOrVariableRef(escapeChar, createModifierValueToken, new char[] { '}' })
+            from modifierValueTokens in ValueOrVariableRef(escapeChar, ModifierValueParser(), new char[] { '}' })
                 .AtLeastOnce()
                 .Flatten()
                 .Where(tokens => tokens.Any())
@@ -313,4 +315,12 @@ public class VariableRefToken : AggregateToken
             ).Optional()
         from closing in Symbol('}').AsEnumerable()
         select ConcatTokens(opening, new Token[] { varNameToken }, modifierTokens.GetOrDefault(), closing);
+
+    /// <summary>
+    /// Creates a parser delegate for modifier values inside braces. Modifier values may
+    /// contain whitespace (e.g., "${VAR:?must set}" or "${IMAGE:?must set}"), so this
+    /// parser allows spaces in the message portion and reads until the closing brace.
+    /// </summary>
+    private static CreateTokenParserDelegate ModifierValueParser() =>
+        (char escapeChar, IEnumerable<char> excludedChars) => LiteralStringAllowingSpaces(escapeChar, excludedChars);
 }

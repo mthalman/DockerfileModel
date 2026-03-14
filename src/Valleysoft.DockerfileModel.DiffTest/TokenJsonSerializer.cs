@@ -34,8 +34,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     them as opaque literal file-path tokens. Lean recognizes them and emits keyValue tokens.
 ///     Workaround converts literal["--flagname[=value]"] → keyValue[-, -, keyword["flagname"],
 ///     optionally =, literal["value"]] when the literal starts with "--".
-///   - #259 (COPY/ADD empty exec-form arrays): C# produces a literal with value "[]" instead
-///     of two symbol tokens. Workaround splits literal["[]"] into symbol["["] + symbol["]"].
 ///   - #263 (mount value trailing whitespace): mount.ToString() absorbs trailing whitespace
 ///     into the mount value string. Workaround trims and emits a separate whitespace token.
 ///   - #264 (trailing whitespace on instructions): FIXED. Both C# and Lean now emit trailing
@@ -839,32 +837,6 @@ public static class TokenJsonSerializer
                 first = false;
                 SerializeUnrecognizedFlagAsKeyValue(sb, flagName!, flagValue);
                 continue;
-            }
-
-            // Workaround for #259: COPY/ADD [] produces a LiteralToken with string value "[]".
-            // Lean emits two symbol tokens: symbol["["] + symbol["]"].
-            if (child is LiteralToken emptyArrayLit && GetLiteralText(emptyArrayLit) == "[]")
-            {
-                if (!first) sb.Append(',');
-                SerializePrimitive(sb, "symbol", "[");
-                sb.Append(',');
-                SerializePrimitive(sb, "symbol", "]");
-                first = false;
-                continue;
-            }
-
-            // Workaround for #259: COPY/ADD [ ] (with whitespace) — C# produces
-            // literal["["] and literal["]"] as separate tokens. Lean emits them as symbols.
-            if (child is LiteralToken bracketLit)
-            {
-                string bracketText = GetLiteralText(bracketLit);
-                if (bracketText == "[" || bracketText == "]")
-                {
-                    if (!first) sb.Append(',');
-                    SerializePrimitive(sb, "symbol", bracketText);
-                    first = false;
-                    continue;
-                }
             }
 
             if (!first) sb.Append(',');

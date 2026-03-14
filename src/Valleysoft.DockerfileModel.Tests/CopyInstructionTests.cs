@@ -849,6 +849,45 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
                     Assert.Equal("*.txt", result.Excludes[0]);
                 }
             },
+            // Empty exec-form array []
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("COPY", result.InstructionName);
+                    Assert.Empty(result.Sources);
+                    Assert.Equal("COPY []", result.ToString());
+                }
+            },
+            // Empty exec-form array with whitespace [ ]
+            new ParseTestScenario<CopyInstruction>
+            {
+                Text = "COPY [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "COPY"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("COPY", result.InstructionName);
+                    Assert.Empty(result.Sources);
+                    Assert.Equal("COPY [ ]", result.ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });

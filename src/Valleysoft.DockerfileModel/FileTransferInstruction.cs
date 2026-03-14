@@ -192,7 +192,7 @@ public abstract class FileTransferInstruction : Instruction
             select flag.GetOrDefault(), escapeChar).Many().Flatten()
         from whitespace in Whitespace()
         from files in HeredocTokenParser(escapeChar)
-            .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar))
+            .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar))
             .Or(from literals in ArgTokens(
                     LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
                     escapeChar).Many()

@@ -1108,6 +1108,45 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
                     Assert.Equal("755", result.Permissions);
                 }
             },
+            // Empty exec-form array []
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ADD", result.InstructionName);
+                    Assert.Empty(result.Sources);
+                    Assert.Equal("ADD []", result.ToString());
+                }
+            },
+            // Empty exec-form array with whitespace [ ]
+            new ParseTestScenario<AddInstruction>
+            {
+                Text = "ADD [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ADD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ADD", result.InstructionName);
+                    Assert.Empty(result.Sources);
+                    Assert.Equal("ADD [ ]", result.ToString());
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
