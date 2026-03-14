@@ -38,8 +38,10 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     of two symbol tokens. Workaround splits literal["[]"] into symbol["["] + symbol["]"].
 ///   - #263 (mount value trailing whitespace): mount.ToString() absorbs trailing whitespace
 ///     into the mount value string. Workaround trims and emits a separate whitespace token.
-///   - #264 (trailing whitespace on instructions): C# preserves trailing whitespace as a
-///     token; Lean trims it. Workaround removes the last child if it is a whitespace token.
+///   - #264 (trailing whitespace on instructions): FIXED. Both C# and Lean now emit trailing
+///     instruction whitespace as a standalone WhitespaceToken sibling at instruction level.
+///     (The Lean argTokens fix removed the guard that prevented capturing trailing whitespace
+///     without a line continuation; C# already emitted it the same way.)
 ///   - #265 (hash as comment in shell-form and LABEL values): C# parses # mid-text as a
 ///     comment aggregate inside a literal; Lean treats it as plain text. Workaround merges
 ///     the comment children back into the preceding string token.
@@ -127,10 +129,7 @@ public static class TokenJsonSerializer
 
         if (token is Instruction)
         {
-            // Workaround for #264: trailing whitespace on instructions.
-            // C# preserves a trailing WhitespaceToken; Lean trims it.
-            // Applies to all instructions not handled by a dedicated serializer above.
-            SerializeInstructionWithTrailingWsTrimmed(sb, (Instruction)token);
+            SerializeAggregate(sb, "instruction", token);
             return;
         }
 
@@ -272,36 +271,6 @@ public static class TokenJsonSerializer
         AggregateToken aggregate = (AggregateToken)token;
         bool first = true;
         foreach (Token child in aggregate.Tokens)
-        {
-            EmitChild(sb, child, ref first);
-        }
-
-        sb.Append("]}");
-    }
-
-    // ===================================================================
-    // Workaround: trailing whitespace on instructions (#264)
-    // C# preserves a trailing WhitespaceToken (including tabs/spaces) at
-    // the end of an instruction's token list. Lean trims trailing whitespace.
-    // For all instructions not handled by a dedicated serializer, we strip
-    // the last child if it is a (non-newline) whitespace token.
-    // ===================================================================
-
-    private static void SerializeInstructionWithTrailingWsTrimmed(StringBuilder sb, Instruction instruction)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
-
-        List<Token> tokens = instruction.Tokens.ToList();
-        // Workaround for #264: remove trailing whitespace token(s)
-        while (tokens.Count > 0
-               && tokens[tokens.Count - 1] is WhitespaceToken tw
-               && tw is not NewLineToken)
-        {
-            tokens.RemoveAt(tokens.Count - 1);
-        }
-
-        bool first = true;
-        foreach (Token child in tokens)
         {
             EmitChild(sb, child, ref first);
         }
@@ -685,15 +654,6 @@ public static class TokenJsonSerializer
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
 
         List<Token> tokens = instruction.Tokens.ToList();
-
-        // Workaround for #264: remove trailing whitespace token(s)
-        while (tokens.Count > 0
-               && tokens[tokens.Count - 1] is WhitespaceToken tw
-               && tw is not NewLineToken)
-        {
-            tokens.RemoveAt(tokens.Count - 1);
-        }
-
         bool first = true;
         foreach (Token child in tokens)
         {
@@ -1098,15 +1058,6 @@ public static class TokenJsonSerializer
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
 
         List<Token> tokens = instruction.Tokens.ToList();
-
-        // Workaround for #264: remove trailing whitespace token(s)
-        while (tokens.Count > 0
-               && tokens[tokens.Count - 1] is WhitespaceToken tw
-               && tw is not NewLineToken)
-        {
-            tokens.RemoveAt(tokens.Count - 1);
-        }
-
         bool first = true;
 
         for (int i = 0; i < tokens.Count; i++)
@@ -1377,15 +1328,6 @@ public static class TokenJsonSerializer
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
 
         List<Token> tokens = instruction.Tokens.ToList();
-
-        // Workaround for #264: remove trailing whitespace token(s)
-        while (tokens.Count > 0
-               && tokens[tokens.Count - 1] is WhitespaceToken tw
-               && tw is not NewLineToken)
-        {
-            tokens.RemoveAt(tokens.Count - 1);
-        }
-
         bool first = true;
         foreach (Token child in tokens)
         {

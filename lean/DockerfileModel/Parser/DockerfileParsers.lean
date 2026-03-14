@@ -508,8 +508,7 @@ def argTokens (tokenParser : Parser (List Token)) (escapeChar : Char)
           (do
             let tw ← whitespace
             let lc ← lineContinuations escapeChar
-            if lc.isEmpty then Parser.fail "expected line continuation"
-            else Parser.pure (concatTokens [tw, lc]))
+            Parser.pure (concatTokens [tw, lc]))
           (do
             let ws ← whitespaceWithoutNewLine
             let nl ← newLine
