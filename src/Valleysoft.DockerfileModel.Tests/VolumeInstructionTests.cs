@@ -154,6 +154,41 @@ public class VolumeInstructionTests
             },
             new ParseTestScenario<VolumeInstruction>
             {
+                Text = "VOLUME []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "VOLUME"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("VOLUME", result.InstructionName);
+                    Assert.Empty(result.Paths);
+                }
+            },
+            new ParseTestScenario<VolumeInstruction>
+            {
+                Text = "VOLUME [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "VOLUME"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("VOLUME", result.InstructionName);
+                    Assert.Empty(result.Paths);
+                }
+            },
+            new ParseTestScenario<VolumeInstruction>
+            {
                 Text = "VOLUME $TEST",
                 TokenValidators = new Action<Token>[]
                 {

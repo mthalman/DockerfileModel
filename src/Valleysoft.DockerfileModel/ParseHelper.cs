@@ -371,8 +371,8 @@ internal static class ParseHelper
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether variables are allowed to be contained in the strings.</param>
     /// <param name="allowEmpty">When true, allows parsing an empty array (e.g. [] or [ ]). Defaults to false.
-    /// Only exec-form command parsers should pass true; file transfer instructions (COPY/ADD) should
-    /// reject empty arrays to avoid runtime errors when accessing destination tokens.</param>
+    /// VOLUME, COPY, ADD, and exec-form command parsers all pass true to match BuildKit behavior,
+    /// which accepts empty JSON arrays as a no-op.</param>
     public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false) =>
         from openingBracket in Symbol('[').AsEnumerable()
         // Consume optional whitespace after '[' at the array level (not inside
@@ -514,7 +514,7 @@ internal static class ParseHelper
     /// <returns>A token parser.</returns>
     public static Parser<IEnumerable<Token>> ValueOrVariableRef(char escapeChar, CreateTokenParserDelegate createParser,
         IEnumerable<char> excludedChars) =>
-        VariableRefToken.GetParser(createParser, escapeChar).AsEnumerable()
+        VariableRefToken.GetParser(escapeChar).AsEnumerable()
             .Or(createParser(escapeChar, excludedChars));
 
     /// <summary>
@@ -816,20 +816,18 @@ internal static class ParseHelper
     }
 
     /// <summary>
-    /// Parses a literal string that allows horizontal whitespace (spaces and tabs) but not newlines,
+    /// Parses a literal string that allows any non-newline characters (including spaces and tabs),
     /// stopping only at excluded characters.
     /// Used for variable modifier values inside braces (e.g., "must set" in ${VAR:?must set}).
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="excludedChars">Characters to exclude from the parsing.</param>
     /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
-    /// <returns>Parser for a literal string that allows horizontal whitespace.</returns>
+    /// <returns>Parser for a literal string that allows any non-newline characters.</returns>
     internal static Parser<IEnumerable<Token>> LiteralStringAllowingSpaces(char escapeChar, IEnumerable<char> excludedChars,
         bool excludeVariableRefChars = true)
     {
-        // Allow any character that is not a newline, not an excluded char, not the escape char,
-        // and (when excludeVariableRefChars is true) not a variable reference start sequence.
-        // This permits spaces and tabs in modifier values like "must set" in ${VAR:?must set}.
+        // Allow any non-newline character except excluded chars and the escape char itself.
         Parser<char> parser = Parse.AnyChar
             .Except(Parse.LineTerminator)
             .ExceptChars(excludedChars)
@@ -840,10 +838,16 @@ internal static class ParseHelper
             parser = parser.Except(VariableRefChars());
         }
 
+        // Mirror LiteralStringWithoutSpaces: use StringTokenCharWithOptionalLineContinuation
+        // for subsequent characters so that escaped characters and line continuations are
+        // handled consistently throughout the entire value, not just at the first character.
+        Parser<IEnumerable<Token>> charParser =
+            StringTokenCharWithOptionalLineContinuation(escapeChar, parser)
+                .Or(EscapedChar(escapeChar));
+
         return
             from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
-            from rest in ToStringTokens(parser)
-                .Or(EscapedChar(escapeChar))
+            from rest in charParser
                 .Many()
                 .Flatten()
             select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
