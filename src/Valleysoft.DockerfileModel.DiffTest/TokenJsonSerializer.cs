@@ -34,8 +34,6 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     them as opaque literal file-path tokens. Lean recognizes them and emits keyValue tokens.
 ///     Workaround converts literal["--flagname[=value]"] → keyValue[-, -, keyword["flagname"],
 ///     optionally =, literal["value"]] when the literal starts with "--".
-///   - #263 (mount value trailing whitespace): mount.ToString() absorbs trailing whitespace
-///     into the mount value string. Workaround trims and emits a separate whitespace token.
 ///   - #264 (trailing whitespace on instructions): FIXED. Both C# and Lean now emit trailing
 ///     instruction whitespace as a standalone WhitespaceToken sibling at instruction level.
 ///     (The Lean argTokens fix removed the guard that prevented capturing trailing whitespace
@@ -838,14 +836,7 @@ public static class TokenJsonSerializer
             {
                 if (!first) sb.Append(',');
                 first = false;
-                // Workaround for #263: SerializeMountFlag returns absorbed trailing whitespace.
-                // Emit the whitespace at instruction level (after the keyValue).
-                string trailingWs = SerializeMountFlag(sb, mountFlag);
-                if (trailingWs.Length > 0)
-                {
-                    sb.Append(',');
-                    SerializePrimitive(sb, "whitespace", trailingWs);
-                }
+                SerializeMountFlag(sb, mountFlag);
             }
             // ShellFormCommand is a transparent wrapper — inline its children
             else if (child is Command cmd)
@@ -880,36 +871,25 @@ public static class TokenJsonSerializer
     /// Serialize a MountFlag, flattening its Mount value to an opaque LiteralToken.
     /// C# structure: keyValue [ --, --, keyword("mount"), =, Mount [ keyValue(type=...), comma, keyValue(id=...), ... ] ]
     /// Lean structure: keyValue [ --, --, keyword("mount"), =, literal("type=secret,id=mysecret,...") ]
+    /// The parser (excludeTrailingWhitespace: true) ensures the mount value never includes
+    /// trailing whitespace. Any whitespace that follows the mount flag at instruction level
+    /// (e.g., the space between "--mount=type=ssh" and the command) is a separate WhitespaceToken
+    /// and is serialized normally by the caller.
     /// </summary>
-    /// <summary>
-    /// Serialize a MountFlag, flattening its Mount value to an opaque LiteralToken.
-    /// Returns any trailing whitespace that was absorbed into the mount string —
-    /// the caller must emit this whitespace at the instruction level (outside the keyValue).
-    /// </summary>
-    private static string SerializeMountFlag(StringBuilder sb, MountFlag mountFlag)
+    private static void SerializeMountFlag(StringBuilder sb, MountFlag mountFlag)
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
 
         bool first = true;
-        string absorbedTrailingWs = "";
 
         foreach (Token child in mountFlag.Tokens)
         {
             if (child is Mount mount)
             {
-                // Workaround for #263: mount.ToString() absorbs trailing whitespace into the
-                // mount value string (C# includes the trailing space; Lean does not).
-                // Trim the trailing whitespace from the mount text; return it to caller.
                 if (!first) sb.Append(',');
                 first = false;
-                string mountText = mount.ToString();
-                string trimmedMount = mountText.TrimEnd(' ', '\t');
-                absorbedTrailingWs = mountText.Length > trimmedMount.Length
-                    ? mountText.Substring(trimmedMount.Length)
-                    : "";
-
                 sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-                SerializePrimitive(sb, "string", trimmedMount);
+                SerializePrimitive(sb, "string", mount.ToString());
                 sb.Append("]}");
             }
             else
@@ -921,7 +901,6 @@ public static class TokenJsonSerializer
         }
 
         sb.Append("]}");
-        return absorbedTrailingWs;
     }
 
     /// <summary>

@@ -599,6 +599,62 @@ public class RunInstructionTests
                     Assert.Equal("bind", result.Mounts.First().Type);
                 }
             },
+            // Single-key mount: trailing whitespace must NOT be absorbed into the mount value.
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=ssh echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=ssh",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=ssh",
+                            token => ValidateKeyValue(token, "type", "ssh"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("ssh", result.Mounts.First().Type);
+                    Assert.Equal("type=ssh", result.Mounts.First().ToString());
+                    Assert.Equal("RUN --mount=type=ssh echo hello", result.ToString());
+                }
+            },
+            // Single-key mount: type=cache with no additional key-value pairs.
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=cache echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=cache",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=cache",
+                            token => ValidateKeyValue(token, "type", "cache"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("cache", result.Mounts.First().Type);
+                    Assert.Equal("type=cache", result.Mounts.First().ToString());
+                    Assert.Equal("RUN --mount=type=cache echo hello", result.ToString());
+                }
+            },
             // --mount with type=cache + --network flag
             new ParseTestScenario<RunInstruction>
             {

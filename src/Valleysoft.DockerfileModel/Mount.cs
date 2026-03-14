@@ -69,10 +69,16 @@ public class Mount : AggregateToken
         // appear on the next line after a line continuation (e.g., "type=bind,\\\n  readonly").
         // CommentText() handles comment lines that can appear after line continuations
         // (e.g., "type=bind,\\\n# comment\nreadonly").
+        //
+        // excludeTrailingWhitespace: true is required so that trailing whitespace after the
+        // last mount key-value pair is NOT absorbed into the mount token. BuildKit stops
+        // accumulating a flag word when it hits whitespace, so "type=ssh " has value "type=ssh"
+        // and the trailing space must remain a separate token at the instruction level.
         return
             from type in ArgTokens(
                 KeyValueToken<KeywordToken, LiteralToken>.GetParser(
-                    KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar)
+                    KeywordToken.GetParser("type", escapeChar), valueParser, escapeChar: escapeChar).AsEnumerable(), escapeChar,
+                excludeTrailingWhitespace: true)
             from rest in (
                 from lineCont1 in LineContinuations(escapeChar)
                 from comments1 in CommentText().Many()
