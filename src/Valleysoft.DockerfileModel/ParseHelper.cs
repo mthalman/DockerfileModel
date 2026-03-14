@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.RegularExpressions;
 using Valleysoft.DockerfileModel.Tokens;
 
@@ -280,6 +280,7 @@ internal static class ParseHelper
         from instructionNameTokens in InstructionNameWithTrailingContent(instructionName, escapeChar)
         from instructionArgs in instructionArgsParser
         select ConcatTokens(instructionNameTokens, instructionArgs);
+
 
     /// <summary>
     /// Parses a symbol.
@@ -809,6 +810,40 @@ internal static class ParseHelper
         return
             from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
             from rest in StringTokenCharWithOptionalLineContinuation(escapeChar, parser)
+                .Many()
+                .Flatten()
+            select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
+    }
+
+    /// <summary>
+    /// Parses a literal string that allows horizontal whitespace (spaces and tabs) but not newlines,
+    /// stopping only at excluded characters.
+    /// Used for variable modifier values inside braces (e.g., "must set" in ${VAR:?must set}).
+    /// </summary>
+    /// <param name="escapeChar">Escape character.</param>
+    /// <param name="excludedChars">Characters to exclude from the parsing.</param>
+    /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
+    /// <returns>Parser for a literal string that allows horizontal whitespace.</returns>
+    internal static Parser<IEnumerable<Token>> LiteralStringAllowingSpaces(char escapeChar, IEnumerable<char> excludedChars,
+        bool excludeVariableRefChars = true)
+    {
+        // Allow any character that is not a newline, not an excluded char, not the escape char,
+        // and (when excludeVariableRefChars is true) not a variable reference start sequence.
+        // This permits spaces and tabs in modifier values like "must set" in ${VAR:?must set}.
+        Parser<char> parser = Parse.AnyChar
+            .Except(Parse.LineTerminator)
+            .ExceptChars(excludedChars)
+            .Except(Parse.Char(escapeChar));
+
+        if (excludeVariableRefChars)
+        {
+            parser = parser.Except(VariableRefChars());
+        }
+
+        return
+            from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
+            from rest in ToStringTokens(parser)
+                .Or(EscapedChar(escapeChar))
                 .Many()
                 .Flatten()
             select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));

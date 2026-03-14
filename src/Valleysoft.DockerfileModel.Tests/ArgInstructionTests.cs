@@ -331,6 +331,60 @@ public class ArgInstructionTests
             {
                 Text = "ARG =",
                 ParseExceptionPosition = new Position(1, 1, 5)
+            },
+            // ARG with :? modifier containing spaces - should not truncate
+            new ParseTestScenario<ArgInstruction>
+            {
+                Text = "ARG MY_ARG=${VAR:?must set}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ARG"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ArgDeclaration>(token, "MY_ARG=${VAR:?must set}",
+                        token => ValidateIdentifier<Variable>(token, "MY_ARG"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "${VAR:?must set}", null,
+                            token => ValidateAggregate<VariableRefToken>(token, "${VAR:?must set}",
+                                token => ValidateSymbol(token, '{'),
+                                token => ValidateString(token, "VAR"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateSymbol(token, '?'),
+                                token => ValidateLiteral(token, "must set"),
+                                token => ValidateSymbol(token, '}'))))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_ARG", result.Args[0].Key);
+                    Assert.Equal("${VAR:?must set}", result.Args[0].Value);
+                    Assert.Equal("ARG MY_ARG=${VAR:?must set}", result.ToString());
+                }
+            },
+            // ARG with :- default containing spaces - round-trip fidelity
+            new ParseTestScenario<ArgInstruction>
+            {
+                Text = "ARG MY_ARG=${VAR:-some default}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ARG"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ArgDeclaration>(token, "MY_ARG=${VAR:-some default}",
+                        token => ValidateIdentifier<Variable>(token, "MY_ARG"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "${VAR:-some default}", null,
+                            token => ValidateAggregate<VariableRefToken>(token, "${VAR:-some default}",
+                                token => ValidateSymbol(token, '{'),
+                                token => ValidateString(token, "VAR"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateSymbol(token, '-'),
+                                token => ValidateLiteral(token, "some default"),
+                                token => ValidateSymbol(token, '}'))))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_ARG", result.Args[0].Key);
+                    Assert.Equal("${VAR:-some default}", result.Args[0].Value);
+                    Assert.Equal("ARG MY_ARG=${VAR:-some default}", result.ToString());
+                }
             }
         };
 

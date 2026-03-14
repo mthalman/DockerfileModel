@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel.Tokens;
@@ -303,7 +303,7 @@ public class VariableRefToken : AggregateToken
             select new StringToken(varName)
         from modifierTokens in (
             from modifier in variableSubstitutionModifiers.Aggregate((current, next) => current.Or(next)).Once()
-            from modifierValueTokens in ValueOrVariableRef(escapeChar, createModifierValueToken, new char[] { '}' })
+            from modifierValueTokens in ValueOrVariableRef(escapeChar, ModifierValueParser(), new char[] { '}' })
                 .AtLeastOnce()
                 .Flatten()
                 .Where(tokens => tokens.Any())
@@ -313,4 +313,12 @@ public class VariableRefToken : AggregateToken
             ).Optional()
         from closing in Symbol('}').AsEnumerable()
         select ConcatTokens(opening, new Token[] { varNameToken }, modifierTokens.GetOrDefault(), closing);
+
+    /// <summary>
+    /// Creates a parser delegate for modifier values inside braces. Modifier values may
+    /// contain whitespace (e.g., "${VAR:?must set}"), so this parser allows spaces and
+    /// reads until the closing brace.
+    /// </summary>
+    private static CreateTokenParserDelegate ModifierValueParser() =>
+        (char escapeChar, IEnumerable<char> excludedChars) => LiteralStringAllowingSpaces(escapeChar, excludedChars);
 }
