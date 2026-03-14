@@ -129,6 +129,51 @@ public class ShellFormCommandTests
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateString(token, "h`\"o `test\""))
                 }
+            },
+            // Hash (#) in shell-form arguments is NOT a comment delimiter — it is regular text.
+            new ParseTestScenario<ShellFormCommand>
+            {
+                Text = "echo #not-a-comment",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateLiteral(token, "echo #not-a-comment")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ShellForm, result.CommandType);
+                    Assert.Equal("echo #not-a-comment", result.ToString());
+                    Assert.Equal("echo #not-a-comment", result.Value);
+                }
+            },
+            // Hash at the start of a shell-form argument is also regular text.
+            new ParseTestScenario<ShellFormCommand>
+            {
+                Text = "#FF0000",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateLiteral(token, "#FF0000")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ShellForm, result.CommandType);
+                    Assert.Equal("#FF0000", result.ToString());
+                    Assert.Equal("#FF0000", result.Value);
+                }
+            },
+            // Multiple hash characters in a single shell-form command are all regular text.
+            new ParseTestScenario<ShellFormCommand>
+            {
+                Text = "echo #hash1 #hash2",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateLiteral(token, "echo #hash1 #hash2")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ShellForm, result.CommandType);
+                    Assert.Equal("echo #hash1 #hash2", result.ToString());
+                    Assert.Equal("echo #hash1 #hash2", result.Value);
+                }
             }
         };
 

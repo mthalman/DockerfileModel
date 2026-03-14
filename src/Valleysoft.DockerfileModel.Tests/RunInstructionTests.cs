@@ -248,6 +248,28 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "T\\$EST"))
                 }
             },
+            // Hash (#) at the start of a RUN argument is NOT a comment — it is regular text.
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN #FF0000",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "#FF0000",
+                        token => ValidateLiteral(token, "#FF0000"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("#FF0000", result.Command.ToString());
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    ShellFormCommand cmd = (ShellFormCommand)result.Command;
+                    Assert.Equal("#FF0000", cmd.Value);
+                }
+            },
             new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN `\n`\necho hello",
