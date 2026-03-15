@@ -143,6 +143,7 @@ public class OnBuildInstructionTests
             new ParseTestScenario<OnBuildInstruction>
             {
                 Text = "ONBUILD RUN echo hello \\\n# test comment\nworld",
+                EscapeChar = Dockerfile.DefaultEscapeChar,
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "ONBUILD"),
@@ -154,7 +155,8 @@ public class OnBuildInstructionTests
                 },
                 Validate = result =>
                 {
-                    Assert.Empty(result.Comments);
+                    Assert.Single(result.Comments);
+                    Assert.Equal("test comment", result.Comments.First());
                     Assert.Equal("ONBUILD", result.InstructionName);
                     Assert.IsType<RunInstruction>(result.Instruction);
                     Assert.Equal("echo hello world", ((RunInstruction)result.Instruction).Command!.ToString().Replace("\\\n", "").Replace("# test comment\n", "").Trim());
