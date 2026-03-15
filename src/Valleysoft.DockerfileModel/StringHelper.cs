@@ -2,6 +2,9 @@
 
 internal static class StringHelper
 {
+    private const char DoubleQuote = '"';
+    private const char SingleQuote = '\'';
+
     public static string FormatAsJson(IEnumerable<string> values)
     {
         Requires.NotNull(values, nameof(values));
@@ -25,11 +28,41 @@ internal static class StringHelper
     /// </summary>
     public static string FormatKeyValueAssignment(string key, string value)
     {
-        if (value.Length > 0 && value[0] != '\"' && value.Last() != '\"' && value.Contains(' ') && !value.Contains("\\ "))
+        if (ShouldWrapValue(value))
         {
-            value = "\"" + value + "\"";
+            char wrappingQuote = SelectWrappingQuote(value);
+            value = wrappingQuote + EscapeQuote(value, wrappingQuote) + wrappingQuote;
         }
 
         return $"{key}={value}";
     }
+
+    private static bool ShouldWrapValue(string value) =>
+        value.Length > 0 &&
+        !IsWrappedInMatchingQuotes(value) &&
+        value.Contains(' ') &&
+        !value.Contains("\\ ");
+
+    private static bool IsWrappedInMatchingQuotes(string value) =>
+        value.Length > 1 &&
+        ((value[0] == DoubleQuote && value[value.Length - 1] == DoubleQuote) ||
+         (value[0] == SingleQuote && value[value.Length - 1] == SingleQuote));
+
+    private static char SelectWrappingQuote(string value)
+    {
+        if (!value.Contains(DoubleQuote))
+        {
+            return DoubleQuote;
+        }
+
+        if (!value.Contains(SingleQuote))
+        {
+            return SingleQuote;
+        }
+
+        return DoubleQuote;
+    }
+
+    private static string EscapeQuote(string value, char quoteChar) =>
+        value.Replace(quoteChar.ToString(), $"\\{quoteChar}");
 }

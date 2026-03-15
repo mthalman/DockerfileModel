@@ -522,6 +522,87 @@ public class LabelInstructionTests
     }
 
     [Fact]
+    public void Create_ValueWithSpacesEndingWithQuote_WrapsInQuotes()
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "hello world\"" }
+            });
+
+        Assert.Equal("LABEL KEY='hello world\"'", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("hello world\"", result.Labels[0].Value);
+    }
+
+    [Fact]
+    public void Create_ValueWithSpacesStartingWithQuote_WrapsInQuotes()
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "\"hello world" }
+            });
+
+        Assert.Equal("LABEL KEY='\"hello world'", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("\"hello world", result.Labels[0].Value);
+    }
+
+    [Fact]
+    public void Create_ValueProperlyQuoted_DoesNotDoubleWrap()
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "\"hello world\"" }
+            });
+
+        Assert.Equal("LABEL KEY=\"hello world\"", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("hello world", result.Labels[0].Value);
+    }
+
+    [Fact]
+    public void Create_ValueWithSpacesNoQuotes_GetsWrapped()
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "hello world" }
+            });
+
+        Assert.Equal("LABEL KEY=\"hello world\"", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("hello world", result.Labels[0].Value);
+    }
+
+    [Theory]
+    [MemberData(nameof(CreateQuoteGuardEdgeCaseInput))]
+    public void Create_QuoteGuardEdgeCases_RoundTripExpectedTextAndValue(string key, string value, string expectedText, string expectedValue)
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { key, value }
+            });
+
+        Assert.Equal(expectedText, result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal(key, result.Labels[0].Key);
+        Assert.Equal(expectedValue, result.Labels[0].Value);
+    }
+
+    public static IEnumerable<object[]> CreateQuoteGuardEdgeCaseInput()
+    {
+        yield return new object[] { "KEY", "", "LABEL KEY=", "" };
+        yield return new object[] { "KEY", "foo=bar baz=qux", "LABEL KEY=\"foo=bar baz=qux\"", "foo=bar baz=qux" };
+        yield return new object[] { "KEY", "say \"hi\" now", "LABEL KEY='say \"hi\" now'", "say \"hi\" now" };
+        yield return new object[] { "com.example-key", "hello world=1", "LABEL com.example-key=\"hello world=1\"", "hello world=1" };
+        yield return new object[] { "KEY", "'hello world'", "LABEL KEY='hello world'", "hello world" };
+    }
+
+    [Fact]
     public void LabelInstruction_UnicodeValue_RoundTrips()
     {
         string text = "LABEL description=\"Hello 世界 🚀\"\n";
