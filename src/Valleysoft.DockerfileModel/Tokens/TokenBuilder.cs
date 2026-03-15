@@ -24,7 +24,7 @@ public class TokenBuilder
         AddToken(new FromFlag(fromStageName, EscapeChar));
 
     public TokenBuilder FromFlag(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new FromFlag(GetTokens(configureBuilder)));
+        AddToken(new FromFlag(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder ImageName(string repository, string? registry = null, string? tag = null, string? digest = null) =>
         AddToken(new ImageName(repository, registry, tag, digest, EscapeChar));
@@ -36,7 +36,7 @@ public class TokenBuilder
         AddToken(new IntervalFlag(interval, EscapeChar));
 
     public TokenBuilder IntervalFlag(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new IntervalFlag(GetTokens(configureBuilder)));
+        AddToken(new IntervalFlag(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder KeyValue<TKey, TValue>(TKey key, TValue value, bool isFlag = false,
         char separator = KeyValueToken<TKey, TValue>.DefaultSeparator)
@@ -71,19 +71,19 @@ public class TokenBuilder
         AddToken(new MountFlag(mount, EscapeChar));
 
     public TokenBuilder MountFlag(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new MountFlag(GetTokens(configureBuilder)));
+        AddToken(new MountFlag(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder PlatformFlag(string platform) =>
         AddToken(new PlatformFlag(platform, EscapeChar));
 
     public TokenBuilder PlatformFlag(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new PlatformFlag(GetTokens(configureBuilder)));
+        AddToken(new PlatformFlag(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder RetriesFlag(string retries) =>
         AddToken(new RetriesFlag(retries, EscapeChar));
 
     public TokenBuilder RetriesFlag(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new RetriesFlag(GetTokens(configureBuilder)));
+        AddToken(new RetriesFlag(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder NewLine() =>
         AddToken(new NewLineToken(DefaultNewLine));
@@ -110,13 +110,13 @@ public class TokenBuilder
         AddToken(new StartIntervalFlag(startInterval, EscapeChar));
 
     public TokenBuilder StartIntervalFlag(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new StartIntervalFlag(GetTokens(configureBuilder)));
+        AddToken(new StartIntervalFlag(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder StartPeriodFlag(string startPeriod) =>
         AddToken(new StartPeriodFlag(startPeriod, EscapeChar));
 
     public TokenBuilder StartPeriodFlag(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new StartPeriodFlag(GetTokens(configureBuilder)));
+        AddToken(new StartPeriodFlag(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder String(string value) =>
         AddToken(new StringToken(value));
@@ -128,7 +128,7 @@ public class TokenBuilder
         AddToken(new TimeoutFlag(timeout, EscapeChar));
 
     public TokenBuilder TimeoutFlag(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new TimeoutFlag(GetTokens(configureBuilder)));
+        AddToken(new TimeoutFlag(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder Variable(string name) =>
         AddToken(new Variable(name, EscapeChar));

@@ -156,4 +156,28 @@ public class TokenBuilderTests
         string expectedResult = "`" + Environment.NewLine;
         Assert.Equal(expectedResult, result);
     }
+
+    [Fact]
+    public void ActionBasedFlagBuildersPreserveEscapeChar()
+    {
+        TokenBuilder builder = new()
+        {
+            EscapeChar = '`'
+        };
+
+        builder.IntervalFlag(tokens =>
+            tokens
+                .Symbol('-')
+                .Symbol('-')
+                .Keyword("interval")
+                .Symbol('=')
+                .Literal("value", canContainVariables: true));
+
+        IntervalFlag flag = Assert.IsType<IntervalFlag>(builder.Tokens.Single());
+        flag.Value = "`$MY_VAR";
+
+        Assert.Equal("`$MY_VAR", flag.Value);
+        Assert.Equal("--interval=`$MY_VAR", flag.ToString());
+        Assert.DoesNotContain(flag.ValueToken!.Tokens, token => token is VariableRefToken);
+    }
 }
