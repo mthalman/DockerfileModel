@@ -65,7 +65,7 @@ public class DockerfileBuilderTests
             "SHELL [\"cmd\"]" + Environment.NewLine +
             "STOPSIGNAL 1" + Environment.NewLine +
             "USER test" + Environment.NewLine +
-            "VOLUME [\"path\"]" + Environment.NewLine +
+            "VOLUME path" + Environment.NewLine +
             "WORKDIR path" + Environment.NewLine;
 
         Assert.Equal(expectedOutput, builder.Dockerfile.ToString());

@@ -23,27 +23,29 @@ public class VolumeInstructionTests
     [Fact]
     public void Paths()
     {
+        // Single-path constructor produces shell form (no JSON array)
         VolumeInstruction result = new("/var/db");
         Assert.Collection(result.Paths, new Action<string>[]
         {
             path => Assert.Equal("/var/db", path)
         });
-        Assert.Equal("VOLUME [\"/var/db\"]", result.ToString());
-            
+        Assert.Equal("VOLUME /var/db", result.ToString());
+
         result.Paths[0] = "/var/db1";
         Assert.Collection(result.Paths, new Action<string>[]
         {
             path => Assert.Equal("/var/db1", path)
         });
-        Assert.Equal("VOLUME [\"/var/db1\"]", result.ToString());
+        Assert.Equal("VOLUME /var/db1", result.ToString());
 
         result.PathTokens[0].Value = "/var/db2";
         Assert.Collection(result.Paths, new Action<string>[]
         {
             path => Assert.Equal("/var/db2", path)
         });
-        Assert.Equal("VOLUME [\"/var/db2\"]", result.ToString());
+        Assert.Equal("VOLUME /var/db2", result.ToString());
 
+        // Multi-path constructor produces JSON array form
         result = new VolumeInstruction(new string[] { "/var/db3", "/var/db4" });
         Assert.Collection(result.Paths, new Action<string>[]
         {
@@ -59,6 +61,33 @@ public class VolumeInstructionTests
             path => Assert.Equal("/var/db5", path)
         });
         Assert.Equal("VOLUME [\"/var/db3\", \"/var/db5\"]", result.ToString());
+    }
+
+    [Fact]
+    public void SinglePathListConstructor_ProducesShellForm()
+    {
+        // When the list constructor receives exactly one path, it should produce
+        // shell form (VOLUME /data) not JSON array form (VOLUME ["/data"])
+        VolumeInstruction result = new(new string[] { "/data" });
+        Assert.Equal("VOLUME /data", result.ToString());
+        Assert.Collection(result.Paths, new Action<string>[]
+        {
+            path => Assert.Equal("/data", path)
+        });
+    }
+
+    [Fact]
+    public void MultiPathListConstructor_ProducesJsonForm()
+    {
+        // When the list constructor receives multiple paths, it should produce
+        // JSON array form (VOLUME ["/data", "/logs"])
+        VolumeInstruction result = new(new string[] { "/data", "/logs" });
+        Assert.Equal("VOLUME [\"/data\", \"/logs\"]", result.ToString());
+        Assert.Collection(result.Paths, new Action<string>[]
+        {
+            path => Assert.Equal("/data", path),
+            path => Assert.Equal("/logs", path)
+        });
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -247,9 +276,15 @@ public class VolumeInstructionTests
                 {
                     token => ValidateKeyword(token, "VOLUME"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "/var/log", ParseHelper.DoubleQuote),
-                    token => ValidateSymbol(token, ']')
+                    token => ValidateLiteral(token, "/var/log")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("VOLUME /var/log", result.ToString());
+                    Assert.Collection(result.Paths, new Action<string>[]
+                    {
+                        path => Assert.Equal("/var/log", path)
+                    });
                 }
             },
             new CreateTestScenario
@@ -269,6 +304,15 @@ public class VolumeInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "/var/db", ParseHelper.DoubleQuote),
                     token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("VOLUME [\"/var/log\", \"/var/db\"]", result.ToString());
+                    Assert.Collection(result.Paths, new Action<string>[]
+                    {
+                        path => Assert.Equal("/var/log", path),
+                        path => Assert.Equal("/var/db", path)
+                    });
                 }
             }
         };

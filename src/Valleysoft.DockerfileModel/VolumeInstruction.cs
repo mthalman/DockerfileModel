@@ -41,7 +41,11 @@ public class VolumeInstruction : Instruction
     private static IEnumerable<Token> GetTokens(IEnumerable<string> paths, char escapeChar)
     {
         Requires.NotNullEmptyOrNullElements(paths, nameof(paths));
-        return GetTokens($"VOLUME {StringHelper.FormatAsJson(paths)}", GetInnerParser(escapeChar));
+        string[] pathArray = paths.ToArray();
+        string args = pathArray.Length == 1
+            ? pathArray[0]
+            : StringHelper.FormatAsJson(pathArray);
+        return GetTokens($"VOLUME {args}", GetInnerParser(escapeChar));
     }
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
