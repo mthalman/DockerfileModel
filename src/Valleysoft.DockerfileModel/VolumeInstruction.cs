@@ -42,7 +42,8 @@ public class VolumeInstruction : Instruction
     {
         Requires.NotNullEmptyOrNullElements(paths, nameof(paths));
         string[] pathArray = paths.ToArray();
-        string args = pathArray.Length == 1
+        bool useShellForm = pathArray.Length == 1 && !pathArray[0].Contains(' ');
+        string args = useShellForm
             ? pathArray[0]
             : StringHelper.FormatAsJson(pathArray);
         return GetTokens($"VOLUME {args}", GetInnerParser(escapeChar));
