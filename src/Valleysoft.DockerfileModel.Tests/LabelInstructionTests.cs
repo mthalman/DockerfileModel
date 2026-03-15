@@ -520,4 +520,37 @@ public class LabelInstructionTests
     {
         public Dictionary<string, string> Variables { get; set; }
     }
+
+    [Fact]
+    public void LabelInstruction_UnicodeValue_RoundTrips()
+    {
+        string text = "LABEL description=\"Hello 世界 🚀\"\n";
+        LabelInstruction inst = LabelInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void LabelInstruction_KeyWithDots_RoundTrips()
+    {
+        string text = "LABEL com.example.app.version=1.0\n";
+        LabelInstruction inst = LabelInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void LabelInstruction_KeyWithHyphens_RoundTrips()
+    {
+        string text = "LABEL my-label-key=value\n";
+        LabelInstruction inst = LabelInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void LabelInstruction_EmptyValue_RoundTrips()
+    {
+        string text = "LABEL mykey=\n";
+        LabelInstruction inst = LabelInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("", inst.Labels[0].Value);
+    }
 }

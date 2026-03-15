@@ -593,4 +593,54 @@ public class EnvInstructionTests
     {
         public Dictionary<string, string> Variables { get; set; }
     }
+
+    [Fact]
+    public void EnvInstruction_ValueWithDoubleQuotes_RoundTrips()
+    {
+        string text = "ENV FOO=\"bar baz\"\n";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("bar baz", inst.Variables[0].Value);
+    }
+
+    [Fact]
+    public void EnvInstruction_ValueWithEscapedQuote_RoundTrips()
+    {
+        string text = "ENV FOO=bar\\\"baz\n";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void EnvInstruction_MultipleVarsNewFormat_RoundTrips()
+    {
+        string text = "ENV FOO=hello BAR=world\n";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal(2, inst.Variables.Count);
+        Assert.Equal("FOO", inst.Variables[0].Key);
+        Assert.Equal("hello", inst.Variables[0].Value);
+        Assert.Equal("BAR", inst.Variables[1].Key);
+        Assert.Equal("world", inst.Variables[1].Value);
+    }
+
+    /// <summary>
+    /// Bug: WorkdirInstruction.Path includes trailing newline character
+    /// See https://github.com/mthalman/DockerfileModel/issues/282
+    /// </summary>
+    [Fact]
+    public void EnvInstruction_SingleVarFormat_ValueWithNewline_Bug()
+    {
+        // ENV VAR value (space-separated single var format)
+        string text = "ENV FOO bar baz\n";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString()); // Round-trip should work
+        string val = inst.Variables[0].Value ?? "(null)";
+        // Check if trailing newline is included in value
+        System.Console.WriteLine($"ENV single-format value=[{val}]");
+        if (val.Contains('\n'))
+        {
+            System.Console.WriteLine("BUG: ENV single-format value contains newline");
+        }
+    }
 }

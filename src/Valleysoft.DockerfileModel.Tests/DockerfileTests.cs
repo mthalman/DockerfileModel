@@ -695,4 +695,106 @@ public class DockerfileTests
 
         return testInputs.Select(input => new object[] { input });
     }
+
+    [Fact]
+    public void Dockerfile_OnlyCommentsAndWhitespace_ParsesSuccessfully()
+    {
+        // A Dockerfile with no instructions at all — just comments and blank lines
+        string text = "# comment\n\n# another comment\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        Assert.NotNull(df);
+        Assert.Equal(text, df.ToString());
+    }
+
+    [Fact]
+    public void Dockerfile_SingleFromOnly_RoundTrips()
+    {
+        string text = "FROM alpine\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        Assert.Equal(text, df.ToString());
+    }
+
+    [Fact]
+    public void Dockerfile_CRLF_RoundTrips()
+    {
+        string text = "FROM alpine\r\nRUN echo hello\r\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        Assert.Equal(text, df.ToString());
+    }
+
+    [Fact]
+    public void Dockerfile_MixedLineEndings_RoundTrips()
+    {
+        // Mix of \n and \r\n in the same file
+        string text = "FROM alpine\nRUN echo hello\r\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        Assert.Equal(text, df.ToString());
+    }
+
+    [Fact]
+    public void Dockerfile_MultipleFromInstructions_ParsesAll()
+    {
+        string text = "FROM alpine AS base\nFROM base AS final\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        Assert.Equal(text, df.ToString());
+        var froms = df.Items.OfType<FromInstruction>().ToList();
+        Assert.Equal(2, froms.Count);
+        Assert.Equal("alpine", froms[0].ImageName);
+        Assert.Equal("base", froms[0].StageName);
+        Assert.Equal("base", froms[1].ImageName);
+        Assert.Equal("final", froms[1].StageName);
+    }
+
+    [Fact]
+    public void Dockerfile_NoTrailingNewline_RoundTrips()
+    {
+        string text = "FROM alpine";
+        Dockerfile df = Dockerfile.Parse(text);
+        Assert.Equal(text, df.ToString());
+    }
+
+    [Fact]
+    public void Dockerfile_BacktickEscape_ParsesCorrectly()
+    {
+        // When escape directive uses backtick, backtick is the line continuation character
+        string text = "# escape=`\nFROM alpine\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        Assert.Equal(text, df.ToString());
+        Assert.Equal('`', df.EscapeChar);
+    }
+
+    [Fact]
+    public void Dockerfile_ResolveVariables_ArgBeforeFrom_ResolvesInFrom()
+    {
+        string text = "ARG BASE=alpine\nFROM $BASE\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        string resolved = df.ResolveVariables();
+        Assert.Contains("alpine", resolved);
+    }
+
+    [Fact]
+    public void Dockerfile_ResolveVariables_EmptyDockerfile_ReturnsEmpty()
+    {
+        string text = "# just a comment\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        // No instruction — ResolveVariables should return empty string
+        string resolved = df.ResolveVariables();
+        Assert.Equal("", resolved);
+    }
+
+    [Fact]
+    public void Dockerfile_EmptyString_ParsesSuccessfully()
+    {
+        Dockerfile df = Dockerfile.Parse("");
+        Assert.Empty(df.Items);
+        Assert.Equal("", df.ToString());
+    }
+
+    [Fact]
+    public void Dockerfile_OnlyWhitespace_ParsesSuccessfully()
+    {
+        string text = "\n\n\n";
+        Dockerfile df = Dockerfile.Parse(text);
+        Assert.Equal(text, df.ToString());
+    }
 }

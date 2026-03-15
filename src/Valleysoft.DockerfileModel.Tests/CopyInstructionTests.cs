@@ -1005,4 +1005,31 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
             token => ValidateLiteral(token, value));
     }
 
+    [Fact]
+    public void CopyInstruction_FromByStageNumber_RoundTrips()
+    {
+        // COPY --from=0 references stage by index number
+        string text = "COPY --from=0 /src /dst\n";
+        CopyInstruction inst = CopyInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("0", inst.FromStageName);
+    }
+
+    [Fact]
+    public void CopyInstruction_FromByStageName_RoundTrips()
+    {
+        string text = "COPY --from=base /src /dst\n";
+        CopyInstruction inst = CopyInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("base", inst.FromStageName);
+    }
+
+    [Fact]
+    public void CopyInstruction_FromWithVariable_RoundTrips()
+    {
+        string text = "COPY --from=$STAGE /src /dst\n";
+        CopyInstruction inst = CopyInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
 }

@@ -180,4 +180,67 @@ public class MaintainerInstructionTests
     {
         public string Maintainer { get; set; }
     }
+
+    /// <summary>
+    /// Bug: MaintainerInstruction.Maintainer includes trailing newline character
+    /// See https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void MaintainerInstruction_Maintainer_DoesNotIncludeNewline()
+    {
+        string text = "MAINTAINER test@example.com\n";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("test@example.com", inst.Maintainer);
+    }
+
+    [Fact]
+    public void MaintainerInstruction_Maintainer_NoNewlineInInput_Works()
+    {
+        string text = "MAINTAINER test@example.com";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        Assert.Equal("test@example.com", inst.Maintainer);
+    }
+
+    /// <summary>
+    /// Bug: MaintainerInstruction.Maintainer includes trailing newline character
+    /// See https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void MaintainerInstruction_Maintainer_WithNewlineInInput_IncludesNewline_BUG()
+    {
+        // BUG: Maintainer property includes trailing newline
+        string text = "MAINTAINER test@example.com\n";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        string maintainer = inst.Maintainer;
+        Assert.Contains("\n", maintainer); // Bug confirmed
+    }
+
+    /// <summary>
+    /// Bug: MaintainerInstruction.Maintainer includes trailing newline character
+    /// See https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void MaintainerInstruction_MaintainerWithSpaces_WithNewline_IncludesNewline_BUG()
+    {
+        // Maintainer can contain spaces (WhitespaceMode.Allowed) — also has the bug
+        string text = "MAINTAINER John Doe <john@example.com>\n";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        string maintainer = inst.Maintainer;
+        Assert.Contains("\n", maintainer); // Bug confirmed
+    }
+
+    /// <summary>
+    /// Bug: MaintainerInstruction.Maintainer includes trailing newline character
+    /// See https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void MaintainerInstruction_RoundTrip_WorksButMaintainerPropertyBroken()
+    {
+        string text = "MAINTAINER maintainer@example.com\n";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.NotEqual("maintainer@example.com", inst.Maintainer); // BUG
+        Assert.Equal("maintainer@example.com\n", inst.Maintainer);
+    }
 }
