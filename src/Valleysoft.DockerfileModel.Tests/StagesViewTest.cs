@@ -1,4 +1,4 @@
-﻿namespace Valleysoft.DockerfileModel.Tests;
+namespace Valleysoft.DockerfileModel.Tests;
 
 public class StagesViewTest
 {
@@ -15,9 +15,10 @@ public class StagesViewTest
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
 
         StagesView stagesView = new(dockerfile);
-            
+
         Assert.Empty(stagesView.GlobalArgs);
-            
+        Assert.Empty(stagesView.GlobalItems);
+
         Assert.Single(stagesView.Stages);
         Stage stage = stagesView.Stages.First();
         Assert.Null(stage.Name);
@@ -45,11 +46,19 @@ public class StagesViewTest
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
 
         StagesView stagesView = new(dockerfile);
-            
+
         Assert.Equal(2, stagesView.GlobalArgs.Count());
         Assert.Equal(lines[0], stagesView.GlobalArgs.First().ToString());
         Assert.Equal(lines[1], stagesView.GlobalArgs.Last().ToString());
-            
+
+        Assert.Equal(4, stagesView.GlobalItems.Count());
+        Assert.Equal(lines[0], stagesView.GlobalItems.ElementAt(0).ToString());
+        Assert.Equal(lines[1], stagesView.GlobalItems.ElementAt(1).ToString());
+        Assert.IsType<Comment>(stagesView.GlobalItems.ElementAt(2));
+        Assert.Equal(lines[2], stagesView.GlobalItems.ElementAt(2).ToString());
+        Assert.IsType<Whitespace>(stagesView.GlobalItems.ElementAt(3));
+        Assert.Equal(lines[3], stagesView.GlobalItems.ElementAt(3).ToString());
+
         Assert.Single(stagesView.Stages);
         Stage stage = stagesView.Stages.First();
         Assert.Null(stage.Name);
@@ -79,6 +88,7 @@ public class StagesViewTest
         StagesView stagesView = new(dockerfile);
 
         Assert.Empty(stagesView.GlobalArgs);
+        Assert.Empty(stagesView.GlobalItems);
 
         Assert.Equal(3, stagesView.Stages.Count());
 
@@ -142,5 +152,88 @@ public class StagesViewTest
         Assert.Equal("stage3", stage3.Name);
         Assert.Equal(lines[6], stage3.FromInstruction.ToString());
         Assert.Empty(stage3.Items);
+    }
+
+    [Fact]
+    public void CommentsBeforeFirstFrom()
+    {
+        List<string> lines = new()
+        {
+            "# This is a header comment\n",
+            "# Another comment\n",
+            "FROM image\n",
+            "RUN echo 1"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+        StagesView stagesView = new(dockerfile);
+
+        Assert.Empty(stagesView.GlobalArgs);
+        Assert.Equal(2, stagesView.GlobalItems.Count());
+        Assert.IsType<Comment>(stagesView.GlobalItems.ElementAt(0));
+        Assert.Equal(lines[0], stagesView.GlobalItems.ElementAt(0).ToString());
+        Assert.IsType<Comment>(stagesView.GlobalItems.ElementAt(1));
+        Assert.Equal(lines[1], stagesView.GlobalItems.ElementAt(1).ToString());
+
+        Assert.Single(stagesView.Stages);
+        Stage stage = stagesView.Stages.First();
+        Assert.Equal(lines[2], stage.FromInstruction.ToString());
+        Assert.Single(stage.Items);
+        Assert.Equal(lines[3], stage.Items.First().ToString());
+    }
+
+    [Fact]
+    public void CommentsAndArgsBeforeFirstFrom()
+    {
+        List<string> lines = new()
+        {
+            "# Build configuration\n",
+            "ARG VERSION=latest\n",
+            "# Another comment\n",
+            "ARG BASE=alpine\n",
+            "FROM ${BASE}:${VERSION}\n",
+            "RUN echo 1"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+        StagesView stagesView = new(dockerfile);
+
+        Assert.Equal(2, stagesView.GlobalArgs.Count());
+        Assert.Equal(4, stagesView.GlobalItems.Count());
+        Assert.IsType<Comment>(stagesView.GlobalItems.ElementAt(0));
+        Assert.Equal(lines[0], stagesView.GlobalItems.ElementAt(0).ToString());
+        Assert.IsType<ArgInstruction>(stagesView.GlobalItems.ElementAt(1));
+        Assert.Equal(lines[1], stagesView.GlobalItems.ElementAt(1).ToString());
+        Assert.IsType<Comment>(stagesView.GlobalItems.ElementAt(2));
+        Assert.Equal(lines[2], stagesView.GlobalItems.ElementAt(2).ToString());
+        Assert.IsType<ArgInstruction>(stagesView.GlobalItems.ElementAt(3));
+        Assert.Equal(lines[3], stagesView.GlobalItems.ElementAt(3).ToString());
+
+        Assert.Single(stagesView.Stages);
+        Stage stage = stagesView.Stages.First();
+        Assert.Equal(lines[4], stage.FromInstruction.ToString());
+    }
+
+    [Fact]
+    public void OnlyCommentsBeforeFirstFrom()
+    {
+        List<string> lines = new()
+        {
+            "# Just a comment\n",
+            "FROM image"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("", lines.ToArray()));
+
+        StagesView stagesView = new(dockerfile);
+
+        Assert.Empty(stagesView.GlobalArgs);
+        Assert.Single(stagesView.GlobalItems);
+        Assert.IsType<Comment>(stagesView.GlobalItems.First());
+        Assert.Equal(lines[0], stagesView.GlobalItems.First().ToString());
+
+        Assert.Single(stagesView.Stages);
     }
 }

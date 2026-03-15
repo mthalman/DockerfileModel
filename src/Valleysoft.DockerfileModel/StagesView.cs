@@ -8,7 +8,7 @@ public class StagesView
 
         List<DockerfileConstruct> items = dockerfile.Items.ToList();
 
-        List<ArgInstruction> globalArgs = new();
+        List<DockerfileConstruct> globalItems = new();
         List<Stage> stages = new();
         FromInstruction? currentStage = null;
         List<DockerfileConstruct> stageItems = new();
@@ -18,17 +18,17 @@ public class StagesView
             DockerfileConstruct item = items[i];
             if (currentStage is null)
             {
-                if (item is ParserDirective || item is Whitespace)
+                if (item is ParserDirective)
                 {
                     continue;
-                }
-                else if (item is ArgInstruction argInstruction)
-                {
-                    globalArgs.Add(argInstruction);
                 }
                 else if (item is FromInstruction fromInstruction)
                 {
                     currentStage = fromInstruction;
+                }
+                else
+                {
+                    globalItems.Add(item);
                 }
             }
             else
@@ -51,11 +51,12 @@ public class StagesView
             stages.Add(new Stage(currentStage, stageItems));
         }
 
-        GlobalArgs = globalArgs;
+        GlobalItems = globalItems;
         Stages = stages;
     }
 
-    public IEnumerable<ArgInstruction> GlobalArgs { get; }
+    public IEnumerable<ArgInstruction> GlobalArgs => GlobalItems.OfType<ArgInstruction>();
+    public IEnumerable<DockerfileConstruct> GlobalItems { get; }
     public IEnumerable<Stage> Stages { get; }
 }
 
