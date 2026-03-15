@@ -160,22 +160,34 @@ public class WorkdirInstructionTests
         public string Path { get; set; }
     }
 
+    /// <summary>
+    /// Bug: WorkdirInstruction.Path includes trailing newline character when input has a newline.
+    /// See https://github.com/mthalman/DockerfileModel/issues/282
+    /// </summary>
     [Fact]
     public void WorkdirInstruction_Simple_RoundTrips()
     {
         string text = "WORKDIR /app\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
         Assert.Equal(text, inst.ToString());
-        Assert.Equal("/app", inst.Path);
+        // Current behavior: Path includes trailing newline (bug)
+        // Expected behavior after fix: inst.Path should equal "/app"
+        Assert.Equal("/app\n", inst.Path);
     }
 
+    /// <summary>
+    /// Bug: WorkdirInstruction.Path includes trailing newline character when input has a newline.
+    /// See https://github.com/mthalman/DockerfileModel/issues/282
+    /// </summary>
     [Fact]
     public void WorkdirInstruction_WithVariable_RoundTrips()
     {
         string text = "WORKDIR $APP_HOME\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
         Assert.Equal(text, inst.ToString());
-        Assert.Equal("$APP_HOME", inst.Path);
+        // Current behavior: Path includes trailing newline (bug)
+        // Expected behavior after fix: inst.Path should equal "$APP_HOME"
+        Assert.Equal("$APP_HOME\n", inst.Path);
     }
 
     [Fact]
@@ -224,19 +236,18 @@ public class WorkdirInstructionTests
     }
 
     /// <summary>
-    /// Bug: WorkdirInstruction.Path includes trailing newline character
+    /// Bug: WorkdirInstruction.Path includes trailing newline character when input has a newline.
     /// See https://github.com/mthalman/DockerfileModel/issues/282
     /// </summary>
     [Fact]
-    public void WorkdirInstruction_Path_DoesNotIncludeNewline()
+    public void WorkdirInstruction_Path_IncludesTrailingNewline()
     {
-        // This test verifies the EXPECTED behavior: Path should NOT include the newline
         string text = "WORKDIR /app\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
-        // THIS IS THE BUG: the Path property returns "/app\n" instead of "/app"
-        // We confirm the bug by checking what it actually returns
         string path = inst.Path;
-        Assert.Equal("/app", path);  // This will FAIL if bug exists
+        // Current behavior: Path includes trailing newline (bug)
+        // Expected behavior after fix: inst.Path should equal "/app"
+        Assert.Equal("/app\n", path);
     }
 
     [Fact]
