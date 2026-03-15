@@ -268,4 +268,62 @@ Dallas identified 14 new bugs (Categories F-M) through targeted manual different
 
 **Files:** `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs`, `src/Valleysoft.DockerfileModel.DiffTest/InputGenerator.cs`
 
+---
+
+## Learnings
+
+### 2026-03-14 — Bug Hunt Session: Empty Modifier Values, Trailing Newline in Property Values
+
+**Session type:** Code-analysis + targeted manual edge-case tests
+
+**Baseline:** 1158 tests passing. Lean differential tests too slow to run at scale (>2 min per 10 inputs due to per-input process spawn overhead).
+
+**Bugs found:**
+
+#### Bug 1: Empty modifier values in variable references throw ParseException (Medium)
+- **Location:** `src/Valleysoft.DockerfileModel/Tokens/VariableRefToken.cs` — `BracedVariableReference()`, the `.AtLeastOnce()` on `modifierValueTokens` (line ~308)
+- **Root cause:** `.AtLeastOnce()` requires at least one token match. When modifier value is empty (e.g., `${VAR:-}`), no tokens are produced and the modifier block fails to parse entirely.
+- **Inputs that trigger it:** `${VAR:-}`, `${VAR:+}`, `${VAR:?}`, `${VAR-}`, `${VAR+}`, `${VAR?}` — any braced variable reference where the modifier is immediately followed by `}`
+- **Why missed:** FsCheck `VariableRef()` generator always uses `SimpleAlphaNum()` for modifier values — guarantees non-empty value. Empty modifier value never generated.
+- **Fix direction:** Change `.AtLeastOnce()` to `.Many()` in the modifier value parser section.
+
+#### Bug 2: `WorkdirInstruction.Path` includes trailing newline (High)
+- **Location:** `src/Valleysoft.DockerfileModel/WorkdirInstruction.cs` — `GetArgsParser()` uses `LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.Allowed)`
+- **Root cause:** `WhitespaceMode.Allowed` makes the literal parser consume `Whitespace()` tokens, and `Whitespace()` is defined as `WhitespaceWithoutNewLine() + OptionalNewLine()`. So the trailing `\n` of an instruction becomes part of the `LiteralToken` content. `LiteralToken.Value` via `CreateOptionsForValueString()` does NOT exclude `NewLineToken` children (only excludes `LineContinuationToken` and `CommentToken`).
+- **Inputs that trigger it:** Any `WorkdirInstruction.Parse("WORKDIR /app\n")` — the standard way Dockerfile parsing works (every non-final instruction ends with `\n`).
+- **Effect:** `inst.Path` returns `"/app\n"` instead of `"/app"` — would cause `File.Exists(inst.Path)` to fail.
+- **Why missed:** All existing WORKDIR tests use input WITHOUT trailing `\n`. The `Path` property is never tested on a parsed instruction with trailing newline.
+
+#### Bug 3: `MaintainerInstruction.Maintainer` includes trailing newline (Medium)
+- **Location:** `src/Valleysoft.DockerfileModel/MaintainerInstruction.cs` — `GetArgsParser()` uses `LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.Allowed)`
+- **Root cause:** Identical to Bug 2. Same `WhitespaceMode.Allowed` → `Whitespace()` → consumes trailing `\n`.
+- **Inputs that trigger it:** `MaintainerInstruction.Parse("MAINTAINER email@example.com\n")`
+- **Why missed:** All MAINTAINER parse tests use input without trailing `\n`.
+
+**Test gaps identified:**
+1. FsCheck `VariableRef()` generator never generates empty modifier values — add `${VAR:-}` etc. as a generator branch
+2. Property tests check ONLY round-trip (`ToString()`), never semantic property values (`.Path`, `.Signal`, `.Maintainer`)
+3. All instruction-specific parse test scenarios use inputs WITHOUT trailing `\n`, hiding the newline-in-value bug
+4. No CRLF-terminated instruction tests in any instruction-specific test file
+5. `VariableRef()` generator doesn't include `ExoticVariableRef()` in its `Gen.OneOf` pool (POSIX modifiers untested in property tests)
+
+**Test files added (document bugs, intentionally failing):**
+- `src/Valleysoft.DockerfileModel.Tests/LambertEdgeCaseTests.cs` — 75 tests, 5 failing (bugs)
+- `src/Valleysoft.DockerfileModel.Tests/LambertBugVerifyTests.cs` — 18 tests, 2 failing (bugs)
+- `src/Valleysoft.DockerfileModel.Tests/LambertTrailingNewlineBugTests.cs` — 13 tests, all passing (bug-documenting)
+
+**Findings file:** `.squad/decisions/inbox/lambert-bug-hunt-findings.md`
+
 **Cross-agent:** Dallas documented all 28 bugs in `docs/differential-test-bugs.md` with detailed descriptions and fix priorities.
+
+---
+
+## Team update (2026-03-15T00:07:00Z): Three-agent bug hunt consolidated
+
+Parallel bug hunt by Ripley, Dallas, and Lambert completed. **13 distinct bugs identified across full codebase audit:** 6 HIGH severity (ImageName localhost, ExposeInstruction tokenization, ResolveVariables result overwrite, FromInstruction .End() assertion, VariableRefToken empty modifiers, WorkdirInstruction trailing newline), 6 MEDIUM, 6 LOW priority.
+
+**Key overlaps:** VolumeInstruction dead parser (Ripley + Dallas), ExposeInstruction tokenization (Ripley + Dallas), VariableRefToken empty modifiers (Dallas + Lambert confirmed via tests).
+
+**Test coverage:** 106 new tests added across 3 files. 7 tests failing, confirming bugs. Five FsCheck generator gaps identified.
+
+All findings merged to decisions.md. Inbox files deleted. Cross-team coordination complete. — decided by Scribe
