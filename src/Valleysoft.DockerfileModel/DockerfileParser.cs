@@ -84,10 +84,11 @@ internal static class DockerfileParser
     }
 
     /// <summary>
-    /// Strips a trailing comment from a line, respecting quoted strings.
+    /// Strips a trailing comment from a line, respecting quoted strings and escape characters.
     /// A '#' character inside single or double quotes is NOT treated as a comment.
+    /// A '#' character preceded by the escape character (outside single quotes) is NOT treated as a comment.
     /// </summary>
-    public static string StripTrailingComment(string line)
+    public static string StripTrailingComment(string line, char escapeChar = Dockerfile.DefaultEscapeChar)
     {
         bool inSingleQuote = false;
         bool inDoubleQuote = false;
@@ -95,6 +96,13 @@ internal static class DockerfileParser
         for (int i = 0; i < line.Length; i++)
         {
             char ch = line[i];
+
+            // Skip escaped characters (escape char is not special inside single quotes)
+            if (ch == escapeChar && !inSingleQuote && i + 1 < line.Length)
+            {
+                i++; // skip next character
+                continue;
+            }
 
             if (ch == '\'' && !inDoubleQuote)
             {
