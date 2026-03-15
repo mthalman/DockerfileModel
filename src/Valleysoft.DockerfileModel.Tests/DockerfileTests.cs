@@ -797,4 +797,78 @@ public class DockerfileTests
         Dockerfile df = Dockerfile.Parse(text);
         Assert.Equal(text, df.ToString());
     }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithOverride_PrecededByArgWithDefault()
+    {
+        // Regression test for #279: when the target ARG has an override,
+        // resolvedValue must still reflect the target instruction, not
+        // a preceding ARG that happened to set resolvedValue via the else branch.
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ARG X=hello",
+            "ARG Y"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        Dictionary<string, string?> argValues = new()
+        {
+            { "Y", "overridden" }
+        };
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last(), argValues);
+        Assert.Equal("ARG Y", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithGlobalArg_PrecededByArgWithDefault()
+    {
+        // Regression test for #279: when the target ARG matches a global arg,
+        // resolvedValue must still reflect the target instruction, not
+        // a preceding ARG that happened to set resolvedValue via the else branch.
+        List<string> lines = new()
+        {
+            "ARG G=global",
+            "FROM ubuntu",
+            "ARG X=hello",
+            "ARG G"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last());
+        Assert.Equal("ARG G", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetNonArgInstruction_FollowedByArgWithDefault()
+    {
+        // Regression test for #279: resolving a non-ARG instruction should
+        // return that instruction's resolved text, not a subsequent ARG's text.
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ENV X=hello",
+            "ARG Y=default"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            dockerfile.Items.OfType<EnvInstruction>().First());
+        Assert.Equal("ENV X=hello\n", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
 }

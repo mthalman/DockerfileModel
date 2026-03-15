@@ -145,9 +145,10 @@ public class Dockerfile : IConstructContainer
                         {
                             string? resolvedArgValue = arg.ValueToken?.ResolveVariables(escapeChar, stageArgs, options);
                             stageArgs[arg.Name] = resolvedArgValue;
-                            resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
                         }
                     }
+
+                    resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
                 }
                 else
                 {
