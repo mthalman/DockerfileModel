@@ -32,6 +32,7 @@ public abstract class AggregateToken : Token
             Tokens
                 .Where(token => !options.ExcludeLineContinuations || token is not LineContinuationToken)
                 .Where(token => !options.ExcludeComments || token is not CommentToken)
+                .Where(token => !options.ExcludeNewLines || token is not NewLineToken)
                 .Select(token => token.ToString(options)));
     }
 

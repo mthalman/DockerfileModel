@@ -161,7 +161,7 @@ public class WorkdirInstructionTests
     }
 
     /// <summary>
-    /// Bug: WorkdirInstruction.Path includes trailing newline character when input has a newline.
+    /// Fixed: WorkdirInstruction.Path no longer includes trailing newline character.
     /// See https://github.com/mthalman/DockerfileModel/issues/282
     /// </summary>
     [Fact]
@@ -170,13 +170,11 @@ public class WorkdirInstructionTests
         string text = "WORKDIR /app\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
         Assert.Equal(text, inst.ToString());
-        // Current behavior: Path includes trailing newline (bug)
-        // Expected behavior after fix: inst.Path should equal "/app"
-        Assert.Equal("/app\n", inst.Path);
+        Assert.Equal("/app", inst.Path);
     }
 
     /// <summary>
-    /// Bug: WorkdirInstruction.Path includes trailing newline character when input has a newline.
+    /// Fixed: WorkdirInstruction.Path no longer includes trailing newline character.
     /// See https://github.com/mthalman/DockerfileModel/issues/282
     /// </summary>
     [Fact]
@@ -185,9 +183,7 @@ public class WorkdirInstructionTests
         string text = "WORKDIR $APP_HOME\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
         Assert.Equal(text, inst.ToString());
-        // Current behavior: Path includes trailing newline (bug)
-        // Expected behavior after fix: inst.Path should equal "$APP_HOME"
-        Assert.Equal("$APP_HOME\n", inst.Path);
+        Assert.Equal("$APP_HOME", inst.Path);
     }
 
     [Fact]
@@ -236,18 +232,16 @@ public class WorkdirInstructionTests
     }
 
     /// <summary>
-    /// Bug: WorkdirInstruction.Path includes trailing newline character when input has a newline.
+    /// Fixed: WorkdirInstruction.Path no longer includes trailing newline character.
     /// See https://github.com/mthalman/DockerfileModel/issues/282
     /// </summary>
     [Fact]
-    public void WorkdirInstruction_Path_IncludesTrailingNewline()
+    public void WorkdirInstruction_Path_ExcludesTrailingNewline()
     {
         string text = "WORKDIR /app\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
         string path = inst.Path;
-        // Current behavior: Path includes trailing newline (bug)
-        // Expected behavior after fix: inst.Path should equal "/app"
-        Assert.Equal("/app\n", path);
+        Assert.Equal("/app", path);
     }
 
     [Fact]
@@ -305,65 +299,59 @@ public class WorkdirInstructionTests
     }
 
     /// <summary>
-    /// Bug: WorkdirInstruction.Path includes trailing newline character
+    /// Fixed: WorkdirInstruction.Path no longer includes trailing newline character.
     /// See https://github.com/mthalman/DockerfileModel/issues/282
     /// </summary>
     [Fact]
-    public void WorkdirInstruction_Path_WithNewlineInInput_IncludesNewline_BUG()
+    public void WorkdirInstruction_Path_WithNewlineInInput_ExcludesNewline()
     {
-        // BUG: Path includes trailing newline when input ends with \n
         string text = "WORKDIR /app\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
-        // This currently returns "/app\n" — should return "/app"
         string path = inst.Path;
-        // Document the bug:
-        Assert.Contains("\n", path); // Bug confirmed: newline is in Path value
+        Assert.DoesNotContain("\n", path);
+        Assert.Equal("/app", path);
     }
 
     /// <summary>
-    /// Bug: WorkdirInstruction.Path includes trailing newline character
+    /// Fixed: WorkdirInstruction.Path no longer includes trailing CRLF.
     /// See https://github.com/mthalman/DockerfileModel/issues/282
     /// </summary>
     [Fact]
-    public void WorkdirInstruction_Path_WithCRLFInInput_IncludesCRLF_BUG()
+    public void WorkdirInstruction_Path_WithCRLFInInput_ExcludesCRLF()
     {
-        // Same bug but with CRLF line ending
         string text = "WORKDIR /app\r\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
         string path = inst.Path;
-        // Bug: contains \r\n or \n
-        Assert.True(path.Contains('\n') || path.Contains('\r'),
-            $"Expected newline in path but got: [{path}]");
+        Assert.False(path.Contains('\n') || path.Contains('\r'),
+            $"Path should not contain newline characters but got: [{path}]");
+        Assert.Equal("/app", path);
     }
 
     /// <summary>
-    /// Bug: WorkdirInstruction.Path includes trailing newline character
+    /// Fixed: WorkdirInstruction.Path no longer includes trailing newline character.
     /// See https://github.com/mthalman/DockerfileModel/issues/282
     /// </summary>
     [Fact]
-    public void WorkdirInstruction_Path_WithVariable_WithNewline_IncludesNewline_BUG()
+    public void WorkdirInstruction_Path_WithVariable_WithNewline_ExcludesNewline()
     {
         string text = "WORKDIR $APP_HOME\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
         string path = inst.Path;
-        // BUG: path contains \n
-        Assert.Contains("\n", path);
+        Assert.DoesNotContain("\n", path);
+        Assert.Equal("$APP_HOME", path);
     }
 
     /// <summary>
-    /// Bug: WorkdirInstruction.Path includes trailing newline character
+    /// Fixed: WorkdirInstruction.Path no longer includes trailing newline character,
+    /// while round-trip fidelity is preserved.
     /// See https://github.com/mthalman/DockerfileModel/issues/282
     /// </summary>
     [Fact]
-    public void WorkdirInstruction_RoundTrip_WorksButPathPropertyBroken()
+    public void WorkdirInstruction_RoundTrip_PreservedWithCorrectPathProperty()
     {
         string text = "WORKDIR /app\n";
         WorkdirInstruction inst = WorkdirInstruction.Parse(text);
-        // Round-trip is fine
         Assert.Equal(text, inst.ToString());
-        // But Path includes the trailing newline — that's the bug
-        // A caller doing `var path = inst.Path; File.Exists(path)` would get incorrect results
-        Assert.NotEqual("/app", inst.Path); // BUG: not equal because of trailing \n
-        Assert.Equal("/app\n", inst.Path);  // Confirm exact bug behavior
+        Assert.Equal("/app", inst.Path);
     }
 }

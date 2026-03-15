@@ -2,17 +2,20 @@
 
 public class TokenStringOptions
 {
-    public TokenStringOptions(bool excludeLineContinuations = false, bool excludeQuotes = false, bool excludeComments = false)
+    public TokenStringOptions(bool excludeLineContinuations = false, bool excludeQuotes = false, bool excludeComments = false,
+        bool excludeNewLines = false)
     {
         this.ExcludeLineContinuations = excludeLineContinuations;
         this.ExcludeQuotes = excludeQuotes;
         this.ExcludeComments = excludeComments;
+        this.ExcludeNewLines = excludeNewLines;
     }
 
     public bool ExcludeLineContinuations { get; }
     public bool ExcludeQuotes { get; }
     public bool ExcludeComments { get; }
+    public bool ExcludeNewLines { get; }
 
     public static TokenStringOptions CreateOptionsForValueString() =>
-        new(true, true, true);
+        new(excludeLineContinuations: true, excludeQuotes: true, excludeComments: true, excludeNewLines: true);
 }
