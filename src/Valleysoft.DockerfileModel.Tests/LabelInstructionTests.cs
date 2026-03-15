@@ -85,6 +85,27 @@ public class LabelInstructionTests
         Assert.Equal("LABEL MY_LABEL=world", result.ToString());
     }
 
+    [Fact]
+    public void SetValueOnEmptyLabelWithBacktickEscapeChar_EscapedVariableRef()
+    {
+        // Regression test for #286: setting a value containing an escaped
+        // variable reference on a LABEL parsed with backtick escape char
+        // should preserve the escaped $ instead of tokenizing a VariableRefToken.
+        LabelInstruction result = LabelInstruction.Parse("LABEL key=", escapeChar: '`');
+        Assert.Equal("key", result.Labels[0].Key);
+        Assert.Equal("", result.Labels[0].Value);
+        Assert.Null(result.LabelTokens[0].ValueToken);
+
+        result.Labels[0].Value = "`$MY_VAR";
+        Assert.Equal("`$MY_VAR", result.Labels[0].Value);
+        Assert.NotNull(result.LabelTokens[0].ValueToken);
+        Assert.Equal("LABEL key=`$MY_VAR", result.ToString());
+
+        LiteralToken? valueToken = result.LabelTokens[0].ValueToken;
+        Assert.NotNull(valueToken);
+        Assert.DoesNotContain(valueToken!.Tokens, t => t is VariableRefToken);
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<LabelInstruction>[] testInputs = new ParseTestScenario<LabelInstruction>[]

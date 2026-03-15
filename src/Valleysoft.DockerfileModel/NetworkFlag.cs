@@ -11,13 +11,14 @@ public class NetworkFlag : KeywordLiteralFlag
     {
     }
 
-    internal NetworkFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal NetworkFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static NetworkFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new NetworkFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new NetworkFlag(tokens, esc), escapeChar);
 
     public static Parser<NetworkFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new NetworkFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new NetworkFlag(tokens, esc), escapeChar);
 }

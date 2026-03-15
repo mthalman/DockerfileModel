@@ -16,13 +16,14 @@ public class ParentsFlag : BooleanFlag
     {
     }
 
-    internal ParentsFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal ParentsFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static ParentsFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new ParentsFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new ParentsFlag(tokens, esc), escapeChar);
 
     public static Parser<ParentsFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new ParentsFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new ParentsFlag(tokens, esc), escapeChar);
 }

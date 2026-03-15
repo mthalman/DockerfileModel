@@ -11,13 +11,14 @@ public class ChangeModeFlag : KeywordLiteralFlag
     {
     }
 
-    internal ChangeModeFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal ChangeModeFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static ChangeModeFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new ChangeModeFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new ChangeModeFlag(tokens, esc), escapeChar);
 
     public static Parser<ChangeModeFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new ChangeModeFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new ChangeModeFlag(tokens, esc), escapeChar);
 }

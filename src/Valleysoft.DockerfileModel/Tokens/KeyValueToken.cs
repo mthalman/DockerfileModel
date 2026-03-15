@@ -8,7 +8,15 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
 {
     public const char DefaultSeparator = '=';
 
+    private readonly char escapeChar;
+
     public KeyValueToken(TKey key, TValue value, bool isFlag = false, char separator = DefaultSeparator)
+        : this(key, value, isFlag, separator, Dockerfile.DefaultEscapeChar)
+    {
+    }
+
+    public KeyValueToken(TKey key, TValue value, bool isFlag, char separator = DefaultSeparator,
+        char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(
             ConcatTokens(
                 isFlag ? new Token[] { new SymbolToken('-'), new SymbolToken('-') } : Enumerable.Empty<Token>(),
@@ -17,13 +25,15 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
                     key,
                     Char.IsWhiteSpace(separator) ? new WhitespaceToken(separator.ToString()) : new SymbolToken(separator),
                     value
-                }))
+                }),
+            escapeChar)
     {
     }
 
-    internal KeyValueToken(IEnumerable<Token> tokens)
+    internal KeyValueToken(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
         : base(tokens)
     {
+        this.escapeChar = escapeChar;
     }
 
     public string Key
@@ -83,12 +93,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
                 // insert a ValueToken manually.
                 if (typeof(TValue) == typeof(LiteralToken))
                 {
-                    // Limitation: This LiteralToken is constructed with the default escape char
-                    // because the original instruction's escapeChar is not available here. This is
-                    // correct for the vast majority of Dockerfiles (which use backslash). A full
-                    // fix would require threading escapeChar through the property chain, which is
-                    // a larger refactor.
-                    ValueToken = (TValue)(Token)new LiteralToken(value, canContainVariables: true);
+                    ValueToken = (TValue)(Token)new LiteralToken(value, canContainVariables: true, escapeChar);
                     return;
                 }
 
@@ -147,7 +152,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
     public static KeyValueToken<TKey, TValue> Parse(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar, bool excludeLeadingWhitespaceInValue = false,
         bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false) =>
-        Parse(text, keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar,
+        Parse(text, keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens, escapeChar), separator, escapeChar,
             excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
             optionalValue: optionalValue);
@@ -157,7 +162,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar, bool excludeLeadingWhitespaceInValue = false,
         bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false) =>
-        GetParser(keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar,
+        GetParser(keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens, escapeChar), separator, escapeChar,
             excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
             optionalValue: optionalValue);

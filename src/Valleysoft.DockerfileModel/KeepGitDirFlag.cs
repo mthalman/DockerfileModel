@@ -16,13 +16,14 @@ public class KeepGitDirFlag : BooleanFlag
     {
     }
 
-    internal KeepGitDirFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal KeepGitDirFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static KeepGitDirFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new KeepGitDirFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new KeepGitDirFlag(tokens, esc), escapeChar);
 
     public static Parser<KeepGitDirFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new KeepGitDirFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new KeepGitDirFlag(tokens, esc), escapeChar);
 }

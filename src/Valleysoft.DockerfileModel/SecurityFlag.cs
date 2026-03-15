@@ -11,13 +11,14 @@ public class SecurityFlag : KeywordLiteralFlag
     {
     }
 
-    internal SecurityFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal SecurityFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static SecurityFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new SecurityFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new SecurityFlag(tokens, esc), escapeChar);
 
     public static Parser<SecurityFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new SecurityFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new SecurityFlag(tokens, esc), escapeChar);
 }

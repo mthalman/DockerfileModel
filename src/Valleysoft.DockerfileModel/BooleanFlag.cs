@@ -15,18 +15,20 @@ namespace Valleysoft.DockerfileModel;
 public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
 {
     protected BooleanFlag(string keyword, char escapeChar)
-        : base(GetTokens($"--{keyword}", GetInnerParser(keyword, escapeChar)))
+        : base(GetTokens($"--{keyword}", GetInnerParser(keyword, escapeChar)), escapeChar)
     {
     }
 
     protected BooleanFlag(string keyword, bool value, char escapeChar)
         : base(GetTokens(
             $"--{keyword}={BoolToString(value)}",
-            GetInnerParser(keyword, escapeChar)))
+            GetInnerParser(keyword, escapeChar)),
+            escapeChar)
     {
     }
 
-    protected BooleanFlag(IEnumerable<Token> tokens) : base(tokens)
+    protected BooleanFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
@@ -69,13 +71,23 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
     protected static TFlag ParseFlag<TFlag>(string text, string keyword,
         Func<IEnumerable<Token>, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
         where TFlag : BooleanFlag =>
-        factory(GetTokens(text, GetInnerParser(keyword, escapeChar)));
+        ParseFlag(text, keyword, (tokens, _) => factory(tokens), escapeChar);
+
+    protected static TFlag ParseFlag<TFlag>(string text, string keyword,
+        Func<IEnumerable<Token>, char, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
+        where TFlag : BooleanFlag =>
+        factory(GetTokens(text, GetInnerParser(keyword, escapeChar)), escapeChar);
 
     protected static Parser<TFlag> GetFlagParser<TFlag>(string keyword,
         Func<IEnumerable<Token>, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
         where TFlag : BooleanFlag =>
+        GetFlagParser(keyword, (tokens, _) => factory(tokens), escapeChar);
+
+    protected static Parser<TFlag> GetFlagParser<TFlag>(string keyword,
+        Func<IEnumerable<Token>, char, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
+        where TFlag : BooleanFlag =>
         from tokens in GetInnerParser(keyword, escapeChar)
-        select factory(tokens);
+        select factory(tokens, escapeChar);
 
     private static Parser<IEnumerable<Token>> GetInnerParser(string keyword, char escapeChar) =>
         // Path 1: --name=true or --name=false (case-insensitive)

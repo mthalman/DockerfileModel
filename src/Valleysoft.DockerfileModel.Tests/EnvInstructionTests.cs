@@ -134,6 +134,26 @@ public class EnvInstructionTests
     }
 
     [Fact]
+    public void SetValueOnEmptyEnvVarWithBacktickEscapeChar_EscapedVariableRef()
+    {
+        // Regression test for #286: When setting a value containing an escaped
+        // variable reference on a KeyValueToken parsed with backtick escape char,
+        // the LiteralToken must preserve the backtick escape semantics so $VAR
+        // remains escaped instead of being tokenized as a VariableRefToken.
+        EnvInstruction result = EnvInstruction.Parse("ENV key=", escapeChar: '`');
+        Assert.Null(result.VariableTokens[0].ValueToken);
+
+        result.Variables[0].Value = "`$MY_VAR";
+        Assert.Equal("`$MY_VAR", result.Variables[0].Value);
+        Assert.NotNull(result.VariableTokens[0].ValueToken);
+        Assert.Equal("ENV key=`$MY_VAR", result.ToString());
+
+        LiteralToken? valueToken = result.VariableTokens[0].ValueToken;
+        Assert.NotNull(valueToken);
+        Assert.DoesNotContain(valueToken!.Tokens, t => t is VariableRefToken);
+    }
+
+    [Fact]
     public void EnvVarWithVariables()
     {
         EnvInstruction result = new(

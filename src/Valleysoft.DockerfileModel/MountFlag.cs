@@ -5,11 +5,12 @@ namespace Valleysoft.DockerfileModel;
 public class MountFlag : KeyValueToken<KeywordToken, Mount>
 {
     public MountFlag(Mount mount, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("mount", escapeChar), mount, isFlag: true)
+        : base(new KeywordToken("mount", escapeChar), mount, isFlag: true, escapeChar: escapeChar)
     {
     }
 
-    internal MountFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal MountFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
@@ -18,14 +19,14 @@ public class MountFlag : KeyValueToken<KeywordToken, Mount>
             text,
             KeywordToken.GetParser("mount", escapeChar),
             MountParser(escapeChar),
-            tokens => new MountFlag(tokens),
+            tokens => new MountFlag(tokens, escapeChar),
             escapeChar: escapeChar);
 
     public static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("mount", escapeChar),
             MountParser(escapeChar),
-            tokens => new MountFlag(tokens),
+            tokens => new MountFlag(tokens, escapeChar),
             escapeChar: escapeChar);
 
     private static Parser<Mount> MountParser(char escapeChar) =>
