@@ -156,10 +156,14 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
     private static Parser<IEnumerable<Token>> LineContinuationWithTrailingWhitespace(char escapeChar) =>
         (from firstContinuation in LineContinuationToken.GetParser(escapeChar)
          from moreContinuations in LineContinuations(escapeChar)
-         from trailingWhitespace in Whitespace().Optional()
+         from trailingWhitespace in ContinuationIndentation()
          select ConcatTokens(
              new Token[] { firstContinuation },
              moreContinuations,
-             trailingWhitespace.GetOrDefault()))
+             trailingWhitespace is null ? Enumerable.Empty<Token>() : new Token[] { trailingWhitespace }))
         .Or(Sprache.Parse.Return(Enumerable.Empty<Token>()));
+
+    private static Parser<WhitespaceToken?> ContinuationIndentation() =>
+        from whitespace in Sprache.Parse.WhiteSpace.Except(Sprache.Parse.LineTerminator).XMany().Text()
+        select whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null;
 }
