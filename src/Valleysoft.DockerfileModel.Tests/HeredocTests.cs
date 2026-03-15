@@ -2753,7 +2753,7 @@ public class HeredocTests
     public void StripTrailingComment_EscapedHashWithSpaceBefore_NotStripped()
     {
         // A space precedes '\#', but the '#' is escaped so it should NOT be stripped.
-        // Before the fix for #293, this would incorrectly strip at the '#'.
+        // This case documents the intended escaped-hash behavior without relying on a stale pre-fix note.
         string result = DockerfileParser.StripTrailingComment("echo \\#notacomment rest");
         Assert.Equal("echo \\#notacomment rest", result);
     }
