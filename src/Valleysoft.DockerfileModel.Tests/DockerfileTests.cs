@@ -919,6 +919,34 @@ public class DockerfileTests
     }
 
     [Fact]
+    public void ResolveArgValues_TargetArgWithOverride_DoesNotEvaluateDefault()
+    {
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ARG X=${UNSET?boom}"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        Dictionary<string, string?> argValues = new()
+        {
+            { "X", "ok" }
+        };
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last(), argValues);
+        Assert.Equal("ARG X=${UNSET?boom}", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
+        dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
+
+        Assert.Equal("ARG X=${UNSET?boom}", dockerfile.Items.Last().ToString());
+    }
+
+    [Fact]
     public void ResolveArgValues_TargetArgWithMultipleDeclarations_UsesLeftToRightScoping()
     {
         List<string> lines = new()
