@@ -69,9 +69,19 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
     }
 
     protected static TFlag ParseFlag<TFlag>(string text, string keyword,
+        Func<IEnumerable<Token>, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
+        where TFlag : BooleanFlag =>
+        ParseFlag(text, keyword, (tokens, _) => factory(tokens), escapeChar);
+
+    protected static TFlag ParseFlag<TFlag>(string text, string keyword,
         Func<IEnumerable<Token>, char, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
         where TFlag : BooleanFlag =>
         factory(GetTokens(text, GetInnerParser(keyword, escapeChar)), escapeChar);
+
+    protected static Parser<TFlag> GetFlagParser<TFlag>(string keyword,
+        Func<IEnumerable<Token>, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
+        where TFlag : BooleanFlag =>
+        GetFlagParser(keyword, (tokens, _) => factory(tokens), escapeChar);
 
     protected static Parser<TFlag> GetFlagParser<TFlag>(string keyword,
         Func<IEnumerable<Token>, char, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
