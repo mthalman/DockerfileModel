@@ -287,9 +287,12 @@ public class DockerfileBuilder
 
         if (construct is ParserDirective parserDirective)
         {
+            // No need to auto-add an escape directive when the construct being added is
+            // itself an escape directive with the same escape character value. The guard
+            // above already returns false when EscapeChar == DefaultEscapeChar, so that
+            // sub-condition is unreachable here and has been removed.
             if (parserDirective.DirectiveName == DockerfileModel.ParserDirective.EscapeDirective &&
-                (EscapeChar == Dockerfile.DefaultEscapeChar ||
-                parserDirective.DirectiveValue == EscapeChar.ToString()))
+                parserDirective.DirectiveValue == EscapeChar.ToString())
             {
                 return false;
             }
