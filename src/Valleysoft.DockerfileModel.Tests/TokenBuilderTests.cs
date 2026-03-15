@@ -170,10 +170,11 @@ public class TokenBuilderTests
                 .Symbol('-')
                 .Symbol('-')
                 .Keyword("interval")
-                .Symbol('=')
-                .Literal("value", canContainVariables: true));
+                .Symbol('='));
 
         IntervalFlag flag = Assert.IsType<IntervalFlag>(builder.Tokens.Single());
+        Assert.Null(flag.ValueToken);
+
         flag.Value = "`$MY_VAR";
 
         Assert.Equal("`$MY_VAR", flag.Value);
