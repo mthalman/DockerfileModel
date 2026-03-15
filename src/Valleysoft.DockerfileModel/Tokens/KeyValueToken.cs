@@ -157,6 +157,15 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
             optionalValue: optionalValue);
 
+    public static KeyValueToken<TKey, TValue> Parse(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
+        char separator, char escapeChar, bool excludeLeadingWhitespaceInValue, bool excludeTrailingWhitespaceInSeparator,
+        bool optionalValue, bool isFlag) =>
+        Parse(text, keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar,
+            excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
+            excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
+            optionalValue: optionalValue,
+            isFlag: isFlag);
+
     // Breaking change: the optionalValue parameter was added intentionally, changing this public method's signature.
     public static Parser<KeyValueToken<TKey, TValue>> GetParser(
         Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
@@ -166,6 +175,16 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
             excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
             optionalValue: optionalValue);
+
+    public static Parser<KeyValueToken<TKey, TValue>> GetParser(
+        Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
+        char separator, char escapeChar, bool excludeLeadingWhitespaceInValue, bool excludeTrailingWhitespaceInSeparator,
+        bool optionalValue, bool isFlag) =>
+        GetParser(keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar,
+            excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
+            excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
+            optionalValue: optionalValue,
+            isFlag: isFlag);
 
     protected static T Parse<T>(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         Func<IEnumerable<Token>, T> createToken, char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar,
