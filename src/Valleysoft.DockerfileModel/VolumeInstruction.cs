@@ -50,11 +50,10 @@ public class VolumeInstruction : Instruction
     }
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        from mounts in ArgTokens(MountFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Many()
         from whitespace in Whitespace()
         from command in ArgTokens(GetPathsParser(escapeChar), escapeChar)
         select ConcatTokens(
-            mounts.Flatten(), whitespace, command);
+            whitespace, command);
 
     private static Parser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
         JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
@@ -63,6 +62,8 @@ public class VolumeInstruction : Instruction
     private static Parser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
         ArgTokens(
             from whitespace in Whitespace().Optional()
+            from mountFlag in Sprache.Parse.IgnoreCase("--mount=").Optional()
+            where !mountFlag.IsDefined
             from path in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable()
             select ConcatTokens(whitespace.GetOrDefault(), path), escapeChar
         ).AtLeastOnce().Flatten();

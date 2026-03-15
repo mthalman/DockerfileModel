@@ -21,6 +21,12 @@ public class VolumeInstructionTests
     }
 
     [Fact]
+    public void Parse_DoesNotAllowMountFlag()
+    {
+        Assert.Throws<ParseException>(() => VolumeInstruction.Parse("VOLUME --mount=type=bind /data"));
+    }
+
+    [Fact]
     public void Paths()
     {
         // Single-path constructor produces shell form (no JSON array)
