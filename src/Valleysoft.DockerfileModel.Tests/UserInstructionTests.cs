@@ -188,4 +188,21 @@ public class UserInstructionTests
     {
         public string User { get; set; }
     }
+
+    [Fact]
+    public void UserInstruction_User_DoesNotIncludeNewline()
+    {
+        string text = "USER root\n";
+        UserInstruction inst = UserInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("root", inst.User);
+    }
+
+    [Fact]
+    public void UserInstruction_User_WithNewlineInInput_NoNewlineInValue()
+    {
+        string text = "USER root\n";
+        UserInstruction inst = UserInstruction.Parse(text);
+        Assert.Equal("root", inst.User); // No newline expected
+    }
 }

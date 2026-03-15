@@ -24,6 +24,35 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### Bug Hunt — Deep Parser and Instruction Audit (2026-03-14)
+
+Performed a full manual audit of all instruction classes, ParseHelper.cs, and key token types. 11 bugs found and documented in `.squad/decisions/inbox/dallas-bug-hunt-findings.md`. Key findings:
+
+**HIGH severity:**
+- **Bug 7 — `FromInstruction.GetArgsParser` calls `.End()`**: This is the ONLY instruction that asserts end-of-input on its args parser. This will reject trailing whitespace in `FromInstruction.Parse("FROM ubuntu:22.04   ")` and will cause ONBUILD FROM to behave unexpectedly. Fix: remove `.End()` from the args parser.
+- **Bug 10 — `${VAR:-}` empty modifier value causes parse failure**: `BracedVariableReference` uses `ValueOrVariableRef(...).AtLeastOnce()` for modifier values, which requires at least one token. An empty modifier value (e.g., `${FOO:-}` or `${FOO:?}`) has zero content tokens and causes `AtLeastOnce()` to fail. Fix: change to `.Many()` with a `.Where(tokens => tokens.Any())` guard removed, or use a dedicated empty-value path.
+
+**MEDIUM severity:**
+- **Bug 1 — `VolumeInstruction` has dead `MountFlag.GetParser().Many()` loop**: VOLUME does not support `--mount`. This silently accepts invalid syntax. Fix: remove the mount loop entirely (same fix pattern as L2 cleanup done on CMD/ENTRYPOINT).
+- **Bug 3 — `OnBuildInstruction.GetArgsParser` uses `AnyChar.Many()`**: Swallows all input including trailing newlines and passes raw text to `CreateInstruction`. Comments after line continuations inside ONBUILD would not be tokenized as CommentTokens. Fix: use the same pattern as `GenericInstruction.InstructionArgs`.
+- **Bug 5 — `ArgDeclaration` line continuation after `=` with indented value**: `ARG FOO=\\\n    value` fails because `WhitespaceMode.AllowedInQuotes` does not allow unquoted leading whitespace on the continuation line. Fix: handle the continuation+indent sequence in the arg assignment parser.
+- **Bug 8 — `HealthCheckInstruction.Command` setter index arithmetic bug**: When setting Command to null (switching to NONE) with flags present, the whitespace insertion index is off by one after the cmdKeywordIndex decrement. Fix: re-examine insertion index logic after each removal.
+
+**LOW severity:**
+- **Bug 2 — `EnvInstruction.GetArgsParser` has redundant outer `Whitespace().Optional()`**: Double whitespace consumption before the key. Fix: remove the outer whitespace parse; `ArgTokens` handles it.
+- **Bug 4 — `DockerfileParser.StripTrailingComment` has no backslash escape awareness**: Can incorrectly strip heredoc command-line text. Fix: skip char after `\\` same as `ExtractHeredocDelimiters` does.
+- **Bug 6 — `KeyValueToken.GetInnerParser` always tries `FlagParser` even for non-flag tokens**: ENV variables starting with `--` would be misparsed. Fix: only include `FlagParser` when `isFlag: true`.
+- **Bug 9 — `ExposeInstruction` no port spec validation**: Accepts `EXPOSE foo/bar/baz` without error. Not a crash but a correctness gap.
+- **Bug 11 — `FileTransferInstruction.GetArgsParser` double whitespace token**: `ArgTokens` trailing whitespace + explicit `from whitespace in Whitespace()` creates two WhitespaceTokens for multi-space gaps. Fix: remove the explicit `Whitespace()` call; ArgTokens already handles it.
+
+**Key parser patterns learned:**
+- `.End()` on args parsers is unusual in this codebase — only FROM does it. It breaks embedded use in ONBUILD.
+- `AtLeastOnce()` for modifier values in variable refs does not handle the empty-value case.
+- `VolumeInstruction` has the same dead-MountFlag issue that was cleaned up in CMD/ENTRYPOINT (L2 cleanup) but was missed.
+- `ArgTokens` already consumes trailing whitespace in its fallback branch — callers should not add an extra `from whitespace in Whitespace()` after it.
+- `HealthCheckInstruction.Command` setter's token index arithmetic is complex and has a potential off-by-one when both whitespace removal and insertion happen.
+- `OnBuildInstruction` uses `AnyChar.Many()` which is a pattern used in `GenericInstruction` as well, but `GenericInstruction` handles comments correctly; `OnBuildInstruction` does not.
+
 ### Lean Parser Conformance to C# (2026-03-12)
 
 - **Directive flip:** C# is now the source of truth for parsing behavior. The Lean parser was modified to match C# output, not the other way around. Previous stance (Lean follows BuildKit) was overridden by project owner.
@@ -888,3 +917,17 @@ Completed targeted manual differential testing across all 18 Dockerfile instruct
 **Files:** `docs/differential-test-bugs.md`
 
 **Cross-agent:** Lambert wrote 19 new generators (InputGenerator expanded from 25 to 44 entries) to ensure these bug categories remain covered in differential tests.
+
+---
+
+## Team update (2026-03-15T00:07:00Z): Three-agent bug hunt consolidated
+
+Parallel bug hunt by Ripley, Dallas, and Lambert completed. **13 distinct bugs identified across full codebase audit:** 6 HIGH severity, 6 MEDIUM, 6 LOW priority.
+
+**Key overlaps:** VolumeInstruction dead parser (Ripley + Dallas), ExposeInstruction tokenization (Ripley + Dallas), VariableRefToken empty modifiers (Dallas + Lambert confirmed via tests).
+
+**Test coverage:** Lambert added 106 new tests across 3 files. 7 tests failing, confirming bugs in WorkdirInstruction.Path newline, MaintainerInstruction.Maintainer newline, VariableRefToken empty modifiers.
+
+**Five FsCheck generator gaps identified:** empty modifier values, property value assertions, trailing newline scenarios, CRLF coverage, systematic modifier type coverage.
+
+All findings merged to decisions.md. Inbox files deleted. Cross-team coordination complete. — decided by Scribe

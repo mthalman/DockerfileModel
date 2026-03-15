@@ -202,4 +202,24 @@ public class StopSignalInstructionTests
     {
         public string Signal { get; set; }
     }
+
+    [Fact]
+    public void StopSignalInstruction_Signal_DoesNotIncludeNewline()
+    {
+        // Check if other instructions using TokenWithTrailingWhitespace pattern have same issue
+        string text = "STOPSIGNAL SIGTERM\n";
+        StopSignalInstruction inst = StopSignalInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("SIGTERM", inst.Signal);  // Should NOT be "SIGTERM\n"
+    }
+
+    [Fact]
+    public void StopSignalInstruction_Signal_WithNewlineInInput_NoNewlineInValue()
+    {
+        // StopSignal uses LiteralWithVariables without WhitespaceMode.Allowed
+        // So it should NOT include the trailing newline in its property
+        string text = "STOPSIGNAL SIGTERM\n";
+        StopSignalInstruction inst = StopSignalInstruction.Parse(text);
+        Assert.Equal("SIGTERM", inst.Signal); // No newline expected
+    }
 }

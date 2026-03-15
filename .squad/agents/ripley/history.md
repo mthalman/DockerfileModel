@@ -23,6 +23,51 @@
 
 ## Learnings
 
+### 2026-03-14 — Bug Hunt (src/Valleysoft.DockerfileModel/)
+
+Conducted full source-level bug hunt across instruction classes, ImageName, DockerfileBuilder, StagesView, variable resolution, and TokenJsonSerializer. Findings written to `.squad/decisions/inbox/ripley-bug-hunt-findings.md`.
+
+**Key findings:**
+
+1. **Bug: localhost registry not recognized** (`ImageName.cs:401–414`) — `Registry.GetInnerParser` uses `DelimitedIdentifier` requiring at least one `.` or `:` delimiter. Plain `localhost` (no port, no dots) is not recognized as a registry. `localhost/myimage:tag` parses `Repository = "localhost/myimage"` instead of `Registry = "localhost", Repository = "myimage"`. HIGH severity.
+
+2. **Bug: EXPOSE port/protocol over-tokenized** (`ExposeInstruction.cs:59`) — `EXPOSE 80/tcp` produces three tokens at instruction level (`LiteralToken("80")`, `SymbolToken('/')`, `LiteralToken("tcp")`) rather than one opaque literal. `Ports` list returns `["80", "tcp"]` (count=2) instead of `["80/tcp"]` (count=1). Workaround exists in `TokenJsonSerializer.cs:342–416`. HIGH severity.
+
+3. **Bug: ResolveVariables single-instruction overload overwrites result with subsequent ARG text** (`Dockerfile.cs:143–149`) — When resolving a specific instruction, the `processInstruction` predicate returns `true` for all instructions after the target (because `foundInstruction` stays true). If an ARG with a default value follows the target instruction, its processing at line 148 overwrites `resolvedValue` with the ARG's text. HIGH severity.
+
+4. **Bug: ExtractHeredocDelimiters hardcodes backslash escape** (`DockerfileParser.cs:49`) — The method scans for `'\\'` as the escape character, but it should use the Dockerfile's actual escape char. Affects non-default escape char Dockerfiles with heredoc syntax. MEDIUM severity.
+
+5. **Bug: FormatKeyValueAssignment quote guard logic** (`StringHelper.cs:28`) — Condition checks `value[0] != '"' && value.Last() != '"'` — if value ends (but doesn't start) with `"` and contains spaces, it won't be quoted. Produces syntactically invalid Dockerfile for edge cases. MEDIUM severity.
+
+6. **Bug: KeyValueToken.Value uses DefaultEscapeChar** (`KeyValueToken.cs:91`) — Auto-inserted LiteralToken uses `Dockerfile.DefaultEscapeChar` instead of the actual instruction's escape char. MEDIUM severity (acknowledged in code comment).
+
+7. **Dead code: VolumeInstruction has MountFlag parser** (`VolumeInstruction.cs:48`) — Same pattern as previously documented for CmdInstruction/EntrypointInstruction. LOW severity.
+
+8. **Dead code: CanAutoAddEscapeDirective has unreachable condition** (`DockerfileBuilder.cs:291`) — Inner `EscapeChar == Dockerfile.DefaultEscapeChar` check is always false at that point (outer guard already returned false for that case). LOW severity.
+
+9. **Design asymmetry: StagesView drops pre-FROM Comments** (`StagesView.cs:19–33`) — Comments before the first FROM are silently ignored (not added to GlobalArgs or any stage). LOW severity.
+
+10. **Builder inconsistency: VolumeInstruction always uses JSON format** (`VolumeInstruction.cs:44`) — `VolumeInstruction(IEnumerable<string>)` always produces JSON array form even for single paths. LOW severity.
+
+**Key file paths reviewed:**
+- `src/Valleysoft.DockerfileModel/ImageName.cs`
+- `src/Valleysoft.DockerfileModel/StagesView.cs`
+- `src/Valleysoft.DockerfileModel/Dockerfile.cs`
+- `src/Valleysoft.DockerfileModel/DockerfileBuilder.cs`
+- `src/Valleysoft.DockerfileModel/DockerfileParser.cs`
+- `src/Valleysoft.DockerfileModel/ExposeInstruction.cs`
+- `src/Valleysoft.DockerfileModel/VolumeInstruction.cs`
+- `src/Valleysoft.DockerfileModel/StringHelper.cs`
+- `src/Valleysoft.DockerfileModel/ParseHelper.cs`
+- `src/Valleysoft.DockerfileModel/Tokens/VariableRefToken.cs`
+- `src/Valleysoft.DockerfileModel/Tokens/KeyValueToken.cs`
+- `src/Valleysoft.DockerfileModel/Tokens/AggregateToken.cs`
+- `src/Valleysoft.DockerfileModel.DiffTest/TokenJsonSerializer.cs`
+
+**Patterns noticed:**
+- The TokenJsonSerializer workarounds (EXPOSE port/protocol, mount flattening, COPY/ADD flag literals) directly identify confirmed C# vs BuildKit divergences.
+- The `localhost` registry gap is a pure C# omission — Docker has special-cased `localhost` in image reference parsing since Docker 1.12.
+- The `ResolveVariables` single-instruction result-overwrite is the most subtle semantic bug — it passes casual code reading because the `processInstruction` predicate looks correct but its interaction with the ARG branch is not.
 
 ## Core Context
 
@@ -113,3 +158,15 @@ Designed comprehensive heredoc token architecture for Issue #245 (RUN, COPY, ADD
 **Implementation Plan:** 10-step progression produced for Dallas covering token class creation, integration with argument parsing, and full instruction support.
 
 **Coordination:** Decision locked for review before implementation lands on dev. Lambert's test suite (160 test cases) provides executable specification. Dallas continues implementation on `squad/245-heredoc-syntax-heredocs-property` branch.
+
+---
+
+## Team update (2026-03-15T00:07:00Z): Three-agent bug hunt consolidated
+
+Parallel bug hunt by Ripley, Dallas, and Lambert completed. **13 distinct bugs identified:** 6 HIGH severity (ImageName localhost, ExposeInstruction tokenization, ResolveVariables result overwrite, FromInstruction .End() assertion, VariableRefToken empty modifiers, WorkdirInstruction trailing newline), 6 MEDIUM, 6 LOW priority.
+
+**Key overlaps:** VolumeInstruction dead parser (Ripley + Dallas), ExposeInstruction tokenization (Ripley + Dallas), VariableRefToken empty modifiers (Dallas + Lambert confirmed via tests).
+
+**Test coverage:** 106 new tests added across 3 files. 7 tests failing, confirming 3 bugs (WorkdirInstruction.Path newline, MaintainerInstruction.Maintainer newline, VariableRefToken empty modifiers). Five FsCheck generator gaps identified by Lambert.
+
+All findings merged to decisions.md. Inbox files deleted. Cross-team coordination complete. — decided by Scribe

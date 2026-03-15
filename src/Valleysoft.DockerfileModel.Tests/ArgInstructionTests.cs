@@ -509,4 +509,61 @@ public class ArgInstructionTests
     {
         public Dictionary<string, string> Args { get; set; }
     }
+
+    [Fact]
+    public void ArgInstruction_NoValue_RoundTrips()
+    {
+        // ARG with no default value
+        string text = "ARG MYVAR\n";
+        ArgInstruction inst = ArgInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Single(inst.Args);
+        Assert.Equal("MYVAR", inst.Args[0].Key);
+        Assert.Null(inst.Args[0].Value);
+    }
+
+    [Fact]
+    public void ArgInstruction_EmptyDefault_RoundTrips()
+    {
+        // ARG MYVAR= (explicitly empty default)
+        string text = "ARG MYVAR=\n";
+        ArgInstruction inst = ArgInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Single(inst.Args);
+        Assert.Equal("MYVAR", inst.Args[0].Key);
+        // Empty string default, not null
+        Assert.Equal("", inst.Args[0].Value);
+    }
+
+    [Fact]
+    public void ArgInstruction_EmptyQuotedDefault_RoundTrips()
+    {
+        // ARG MYVAR="" (empty quoted default)
+        string text = "ARG MYVAR=\"\"\n";
+        ArgInstruction inst = ArgInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("", inst.Args[0].Value);
+    }
+
+    /// <summary>
+    /// Bug: Empty modifier values in variable references cause ParseException
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void ArgDeclaration_WithBracedVarDefaultEmptyModifier_InArg()
+    {
+        // ARG MYVAR=${DEFAULT:-} -- does ARG parse this?
+        string text = "ARG MYVAR=${DEFAULT:-}\n";
+        try
+        {
+            ArgInstruction inst = ArgInstruction.Parse(text);
+            System.Console.WriteLine($"Parse succeeded: {inst}");
+            System.Console.WriteLine($"Arg value: [{inst.Args[0].Value}]");
+            Assert.Equal(text, inst.ToString());
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"Parse FAILED with {ex.GetType().Name}: {ex.Message}");
+        }
+    }
 }

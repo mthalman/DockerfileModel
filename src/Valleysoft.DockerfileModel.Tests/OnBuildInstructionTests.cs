@@ -115,4 +115,12 @@ public class OnBuildInstructionTests
     {
         public Instruction Instruction { get; set; }
     }
+
+    [Fact]
+    public void OnBuildInstruction_Simple_RoundTrips()
+    {
+        string text = "ONBUILD RUN echo hello\n";
+        OnBuildInstruction inst = OnBuildInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
 }

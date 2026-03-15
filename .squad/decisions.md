@@ -2088,3 +2088,88 @@ Each generator produces 5-8 variants covering the specific edge case plus relate
 #### Files Changed
 - `src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs` (modified)
 - `src/Valleysoft.DockerfileModel.DiffTest/InputGenerator.cs` (modified)
+
+## 2026-03-14: Three-Agent Bug Hunt Results — Architecture, Parser, and Test Coverage
+
+**Authors:** Ripley (Lead), Dallas (Core Dev), Lambert (Tester)
+**Date:** 2026-03-14
+**Scope:** Full codebase audit — src/Valleysoft.DockerfileModel/
+
+### Context
+
+Three agents conducted parallel, independent code audits of the Dockerfile parser and builder library to identify bugs missed by existing tests. Combined findings revealed 13 distinct bugs across parsers, instructions, tokens, and test coverage gaps. Findings were documented in three inbox decision files and are now consolidated here.
+
+### High-Priority Bugs (Fix First)
+
+1. **ImageName doesn't recognize localhost as registry** (Ripley Bug 5)
+   - **Location:** `src/Valleysoft.DockerfileModel/ImageName.cs:401–414`
+   - **Severity:** HIGH
+   - **Issue:** `localhost/myimage:latest` parses as `Repository="localhost/myimage"` instead of `Registry="localhost", Repository="myimage"`
+   - **Root Cause:** `Registry.GetInnerParser` requires at least one `.` or `:` delimiter; plain `localhost` fails
+
+2. **ExposeInstruction port/protocol over-tokenized** (Ripley Bug 6, Dallas Bug 9)
+   - **Location:** `src/Valleysoft.DockerfileModel/ExposeInstruction.cs:59`
+   - **Severity:** HIGH
+   - **Issue:** `EXPOSE 80/tcp` produces 3 tokens instead of 1; `Ports` returns `["80", "tcp"]` instead of `["80/tcp"]`
+   - **Root Cause:** `LiteralWithVariables` includes `/` as regular character
+
+3. **Dockerfile.ResolveVariables overwrites result** (Ripley Bug 2/8, Dallas cross-ref)
+   - **Location:** `src/Valleysoft.DockerfileModel/Dockerfile.cs:143–149`
+   - **Severity:** HIGH
+   - **Issue:** Returns subsequent ARG text instead of target instruction text
+   - **Root Cause:** `processInstruction` returns true for all after target; subsequent ARG overwrites result
+
+4. **FromInstruction.End() rejects trailing whitespace** (Dallas Bug 7)
+   - **Location:** `src/Valleysoft.DockerfileModel/FromInstruction.cs:135–142`
+   - **Severity:** HIGH
+   - **Issue:** `FromInstruction.Parse("FROM ubuntu:22.04   ")` fails; only instruction with `.End()` assertion
+
+5. **VariableRefToken cannot parse empty modifier values** (Dallas Bug 10, Lambert Bug 1 - confirmed)
+   - **Location:** `src/Valleysoft.DockerfileModel/Tokens/VariableRefToken.cs:306–316`
+   - **Severity:** HIGH
+   - **Issue:** `${VAR:-}`, `${VAR:+}`, `${VAR:?}` throw ParseException; valid Docker syntax
+   - **Root Cause:** `.AtLeastOnce()` requires at least one token; empty values valid
+
+6. **WorkdirInstruction.Path includes trailing newline** (Lambert Bug 2 - confirmed via tests)
+   - **Location:** `src/Valleysoft.DockerfileModel/WorkdirInstruction.cs:54`
+   - **Severity:** HIGH
+   - **Issue:** `WorkdirInstruction.Parse("WORKDIR /app\n").Path` returns `"/app\n"`
+   - **Root Cause:** `LiteralWithVariables(..., WhitespaceMode.Allowed)` includes newline
+   - **Test Evidence:** 13 new tests confirm this bug
+
+### Medium-Priority Bugs
+
+- **ExtractHeredocDelimiters hardcodes backslash escape** (Ripley Bug 11, MEDIUM)
+- **FormatKeyValueAssignment incorrect quote logic** (Ripley Bug 7, MEDIUM)
+- **KeyValueToken.Value uses hardcoded DefaultEscapeChar** (Ripley Bug 9, MEDIUM)
+- **EnvInstruction whitespace ordering** (Dallas Bug 2, MEDIUM)
+- **OnBuildInstruction greedy input consumption** (Dallas Bug 3, MEDIUM)
+- **MaintainerInstruction trailing newline** (Lambert Bug 3, MEDIUM)
+
+### Low-Priority / Cleanup Bugs
+
+- **VolumeInstruction dead MountFlag parser** (Ripley Bug 1, Dallas Bug 1, LOW)
+- **DockerfileBuilder dead condition** (Ripley Bug 4, LOW)
+- **StagesView drops pre-FROM Comments** (Ripley Bug 3, LOW)
+- **VolumeInstruction always JSON format** (Ripley Bug 12, LOW)
+- **DockerfileParser escape awareness** (Dallas Bug 4, LOW)
+- **HealthCheckInstruction off-by-one** (Dallas Bug 8, LOW)
+
+### Test Coverage Gaps Identified
+
+1. FsCheck generators never produce empty modifier values
+2. Property tests don't assert semantic values (Path, Maintainer, Signal)
+3. Instructions tested without trailing newline (real-world has `\n`)
+4. Missing CRLF line-ending coverage
+5. Missing systematic modifier type coverage
+
+### Decision
+
+All 13 bugs consolidated with cross-references. Six bugs are HIGH severity requiring prioritized fixes. Three new test files added with 106 tests confirming 3 bugs through executable failures. Five FsCheck generator improvements identified.
+
+### Files Changed
+
+Decision inbox files to be deleted after merge:
+- `.squad/decisions/inbox/ripley-bug-hunt-findings.md`
+- `.squad/decisions/inbox/dallas-bug-hunt-findings.md`
+- `.squad/decisions/inbox/lambert-bug-hunt-findings.md`

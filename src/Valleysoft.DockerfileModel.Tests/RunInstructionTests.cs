@@ -1120,4 +1120,56 @@ public class RunInstructionTests
         public string Network { get; set; }
         public string Security { get; set; }
     }
+
+    [Fact]
+    public void RunInstruction_MultipleLineContinuations_RoundTrips()
+    {
+        string text = "RUN echo \\\n\\\nhello\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_VeryLongCommand_RoundTrips()
+    {
+        // 10000-char RUN command
+        string longCmd = new string('a', 10000);
+        string text = $"RUN {longCmd}\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_UnicodeInCommand_RoundTrips()
+    {
+        string text = "RUN echo 'こんにちは世界'\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_ExecForm_RoundTrips()
+    {
+        string text = "RUN [\"echo\", \"hello\"]\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_ExecFormEmptyArray_RoundTrips()
+    {
+        // Empty exec form — edge case
+        string text = "RUN []\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_ShellFormWithHash_RoundTrips()
+    {
+        // # inside shell form RUN — treated as regular text, not comment
+        string text = "RUN echo #notacomment\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
 }

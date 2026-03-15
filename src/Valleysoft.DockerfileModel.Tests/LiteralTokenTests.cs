@@ -143,6 +143,26 @@ public class LiteralTokenTests
 
         return testInputs.Select(input => new object[] { input });
     }
+
+    /// <summary>
+    /// Bug: WorkdirInstruction.Path includes trailing newline character
+    /// See https://github.com/mthalman/DockerfileModel/issues/282
+    /// </summary>
+    [Fact]
+    public void LiteralToken_ValueWithNewline_IncludesNewlineInValue()
+    {
+        // When a LiteralToken contains a NewLineToken as a child,
+        // LiteralToken.Value (which uses CreateOptionsForValueString) does NOT strip newlines.
+        // CreateOptionsForValueString only excludes: LineContinuations, Quotes, Comments.
+        // NewLineToken is NOT excluded.
+        // This confirms the root cause: TokenStringOptions needs an ExcludeNewLines option,
+        // OR the parsers need to not include newlines in instruction-argument LiteralTokens.
+        Tokens.LiteralToken lit = new("hello\nworld");
+        string value = lit.Value;
+        System.Console.WriteLine($"LiteralToken with newline: value=[{value}]");
+        // The newline IS in the value
+        Assert.Contains("\n", value);
+    }
 }
 
 public class LiteralTokenParseTestScenario : ParseTestScenario<LiteralToken>

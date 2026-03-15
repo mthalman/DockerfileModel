@@ -586,4 +586,130 @@ public class FromInstructionTests
         public string ImageName { get; set; }
         public string Stage { get; set; }
     }
+
+    [Fact]
+    public void FromInstruction_DoubleLineContinuation_RoundTrips()
+    {
+        // Two consecutive continuations — should not confuse the parser
+        string text = "FROM \\\n\\\nalpine\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_CRLF_RoundTrips()
+    {
+        string text = "FROM alpine\r\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_ImageWithTag_RoundTrips()
+    {
+        string text = "FROM alpine:3.18\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine:3.18", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_ImageWithDigest_RoundTrips()
+    {
+        string text = "FROM alpine@sha256:abcdef1234567890\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine@sha256:abcdef1234567890", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_TagAndDigest_RoundTrips()
+    {
+        // Both tag and digest specified — Docker allows this
+        string text = "FROM alpine:3.18@sha256:abcdef1234567890\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine:3.18@sha256:abcdef1234567890", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_VeryLongImageName_RoundTrips()
+    {
+        // 1000-char image name
+        string longName = "registry.example.com/" + new string('a', 500) + "/" + new string('b', 400) + ":latest";
+        string text = $"FROM {longName}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal(longName, inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_NoTrailingNewline_RoundTrips()
+    {
+        string text = "FROM alpine";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_LowercaseKeyword_RoundTrips()
+    {
+        string text = "from alpine\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_MixedCaseKeyword_RoundTrips()
+    {
+        string text = "FrOm alpine\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_BacktickLineContinuation_RoundTrips()
+    {
+        // Using backtick as escape in a line continuation
+        string text = "FROM al`\npine\n";
+        FromInstruction inst = FromInstruction.Parse(text, '`');
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_AllComponents_RoundTrips()
+    {
+        string text = "FROM --platform=linux/amd64 alpine:3.18 AS mybase\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("linux/amd64", inst.Platform);
+        Assert.Equal("alpine:3.18", inst.ImageName);
+        Assert.Equal("mybase", inst.StageName);
+    }
+
+    [Fact]
+    public void FromInstruction_WithBracedVarNoModifier_RoundTrips()
+    {
+        // Basic ${VAR} with no modifier — this SHOULD work
+        string text = "FROM ${BASE_IMAGE}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("${BASE_IMAGE}", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_WithBracedVarColonDash_RoundTrips()
+    {
+        // ${var:-default} — non-empty default, should work
+        string text = "FROM ${BASE:-alpine}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("${BASE:-alpine}", inst.ImageName);
+    }
 }

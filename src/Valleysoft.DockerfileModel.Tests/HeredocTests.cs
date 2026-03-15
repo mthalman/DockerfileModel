@@ -2606,4 +2606,150 @@ public class HeredocTests
         Assert.Equal('\'', marker.QuoteChar);
         Assert.False(marker.Expand);
     }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_EmptyString_ReturnsEmpty()
+    {
+        var result = DockerfileParser.ExtractHeredocDelimiters("");
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_NoHeredoc_ReturnsEmpty()
+    {
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN echo hello");
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_SimpleHeredoc_ReturnsDelimiter()
+    {
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN <<EOF");
+        Assert.Single(result);
+        Assert.Equal("EOF", result[0].Delimiter);
+        Assert.False(result[0].HasChomp);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_ChompHeredoc_ReturnsWithChomp()
+    {
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN <<-EOF");
+        Assert.Single(result);
+        Assert.Equal("EOF", result[0].Delimiter);
+        Assert.True(result[0].HasChomp);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_MultipleHeredocs_ReturnsBoth()
+    {
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN <<FILE1 <<FILE2");
+        Assert.Equal(2, result.Count);
+        Assert.Equal("FILE1", result[0].Delimiter);
+        Assert.Equal("FILE2", result[1].Delimiter);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_QuotedHeredoc_ReturnsDelimiter()
+    {
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN <<\"EOF\"");
+        Assert.Single(result);
+        Assert.Equal("EOF", result[0].Delimiter);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_HeredocInsideDoubleQuotes_NotRecognized()
+    {
+        // Inside double quotes, <<EOF should not be treated as heredoc
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN echo \"<<EOF\"");
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_HashAfterHeredocMarker_Stripped()
+    {
+        // Comment after heredoc marker should be stripped before detection
+        // "RUN <<EOF #comment" — the #comment should be stripped, leaving "RUN <<EOF "
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN <<EOF #comment");
+        Assert.Single(result);
+        Assert.Equal("EOF", result[0].Delimiter);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_HeredocInsideSingleQuotes_NotRecognized()
+    {
+        // Inside single quotes, <<EOF should not be treated as heredoc
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN echo '<<EOF'");
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_EmptyString_ReturnsEmpty()
+    {
+        string result = DockerfileParser.StripTrailingComment("");
+        Assert.Equal("", result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_HashAtStart_StripsEverything()
+    {
+        // # at position 0 is a comment — strip from there
+        string result = DockerfileParser.StripTrailingComment("# this is a comment");
+        // '#' preceded by nothing — index == 0, so char.IsWhiteSpace(line[i-1]) won't be checked
+        // Based on the condition: i == 0 || char.IsWhiteSpace(line[i-1])
+        // When i == 0, the short-circuit means '#' IS treated as comment start
+        Assert.Equal("", result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_HashInMiddle_WithLeadingSpace_Strips()
+    {
+        // Space before # — treated as comment
+        string result = DockerfileParser.StripTrailingComment("echo hello #this is a comment");
+        Assert.Equal("echo hello ", result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_HashInMiddle_NoLeadingSpace_DoesNotStrip()
+    {
+        // No space before # — NOT treated as comment
+        string result = DockerfileParser.StripTrailingComment("echo hello#notacomment");
+        Assert.Equal("echo hello#notacomment", result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_HashInsideSingleQuotes_NotStripped()
+    {
+        string result = DockerfileParser.StripTrailingComment("echo '#notacomment'");
+        Assert.Equal("echo '#notacomment'", result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_HashInsideDoubleQuotes_NotStripped()
+    {
+        string result = DockerfileParser.StripTrailingComment("echo \"#notacomment\"");
+        Assert.Equal("echo \"#notacomment\"", result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_UnclosedSingleQuote_StillStripsHash()
+    {
+        // Unclosed single quote — quote flag stays set, hash not treated as comment
+        // This is a tricky edge case
+        string result = DockerfileParser.StripTrailingComment("echo 'hello #notacomment");
+        // Inside single quotes (unclosed), so # is NOT a comment
+        Assert.Equal("echo 'hello #notacomment", result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_EscapedHashInUnquotedContext_Behavior()
+    {
+        // The StripTrailingComment does NOT handle escape sequences (backslash)
+        // This tests its behavior when a hash appears after backslash
+        // Since the method doesn't track backslash escaping, '\\#' will be treated
+        // with the # at its literal position — the preceding char is '\' which is NOT whitespace
+        // so the hash should NOT be stripped (because condition requires preceding whitespace OR i==0)
+        string result = DockerfileParser.StripTrailingComment("echo \\#notacomment");
+        // The char before # is '\', which is not whitespace, so # is not treated as comment start
+        Assert.Equal("echo \\#notacomment", result);
+    }
 }
