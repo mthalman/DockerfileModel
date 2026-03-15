@@ -51,9 +51,7 @@ public class EnvInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        from whitespace in Whitespace().Optional()
-        from variables in MultiVariableFormat(escapeChar).Or(SingleVariableFormat(escapeChar))
-        select ConcatTokens(whitespace.GetOrDefault(), variables);
+        MultiVariableFormat(escapeChar).Or(SingleVariableFormat(escapeChar));
 
     private static Parser<IEnumerable<Token>> MultiVariableFormat(char escapeChar) =>
         ArgTokens(
