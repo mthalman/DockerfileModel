@@ -35,6 +35,41 @@ public class OnBuildInstructionTests
         Assert.Throws<ArgumentNullException>(() => result.Instruction = null);
     }
 
+    [Fact]
+    public void TriggerInstructionParser_InstructionsStayInSync()
+    {
+        Dictionary<string, Func<string, char, Instruction>> instructionParsers =
+            (Dictionary<string, Func<string, char, Instruction>>)typeof(Instruction)
+                .GetField("instructionParsers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                .GetValue(null)!;
+        string[] expectedInstructions = instructionParsers.Keys
+            .Except(new[] { "FROM", "MAINTAINER", "ONBUILD" }, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(instruction => instruction, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        string[] actualInstructions = new[]
+        {
+            "ADD",
+            "ARG",
+            "CMD",
+            "COPY",
+            "ENTRYPOINT",
+            "ENV",
+            "EXPOSE",
+            "HEALTHCHECK",
+            "LABEL",
+            "RUN",
+            "SHELL",
+            "STOPSIGNAL",
+            "USER",
+            "VOLUME",
+            "WORKDIR",
+        }
+        .OrderBy(instruction => instruction, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+        Assert.Equal(expectedInstructions, actualInstructions);
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<OnBuildInstruction>[] testInputs = new ParseTestScenario<OnBuildInstruction>[]
