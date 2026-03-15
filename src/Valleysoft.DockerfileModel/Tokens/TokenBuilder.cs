@@ -42,12 +42,12 @@ public class TokenBuilder
         char separator = KeyValueToken<TKey, TValue>.DefaultSeparator)
         where TKey : Token, IValueToken
         where TValue : Token =>
-        AddToken(new KeyValueToken<TKey, TValue>(key, value, isFlag, separator));
+        AddToken(new KeyValueToken<TKey, TValue>(key, value, isFlag, separator, EscapeChar));
 
     public TokenBuilder KeyValue<TKey, TValue>(Action<TokenBuilder> configureBuilder)
         where TKey : Token, IValueToken
         where TValue : Token =>
-        AddToken(new KeyValueToken<TKey, TValue>(GetTokens(configureBuilder)));
+        AddToken(new KeyValueToken<TKey, TValue>(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder Keyword(string value) =>
         AddToken(new KeywordToken(value, EscapeChar));

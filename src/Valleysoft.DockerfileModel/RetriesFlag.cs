@@ -11,13 +11,14 @@ public class RetriesFlag : KeywordLiteralFlag
     {
     }
 
-    internal RetriesFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal RetriesFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static RetriesFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new RetriesFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new RetriesFlag(tokens, esc), escapeChar);
 
     public static Parser<RetriesFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new RetriesFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new RetriesFlag(tokens, esc), escapeChar);
 }

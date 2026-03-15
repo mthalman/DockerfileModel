@@ -11,13 +11,14 @@ public class ChecksumFlag : KeywordLiteralFlag
     {
     }
 
-    internal ChecksumFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal ChecksumFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static ChecksumFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new ChecksumFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new ChecksumFlag(tokens, esc), escapeChar);
 
     public static Parser<ChecksumFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new ChecksumFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new ChecksumFlag(tokens, esc), escapeChar);
 }

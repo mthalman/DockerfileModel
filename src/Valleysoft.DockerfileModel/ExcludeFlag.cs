@@ -11,13 +11,14 @@ public class ExcludeFlag : KeywordLiteralFlag
     {
     }
 
-    internal ExcludeFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal ExcludeFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static ExcludeFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new ExcludeFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new ExcludeFlag(tokens, esc), escapeChar);
 
     public static Parser<ExcludeFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new ExcludeFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new ExcludeFlag(tokens, esc), escapeChar);
 }

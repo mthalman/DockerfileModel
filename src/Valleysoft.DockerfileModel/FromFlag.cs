@@ -6,12 +6,13 @@ namespace Valleysoft.DockerfileModel;
 public class FromFlag : KeyValueToken<KeywordToken, LiteralToken>
 {
     public FromFlag(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("from", escapeChar), new LiteralToken(value, canContainVariables: false, escapeChar), isFlag: true)
+        : base(new KeywordToken("from", escapeChar), new LiteralToken(value, canContainVariables: false, escapeChar), isFlag: true,
+            escapeChar: escapeChar)
     {
     }
 
-    internal FromFlag(IEnumerable<Token> tokens)
-        : base(tokens)
+    internal FromFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
@@ -19,13 +20,13 @@ public class FromFlag : KeyValueToken<KeywordToken, LiteralToken>
         Parse(text,
             KeywordToken.GetParser("from", escapeChar),
             LiteralToken(escapeChar, Enumerable.Empty<char>()),
-            tokens => new FromFlag(tokens),
+            tokens => new FromFlag(tokens, escapeChar),
             escapeChar: escapeChar);
 
     public static Parser<FromFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("from", escapeChar),
             LiteralToken(escapeChar, Enumerable.Empty<char>()),
-            tokens => new FromFlag(tokens),
+            tokens => new FromFlag(tokens, escapeChar),
             escapeChar: escapeChar);
 }
