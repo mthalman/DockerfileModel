@@ -175,7 +175,7 @@ public class Dockerfile : IConstructContainer
             // If an arg override exists for this arg
             else if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
             {
-                stageArgs.Add(arg.Name, overrideArgValue);
+                stageArgs[arg.Name] = overrideArgValue;
             }
             else
             {
