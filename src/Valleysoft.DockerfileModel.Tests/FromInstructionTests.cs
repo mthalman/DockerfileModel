@@ -21,6 +21,17 @@ public class FromInstructionTests
     }
 
     [Fact]
+    public void Parse_AllowsTrailingWhitespace()
+    {
+        const string text = "FROM ubuntu:22.04 ";
+
+        FromInstruction result = FromInstruction.Parse(text);
+
+        Assert.Equal(text, result.ToString());
+        Assert.Equal("ubuntu:22.04", result.ImageName);
+    }
+
+    [Fact]
     public void ImageName()
     {
         FromInstruction instruction = new("test");
