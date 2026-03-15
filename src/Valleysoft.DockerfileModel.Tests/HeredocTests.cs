@@ -2793,6 +2793,20 @@ public class HeredocTests
     }
 
     [Fact]
+    public void StripTrailingComment_EscapedQuoteInsideDoubleQuotes_DoesNotExposeComment()
+    {
+        string result = DockerfileParser.StripTrailingComment("echo \"say \\\"#notacomment\\\"\" #comment");
+        Assert.Equal("echo \"say \\\"#notacomment\\\"\" ", result);
+    }
+
+    [Fact]
+    public void StripTrailingComment_EscapedWhitespaceBeforeHash_NotStripped()
+    {
+        string result = DockerfileParser.StripTrailingComment("echo \\ #notacomment");
+        Assert.Equal("echo \\ #notacomment", result);
+    }
+
+    [Fact]
     public void StripTrailingComment_CustomEscapeChar_Backtick()
     {
         // With a custom escape character (backtick, used on Windows Dockerfiles),

@@ -95,6 +95,7 @@ internal static class DockerfileParser
     {
         bool inSingleQuote = false;
         bool inDoubleQuote = false;
+        bool previousCharWasUnescapedWhitespace = false;
 
         for (int i = 0; i < line.Length; i++)
         {
@@ -103,6 +104,7 @@ internal static class DockerfileParser
             // Skip escaped characters (escape char is not special inside single quotes)
             if (ch == escapeChar && !inSingleQuote && i + 1 < line.Length)
             {
+                previousCharWasUnescapedWhitespace = false;
                 i++; // skip next character
                 continue;
             }
@@ -115,10 +117,12 @@ internal static class DockerfileParser
             {
                 inDoubleQuote = !inDoubleQuote;
             }
-            else if (ch == '#' && !inSingleQuote && !inDoubleQuote && (i == 0 || char.IsWhiteSpace(line[i - 1])))
+            else if (ch == '#' && !inSingleQuote && !inDoubleQuote && (i == 0 || previousCharWasUnescapedWhitespace))
             {
                 return line.Substring(0, i);
             }
+
+            previousCharWasUnescapedWhitespace = char.IsWhiteSpace(ch);
         }
 
         return line;
