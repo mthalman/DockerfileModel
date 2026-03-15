@@ -339,6 +339,12 @@ public class ArgDeclarationTests
                     Assert.Equal("MY_VAR", result.Name);
                     Assert.Equal("default_value", result.Value);
                 }
+            },
+            new ParseTestScenario<ArgDeclaration>
+            {
+                Text = "MY_VAR=\\\n    \nval",
+                EscapeChar = '\\',
+                ParseExceptionPosition = new Position(0, 1, 7)
             }
         };
 

@@ -106,7 +106,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         Tokens.OfType<SymbolToken>().Where(token => token.Value == AssignmentOperator.ToString()).Any();
 
     public static ArgDeclaration Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar).End()), escapeChar);
 
     public static Parser<ArgDeclaration> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
@@ -142,12 +142,12 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         from lineContinuation in LineContinuations(escapeChar)
         from assignment in Symbol(AssignmentOperator).AsEnumerable()
         from lineContinuation2 in LineContinuationWithTrailingWhitespace(escapeChar)
-        from value in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable().Optional()
+        from value in GetAssignedValueParser(escapeChar, lineContinuation2.Any())
         select ConcatTokens(
             lineContinuation,
             assignment,
             lineContinuation2,
-            value.GetOrDefault());
+            value);
 
     /// <summary>
     /// Parses zero or more line continuations. When at least one line continuation is present,
@@ -162,6 +162,19 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
              moreContinuations,
              trailingWhitespace is null ? Enumerable.Empty<Token>() : new Token[] { trailingWhitespace }))
         .Or(Sprache.Parse.Return(Enumerable.Empty<Token>()));
+
+    private static Parser<IEnumerable<Token>> GetAssignedValueParser(char escapeChar, bool requireValue)
+    {
+        Parser<IEnumerable<Token>> valueParser = LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable();
+        if (requireValue)
+        {
+            return valueParser;
+        }
+
+        return
+            from optionalValue in valueParser.Optional()
+            select optionalValue.GetOrDefault();
+    }
 
     private static Parser<WhitespaceToken?> ContinuationIndentation() =>
         from whitespace in Sprache.Parse.WhiteSpace.Except(Sprache.Parse.LineTerminator).XMany().Text()
