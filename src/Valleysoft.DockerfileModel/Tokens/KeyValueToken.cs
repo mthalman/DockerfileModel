@@ -8,7 +8,15 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
 {
     public const char DefaultSeparator = '=';
 
+    private readonly char escapeChar;
+
     public KeyValueToken(TKey key, TValue value, bool isFlag = false, char separator = DefaultSeparator)
+        : this(key, value, isFlag, separator, Dockerfile.DefaultEscapeChar)
+    {
+    }
+
+    public KeyValueToken(TKey key, TValue value, bool isFlag, char separator = DefaultSeparator,
+        char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(
             ConcatTokens(
                 isFlag ? new Token[] { new SymbolToken('-'), new SymbolToken('-') } : Enumerable.Empty<Token>(),
@@ -17,13 +25,15 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
                     key,
                     Char.IsWhiteSpace(separator) ? new WhitespaceToken(separator.ToString()) : new SymbolToken(separator),
                     value
-                }))
+                }),
+            escapeChar)
     {
     }
 
-    internal KeyValueToken(IEnumerable<Token> tokens)
+    internal KeyValueToken(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
         : base(tokens)
     {
+        this.escapeChar = escapeChar;
     }
 
     public string Key
@@ -83,12 +93,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
                 // insert a ValueToken manually.
                 if (typeof(TValue) == typeof(LiteralToken))
                 {
-                    // Limitation: This LiteralToken is constructed with the default escape char
-                    // because the original instruction's escapeChar is not available here. This is
-                    // correct for the vast majority of Dockerfiles (which use backslash). A full
-                    // fix would require threading escapeChar through the property chain, which is
-                    // a larger refactor.
-                    ValueToken = (TValue)(Token)new LiteralToken(value, canContainVariables: true);
+                    ValueToken = (TValue)(Token)new LiteralToken(value, canContainVariables: true, escapeChar);
                     return;
                 }
 
@@ -147,59 +152,88 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
     public static KeyValueToken<TKey, TValue> Parse(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar, bool excludeLeadingWhitespaceInValue = false,
         bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false) =>
-        Parse(text, keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar,
+        Parse(text, keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens, escapeChar), separator, escapeChar,
             excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
             optionalValue: optionalValue);
+
+    public static KeyValueToken<TKey, TValue> Parse(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
+        char separator, char escapeChar, bool excludeLeadingWhitespaceInValue, bool excludeTrailingWhitespaceInSeparator,
+        bool optionalValue, bool isFlag) =>
+        Parse(text, keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar,
+            excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
+            excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
+            optionalValue: optionalValue,
+            isFlag: isFlag);
 
     // Breaking change: the optionalValue parameter was added intentionally, changing this public method's signature.
     public static Parser<KeyValueToken<TKey, TValue>> GetParser(
         Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar, bool excludeLeadingWhitespaceInValue = false,
         bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false) =>
-        GetParser(keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar,
+        GetParser(keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens, escapeChar), separator, escapeChar,
             excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
             optionalValue: optionalValue);
 
+    public static Parser<KeyValueToken<TKey, TValue>> GetParser(
+        Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
+        char separator, char escapeChar, bool excludeLeadingWhitespaceInValue, bool excludeTrailingWhitespaceInSeparator,
+        bool optionalValue, bool isFlag) =>
+        GetParser(keyTokenParser, valueTokenParser, tokens => new KeyValueToken<TKey, TValue>(tokens), separator, escapeChar,
+            excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
+            excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
+            optionalValue: optionalValue,
+            isFlag: isFlag);
+
     protected static T Parse<T>(string text, Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         Func<IEnumerable<Token>, T> createToken, char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar,
-        bool excludeLeadingWhitespaceInValue = false, bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false)
+        bool excludeLeadingWhitespaceInValue = false, bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false,
+        bool isFlag = false)
         where T : KeyValueToken<TKey, TValue> =>
         createToken(GetTokens(text, GetInnerParser(separator, keyTokenParser, valueTokenParser, escapeChar,
             excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
-            optionalValue: optionalValue)));
+            optionalValue: optionalValue,
+            isFlag: isFlag)));
 
     protected static Parser<T> GetParser<T>(
         Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser, Func<IEnumerable<Token>, T> createToken,
         char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar, bool excludeLeadingWhitespaceInValue = false,
-        bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false)
+        bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false, bool isFlag = false)
         where T : KeyValueToken<TKey, TValue> =>
         from tokens in GetInnerParser(separator, keyTokenParser, valueTokenParser, escapeChar,
             excludeLeadingWhitespaceInValue: excludeLeadingWhitespaceInValue,
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
-            optionalValue: optionalValue)
+            optionalValue: optionalValue,
+            isFlag: isFlag)
         select createToken(tokens);
 
-    // The two branches share the same flag/keyword parsing pipeline but differ in whether the
-    // value is required or optional. Sprache's LINQ query syntax does not allow factoring out
-    // the common prefix without losing the required-vs-optional distinction, so the duplication
-    // is intentional for clarity.
+    // The three branches handle the combination of isFlag and optionalValue:
+    // - isFlag=true: FlagParser is required (flags always start with --)
+    // - isFlag=false, optionalValue=true: no FlagParser, value is optional
+    // - isFlag=false, optionalValue=false: no FlagParser, value is required
+    // FlagParser is only included when the token is being used as a flag (isFlag=true),
+    // preventing non-flag key-value pairs (e.g., ENV variables) from incorrectly matching
+    // a leading -- as a flag prefix. See GitHub issue #294.
     private static Parser<IEnumerable<Token>> GetInnerParser(char separator, Parser<TKey> keyTokenParser,
         Parser<TValue> valueTokenParser, char escapeChar, bool excludeLeadingWhitespaceInValue, bool excludeTrailingWhitespaceInSeparator,
-        bool optionalValue = false) =>
-        optionalValue
-            ? from flag in ArgTokens(FlagParser(escapeChar), escapeChar).Optional()
-              from keyword in ArgTokens(keyTokenParser.AsEnumerable(), escapeChar)
-              from separatorToken in ArgTokens(SeparatorParser(separator).AsEnumerable().FilterNulls(), escapeChar, excludeTrailingWhitespaceInSeparator)
-              from value in ArgTokens(valueTokenParser.AsEnumerable(), escapeChar, excludeTrailingWhitespace: true, excludeLeadingWhitespaceInValue).Optional()
-              select ConcatTokens(flag.GetOrDefault(), keyword, separatorToken, value.GetOrDefault())
-            : from flag in ArgTokens(FlagParser(escapeChar), escapeChar).Optional()
+        bool optionalValue = false, bool isFlag = false) =>
+        isFlag
+            ? from flag in ArgTokens(FlagParser(escapeChar), escapeChar)
               from keyword in ArgTokens(keyTokenParser.AsEnumerable(), escapeChar)
               from separatorToken in ArgTokens(SeparatorParser(separator).AsEnumerable().FilterNulls(), escapeChar, excludeTrailingWhitespaceInSeparator)
               from value in ArgTokens(valueTokenParser.AsEnumerable(), escapeChar, excludeTrailingWhitespace: true, excludeLeadingWhitespaceInValue)
-              select ConcatTokens(flag.GetOrDefault(), keyword, separatorToken, value);
+              select ConcatTokens(flag, keyword, separatorToken, value)
+            : optionalValue
+                ? from keyword in ArgTokens(keyTokenParser.AsEnumerable(), escapeChar)
+                  from separatorToken in ArgTokens(SeparatorParser(separator).AsEnumerable().FilterNulls(), escapeChar, excludeTrailingWhitespaceInSeparator)
+                  from value in ArgTokens(valueTokenParser.AsEnumerable(), escapeChar, excludeTrailingWhitespace: true, excludeLeadingWhitespaceInValue).Optional()
+                  select ConcatTokens(keyword, separatorToken, value.GetOrDefault())
+                : from keyword in ArgTokens(keyTokenParser.AsEnumerable(), escapeChar)
+                  from separatorToken in ArgTokens(SeparatorParser(separator).AsEnumerable().FilterNulls(), escapeChar, excludeTrailingWhitespaceInSeparator)
+                  from value in ArgTokens(valueTokenParser.AsEnumerable(), escapeChar, excludeTrailingWhitespace: true, excludeLeadingWhitespaceInValue)
+                  select ConcatTokens(keyword, separatorToken, value);
 
     private static Parser<IEnumerable<Token>> FlagParser(char escapeChar) =>
         ArgTokens(Symbol('-').AsEnumerable(), escapeChar).Repeat(2).Flatten();

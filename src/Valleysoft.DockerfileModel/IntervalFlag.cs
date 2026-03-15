@@ -11,13 +11,14 @@ public class IntervalFlag : KeywordLiteralFlag
     {
     }
 
-    internal IntervalFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal IntervalFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static IntervalFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new IntervalFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new IntervalFlag(tokens, esc), escapeChar);
 
     public static Parser<IntervalFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new IntervalFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new IntervalFlag(tokens, esc), escapeChar);
 }

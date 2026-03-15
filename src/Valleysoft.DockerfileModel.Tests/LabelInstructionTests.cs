@@ -85,6 +85,27 @@ public class LabelInstructionTests
         Assert.Equal("LABEL MY_LABEL=world", result.ToString());
     }
 
+    [Fact]
+    public void SetValueOnEmptyLabelWithBacktickEscapeChar_EscapedVariableRef()
+    {
+        // Regression test for #286: setting a value containing an escaped
+        // variable reference on a LABEL parsed with backtick escape char
+        // should preserve the escaped $ instead of tokenizing a VariableRefToken.
+        LabelInstruction result = LabelInstruction.Parse("LABEL key=", escapeChar: '`');
+        Assert.Equal("key", result.Labels[0].Key);
+        Assert.Equal("", result.Labels[0].Value);
+        Assert.Null(result.LabelTokens[0].ValueToken);
+
+        result.Labels[0].Value = "`$MY_VAR";
+        Assert.Equal("`$MY_VAR", result.Labels[0].Value);
+        Assert.NotNull(result.LabelTokens[0].ValueToken);
+        Assert.Equal("LABEL key=`$MY_VAR", result.ToString());
+
+        LiteralToken? valueToken = result.LabelTokens[0].ValueToken;
+        Assert.NotNull(valueToken);
+        Assert.DoesNotContain(valueToken!.Tokens, t => t is VariableRefToken);
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<LabelInstruction>[] testInputs = new ParseTestScenario<LabelInstruction>[]
@@ -519,6 +540,101 @@ public class LabelInstructionTests
     public class CreateTestScenario : TestScenario<LabelInstruction>
     {
         public Dictionary<string, string> Variables { get; set; }
+    }
+
+    /// <summary>
+    /// Regression test for https://github.com/mthalman/DockerfileModel/issues/294
+    /// FlagParser was always included via .Optional() in KeyValueToken.GetInnerParser,
+    /// causing input starting with "--" to have the dashes incorrectly consumed as a
+    /// flag prefix. Before the fix, "LABEL --foo=bar" would parse successfully with key
+    /// "foo" (wrong). After the fix, "--foo" is not a valid label key and the parse
+    /// correctly fails.
+    /// </summary>
+    [Fact]
+    public void LabelInstruction_DoubleDashPrefix_NotConsumedAsFlagPrefix()
+    {
+        Assert.Throws<ParseException>(() => LabelInstruction.Parse("LABEL --foo=bar"));
+    }
+
+    [Fact]
+    public void Create_ValueWithSpacesEndingWithQuote_WrapsInQuotes()
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "hello world\"" }
+            });
+
+        Assert.Equal("LABEL KEY='hello world\"'", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("hello world\"", result.Labels[0].Value);
+    }
+
+    [Fact]
+    public void Create_ValueWithSpacesStartingWithQuote_WrapsInQuotes()
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "\"hello world" }
+            });
+
+        Assert.Equal("LABEL KEY='\"hello world'", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("\"hello world", result.Labels[0].Value);
+    }
+
+    [Fact]
+    public void Create_ValueProperlyQuoted_DoesNotDoubleWrap()
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "\"hello world\"" }
+            });
+
+        Assert.Equal("LABEL KEY=\"hello world\"", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("hello world", result.Labels[0].Value);
+    }
+
+    [Fact]
+    public void Create_ValueWithSpacesNoQuotes_GetsWrapped()
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "hello world" }
+            });
+
+        Assert.Equal("LABEL KEY=\"hello world\"", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("hello world", result.Labels[0].Value);
+    }
+
+    [Theory]
+    [MemberData(nameof(CreateQuoteGuardEdgeCaseInput))]
+    public void Create_QuoteGuardEdgeCases_RoundTripExpectedTextAndValue(string key, string value, string expectedText, string expectedValue)
+    {
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { key, value }
+            });
+
+        Assert.Equal(expectedText, result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal(key, result.Labels[0].Key);
+        Assert.Equal(expectedValue, result.Labels[0].Value);
+    }
+
+    public static IEnumerable<object[]> CreateQuoteGuardEdgeCaseInput()
+    {
+        yield return new object[] { "KEY", "", "LABEL KEY=", "" };
+        yield return new object[] { "KEY", "foo=bar baz=qux", "LABEL KEY=\"foo=bar baz=qux\"", "foo=bar baz=qux" };
+        yield return new object[] { "KEY", "say \"hi\" now", "LABEL KEY='say \"hi\" now'", "say \"hi\" now" };
+        yield return new object[] { "com.example-key", "hello world=1", "LABEL com.example-key=\"hello world=1\"", "hello world=1" };
+        yield return new object[] { "KEY", "'hello world'", "LABEL KEY='hello world'", "hello world" };
     }
 
     [Fact]

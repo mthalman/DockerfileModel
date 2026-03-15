@@ -11,13 +11,14 @@ public class StartPeriodFlag : KeywordLiteralFlag
     {
     }
 
-    internal StartPeriodFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal StartPeriodFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static StartPeriodFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new StartPeriodFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new StartPeriodFlag(tokens, esc), escapeChar);
 
     public static Parser<StartPeriodFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new StartPeriodFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new StartPeriodFlag(tokens, esc), escapeChar);
 }

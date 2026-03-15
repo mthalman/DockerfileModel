@@ -30,10 +30,9 @@ internal static class DockerfileParser
     /// Extracts all heredoc delimiter markers from a line of text.
     /// Strips trailing comments before scanning for markers.
     /// </summary>
-    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(string line) =>
-        ExtractHeredocDelimiters(line, Dockerfile.DefaultEscapeChar);
-
-    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(string line, char escapeChar)
+    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(
+        string line,
+        char escapeChar = Dockerfile.DefaultEscapeChar)
     {
         List<HeredocDelimiterInfo> result = new();
 

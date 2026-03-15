@@ -16,13 +16,14 @@ public class UnpackFlag : BooleanFlag
     {
     }
 
-    internal UnpackFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal UnpackFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static UnpackFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new UnpackFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new UnpackFlag(tokens, esc), escapeChar);
 
     public static Parser<UnpackFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new UnpackFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new UnpackFlag(tokens, esc), escapeChar);
 }

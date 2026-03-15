@@ -797,4 +797,206 @@ public class DockerfileTests
         Dockerfile df = Dockerfile.Parse(text);
         Assert.Equal(text, df.ToString());
     }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithOverride_PrecededByArgWithDefault()
+    {
+        // Regression test for #279: when the target ARG has an override,
+        // resolvedValue must still reflect the target instruction, not
+        // the last ARG resolved before the target instruction.
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ARG X=hello",
+            "ARG Y"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        Dictionary<string, string?> argValues = new()
+        {
+            { "Y", "overridden" }
+        };
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last(), argValues);
+        Assert.Equal("ARG Y", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithGlobalArg_PrecededByArgWithDefault()
+    {
+        // Regression test for #279: when the target ARG matches a global arg,
+        // resolvedValue must still reflect the target instruction, not
+        // the last ARG resolved before the target instruction.
+        List<string> lines = new()
+        {
+            "ARG G=global",
+            "FROM ubuntu",
+            "ARG X=hello",
+            "ARG G"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last());
+        Assert.Equal("ARG G", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetNonArgInstruction_FollowedByArgWithDefault()
+    {
+        // Regression test for #279: resolving a non-ARG instruction should
+        // return that instruction's resolved text, not a subsequent ARG's text.
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ENV X=hello",
+            "ARG Y=default"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            dockerfile.Items.OfType<EnvInstruction>().First());
+        Assert.Equal("ENV X=hello\n", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithGlobalArg_RedeclaredInStage()
+    {
+        List<string> lines = new()
+        {
+            "ARG BASE=global",
+            "FROM ubuntu",
+            "ARG BASE",
+            "ARG BASE"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last());
+        Assert.Equal("ARG BASE", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithOverride_RedeclaredInStage()
+    {
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ARG BASE",
+            "ARG BASE"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        Dictionary<string, string?> argValues = new()
+        {
+            { "BASE", "override" }
+        };
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last(), argValues);
+        Assert.Equal("ARG BASE", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithOverride_DoesNotEvaluateDefault()
+    {
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ARG X=${UNSET?boom}"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        Dictionary<string, string?> argValues = new()
+        {
+            { "X", "ok" }
+        };
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last(), argValues);
+        Assert.Equal("ARG X=${UNSET?boom}", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
+        dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
+
+        Assert.Equal("ARG X=${UNSET?boom}", dockerfile.Items.Last().ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithOverride_RemovesEscapeCharacters()
+    {
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ARG X=\\$HOME"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        Dictionary<string, string?> argValues = new()
+        {
+            { "X", "ok" }
+        };
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last(),
+            argValues,
+            new ResolutionOptions { RemoveEscapeCharacters = true });
+        Assert.Equal("ARG X=$HOME", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithMultipleDeclarations_UsesLeftToRightScoping()
+    {
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ARG A=$B B"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        Dictionary<string, string?> argValues = new()
+        {
+            { "B", "override" }
+        };
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last(), argValues);
+        Assert.Equal("ARG A= B", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
+        dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
+
+        Assert.Equal("ARG A= B", dockerfile.Items.Last().ToString());
+    }
 }

@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -33,6 +33,24 @@ public class OnBuildInstructionTests
         Assert.Equal("ONBUILD RUN test2", result.ToString());
 
         Assert.Throws<ArgumentNullException>(() => result.Instruction = null);
+    }
+
+    [Theory]
+    [InlineData("ONBUILD FROM alpine")]
+    [InlineData("ONBUILD MAINTAINER Matt Thalman")]
+    [InlineData("ONBUILD ONBUILD RUN echo hello")]
+    public void Parse_DisallowedTriggerInstruction_Throws(string text) =>
+        Assert.Throws<ParseException>(() => OnBuildInstruction.Parse(text));
+
+    [Fact]
+    public void Parse_TrailingContinuationComment_RoundTrips()
+    {
+        const string text = "ONBUILD COPY . /app \\\n# outer comment\n";
+
+        OnBuildInstruction result = OnBuildInstruction.Parse(text);
+
+        Assert.Equal(text, result.ToString());
+        Assert.IsType<CopyInstruction>(result.Instruction);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -81,7 +99,154 @@ public class OnBuildInstructionTests
                     Assert.Equal("ONBUILD", result.InstructionName);
                     Assert.Equal("ARG name", result.Instruction.ToString());
                 }
-            }
+            },
+            // ONBUILD with RUN shell form
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD RUN echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<RunInstruction>(token, "RUN echo hello",
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                            token => ValidateLiteral(token, "echo hello")))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    Assert.Equal("RUN echo hello", result.Instruction.ToString());
+                    Assert.IsType<RunInstruction>(result.Instruction);
+                }
+            },
+            // ONBUILD with RUN containing line continuation and comment
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD RUN echo hello \\\n# test comment\nworld",
+                EscapeChar = Dockerfile.DefaultEscapeChar,
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<RunInstruction>(token, "RUN echo hello \\\n# test comment\nworld",
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello \\\n# test comment\nworld",
+                            token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello \\\n# test comment\nworld", null,
+                                token => ValidateString(token, "echo hello "),
+                                token => ValidateAggregate<LineContinuationToken>(token, "\\\n",
+                                    token => ValidateSymbol(token, '\\'),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateAggregate<CommentToken>(token, "# test comment\n",
+                                    token => ValidateSymbol(token, '#'),
+                                    token => ValidateWhitespace(token, " "),
+                                    token => ValidateString(token, "test comment"),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateString(token, "world"))))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Comments);
+                    Assert.Equal("test comment", result.Comments.First());
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    RunInstruction instruction = Assert.IsType<RunInstruction>(result.Instruction);
+                    Assert.Equal(CommandType.ShellForm, instruction.Command.CommandType);
+                    ShellFormCommand command = Assert.IsType<ShellFormCommand>(instruction.Command);
+                    Assert.Equal("echo hello \\\n# test comment\nworld", command.ToString());
+                    Assert.Equal("echo hello world", command.Value);
+                }
+            },
+            // ONBUILD with COPY instruction
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD COPY . /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<CopyInstruction>(token, "COPY . /app",
+                        token => ValidateKeyword(token, "COPY"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "."),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "/app"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    Assert.IsType<CopyInstruction>(result.Instruction);
+                }
+            },
+            // ONBUILD with WORKDIR instruction
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD WORKDIR /app",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<WorkdirInstruction>(token, "WORKDIR /app",
+                        token => ValidateKeyword(token, "WORKDIR"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "/app"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    Assert.IsType<WorkdirInstruction>(result.Instruction);
+                }
+            },
+            // ONBUILD with EXPOSE instruction
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD EXPOSE 8080",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExposeInstruction>(token, "EXPOSE 8080",
+                        token => ValidateKeyword(token, "EXPOSE"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "8080"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    Assert.IsType<ExposeInstruction>(result.Instruction);
+                }
+            },
+            // ONBUILD with RUN exec form
+            new ParseTestScenario<OnBuildInstruction>
+            {
+                Text = "ONBUILD RUN [\"echo\", \"hello\"]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ONBUILD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<RunInstruction>(token, "RUN [\"echo\", \"hello\"]",
+                        token => ValidateKeyword(token, "RUN"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<ExecFormCommand>(token, "[\"echo\", \"hello\"]",
+                            token => ValidateSymbol(token, '['),
+                            token => ValidateLiteral(token, "echo", ParseHelper.DoubleQuote),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateLiteral(token, "hello", ParseHelper.DoubleQuote),
+                            token => ValidateSymbol(token, ']')))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ONBUILD", result.InstructionName);
+                    Assert.IsType<RunInstruction>(result.Instruction);
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });

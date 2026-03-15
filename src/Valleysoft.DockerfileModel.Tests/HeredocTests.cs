@@ -2682,6 +2682,68 @@ public class HeredocTests
         Assert.Empty(result);
     }
 
+    // ================================================================
+    // SECTION: ExtractHeredocDelimiters with custom escape char (#284)
+    // ================================================================
+
+    [Fact]
+    public void ExtractHeredocDelimiters_BacktickEscapeChar_SkipsBacktickEscapedChars()
+    {
+        // With backtick escape, a backtick followed by '<' should skip that '<'
+        // so `<< should NOT start a heredoc marker
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN echo `<<EOF", '`');
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_BacktickEscapeChar_BackslashNotSpecial()
+    {
+        // With backtick escape, backslash is NOT the escape char anymore.
+        // So \\<<EOF should still find the heredoc marker (backslash is just a literal char).
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN echo \\<<EOF", '`');
+        Assert.Single(result);
+        Assert.Equal("EOF", result[0].Delimiter);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_BacktickEscapeChar_NormalHeredocStillWorks()
+    {
+        // Basic heredoc detection should still work with backtick escape
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN <<EOF", '`');
+        Assert.Single(result);
+        Assert.Equal("EOF", result[0].Delimiter);
+        Assert.False(result[0].HasChomp);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_BacktickEscapeChar_ChompStillWorks()
+    {
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN <<-EOF", '`');
+        Assert.Single(result);
+        Assert.Equal("EOF", result[0].Delimiter);
+        Assert.True(result[0].HasChomp);
+    }
+
+    [Fact]
+    public void ExtractHeredocDelimiters_DefaultEscapeChar_BackslashSkipsChars()
+    {
+        // Default escape char is backslash — \\< should skip the '<'
+        // so \\<<EOF has only one unescaped '<' and should NOT be a heredoc marker
+        var result = DockerfileParser.ExtractHeredocDelimiters("RUN echo \\<<EOF");
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Dockerfile_BacktickEscapeChar_HeredocParsesCorrectly()
+    {
+        // End-to-end: a Dockerfile with backtick escape and heredoc
+        string text = "# escape=`\nFROM ubuntu\nRUN <<EOF\necho hello\nEOF\n";
+        Dockerfile result = Dockerfile.Parse(text);
+        Assert.Equal(text, result.ToString());
+        // Should have: escape directive, FROM, RUN (with heredoc)
+        Assert.Equal(3, result.Items.Count);
+    }
+
     [Fact]
     public void StripTrailingComment_EmptyString_ReturnsEmpty()
     {

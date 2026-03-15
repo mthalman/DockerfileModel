@@ -207,30 +207,32 @@ internal static class ParseHelper
 
             return
                 from tokens in primaryParser
-                from trailingWhitespace in
-                    // After at least one line continuation, comments (# ...) at the start of the
-                    // next line are recognized as Dockerfile comments. This matches BuildKit, which
-                    // only treats # as a comment delimiter at the beginning of a line — including
-                    // continuation lines within a multi-line instruction. Inline # (not preceded
-                    // by a newline) is NOT a comment and is treated as regular argument text.
-                    (from whitespaceBeforeContinuation in Whitespace()
-                        from firstContinuation in LineContinuationToken.GetParser(escapeChar)
-                        from moreContinuations in LineContinuations(escapeChar)
-                        from trailingComments in CommentText().Many()
-                        select ConcatTokens(
-                            whitespaceBeforeContinuation,
-                            new Token[] { firstContinuation },
-                            moreContinuations,
-                            trailingComments.SelectMany(c => c))).Or(
-                    // Fallback: whitespace and zero-or-more line continuations with no comments.
-                    // LineContinuations uses .Many() so it succeeds with zero matches,
-                    // making this branch always succeed and subsume any plain-newline case.
-                        from trailingWhitespaceOnly in Whitespace()
-                        from lineContinuations in LineContinuations(escapeChar)
-                        select ConcatTokens(trailingWhitespaceOnly, lineContinuations))
+                from trailingWhitespace in ArgTrailingWhitespace(escapeChar)
                 select ConcatTokens(tokens, trailingWhitespace);
         }
     }
+
+    internal static Parser<IEnumerable<Token>> ArgTrailingWhitespace(char escapeChar) =>
+        // After at least one line continuation, comments (# ...) at the start of the
+        // next line are recognized as Dockerfile comments. This matches BuildKit, which
+        // only treats # as a comment delimiter at the beginning of a line — including
+        // continuation lines within a multi-line instruction. Inline # (not preceded
+        // by a newline) is NOT a comment and is treated as regular argument text.
+        (from whitespaceBeforeContinuation in Whitespace()
+            from firstContinuation in LineContinuationToken.GetParser(escapeChar)
+            from moreContinuations in LineContinuations(escapeChar)
+            from trailingComments in CommentText().Many()
+            select ConcatTokens(
+                whitespaceBeforeContinuation,
+                new Token[] { firstContinuation },
+                moreContinuations,
+                trailingComments.SelectMany(c => c))).Or(
+        // Fallback: whitespace and zero-or-more line continuations with no comments.
+        // LineContinuations uses .Many() so it succeeds with zero matches,
+        // making this branch always succeed and subsume any plain-newline case.
+            from trailingWhitespaceOnly in Whitespace()
+            from lineContinuations in LineContinuations(escapeChar)
+            select ConcatTokens(trailingWhitespaceOnly, lineContinuations));
 
     /// <summary>
     /// Parses a string.

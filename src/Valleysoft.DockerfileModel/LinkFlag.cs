@@ -16,13 +16,14 @@ public class LinkFlag : BooleanFlag
     {
     }
 
-    internal LinkFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal LinkFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static LinkFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new LinkFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new LinkFlag(tokens, esc), escapeChar);
 
     public static Parser<LinkFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new LinkFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new LinkFlag(tokens, esc), escapeChar);
 }

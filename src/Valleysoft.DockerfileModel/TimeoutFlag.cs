@@ -11,13 +11,14 @@ public class TimeoutFlag : KeywordLiteralFlag
     {
     }
 
-    internal TimeoutFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal TimeoutFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static TimeoutFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new TimeoutFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new TimeoutFlag(tokens, esc), escapeChar);
 
     public static Parser<TimeoutFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new TimeoutFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new TimeoutFlag(tokens, esc), escapeChar);
 }

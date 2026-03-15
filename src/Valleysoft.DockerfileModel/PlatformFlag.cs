@@ -11,13 +11,14 @@ public class PlatformFlag : KeywordLiteralFlag
     {
     }
 
-    internal PlatformFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal PlatformFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        ParseFlag(text, Keyword, tokens => new PlatformFlag(tokens), escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new PlatformFlag(tokens, esc), escapeChar);
 
     public static Parser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetFlagParser(Keyword, tokens => new PlatformFlag(tokens), escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new PlatformFlag(tokens, esc), escapeChar);
 }
