@@ -18,11 +18,7 @@ public class StagesView
             DockerfileConstruct item = items[i];
             if (currentStage is null)
             {
-                if (item is ParserDirective)
-                {
-                    continue;
-                }
-                else if (item is FromInstruction fromInstruction)
+                if (item is FromInstruction fromInstruction)
                 {
                     currentStage = fromInstruction;
                 }
