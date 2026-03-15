@@ -416,10 +416,14 @@ public class FromInstructionTests
                 Text = "FROM x y",
                 ParseExceptionPosition = new Position(1, 1, 8)
             },
+            // After fixing #294 (FlagParser no longer included for non-flag contexts),
+            // "platform=" is no longer partially consumed as a flag. The parser now treats
+            // "platform=" as the image name and "alpine" as unexpected trailing input,
+            // producing an error at column 16 instead of the old column 22.
             new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM platform= alpine",
-                ParseExceptionPosition = new Position(1, 1, 22)
+                ParseExceptionPosition = new Position(1, 1, 16)
             },
             new ParseTestScenario<FromInstruction>
             {

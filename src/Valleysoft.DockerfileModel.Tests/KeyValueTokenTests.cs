@@ -16,6 +16,7 @@ public class KeyValueTokenTests
                 scenario.Text,
                 KeywordToken.GetParser(scenario.Key, scenario.EscapeChar),
                 ParseHelper.LiteralWithVariables(scenario.EscapeChar),
+                separator: KeyValueToken<KeywordToken, LiteralToken>.DefaultSeparator,
                 escapeChar: scenario.EscapeChar);
             Assert.Equal(scenario.Text, result.ToString());
             Assert.Collection(result.Tokens, scenario.TokenValidators);
@@ -68,6 +69,46 @@ public class KeyValueTokenTests
         Assert.Null(kvToken.ValueToken);
         Assert.Equal("", kvToken.Value);
         Assert.Equal("ENV MY_VAR=", env.ToString());
+    }
+
+    [Fact]
+    public void ParseFlagContext()
+    {
+        KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.Parse(
+            "--key=val",
+            KeywordToken.GetParser("key"),
+            ParseHelper.LiteralWithVariables(Dockerfile.DefaultEscapeChar),
+            separator: KeyValueToken<KeywordToken, LiteralToken>.DefaultSeparator,
+            escapeChar: Dockerfile.DefaultEscapeChar,
+            excludeLeadingWhitespaceInValue: false,
+            excludeTrailingWhitespaceInSeparator: false,
+            optionalValue: false,
+            isFlag: true);
+
+        Assert.Equal("--key=val", result.ToString());
+        Assert.Collection(result.Tokens,
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "key"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLiteral(token, "val"));
+    }
+
+    [Fact]
+    public void GetParserFlagContext()
+    {
+        KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+            KeywordToken.GetParser("key"),
+            ParseHelper.LiteralWithVariables(Dockerfile.DefaultEscapeChar),
+            separator: KeyValueToken<KeywordToken, LiteralToken>.DefaultSeparator,
+            escapeChar: Dockerfile.DefaultEscapeChar,
+            excludeLeadingWhitespaceInValue: false,
+            excludeTrailingWhitespaceInSeparator: false,
+            optionalValue: false,
+            isFlag: true)
+            .Parse("--key=val");
+
+        Assert.Equal("--key=val", result.ToString());
     }
 
     public static IEnumerable<object[]> ParseTestInput()

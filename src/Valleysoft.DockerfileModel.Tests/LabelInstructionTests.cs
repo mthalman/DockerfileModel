@@ -542,6 +542,20 @@ public class LabelInstructionTests
         public Dictionary<string, string> Variables { get; set; }
     }
 
+    /// <summary>
+    /// Regression test for https://github.com/mthalman/DockerfileModel/issues/294
+    /// FlagParser was always included via .Optional() in KeyValueToken.GetInnerParser,
+    /// causing input starting with "--" to have the dashes incorrectly consumed as a
+    /// flag prefix. Before the fix, "LABEL --foo=bar" would parse successfully with key
+    /// "foo" (wrong). After the fix, "--foo" is not a valid label key and the parse
+    /// correctly fails.
+    /// </summary>
+    [Fact]
+    public void LabelInstruction_DoubleDashPrefix_NotConsumedAsFlagPrefix()
+    {
+        Assert.Throws<ParseException>(() => LabelInstruction.Parse("LABEL --foo=bar"));
+    }
+
     [Fact]
     public void Create_ValueWithSpacesEndingWithQuote_WrapsInQuotes()
     {

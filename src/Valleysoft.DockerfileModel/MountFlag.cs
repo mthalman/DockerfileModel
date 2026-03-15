@@ -19,15 +19,17 @@ public class MountFlag : KeyValueToken<KeywordToken, Mount>
             text,
             KeywordToken.GetParser("mount", escapeChar),
             MountParser(escapeChar),
-            tokens => new MountFlag(tokens, escapeChar),
-            escapeChar: escapeChar);
+            tokens => new MountFlag(tokens),
+            escapeChar: escapeChar,
+            isFlag: true);
 
     public static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("mount", escapeChar),
             MountParser(escapeChar),
-            tokens => new MountFlag(tokens, escapeChar),
-            escapeChar: escapeChar);
+            tokens => new MountFlag(tokens),
+            escapeChar: escapeChar,
+            isFlag: true);
 
     private static Parser<Mount> MountParser(char escapeChar) =>
         Mount.GetParser(escapeChar);
