@@ -151,15 +151,29 @@ public class OnBuildInstructionTests
                     token => ValidateAggregate<RunInstruction>(token, "RUN echo hello \\\n# test comment\nworld",
                         token => ValidateKeyword(token, "RUN"),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello \\\n# test comment\nworld"))
+                        token => ValidateAggregate<ShellFormCommand>(token, "echo hello \\\n# test comment\nworld",
+                            token => ValidateQuotableAggregate<LiteralToken>(token, "echo hello \\\n# test comment\nworld", null,
+                                token => ValidateString(token, "echo hello "),
+                                token => ValidateAggregate<LineContinuationToken>(token, "\\\n",
+                                    token => ValidateSymbol(token, '\\'),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateAggregate<CommentToken>(token, "# test comment\n",
+                                    token => ValidateSymbol(token, '#'),
+                                    token => ValidateWhitespace(token, " "),
+                                    token => ValidateString(token, "test comment"),
+                                    token => ValidateNewLine(token, "\n")),
+                                token => ValidateString(token, "world"))))
                 },
                 Validate = result =>
                 {
                     Assert.Single(result.Comments);
                     Assert.Equal("test comment", result.Comments.First());
                     Assert.Equal("ONBUILD", result.InstructionName);
-                    Assert.IsType<RunInstruction>(result.Instruction);
-                    Assert.Equal("echo hello world", ((RunInstruction)result.Instruction).Command!.ToString().Replace("\\\n", "").Replace("# test comment\n", "").Trim());
+                    RunInstruction instruction = Assert.IsType<RunInstruction>(result.Instruction);
+                    Assert.Equal(CommandType.ShellForm, instruction.Command.CommandType);
+                    ShellFormCommand command = Assert.IsType<ShellFormCommand>(instruction.Command);
+                    Assert.Equal("echo hello \\\n# test comment\nworld", command.ToString());
+                    Assert.Equal("echo hello world", command.Value);
                 }
             },
             // ONBUILD with COPY instruction
