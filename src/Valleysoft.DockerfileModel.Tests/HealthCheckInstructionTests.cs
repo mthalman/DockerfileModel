@@ -276,12 +276,49 @@ public class HealthCheckInstructionTests
 
         instruction.Command = null;
         Assert.Null(instruction.Command);
-        // Flags should still be present
         Assert.Equal("30s", instruction.Interval);
         Assert.Equal("10s", instruction.Timeout);
-        Assert.Contains("NONE", instruction.ToString());
-        Assert.Contains("--interval=30s", instruction.ToString());
-        Assert.Contains("--timeout=10s", instruction.ToString());
+        Assert.Equal("HEALTHCHECK --interval=30s --timeout=10s NONE", instruction.ToString());
+    }
+
+    [Fact]
+    public void CommandProperty_SetNullWithSingleFlag()
+    {
+        // Single flag: setting Command to null should produce well-formed output.
+        HealthCheckInstruction instruction = HealthCheckInstruction.Parse("HEALTHCHECK --interval=30s CMD /bin/check");
+        Assert.Equal("HEALTHCHECK --interval=30s CMD /bin/check", instruction.ToString());
+
+        instruction.Command = null;
+        Assert.Null(instruction.Command);
+        Assert.Equal("30s", instruction.Interval);
+        Assert.Equal("HEALTHCHECK --interval=30s NONE", instruction.ToString());
+    }
+
+    [Fact]
+    public void CommandProperty_SetNullWithMultipleFlags()
+    {
+        // Multiple flags: setting Command to null should produce well-formed output.
+        HealthCheckInstruction instruction = HealthCheckInstruction.Parse("HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD /bin/check");
+        Assert.Equal("HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD /bin/check", instruction.ToString());
+
+        instruction.Command = null;
+        Assert.Null(instruction.Command);
+        Assert.Equal("30s", instruction.Interval);
+        Assert.Equal("10s", instruction.Timeout);
+        Assert.Equal("3", instruction.Retries);
+        Assert.Equal("HEALTHCHECK --interval=30s --timeout=10s --retries=3 NONE", instruction.ToString());
+    }
+
+    [Fact]
+    public void CommandProperty_SetNullNoFlags()
+    {
+        // No flags: setting Command to null should produce well-formed output.
+        HealthCheckInstruction instruction = HealthCheckInstruction.Parse("HEALTHCHECK CMD /bin/check");
+        Assert.Equal("HEALTHCHECK CMD /bin/check", instruction.ToString());
+
+        instruction.Command = null;
+        Assert.Null(instruction.Command);
+        Assert.Equal("HEALTHCHECK NONE", instruction.ToString());
     }
 
     [Fact]
@@ -325,6 +362,7 @@ public class HealthCheckInstructionTests
         Assert.Null(instruction.Command);
         Assert.Equal("5s", instruction.Interval);
         Assert.Equal("3", instruction.Retries);
+        Assert.Equal("HEALTHCHECK --interval=5s --retries=3 NONE", instruction.ToString());
 
         // NONE -> CMD (flags should still be preserved)
         instruction.Command = new ShellFormCommand("newcheck");
@@ -332,6 +370,7 @@ public class HealthCheckInstructionTests
         Assert.Equal("5s", instruction.Interval);
         Assert.Equal("3", instruction.Retries);
         Assert.Equal("newcheck", ((ShellFormCommand)instruction.Command).Value);
+        Assert.Equal("HEALTHCHECK --interval=5s --retries=3 CMD newcheck", instruction.ToString());
     }
 
     [Fact]
