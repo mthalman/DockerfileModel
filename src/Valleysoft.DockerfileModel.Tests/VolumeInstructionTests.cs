@@ -112,6 +112,17 @@ public class VolumeInstructionTests
         });
     }
 
+    [Fact]
+    public void SinglePathListConstructor_WithEmptyPath_ProducesJsonForm()
+    {
+        VolumeInstruction result = new(new string[] { "" });
+        Assert.Equal("VOLUME [\"\"]", result.ToString());
+        Assert.Collection(result.Paths, new Action<string>[]
+        {
+            path => Assert.Equal(string.Empty, path)
+        });
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<VolumeInstruction>[] testInputs = new ParseTestScenario<VolumeInstruction>[]
