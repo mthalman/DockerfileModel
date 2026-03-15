@@ -20,13 +20,15 @@ public class ChangeOwnerFlag : KeyValueToken<KeywordToken, LiteralToken>
         Parse(text,
             KeywordToken.GetParser("chown", escapeChar),
             LiteralWithVariables(escapeChar),
-            tokens => new ChangeOwnerFlag(tokens, escapeChar),
-            escapeChar: escapeChar);
+            tokens => new ChangeOwnerFlag(tokens),
+            escapeChar: escapeChar,
+            isFlag: true);
 
     public static Parser<ChangeOwnerFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("chown", escapeChar),
             LiteralWithVariables(escapeChar),
-            tokens => new ChangeOwnerFlag(tokens, escapeChar),
-            escapeChar: escapeChar);
+            tokens => new ChangeOwnerFlag(tokens),
+            escapeChar: escapeChar,
+            isFlag: true);
 }

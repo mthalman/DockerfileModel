@@ -20,13 +20,15 @@ public class FromFlag : KeyValueToken<KeywordToken, LiteralToken>
         Parse(text,
             KeywordToken.GetParser("from", escapeChar),
             LiteralToken(escapeChar, Enumerable.Empty<char>()),
-            tokens => new FromFlag(tokens, escapeChar),
-            escapeChar: escapeChar);
+            tokens => new FromFlag(tokens),
+            escapeChar: escapeChar,
+            isFlag: true);
 
     public static Parser<FromFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("from", escapeChar),
             LiteralToken(escapeChar, Enumerable.Empty<char>()),
-            tokens => new FromFlag(tokens, escapeChar),
-            escapeChar: escapeChar);
+            tokens => new FromFlag(tokens),
+            escapeChar: escapeChar,
+            isFlag: true);
 }

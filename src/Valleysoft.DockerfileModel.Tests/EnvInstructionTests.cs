@@ -614,6 +614,30 @@ public class EnvInstructionTests
         public Dictionary<string, string> Variables { get; set; }
     }
 
+    /// <summary>
+    /// Regression test for https://github.com/mthalman/DockerfileModel/issues/294
+    /// FlagParser was always included via .Optional() in KeyValueToken.GetInnerParser,
+    /// causing input starting with "--" to have the dashes incorrectly consumed as a
+    /// flag prefix. Before the fix, "ENV --FOO=bar" would parse successfully with key
+    /// "FOO" (wrong — the "--" was silently consumed). After the fix, "--FOO" is not a
+    /// valid variable name and the parse correctly fails.
+    /// </summary>
+    [Fact]
+    public void EnvInstruction_DoubleDashPrefix_NotConsumedAsFlagPrefix()
+    {
+        // "--FOO" is not a valid ENV variable name (dashes are not valid identifier
+        // characters). Before the fix, the FlagParser would consume "--" and the
+        // Variable parser would match "FOO", silently dropping the dashes. After the
+        // fix, no FlagParser is attempted and the parse correctly fails.
+        Assert.Throws<ParseException>(() => EnvInstruction.Parse("ENV --FOO=bar"));
+    }
+
+    [Fact]
+    public void EnvInstruction_DoubleDashPrefix_SingleVarFormat_NotConsumedAsFlagPrefix()
+    {
+        Assert.Throws<ParseException>(() => EnvInstruction.Parse("ENV --FOO bar"));
+    }
+
     [Fact]
     public void EnvInstruction_ValueWithDoubleQuotes_RoundTrips()
     {
