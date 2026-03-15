@@ -1032,4 +1032,96 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
         Assert.Equal(text, inst.ToString());
     }
 
+    [Fact]
+    public void CopyInstruction_HeredocDestination_EscapedHash_RemainsDestinationText()
+    {
+        string text = "COPY <<EOF /dest\\#name\nfile\nEOF\n";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        Assert.Empty(instruction.Comments);
+        Assert.Equal("/dest\\#name", instruction.Destination);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_HeredocDestination_QuotedHash_PreservesTrailingComment()
+    {
+        string text = "COPY <<EOF \"C:\\\\path\\\\#name\" #comment\nfile\nEOF\n";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        Assert.Collection(instruction.Comments,
+            comment => Assert.Equal("comment", comment));
+        Assert.Equal("C:\\\\path\\\\#name", instruction.Destination);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_HeredocDestination_SingleQuotedHash_PreservesTrailingComment()
+    {
+        string text = "COPY <<EOF '/dest\\#name' #comment\nfile\nEOF\n";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        Assert.Collection(instruction.Comments,
+            comment => Assert.Equal("comment", comment));
+        Assert.Equal("/dest\\#name", instruction.Destination);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_HeredocDestination_EscapedQuoteInsideDoubleQuotes_PreservesTrailingComment()
+    {
+        string text = "COPY <<EOF \"C:\\\\path\\\\\\\"#notacomment\\\"\" #comment\nfile\nEOF\n";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        Assert.Collection(instruction.Comments,
+            comment => Assert.Equal("comment", comment));
+        Assert.Contains("#notacomment", instruction.Destination);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_HeredocDestination_EscapedBackslashesThenComment_StripsComment()
+    {
+        string text = "COPY <<EOF /dest\\\\ #comment\nfile\nEOF\n";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        Assert.Collection(instruction.Comments,
+            comment => Assert.Equal("comment", comment));
+        Assert.Equal("/dest\\\\", instruction.Destination);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_HeredocDestination_EscapeCharAtEndOfLine_RoundTrips()
+    {
+        string text = "COPY <<EOF /dest\\\\\nfile\nEOF\n";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+
+        Assert.Empty(instruction.Comments);
+        Assert.Equal("/dest\\\\", instruction.Destination);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_HeredocDestination_CustomEscapeChar_BacktickTreatsHashAsEscaped()
+    {
+        string text = "COPY <<EOF /dest`#name\nfile\nEOF\n";
+        CopyInstruction instruction = CopyInstruction.Parse(text, '`');
+
+        Assert.Empty(instruction.Comments);
+        Assert.Equal("/dest`#name", instruction.Destination);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_HeredocDestination_CustomEscapeChar_BackslashNotSpecial_StripsComment()
+    {
+        string text = "COPY <<EOF /dest\\ #comment\nfile\nEOF\n";
+        CopyInstruction instruction = CopyInstruction.Parse(text, '`');
+
+        Assert.Collection(instruction.Comments,
+            comment => Assert.Equal("comment", comment));
+        Assert.Equal("/dest\\", instruction.Destination);
+        Assert.Equal(text, instruction.ToString());
+    }
 }

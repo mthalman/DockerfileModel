@@ -2802,16 +2802,4 @@ public class HeredocTests
         Assert.Equal("echo 'hello #notacomment", result);
     }
 
-    [Fact]
-    public void StripTrailingComment_EscapedHashInUnquotedContext_Behavior()
-    {
-        // The StripTrailingComment does NOT handle escape sequences (backslash)
-        // This tests its behavior when a hash appears after backslash
-        // Since the method doesn't track backslash escaping, '\\#' will be treated
-        // with the # at its literal position — the preceding char is '\' which is NOT whitespace
-        // so the hash should NOT be stripped (because condition requires preceding whitespace OR i==0)
-        string result = DockerfileParser.StripTrailingComment("echo \\#notacomment");
-        // The char before # is '\', which is not whitespace, so # is not treated as comment start
-        Assert.Equal("echo \\#notacomment", result);
-    }
 }

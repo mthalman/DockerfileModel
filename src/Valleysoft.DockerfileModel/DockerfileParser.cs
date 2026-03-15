@@ -30,12 +30,14 @@ internal static class DockerfileParser
     /// Extracts all heredoc delimiter markers from a line of text.
     /// Strips trailing comments before scanning for markers.
     /// </summary>
-    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(string line, char escapeChar = '\\')
+    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(
+        string line,
+        char escapeChar = Dockerfile.DefaultEscapeChar)
     {
         List<HeredocDelimiterInfo> result = new();
 
         // Strip trailing comment before searching for heredoc markers
-        string strippedLine = StripTrailingComment(line);
+        string strippedLine = StripTrailingComment(line, escapeChar);
 
         // Use a quote-aware scan so that `<<` inside quoted strings
         // (e.g. `RUN echo "<<EOF"`) is not treated as a heredoc marker.
@@ -45,7 +47,7 @@ internal static class DockerfileParser
         {
             char ch = strippedLine[i];
 
-            // Skip escaped characters (escape char is not special inside single quotes)
+            // Skip escaped characters (the active escape char is not special inside single quotes)
             if (ch == escapeChar && !inSingleQuote && i + 1 < strippedLine.Length)
             {
                 i++; // skip next character
@@ -84,17 +86,27 @@ internal static class DockerfileParser
     }
 
     /// <summary>
-    /// Strips a trailing comment from a line, respecting quoted strings.
+    /// Strips a trailing comment from a line, respecting quoted strings and escape characters.
     /// A '#' character inside single or double quotes is NOT treated as a comment.
+    /// A '#' character preceded by the escape character (outside single quotes) is NOT treated as a comment.
     /// </summary>
-    public static string StripTrailingComment(string line)
+    public static string StripTrailingComment(string line, char escapeChar = Dockerfile.DefaultEscapeChar)
     {
         bool inSingleQuote = false;
         bool inDoubleQuote = false;
+        bool previousCharWasUnescapedWhitespace = false;
 
         for (int i = 0; i < line.Length; i++)
         {
             char ch = line[i];
+
+            // Skip escaped characters (escape char is not special inside single quotes)
+            if (ch == escapeChar && !inSingleQuote && i + 1 < line.Length)
+            {
+                previousCharWasUnescapedWhitespace = false;
+                i++; // skip next character
+                continue;
+            }
 
             if (ch == '\'' && !inDoubleQuote)
             {
@@ -104,10 +116,12 @@ internal static class DockerfileParser
             {
                 inDoubleQuote = !inDoubleQuote;
             }
-            else if (ch == '#' && !inSingleQuote && !inDoubleQuote && (i == 0 || char.IsWhiteSpace(line[i - 1])))
+            else if (ch == '#' && !inSingleQuote && !inDoubleQuote && (i == 0 || previousCharWasUnescapedWhitespace))
             {
                 return line.Substring(0, i);
             }
+
+            previousCharWasUnescapedWhitespace = char.IsWhiteSpace(ch);
         }
 
         return line;
