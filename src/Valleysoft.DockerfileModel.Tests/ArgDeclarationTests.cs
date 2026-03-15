@@ -245,6 +245,100 @@ public class ArgDeclarationTests
                     Assert.Equal("MY_ARG", result.Name);
                     Assert.Empty(result.Value);
                 }
+            },
+            // Line continuation after = with indented default value (issue #288)
+            new ParseTestScenario<ArgDeclaration>
+            {
+                Text = "MY_VAR=\\\n    default_value",
+                EscapeChar = '\\',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateIdentifier<Variable>(token, "MY_VAR"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateWhitespace(token, "    "),
+                    token => ValidateLiteral(token, "default_value")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_VAR", result.Name);
+                    Assert.Equal("default_value", result.Value);
+                }
+            },
+            // Line continuation after = with single-space indented default value
+            new ParseTestScenario<ArgDeclaration>
+            {
+                Text = "MY_VAR=\\\n val",
+                EscapeChar = '\\',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateIdentifier<Variable>(token, "MY_VAR"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "val")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_VAR", result.Name);
+                    Assert.Equal("val", result.Value);
+                }
+            },
+            // Line continuation after = with tab-indented default value
+            new ParseTestScenario<ArgDeclaration>
+            {
+                Text = "MY_VAR=\\\n\tval",
+                EscapeChar = '\\',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateIdentifier<Variable>(token, "MY_VAR"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateWhitespace(token, "\t"),
+                    token => ValidateLiteral(token, "val")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_VAR", result.Name);
+                    Assert.Equal("val", result.Value);
+                }
+            },
+            // Line continuation after = with no indentation on continuation line
+            new ParseTestScenario<ArgDeclaration>
+            {
+                Text = "MY_VAR=\\\nval",
+                EscapeChar = '\\',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateIdentifier<Variable>(token, "MY_VAR"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLineContinuation(token, '\\', "\n"),
+                    token => ValidateLiteral(token, "val")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_VAR", result.Name);
+                    Assert.Equal("val", result.Value);
+                }
+            },
+            // Line continuation after = with backtick escape and indented default value
+            new ParseTestScenario<ArgDeclaration>
+            {
+                Text = "MY_VAR=`\n    default_value",
+                EscapeChar = '`',
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateIdentifier<Variable>(token, "MY_VAR"),
+                    token => ValidateSymbol(token, '='),
+                    token => ValidateLineContinuation(token, '`', "\n"),
+                    token => ValidateWhitespace(token, "    "),
+                    token => ValidateLiteral(token, "default_value")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_VAR", result.Name);
+                    Assert.Equal("default_value", result.Value);
+                }
             }
         };
 

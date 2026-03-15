@@ -141,11 +141,25 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
     private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
         from lineContinuation in LineContinuations(escapeChar)
         from assignment in Symbol(AssignmentOperator).AsEnumerable()
-        from lineContinuation2 in LineContinuations(escapeChar)
+        from lineContinuation2 in LineContinuationWithTrailingWhitespace(escapeChar)
         from value in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable().Optional()
         select ConcatTokens(
             lineContinuation,
             assignment,
             lineContinuation2,
             value.GetOrDefault());
+
+    /// <summary>
+    /// Parses zero or more line continuations. When at least one line continuation is present,
+    /// also consumes any trailing whitespace (continuation-line indentation).
+    /// </summary>
+    private static Parser<IEnumerable<Token>> LineContinuationWithTrailingWhitespace(char escapeChar) =>
+        (from firstContinuation in LineContinuationToken.GetParser(escapeChar)
+         from moreContinuations in LineContinuations(escapeChar)
+         from trailingWhitespace in Whitespace().Optional()
+         select ConcatTokens(
+             new Token[] { firstContinuation },
+             moreContinuations,
+             trailingWhitespace.GetOrDefault()))
+        .Or(Sprache.Parse.Return(Enumerable.Empty<Token>()));
 }
