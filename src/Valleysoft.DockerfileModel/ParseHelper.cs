@@ -1102,7 +1102,7 @@ internal static class ParseHelper
             {
                 char sc = strippedCommandLine[scanIdx];
 
-                // Skip escaped characters (backslash is not special inside single quotes)
+                // Skip escaped characters (the active escape char is not special inside single quotes)
                 if (sc == escapeChar && !inSingleQuote && scanIdx + 1 < strippedCommandLine.Length)
                 {
                     scanIdx++; // skip next character
