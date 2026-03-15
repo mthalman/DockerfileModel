@@ -165,8 +165,6 @@ public class Dockerfile : IConstructContainer
 
         foreach (ArgDeclaration arg in resolvedInstruction.ArgTokens)
         {
-            string? resolvedArgValue = arg.ValueToken?.ResolveVariables(escapeChar, stageArgs, inlineOptions);
-
             // If this is just an arg declaration and a value has been provided from a global arg or arg override
             if (arg.Value is null && globalArgs.TryGetValue(arg.Name, out string? globalArg))
             {
@@ -179,6 +177,7 @@ public class Dockerfile : IConstructContainer
             }
             else
             {
+                string? resolvedArgValue = arg.ValueToken?.ResolveVariables(escapeChar, stageArgs, inlineOptions);
                 stageArgs[arg.Name] = resolvedArgValue;
             }
         }
