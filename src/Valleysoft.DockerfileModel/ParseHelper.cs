@@ -1089,7 +1089,7 @@ internal static class ParseHelper
 
         // Strip trailing comments before scanning so that `RUN <<EOF # <<BAR`
         // does not pick up `<<BAR` as a second marker (matches DockerfileParser behaviour).
-        string strippedCommandLine = DockerfileParser.StripTrailingComment(commandLine);
+        string strippedCommandLine = DockerfileParser.StripTrailingComment(commandLine, escapeChar);
 
         // Scan the (comment-stripped) command line for all heredoc markers,
         // respecting shell quoting so that e.g. `echo "<<BAR"` does not
@@ -1103,7 +1103,7 @@ internal static class ParseHelper
                 char sc = strippedCommandLine[scanIdx];
 
                 // Skip escaped characters (backslash is not special inside single quotes)
-                if (sc == '\\' && !inSingleQuote && scanIdx + 1 < strippedCommandLine.Length)
+                if (sc == escapeChar && !inSingleQuote && scanIdx + 1 < strippedCommandLine.Length)
                 {
                     scanIdx++; // skip next character
                     continue;
@@ -1190,7 +1190,7 @@ internal static class ParseHelper
         if (lineEndPos > cursor)
         {
             string restOfLine = source.Substring(cursor, lineEndPos - cursor);
-            string argsOnly = DockerfileParser.StripTrailingComment(restOfLine);
+            string argsOnly = DockerfileParser.StripTrailingComment(restOfLine, escapeChar);
             TokenizeRestOfLine(argsOnly, resultTokens, escapeChar);
 
             // Preserve the comment portion as a CommentToken so that

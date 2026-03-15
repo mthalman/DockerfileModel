@@ -30,12 +30,15 @@ internal static class DockerfileParser
     /// Extracts all heredoc delimiter markers from a line of text.
     /// Strips trailing comments before scanning for markers.
     /// </summary>
-    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(string line)
+    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(string line) =>
+        ExtractHeredocDelimiters(line, Dockerfile.DefaultEscapeChar);
+
+    public static List<HeredocDelimiterInfo> ExtractHeredocDelimiters(string line, char escapeChar)
     {
         List<HeredocDelimiterInfo> result = new();
 
         // Strip trailing comment before searching for heredoc markers
-        string strippedLine = StripTrailingComment(line);
+        string strippedLine = StripTrailingComment(line, escapeChar);
 
         // Use a quote-aware scan so that `<<` inside quoted strings
         // (e.g. `RUN echo "<<EOF"`) is not treated as a heredoc marker.
@@ -45,8 +48,8 @@ internal static class DockerfileParser
         {
             char ch = strippedLine[i];
 
-            // Skip escaped characters (backslash is not special inside single quotes)
-            if (ch == '\\' && !inSingleQuote && i + 1 < strippedLine.Length)
+            // Skip escaped characters (the active escape char is not special inside single quotes)
+            if (ch == escapeChar && !inSingleQuote && i + 1 < strippedLine.Length)
             {
                 i++; // skip next character
                 continue;
@@ -202,7 +205,7 @@ internal static class DockerfileParser
                 // (heredoc syntax is not supported for other instructions like ENV)
                 if (!Comment.IsComment(line) && IsHeredocCapableInstruction(constructBuilder.ToString()))
                 {
-                    List<HeredocDelimiterInfo> delimiters = ExtractHeredocDelimiters(line);
+                    List<HeredocDelimiterInfo> delimiters = ExtractHeredocDelimiters(line, escapeChar);
                     if (delimiters.Count > 0)
                     {
                         pendingDelimiters.AddRange(delimiters);
