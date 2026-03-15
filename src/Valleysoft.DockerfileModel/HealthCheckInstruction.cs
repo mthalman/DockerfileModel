@@ -158,20 +158,23 @@ public class HealthCheckInstruction : Instruction
                         // preserving any trailing tokens (comments, newlines) after the command.
                         if (cmdKeywordIndex >= 0 && commandIndex >= cmdKeywordIndex)
                         {
-                            int removeCount = commandIndex - cmdKeywordIndex + 1;
+                            // Also remove the whitespace token immediately before the CMD keyword
+                            int removeStart = cmdKeywordIndex;
+                            if (removeStart > 0 && TokenList[removeStart - 1] is WhitespaceToken)
+                            {
+                                removeStart--;
+                            }
+
+                            int removeCount = commandIndex - removeStart + 1;
                             for (int i = 0; i < removeCount; i++)
                             {
-                                TokenList.RemoveAt(cmdKeywordIndex);
+                                TokenList.RemoveAt(removeStart);
                             }
-                            // Also remove the whitespace before CMD keyword
-                            if (cmdKeywordIndex > 0 && TokenList[cmdKeywordIndex - 1] is WhitespaceToken)
-                            {
-                                TokenList.RemoveAt(cmdKeywordIndex - 1);
-                                cmdKeywordIndex--;
-                            }
-                            // Insert NONE keyword with preceding whitespace at the original CMD position
-                            TokenList.Insert(cmdKeywordIndex, new WhitespaceToken(" "));
-                            TokenList.Insert(cmdKeywordIndex + 1, new KeywordToken("NONE", escapeChar));
+
+                            // Insert NONE keyword with preceding whitespace after the last remaining token
+                            // (e.g. after the last flag or after the instruction keyword's whitespace)
+                            TokenList.Insert(removeStart, new WhitespaceToken(" "));
+                            TokenList.Insert(removeStart + 1, new KeywordToken("NONE", escapeChar));
                         }
                     }
                 }
