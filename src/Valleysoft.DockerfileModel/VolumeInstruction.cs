@@ -42,7 +42,7 @@ public class VolumeInstruction : Instruction
     {
         Requires.NotNullEmptyOrNullElements(paths, nameof(paths));
         string[] pathArray = paths.ToArray();
-        bool useShellForm = pathArray.Length == 1 && !pathArray[0].Contains(' ');
+        bool useShellForm = pathArray.Length == 1 && !pathArray[0].Any(char.IsWhiteSpace);
         string args = useShellForm
             ? pathArray[0]
             : StringHelper.FormatAsJson(pathArray);
