@@ -873,6 +873,27 @@ public class DockerfileTests
     }
 
     [Fact]
+    public void ResolveArgValues_TargetArgWithGlobalArg_RedeclaredInStage()
+    {
+        List<string> lines = new()
+        {
+            "ARG BASE=global",
+            "FROM ubuntu",
+            "ARG BASE",
+            "ARG BASE"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last());
+        Assert.Equal("ARG BASE", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+    }
+
+    [Fact]
     public void ResolveArgValues_TargetArgWithMultipleDeclarations_UsesLeftToRightScoping()
     {
         List<string> lines = new()

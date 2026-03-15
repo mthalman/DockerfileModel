@@ -170,7 +170,7 @@ public class Dockerfile : IConstructContainer
             // If this is just an arg declaration and a value has been provided from a global arg or arg override
             if (arg.Value is null && globalArgs.TryGetValue(arg.Name, out string? globalArg))
             {
-                stageArgs.Add(arg.Name, globalArg);
+                stageArgs[arg.Name] = globalArg;
             }
             // If an arg override exists for this arg
             else if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
