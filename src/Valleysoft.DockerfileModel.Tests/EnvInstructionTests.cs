@@ -668,6 +668,35 @@ public class EnvInstructionTests
         Assert.Equal("world", inst.Variables[1].Value);
     }
 
+    [Fact]
+    public void EnvInstruction_SingleVarFormat_WithWhitespaceBeforeArgument_RoundTrips()
+    {
+        string text = "ENV \\\n  FOO bar";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+
+        Assert.Collection(inst.Tokens, new Action<Token>[]
+        {
+            token => ValidateKeyword(token, "ENV"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLineContinuation(token, '\\', "\n"),
+            token => ValidateWhitespace(token, "  "),
+            token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "FOO bar",
+                token => ValidateIdentifier<Variable>(token, "FOO"),
+                token => ValidateWhitespace(token, " "),
+                token => ValidateLiteral(token, "bar"))
+        });
+
+        Assert.Equal(text, inst.ToString());
+        Assert.Collection(inst.Variables, new Action<IKeyValuePair>[]
+        {
+            pair =>
+            {
+                Assert.Equal("FOO", pair.Key);
+                Assert.Equal("bar", pair.Value);
+            }
+        });
+    }
+
     /// <summary>
     /// Bug: WorkdirInstruction.Path includes trailing newline character
     /// See https://github.com/mthalman/DockerfileModel/issues/282
