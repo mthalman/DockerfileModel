@@ -831,7 +831,7 @@ public class DockerfileTests
     {
         // Regression test for #279: when the target ARG matches a global arg,
         // resolvedValue must still reflect the target instruction, not
-        // a preceding ARG that happened to set resolvedValue via the else branch.
+        // the last ARG resolved before the target instruction.
         List<string> lines = new()
         {
             "ARG G=global",
