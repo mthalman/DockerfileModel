@@ -5,6 +5,15 @@ namespace Valleysoft.DockerfileModel;
 
 public class OnBuildInstruction : Instruction
 {
+    // Dockerfile only allows ONBUILD to wrap instructions that execute in the child build.
+    // FROM starts a new stage, MAINTAINER is deprecated, and ONBUILD would recurse into itself.
+    private static readonly HashSet<string> ExcludedTriggerInstructions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "FROM",
+        "MAINTAINER",
+        "ONBUILD",
+    };
+
     public OnBuildInstruction(Instruction instruction, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(instruction, escapeChar))
     {
@@ -57,29 +66,69 @@ public class OnBuildInstruction : Instruction
             escapeChar);
 
     /// <summary>
-    /// Parser that dispatches to the correct instruction-specific parser based on the
-    /// instruction keyword. This is the ONBUILD trigger instruction parser -- it
-    /// supports all instruction types that are valid as ONBUILD triggers per BuildKit.
-    /// Each instruction's own parser handles its internal comment/line-continuation
-    /// semantics, while ArgTokens handles trailing comments at the ONBUILD level.
-    ///
-    /// Excludes FROM, ONBUILD, and MAINTAINER per BuildKit rules (ONBUILD exclusion
-    /// also avoids infinite parser recursion).
+    /// Parses the ONBUILD trigger by validating the nested instruction keyword against
+    /// the Dockerfile exclusions and then deferring to <see cref="Instruction.CreateInstruction"/>.
+    /// Scanning for the longest valid prefix preserves the existing split between the
+    /// inner instruction tokens and any trailing ONBUILD-level continuation comments.
     /// </summary>
     private static Parser<Instruction> TriggerInstructionParser(char escapeChar) =>
-        AddInstruction.GetParser(escapeChar).Cast<AddInstruction, Instruction>()
-        .Or(ArgInstruction.GetParser(escapeChar).Cast<ArgInstruction, Instruction>())
-        .Or(CmdInstruction.GetParser(escapeChar).Cast<CmdInstruction, Instruction>())
-        .Or(CopyInstruction.GetParser(escapeChar).Cast<CopyInstruction, Instruction>())
-        .Or(EntrypointInstruction.GetParser(escapeChar).Cast<EntrypointInstruction, Instruction>())
-        .Or(ExposeInstruction.GetParser(escapeChar).Cast<ExposeInstruction, Instruction>())
-        .Or(EnvInstruction.GetParser(escapeChar).Cast<EnvInstruction, Instruction>())
-        .Or(HealthCheckInstruction.GetParser(escapeChar).Cast<HealthCheckInstruction, Instruction>())
-        .Or(LabelInstruction.GetParser(escapeChar).Cast<LabelInstruction, Instruction>())
-        .Or(RunInstruction.GetParser(escapeChar).Cast<RunInstruction, Instruction>())
-        .Or(ShellInstruction.GetParser(escapeChar).Cast<ShellInstruction, Instruction>())
-        .Or(StopSignalInstruction.GetParser(escapeChar).Cast<StopSignalInstruction, Instruction>())
-        .Or(UserInstruction.GetParser(escapeChar).Cast<UserInstruction, Instruction>())
-        .Or(VolumeInstruction.GetParser(escapeChar).Cast<VolumeInstruction, Instruction>())
-        .Or(WorkdirInstruction.GetParser(escapeChar).Cast<WorkdirInstruction, Instruction>());
+        input =>
+        {
+            IResult<string> instructionNameResult = InstructionNameParser(escapeChar)(input);
+            if (!instructionNameResult.WasSuccessful)
+            {
+                return Result.Failure<Instruction>(input, instructionNameResult.Message, instructionNameResult.Expectations);
+            }
+
+            if (ExcludedTriggerInstructions.Contains(instructionNameResult.Value))
+            {
+                return Result.Failure<Instruction>(
+                    input,
+                    $"{instructionNameResult.Value} is not a valid ONBUILD trigger instruction.",
+                    new[] { "valid ONBUILD trigger instruction" });
+            }
+
+            string remainingText = input.Source.Substring(input.Position);
+            for (int consumedLength = remainingText.Length; consumedLength > 0; consumedLength--)
+            {
+                string instructionText = remainingText.Substring(0, consumedLength);
+                if (!TryCreateTriggerInstruction(instructionText, escapeChar, out Instruction? instruction) ||
+                    !ArgTrailingWhitespace(escapeChar).TryParse(remainingText.Substring(consumedLength)).WasSuccessful)
+                {
+                    continue;
+                }
+
+                return Result.Success(instruction!, AdvanceInput(input, consumedLength));
+            }
+
+            return Result.Failure<Instruction>(
+                input,
+                "Expected a valid ONBUILD trigger instruction.",
+                new[] { "valid ONBUILD trigger instruction" });
+        };
+
+    private static bool TryCreateTriggerInstruction(string text, char escapeChar, out Instruction? instruction)
+    {
+        try
+        {
+            instruction = Instruction.CreateInstruction(text, escapeChar);
+            return true;
+        }
+        catch (ParseException)
+        {
+            instruction = null;
+            return false;
+        }
+    }
+
+    private static IInput AdvanceInput(IInput input, int count)
+    {
+        IInput advancedInput = input;
+        for (int i = 0; i < count; i++)
+        {
+            advancedInput = advancedInput.Advance();
+        }
+
+        return advancedInput;
+    }
 }

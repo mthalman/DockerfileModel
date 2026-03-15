@@ -35,39 +35,22 @@ public class OnBuildInstructionTests
         Assert.Throws<ArgumentNullException>(() => result.Instruction = null);
     }
 
-    [Fact]
-    public void TriggerInstructionParser_InstructionsStayInSync()
-    {
-        Dictionary<string, Func<string, char, Instruction>> instructionParsers =
-            (Dictionary<string, Func<string, char, Instruction>>)typeof(Instruction)
-                .GetField("instructionParsers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                .GetValue(null)!;
-        string[] expectedInstructions = instructionParsers.Keys
-            .Except(new[] { "FROM", "MAINTAINER", "ONBUILD" }, StringComparer.OrdinalIgnoreCase)
-            .OrderBy(instruction => instruction, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        string[] actualInstructions = new[]
-        {
-            "ADD",
-            "ARG",
-            "CMD",
-            "COPY",
-            "ENTRYPOINT",
-            "ENV",
-            "EXPOSE",
-            "HEALTHCHECK",
-            "LABEL",
-            "RUN",
-            "SHELL",
-            "STOPSIGNAL",
-            "USER",
-            "VOLUME",
-            "WORKDIR",
-        }
-        .OrderBy(instruction => instruction, StringComparer.OrdinalIgnoreCase)
-        .ToArray();
+    [Theory]
+    [InlineData("ONBUILD FROM alpine")]
+    [InlineData("ONBUILD MAINTAINER Matt Thalman")]
+    [InlineData("ONBUILD ONBUILD RUN echo hello")]
+    public void Parse_DisallowedTriggerInstruction_Throws(string text) =>
+        Assert.Throws<ParseException>(() => OnBuildInstruction.Parse(text));
 
-        Assert.Equal(expectedInstructions, actualInstructions);
+    [Fact]
+    public void Parse_TrailingContinuationComment_RoundTrips()
+    {
+        const string text = "ONBUILD COPY . /app \\\n# outer comment\n";
+
+        OnBuildInstruction result = OnBuildInstruction.Parse(text);
+
+        Assert.Equal(text, result.ToString());
+        Assert.IsType<CopyInstruction>(result.Instruction);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
