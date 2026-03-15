@@ -871,4 +871,32 @@ public class DockerfileTests
         Assert.Equal("ENV X=hello\n", resolvedVal);
         Assert.Equal(originalDockerfileString, dockerfile.ToString());
     }
+
+    [Fact]
+    public void ResolveArgValues_TargetArgWithMultipleDeclarations_UsesLeftToRightScoping()
+    {
+        List<string> lines = new()
+        {
+            "FROM ubuntu",
+            "ARG A=$B B"
+        };
+
+        Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
+
+        Dictionary<string, string?> argValues = new()
+        {
+            { "B", "override" }
+        };
+
+        string originalDockerfileString = dockerfile.ToString();
+
+        string resolvedVal = dockerfile.ResolveVariables(
+            (Instruction)dockerfile.Items.Last(), argValues);
+        Assert.Equal("ARG A= B", resolvedVal);
+        Assert.Equal(originalDockerfileString, dockerfile.ToString());
+
+        dockerfile.ResolveVariables(argValues, options: new ResolutionOptions { UpdateInline = true });
+
+        Assert.Equal("ARG A= B", dockerfile.Items.Last().ToString());
+    }
 }
