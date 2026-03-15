@@ -165,7 +165,7 @@ public class Dockerfile : IConstructContainer
 
         foreach (ArgDeclaration arg in resolvedInstruction.ArgTokens)
         {
-            // If this is just an arg declaration and a value has been provided from a global arg or arg override
+            // If this is just an arg declaration and a value has been provided from a global arg
             if (arg.Value is null && globalArgs.TryGetValue(arg.Name, out string? globalArg))
             {
                 stageArgs[arg.Name] = globalArg;
