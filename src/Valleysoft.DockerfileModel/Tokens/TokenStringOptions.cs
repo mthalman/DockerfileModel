@@ -2,8 +2,12 @@
 
 public class TokenStringOptions
 {
-    public TokenStringOptions(bool excludeLineContinuations = false, bool excludeQuotes = false, bool excludeComments = false,
-        bool excludeNewLines = false)
+    public TokenStringOptions(bool excludeLineContinuations = false, bool excludeQuotes = false, bool excludeComments = false)
+        : this(excludeLineContinuations, excludeQuotes, excludeComments, excludeNewLines: false)
+    {
+    }
+
+    public TokenStringOptions(bool excludeLineContinuations, bool excludeQuotes, bool excludeComments, bool excludeNewLines)
     {
         this.ExcludeLineContinuations = excludeLineContinuations;
         this.ExcludeQuotes = excludeQuotes;
