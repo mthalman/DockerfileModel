@@ -522,6 +522,73 @@ public class LabelInstructionTests
     }
 
     [Fact]
+    public void Create_ValueWithSpacesEndingWithQuote_WrapsInQuotes()
+    {
+        // Regression test for #285: value with spaces ending with " but not starting with "
+        // must be wrapped in quotes so the space doesn't break the token boundary.
+        // Before the fix, FormatKeyValueAssignment would produce KEY=hello world"
+        // which is invalid because the space splits the token.
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "hello world\"" }
+            });
+
+        // The value should contain the full string including the trailing quote
+        string resultStr = result.ToString();
+        Assert.StartsWith("LABEL KEY=\"", resultStr);
+        // The parser re-parses the generated string, so verify the label count is 1
+        // (before the fix, the unquoted space would cause a parse error or split into multiple tokens)
+        Assert.Single(result.Labels);
+    }
+
+    [Fact]
+    public void Create_ValueWithSpacesStartingWithQuote_WrapsInQuotes()
+    {
+        // Regression test for #285: value with spaces starting with " but not ending with "
+        // must be wrapped in quotes so the space doesn't break the token boundary.
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "\"hello world" }
+            });
+
+        string resultStr = result.ToString();
+        Assert.StartsWith("LABEL KEY=\"", resultStr);
+        Assert.Single(result.Labels);
+    }
+
+    [Fact]
+    public void Create_ValueProperlyQuoted_DoesNotDoubleWrap()
+    {
+        // A value that is already properly quoted (starts and ends with ") should not be wrapped again
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "\"hello world\"" }
+            });
+
+        Assert.Equal("LABEL KEY=\"hello world\"", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("hello world", result.Labels[0].Value);
+    }
+
+    [Fact]
+    public void Create_ValueWithSpacesNoQuotes_GetsWrapped()
+    {
+        // Basic case: value with spaces and no quotes should be wrapped
+        LabelInstruction result = new(
+            new Dictionary<string, string>
+            {
+                { "KEY", "hello world" }
+            });
+
+        Assert.Equal("LABEL KEY=\"hello world\"", result.ToString());
+        Assert.Single(result.Labels);
+        Assert.Equal("hello world", result.Labels[0].Value);
+    }
+
+    [Fact]
     public void LabelInstruction_UnicodeValue_RoundTrips()
     {
         string text = "LABEL description=\"Hello 世界 🚀\"\n";

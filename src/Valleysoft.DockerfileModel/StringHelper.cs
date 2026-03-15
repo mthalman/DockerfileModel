@@ -25,7 +25,7 @@ internal static class StringHelper
     /// </summary>
     public static string FormatKeyValueAssignment(string key, string value)
     {
-        if (value.Length > 0 && value[0] != '\"' && value.Last() != '\"' && value.Contains(' ') && !value.Contains("\\ "))
+        if (value.Length > 0 && !(value[0] == '\"' && value.Last() == '\"') && value.Contains(' ') && !value.Contains("\\ "))
         {
             value = "\"" + value + "\"";
         }
