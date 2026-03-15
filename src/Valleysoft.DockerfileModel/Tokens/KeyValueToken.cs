@@ -10,7 +10,12 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
 
     private readonly char escapeChar;
 
-    public KeyValueToken(TKey key, TValue value, bool isFlag = false, char separator = DefaultSeparator,
+    public KeyValueToken(TKey key, TValue value, bool isFlag = false, char separator = DefaultSeparator)
+        : this(key, value, isFlag, separator, Dockerfile.DefaultEscapeChar)
+    {
+    }
+
+    public KeyValueToken(TKey key, TValue value, bool isFlag, char separator = DefaultSeparator,
         char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(
             ConcatTokens(
