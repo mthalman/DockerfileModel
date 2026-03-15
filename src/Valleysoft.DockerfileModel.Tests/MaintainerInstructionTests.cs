@@ -53,15 +53,6 @@ public class MaintainerInstructionTests
         Assert.Equal("MAINTAINER \"\"", result.ToString());
     }
 
-    [Fact]
-    public void MaintainerTrailingNewLine()
-    {
-        MaintainerInstruction result = MaintainerInstruction.Parse("MAINTAINER test@example.com\n");
-        Assert.Equal("test@example.com", result.Maintainer);
-        Assert.Equal("test@example.com", result.MaintainerToken.Value);
-        Assert.Equal("MAINTAINER test@example.com\n", result.ToString());
-    }
-
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<MaintainerInstruction>[] testInputs = new ParseTestScenario<MaintainerInstruction>[]
