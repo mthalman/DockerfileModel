@@ -14,6 +14,9 @@ public class ImageNameTests
     [InlineData("my-registry.com/r_e-po1:tag.1", "my-registry.com", "r_e-po1", "tag.1", null)]
     [InlineData("host:80/repo:tag1", "host:80", "repo", "tag1", null)]
     [InlineData("host.com:80/repo:tag1", "host.com:80", "repo", "tag1", null)]
+    [InlineData("localhost:5000/myimage:latest", "localhost:5000", "myimage", "latest", null)]
+    [InlineData("localhost/myimage:latest", "localhost", "myimage", "latest", null)]
+    [InlineData("localhost", null, "localhost", null, null)]
     public void Parse(string input, string expectedRegistry, string expectedRepository, string expectedTag, string expectedDigest)
     {
         ImageName result = ImageName.Parse(input);
@@ -28,6 +31,8 @@ public class ImageNameTests
     [InlineData(null, "scratch", null, null, "scratch")]
     [InlineData("docker.io", "library/image", "tag", null, "docker.io/library/image:tag")]
     [InlineData("myregistry.azurecr.io", "repo", "tag1", null, "myregistry.azurecr.io/repo:tag1")]
+    [InlineData("localhost:5000", "myimage", "latest", null, "localhost:5000/myimage:latest")]
+    [InlineData("localhost", "myimage", "latest", null, "localhost/myimage:latest")]
     [InlineData(null, "repo1", "tag1", null, "repo1:tag1")]
     [InlineData(null, "repo1", null, TestSha, "repo1@" + TestSha)]
     [InlineData("docker.io", "library/image", null, TestSha, "docker.io/library/image@" + TestSha)]
