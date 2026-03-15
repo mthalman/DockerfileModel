@@ -182,7 +182,7 @@ public class Dockerfile : IConstructContainer
             }
         }
 
-        return resolvedInstruction.ToString();
+        return options.FormatValue(escapeChar, resolvedInstruction.ToString());
     }
 
     private static Dictionary<string, string?> GetGlobalArgs(StagesView stagesView, char escapeChar, IDictionary<string, string?> variables,
