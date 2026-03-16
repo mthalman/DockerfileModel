@@ -207,12 +207,87 @@ internal static class ParseHelper
 
             return
                 from tokens in primaryParser
-                from trailingWhitespace in ArgTrailingWhitespace(escapeChar)
-                select ConcatTokens(tokens, trailingWhitespace);
+                from trailingWhitespace in ArgTrailingWhitespaceInfo(escapeChar)
+                select trailingWhitespace.AbsorbIntoLastToken ?
+                    AbsorbTrailingWhitespaceIntoLastToken(tokens, trailingWhitespace.Tokens) :
+                    ConcatTokens(tokens, trailingWhitespace.Tokens);
         }
     }
 
+    internal static IEnumerable<Token> AbsorbTrailingWhitespaceIntoLastToken(IEnumerable<Token> tokens, IEnumerable<Token> trailingTokens)
+    {
+        List<Token> tokenList = tokens.ToList();
+        List<Token> trailingTokenList = trailingTokens.ToList();
+        if (tokenList.Count == 0 || trailingTokenList.Count == 0)
+        {
+            return ConcatTokens(tokenList, trailingTokenList);
+        }
+
+        List<WhitespaceToken> trailingWhitespace = trailingTokenList
+            .TakeWhile(token => token is WhitespaceToken && token is not NewLineToken)
+            .Cast<WhitespaceToken>()
+            .ToList();
+        if (trailingWhitespace.Count == 0)
+        {
+            return ConcatTokens(tokenList, trailingTokenList);
+        }
+
+        List<Token> remainingTrailingTokens = trailingTokenList
+            .Skip(trailingWhitespace.Count)
+            .ToList();
+        if (remainingTrailingTokens.Any(token => token is not NewLineToken))
+        {
+            return ConcatTokens(tokenList, trailingTokenList);
+        }
+
+        AppendTrailingWhitespace(tokenList[tokenList.Count - 1], trailingWhitespace);
+        return ConcatTokens(tokenList, remainingTrailingTokens);
+    }
+
+    internal static void AppendTrailingWhitespace(Token token, params WhitespaceToken[] trailingWhitespaceTokens) =>
+        AppendTrailingWhitespace(token, trailingWhitespaceTokens.AsEnumerable());
+
+    internal static void AppendTrailingWhitespace(Token token, IEnumerable<WhitespaceToken> trailingWhitespaceTokens)
+    {
+        Requires.NotNull(token, nameof(token));
+        Requires.NotNull(trailingWhitespaceTokens, nameof(trailingWhitespaceTokens));
+
+        List<WhitespaceToken> trailingWhitespace = trailingWhitespaceTokens.ToList();
+        if (trailingWhitespace.Count == 0)
+        {
+            return;
+        }
+
+        if (token is AggregateToken aggregateToken)
+        {
+            aggregateToken.TokenList.AddRange(trailingWhitespace);
+        }
+        else if (token is PrimitiveToken primitiveToken)
+        {
+            primitiveToken.Value += String.Concat(trailingWhitespace.Select(whitespace => whitespace.Value));
+        }
+    }
+
+    internal static string GetValueString(IEnumerable<Token> tokens)
+    {
+        List<Token> tokenList = tokens
+            .Where(token => token is not LineContinuationToken)
+            .Where(token => token is not CommentToken)
+            .Where(token => token is not NewLineToken)
+            .ToList();
+        while (tokenList.Count > 0 && tokenList[tokenList.Count - 1] is WhitespaceToken)
+        {
+            tokenList.RemoveAt(tokenList.Count - 1);
+        }
+
+        return String.Concat(tokenList.Select(token => token.ToString(TokenStringOptions.CreateOptionsForValueString())));
+    }
+
     internal static Parser<IEnumerable<Token>> ArgTrailingWhitespace(char escapeChar) =>
+        from result in ArgTrailingWhitespaceInfo(escapeChar)
+        select result.Tokens;
+
+    private static Parser<(IEnumerable<Token> Tokens, bool AbsorbIntoLastToken)> ArgTrailingWhitespaceInfo(char escapeChar) =>
         // After at least one line continuation, comments (# ...) at the start of the
         // next line are recognized as Dockerfile comments. This matches BuildKit, which
         // only treats # as a comment delimiter at the beginning of a line — including
@@ -222,17 +297,23 @@ internal static class ParseHelper
             from firstContinuation in LineContinuationToken.GetParser(escapeChar)
             from moreContinuations in LineContinuations(escapeChar)
             from trailingComments in CommentText().Many()
-            select ConcatTokens(
+            select (ConcatTokens(
                 whitespaceBeforeContinuation,
                 new Token[] { firstContinuation },
                 moreContinuations,
-                trailingComments.SelectMany(c => c))).Or(
-        // Fallback: whitespace and zero-or-more line continuations with no comments.
-        // LineContinuations uses .Many() so it succeeds with zero matches,
-        // making this branch always succeed and subsume any plain-newline case.
-            from trailingWhitespaceOnly in Whitespace()
-            from lineContinuations in LineContinuations(escapeChar)
-            select ConcatTokens(trailingWhitespaceOnly, lineContinuations));
+                trailingComments.SelectMany(c => c)), false))
+        .Or(
+            from trailingWhitespaceOnly in WhitespaceWithoutNewLine().AsEnumerable()
+            from lineEnd in NewLine().AsEnumerable()
+            select (ConcatTokens(trailingWhitespaceOnly, lineEnd), true))
+        .Or(
+            from trailingWhitespaceOnly in WhitespaceWithoutNewLine().AsEnumerable()
+            from end in Sprache.Parse.Return(Enumerable.Empty<Token>()).End()
+            select ((IEnumerable<Token>)trailingWhitespaceOnly, true))
+        .Or(
+            from separatorWhitespace in WhitespaceWithoutNewLine().AsEnumerable()
+            select ((IEnumerable<Token>)separatorWhitespace, false))
+        .Or(Sprache.Parse.Return((Enumerable.Empty<Token>(), false)));
 
     /// <summary>
     /// Parses a string.

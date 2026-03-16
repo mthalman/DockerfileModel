@@ -58,6 +58,28 @@ public static class TokenValidator
             Array.Empty<Action<Token>>();
         ValidateQuotableAggregate<LiteralToken>(token, literal, quoteChar, validators);
     }
+
+    public static void ValidateLiteralWithTrailingWhitespace(Token token, string literal, string trailingWhitespace, char? quoteChar = null)
+    {
+        Action<Token>[] validators = !String.IsNullOrEmpty(literal) ?
+            new Action<Token>[]
+            {
+                token => ValidateString(token, literal),
+                token => ValidateWhitespace(token, trailingWhitespace)
+            } :
+            new Action<Token>[] { token => ValidateWhitespace(token, trailingWhitespace) };
+        ValidateQuotableAggregate<LiteralToken>(token, $"{literal}{trailingWhitespace}", quoteChar, validators);
+    }
+
+    public static void ValidateAggregateWithTrailingWhitespace<T>(Token token, string text, string trailingWhitespace, params Action<Token>[] tokenValidators)
+        where T : AggregateToken
+    {
+        ValidateAggregate<T>(token, $"{text}{trailingWhitespace}",
+            tokenValidators.Concat(new Action<Token>[]
+            {
+                token => ValidateWhitespace(token, trailingWhitespace)
+            }).ToArray());
+    }
             
     public static void ValidateIdentifier<T>(Token token, string identifier, char? quoteChar = null)
         where T : IdentifierToken =>

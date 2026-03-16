@@ -27,7 +27,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 
     public string Value
     {
-        get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
+        get => GetValueString(Tokens);
         set
         {
             Requires.NotNull(value, nameof(value));

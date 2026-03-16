@@ -66,7 +66,14 @@ public class GenericInstruction : Instruction
         }
 
         yield return GetLeadingWhitespaceToken(text);
-        yield return new LiteralToken(text.Trim(), canContainVariables: false, escapeChar);
-        yield return GetTrailingWhitespaceToken(text);
+
+        LiteralToken instructionArg = new(text.Trim(), canContainVariables: false, escapeChar);
+        WhitespaceToken? trailingWhitespace = GetTrailingWhitespaceToken(text);
+        if (trailingWhitespace is not null)
+        {
+            AppendTrailingWhitespace(instructionArg, trailingWhitespace);
+        }
+
+        yield return instructionArg;
     }
 }

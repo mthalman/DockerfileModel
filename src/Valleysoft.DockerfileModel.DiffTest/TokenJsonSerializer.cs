@@ -32,10 +32,9 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     them as opaque literal file-path tokens. Lean recognizes them and emits keyValue tokens.
 ///     Workaround converts literal["--flagname[=value]"] → keyValue[-, -, keyword["flagname"],
 ///     optionally =, literal["value"]] when the literal starts with "--".
-///   - #264 (trailing whitespace on instructions): FIXED. Both C# and Lean now emit trailing
-///     instruction whitespace as a standalone WhitespaceToken sibling at instruction level.
-///     (The Lean argTokens fix removed the guard that prevented capturing trailing whitespace
-///     without a line continuation; C# already emitted it the same way.)
+///   - #264 (trailing whitespace on instructions): FIXED. C# now absorbs trailing instruction
+///     whitespace into the preceding token instead of emitting a standalone instruction-level
+///     WhitespaceToken sibling, preserving round-trip fidelity without changing top-level shape.
 ///   - #266 (flag line continuation): FIXED. Lean now parses line continuations inside
 ///     flag values as structured keyValue tokens, matching C#'s behavior.
 /// </summary>

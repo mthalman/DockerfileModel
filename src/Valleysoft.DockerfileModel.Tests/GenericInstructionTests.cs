@@ -77,8 +77,7 @@ public class GenericInstructionTests
                 {
                     token => ValidateKeyword(token, "run"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, @"echo ""hello world"""),
-                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateLiteralWithTrailingWhitespace(token, @"echo ""hello world""", "  "),
                     token => ValidateAggregate<LineContinuationToken>(token, "\\\r\n",
                         token => ValidateSymbol(token, '\\'),
                         token => ValidateNewLine(token, "\r\n")),
@@ -102,8 +101,7 @@ public class GenericInstructionTests
                 {
                     token => ValidateKeyword(token, "run"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, @"echo ""hello world"""),
-                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateLiteralWithTrailingWhitespace(token, @"echo ""hello world""", "  "),
                     token => ValidateAggregate<LineContinuationToken>(token, "\\\r\n",
                         token => ValidateSymbol(token, '\\'),
                         token => ValidateNewLine(token, "\r\n")),

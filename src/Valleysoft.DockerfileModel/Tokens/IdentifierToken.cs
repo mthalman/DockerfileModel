@@ -1,4 +1,6 @@
-﻿namespace Valleysoft.DockerfileModel.Tokens;
+﻿using static Valleysoft.DockerfileModel.ParseHelper;
+
+namespace Valleysoft.DockerfileModel.Tokens;
 
 public abstract class IdentifierToken : AggregateToken, IQuotableValueToken
 {
@@ -8,7 +10,7 @@ public abstract class IdentifierToken : AggregateToken, IQuotableValueToken
 
     public string Value
     {
-        get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
+        get => GetValueString(Tokens);
         set
         {
             Requires.NotNullOrEmpty(value, nameof(value));

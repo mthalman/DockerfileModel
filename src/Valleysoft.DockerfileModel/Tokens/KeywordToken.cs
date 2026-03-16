@@ -15,7 +15,7 @@ public class KeywordToken : AggregateToken, IValueToken
     {
     }
 
-    public string Value => this.ToString(TokenStringOptions.CreateOptionsForValueString());
+    public string Value => GetValueString(Tokens);
 
     string IValueToken.Value
     {
