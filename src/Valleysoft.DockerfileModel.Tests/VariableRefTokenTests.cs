@@ -826,12 +826,11 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRef_EmptyModifierValue_ColonDash_ThrowsParseException()
+    public void VariableRef_EmptyModifierValue_ColonDash_RoundTrips()
     {
-        // Current behavior: throws ParseException (bug)
-        // Expected behavior after fix: should parse successfully and round-trip as "FROM ${img:-}\n"
         string text = "FROM ${img:-}\n";
-        Assert.ThrowsAny<Exception>(() => FromInstruction.Parse(text));
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
     }
 
     /// <summary>
@@ -839,12 +838,11 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRef_EmptyModifierValue_Dash_ThrowsParseException()
+    public void VariableRef_EmptyModifierValue_Dash_RoundTrips()
     {
-        // Current behavior: throws ParseException (bug)
-        // Expected behavior after fix: should parse successfully and round-trip as "FROM ${img-}\n"
         string text = "FROM ${img-}\n";
-        Assert.ThrowsAny<Exception>(() => FromInstruction.Parse(text));
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
     }
 
     [Fact]
@@ -879,11 +877,11 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRef_Resolve_ColonDash_EmptyDefault_ThrowsParseException()
+    public void VariableRef_Resolve_ColonDash_EmptyDefault_ReturnsEmpty()
     {
-        // Current behavior: VariableRefToken.Parse throws ParseException (bug)
-        // Expected behavior after fix: should parse successfully and ResolveVariables should return ""
-        Assert.ThrowsAny<Exception>(() => VariableRefToken.Parse("${img:-}"));
+        VariableRefToken token = VariableRefToken.Parse("${img:-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
     }
 
     /// <summary>
@@ -977,26 +975,12 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRefToken_Parse_EmptyColonDashModifier_ThrowsOrSucceeds()
+    public void VariableRefToken_Parse_EmptyColonDashModifier_Succeeds()
     {
-        // ${img:-} — empty modifier value after :-
-        // The BracedVariableReference parser uses .AtLeastOnce() for modifierValueTokens,
-        // which means zero-length values are rejected.
-        // Document current behavior: does this throw ParseException?
-        string input = "${img:-}";
-
-        try
-        {
-            var token = VariableRefToken.Parse(input);
-            // If we get here, parsing succeeded
-            System.Console.WriteLine($"Parse succeeded: {token}");
-            System.Console.WriteLine($"Modifier: {token.Modifier}");
-            System.Console.WriteLine($"ModifierValue: [{token.ModifierValue}]");
-        }
-        catch (Exception ex)
-        {
-            System.Console.WriteLine($"Parse FAILED: {ex.GetType().Name}: {ex.Message}");
-        }
+        VariableRefToken token = VariableRefToken.Parse("${img:-}");
+        Assert.Equal("${img:-}", token.ToString());
+        Assert.Equal(":-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
     }
 
     /// <summary>
@@ -1004,20 +988,12 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRefToken_Parse_EmptyDashModifier_ThrowsOrSucceeds()
+    public void VariableRefToken_Parse_EmptyDashModifier_Succeeds()
     {
-        // ${var-} — plain dash, empty modifier value
-        string input = "${var-}";
-
-        try
-        {
-            var token = VariableRefToken.Parse(input);
-            System.Console.WriteLine($"Parse succeeded: {token}");
-        }
-        catch (Exception ex)
-        {
-            System.Console.WriteLine($"Parse FAILED: {ex.GetType().Name}: {ex.Message}");
-        }
+        VariableRefToken token = VariableRefToken.Parse("${var-}");
+        Assert.Equal("${var-}", token.ToString());
+        Assert.Equal("-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
     }
 
     /// <summary>
@@ -1025,19 +1001,11 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRefToken_Parse_EmptyColonPlusModifier_ThrowsOrSucceeds()
+    public void VariableRefToken_Parse_EmptyColonPlusModifier_Succeeds()
     {
-        // ${var:+} — empty modifier value after :+
-        string input = "${var:+}";
-
-        try
-        {
-            var token = VariableRefToken.Parse(input);
-            System.Console.WriteLine($"Parse succeeded: {token}");
-        }
-        catch (Exception ex)
-        {
-            System.Console.WriteLine($"Parse FAILED: {ex.GetType().Name}: {ex.Message}");
-        }
+        VariableRefToken token = VariableRefToken.Parse("${var:+}");
+        Assert.Equal("${var:+}", token.ToString());
+        Assert.Equal(":+", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
     }
 }

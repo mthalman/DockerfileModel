@@ -306,9 +306,8 @@ public class VariableRefToken : AggregateToken
         from modifierTokens in (
             from modifier in variableSubstitutionModifiers.Aggregate((current, next) => current.Or(next)).Once()
             from modifierValueTokens in ValueOrVariableRef(escapeChar, ModifierValueParser(), new char[] { '}' })
-                .AtLeastOnce()
+                .Many()
                 .Flatten()
-                .Where(tokens => tokens.Any())
             select ConcatTokens(
                 String.Concat(modifier).Select(ch => new SymbolToken(ch)),
                 new Token[] { new LiteralToken(modifierValueTokens, canContainVariables: true, escapeChar) })
