@@ -93,6 +93,48 @@ public class EntrypointInstructionTests
             },
             new ParseTestScenario<EntrypointInstruction>
             {
+                Text = "ENTRYPOINT echo #not-a-comment",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo #not-a-comment",
+                        token => ValidateLiteral(token, "echo #not-a-comment"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ENTRYPOINT", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo #not-a-comment", result.Command.ToString());
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    ShellFormCommand cmd = (ShellFormCommand)result.Command;
+                    Assert.Equal("echo #not-a-comment", cmd.Value);
+                }
+            },
+            new ParseTestScenario<EntrypointInstruction>
+            {
+                Text = "ENTRYPOINT #FF0000",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "#FF0000",
+                        token => ValidateLiteral(token, "#FF0000"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ENTRYPOINT", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("#FF0000", result.Command.ToString());
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    ShellFormCommand cmd = (ShellFormCommand)result.Command;
+                    Assert.Equal("#FF0000", cmd.Value);
+                }
+            },
+            new ParseTestScenario<EntrypointInstruction>
+            {
                 Text = "ENTRYPOINT echo `\n#test comment\nhello",
                 EscapeChar = '`',
                 TokenValidators = new Action<Token>[]

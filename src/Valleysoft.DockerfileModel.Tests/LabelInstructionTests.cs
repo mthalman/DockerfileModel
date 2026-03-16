@@ -432,6 +432,33 @@ public class LabelInstructionTests
                     });
                 }
             },
+            // Hash in the middle of an unquoted LABEL value is also regular text.
+            new ParseTestScenario<LabelInstruction>
+            {
+                Text = "LABEL key=hello#world",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "LABEL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "key=hello#world",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "key"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "hello#world"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("LABEL", result.InstructionName);
+                    Assert.Collection(result.Labels, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("key", pair.Key);
+                            Assert.Equal("hello#world", pair.Value);
+                        }
+                    });
+                }
+            },
             // Hash in a CSS hex color code LABEL value.
             new ParseTestScenario<LabelInstruction>
             {
