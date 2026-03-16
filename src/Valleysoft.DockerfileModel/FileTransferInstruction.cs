@@ -187,9 +187,7 @@ public abstract class FileTransferInstruction : Instruction
     }
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
-        from flags in ArgTokens(
-            from flag in FlagOption(escapeChar, optionalFlagParser).Optional()
-            select flag.GetOrDefault(), escapeChar).Many().Flatten()
+        from flags in FlagOption(escapeChar, optionalFlagParser).Many().Flatten()
         from whitespace in Whitespace()
         from files in HeredocTokenParser(escapeChar)
             .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar))
@@ -199,10 +197,19 @@ public abstract class FileTransferInstruction : Instruction
                 select literals.Flatten())
         select ConcatTokens(flags, whitespace, files);
 
-    private static Parser<IEnumerable<Token>?> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
-        ChangeOwnerFlag.GetParser(escapeChar)
-            .Cast<ChangeOwnerFlag, Token>()
-            .AsEnumerable()
-            .Or(ChangeModeFlag.GetParser(escapeChar).AsEnumerable())
-            .Or(optionalFlagParser ?? Parse.Return<IEnumerable<Token>?>(null));
+    private static Parser<IEnumerable<Token>> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser)
+    {
+        Parser<IEnumerable<Token>> parser =
+            ArgTokens(ChangeOwnerFlag.GetParser(escapeChar)
+                .Cast<ChangeOwnerFlag, Token>()
+                .AsEnumerable(), escapeChar)
+            .Or(ArgTokens(ChangeModeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar));
+
+        if (optionalFlagParser is not null)
+        {
+            parser = parser.Or(optionalFlagParser);
+        }
+
+        return parser;
+    }
 }

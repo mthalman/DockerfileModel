@@ -272,6 +272,25 @@ public abstract class FileTransferInstructionTests<TInstruction>
             },
             new ParseTestScenario<TInstruction>
             {
+                Text = $"{instructionName}  src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("dst", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
                 Text = $"{instructionName} --chown=1:2 src dst",
                 TokenValidators = new Action<Token>[]
                 {
@@ -284,6 +303,32 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '='),
                         token => ValidateLiteral(token, "1:2")),
                     token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("dst", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} --chown=1:2  src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=1:2",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "chown"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "1:2")),
+                    token => ValidateWhitespace(token, "  "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "dst")
