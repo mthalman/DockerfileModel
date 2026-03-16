@@ -147,22 +147,14 @@ public class DiffTestRunner
         catch (Exception ex)
         {
             // Workaround for #259: VOLUME [] crashes C# parser (empty exec-form array)
-            // Workaround for #261: FROM ${VAR:?msg} crashes C# parser (error modifier in image name)
             string errorMessage = ex.Message;
-            if (IsKnownCrashOrTruncation(instructionType, input, errorMessage))
+            if (IsKnownCrash(instructionType, input, errorMessage))
             {
                 return new DiffResult(instructionType, input, "", "", true);
             }
 
             return new DiffResult(instructionType, input, "", "", false,
                 $"C# parse error: {errorMessage}");
-        }
-
-        // Workaround for #261: ARG with :? modifier causes C# to truncate the value after =.
-        // The keyValue child is missing its value token; skip comparison.
-        if (IsKnownTruncatedOutput(instructionType, input, csharpJson))
-        {
-            return new DiffResult(instructionType, input, "", "", true);
         }
 
         string leanJson;
@@ -186,9 +178,8 @@ public class DiffTestRunner
     ///
     /// Covered cases:
     ///   #259: VOLUME [] — C# throws on empty JSON array input.
-    ///   #261: FROM ${VAR:?msg} — C# throws when a variable :? modifier appears in the image name.
     /// </summary>
-    private static bool IsKnownCrashOrTruncation(string instructionType, string input, string? error)
+    private static bool IsKnownCrash(string instructionType, string input, string? error)
     {
         string upper = instructionType.ToUpperInvariant();
 
@@ -200,53 +191,6 @@ public class DiffTestRunner
             int spaceIdx = trimmedArgs.IndexOfAny(new[] { ' ', '\t' });
             string argsOnly = spaceIdx >= 0 ? trimmedArgs.Substring(spaceIdx).TrimStart() : "";
             if (argsOnly.TrimStart('[', ' ', '\t', ']').Length == 0 && argsOnly.Contains('['))
-            {
-                return true;
-            }
-        }
-
-        // Workaround for #261: FROM with :? modifier in variable reference crashes C#
-        if (upper == "FROM" && input.Contains(":?"))
-        {
-            return true;
-        }
-
-        // Workaround for #261: FROM with bare ? modifier (no colon) crashes C#
-        if (upper == "FROM" && System.Text.RegularExpressions.Regex.IsMatch(input, @"\$\{[^}]*\?[^}]*\}"))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Returns true when the C# serialized output is known to be structurally truncated
-    /// and cannot be repaired by the serializer — the comparison must be skipped.
-    ///
-    /// Covered cases:
-    ///   #261: ARG with :? modifier — C# truncates the value child of the keyValue,
-    ///         producing a keyValue with only a name (Variable) and no LiteralToken value.
-    /// </summary>
-    private static bool IsKnownTruncatedOutput(string instructionType, string input, string csharpJson)
-    {
-        string upper = instructionType.ToUpperInvariant();
-
-        // Workaround for #261: ARG with :? modifier truncates the value child.
-        // The keyValue aggregate for the arg declaration will have a Variable child
-        // but no LiteralToken value child. After serialization, the keyValue children
-        // array contains: identifier[...], symbol[=], (nothing else — value is absent).
-        // Detect: keyValue with "symbol[=]" but no following literal child in a
-        // short children sequence.
-        // Simpler heuristic: if the ARG JSON contains "\"=\"" symbol immediately
-        // followed by end-of-keyValue ("]}" with no literal between), it's truncated.
-        if (upper == "ARG")
-        {
-            // Check for keyValue that has an = symbol but no value literal.
-            // Pattern: keyValue children end with symbol("=") — no literal after the =.
-            // Detect: "symbol","value":"="}" immediately before "]}" of a keyValue
-            if (csharpJson.Contains("\"value\":\"=\"}]}") ||
-                csharpJson.Contains("\"value\":\"=\"},{\"type\":\"primitive\",\"kind\":\"whitespace\""))
             {
                 return true;
             }

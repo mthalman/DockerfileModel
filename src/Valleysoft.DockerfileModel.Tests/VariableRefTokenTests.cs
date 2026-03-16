@@ -197,6 +197,26 @@ public class VariableRefTokenTests
                     Assert.Equal("${IMAGE:?must set image}", result.ToString());
                 }
             },
+            // ? modifier with spaces in message
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${IMAGE?must set image}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "IMAGE"),
+                    token => ValidateSymbol(token, '?'),
+                    token => ValidateLiteral(token, "must set image"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("IMAGE", result.VariableName);
+                    Assert.Equal("?", result.Modifier);
+                    Assert.Equal("must set image", result.ModifierValue);
+                    Assert.Equal("${IMAGE?must set image}", result.ToString());
+                }
+            },
             // :- modifier with spaces in default value
             new ParseTestScenario<VariableRefToken>
             {
@@ -868,8 +888,8 @@ public class VariableRefTokenTests
     [Fact]
     public void VariableRef_Question_NoColon_RoundTrips()
     {
-        // ${var?error} — question without colon
-        string text = "FROM ${img?must set}\n";
+        // ${var?error message} — question without colon, preserving spaces in the message
+        string text = "FROM ${img?must set img variable}\n";
         FromInstruction inst = FromInstruction.Parse(text);
         Assert.Equal(text, inst.ToString());
     }
