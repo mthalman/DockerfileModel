@@ -468,30 +468,31 @@ public class ExposeInstructionTests
         Assert.Equal("80", inst.Ports[0]);
     }
 
-    /// <summary>
-    /// Bug: EXPOSE splits port/protocol into three tokens
-    /// See https://github.com/mthalman/DockerfileModel/issues/278
-    /// </summary>
     [Fact]
     public void ExposeInstruction_PortWithProtocol_RoundTrips()
     {
         string text = "EXPOSE 80/tcp\n";
         ExposeInstruction inst = ExposeInstruction.Parse(text);
+
         Assert.Equal(text, inst.ToString());
-        Assert.Equal(1, inst.Ports.Count);
-        // What does Ports[0] return for 80/tcp? Does it include the /tcp part?
-        System.Console.WriteLine($"Ports[0] = [{inst.Ports[0]}]");
+        Assert.Collection(inst.Ports,
+            port => Assert.Equal("80/tcp", port));
+        Assert.Collection(inst.PortTokens,
+            token => Assert.Equal("80/tcp", token.Value));
+        Assert.DoesNotContain(inst.Tokens, token => token is SymbolToken { Value: "/" });
     }
 
-    /// <summary>
-    /// Bug: EXPOSE splits port/protocol into three tokens
-    /// See https://github.com/mthalman/DockerfileModel/issues/278
-    /// </summary>
     [Fact]
     public void ExposeInstruction_MultiplePortsAndProtocols_RoundTrips()
     {
         string text = "EXPOSE 80/tcp 443 8080/udp\n";
         ExposeInstruction inst = ExposeInstruction.Parse(text);
+
         Assert.Equal(text, inst.ToString());
+        Assert.Collection(inst.Ports,
+            port => Assert.Equal("80/tcp", port),
+            port => Assert.Equal("443", port),
+            port => Assert.Equal("8080/udp", port));
+        Assert.DoesNotContain(inst.Tokens, token => token is SymbolToken { Value: "/" });
     }
 }
