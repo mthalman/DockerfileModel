@@ -1285,13 +1285,29 @@ open DockerfileModel.Parser.Flags in
 /-- Test: --from=builder — string flag. -/
 def testFlagFrom : IO Unit := do
   IO.println "Flags: --from=builder"
-  let parser := DockerfileModel.Parser.flagParser "from" '\\'
+  let parser := DockerfileModel.Parser.flagParserNoVars "from" '\\'
   match parser.tryParse "--from=builder" with
   | some token =>
     assertEqual (Token.toString token) "--from=builder" "from flag round-trip"
     assertAggregateKind token .keyValue "from flag is keyValue"
   | none =>
     throw (IO.Error.userError "Parse failed: --from=builder should parse")
+
+open DockerfileModel.Parser.Flags in
+/-- Test: --from=\<newline>builder — no-vars flag preserves line continuation inside keyValue. -/
+def testFlagFromLineContinuation : IO Unit := do
+  IO.println "Flags: --from with line continuation"
+  let input := "--from=\\\nbuilder"
+  let parser := DockerfileModel.Parser.flagParserNoVars "from" '\\'
+  match parser.tryParse input with
+  | some token =>
+    assertEqual (Token.toString token) input "from flag line continuation round-trip"
+    assertAggregateKind token .keyValue "from flag line continuation is keyValue"
+    assertChildCount token 6 "from flag line continuation child count"
+    assertAggregateKind token.children[4]! .lineContinuation "from flag preserves line continuation child"
+    assertEqual (Token.toString token.children[5]!) "builder" "from flag value after line continuation"
+  | none =>
+    throw (IO.Error.userError "Parse failed: --from with line continuation should parse")
 
 open DockerfileModel.Parser.Flags in
 /-- Test: --link — boolean flag (no value). -/
@@ -1342,6 +1358,38 @@ def testFlagChown : IO Unit := do
     assertEqual (Token.toString token) "--chown=user:group" "chown flag round-trip"
   | none =>
     throw (IO.Error.userError "Parse failed: --chown=user:group should parse")
+
+open DockerfileModel.Parser.Flags in
+/-- Test: --chown=\<newline>root — variable-capable flag preserves line continuation inside keyValue. -/
+def testFlagChownLineContinuation : IO Unit := do
+  IO.println "Flags: --chown with line continuation"
+  let input := "--chown=\\\nroot"
+  let parser := DockerfileModel.Parser.flagParser "chown" '\\'
+  match parser.tryParse input with
+  | some token =>
+    assertEqual (Token.toString token) input "chown flag line continuation round-trip"
+    assertAggregateKind token .keyValue "chown flag line continuation is keyValue"
+    assertChildCount token 6 "chown flag line continuation child count"
+    assertAggregateKind token.children[4]! .lineContinuation "chown flag preserves line continuation child"
+    assertEqual (Token.toString token.children[5]!) "root" "chown flag value after line continuation"
+  | none =>
+    throw (IO.Error.userError "Parse failed: --chown with line continuation should parse")
+
+open DockerfileModel.Parser.Flags in
+/-- Test: --mount=\<newline>type=bind,target=/src — strict flag preserves line continuation inside keyValue. -/
+def testFlagMountLineContinuation : IO Unit := do
+  IO.println "Flags: --mount with line continuation"
+  let input := "--mount=\\\ntype=bind,target=/src"
+  let parser := DockerfileModel.Parser.flagParserStrict "mount" '\\'
+  match parser.tryParse input with
+  | some token =>
+    assertEqual (Token.toString token) input "mount flag line continuation round-trip"
+    assertAggregateKind token .keyValue "mount flag line continuation is keyValue"
+    assertChildCount token 6 "mount flag line continuation child count"
+    assertAggregateKind token.children[4]! .lineContinuation "mount flag preserves line continuation child"
+    assertEqual (Token.toString token.children[5]!) "type=bind,target=/src" "mount flag value after line continuation"
+  | none =>
+    throw (IO.Error.userError "Parse failed: --mount with line continuation should parse")
 
 -- ============================================================================
 -- Shell Form Command Tests
@@ -2144,6 +2192,20 @@ def testRunWithMount : IO Unit := do
     throw (IO.Error.userError "Parse failed: RUN with --mount should parse")
 
 open DockerfileModel.Parser.Instructions.Run in
+/-- Test: RUN --mount=\<newline>type=bind,target=/src echo hello — mount flag stays structured across line continuation. -/
+def testRunWithMountLineContinuation : IO Unit := do
+  IO.println "Run: mount flag with line continuation"
+  let input := "RUN --mount=\\\ntype=bind,target=/src echo hello"
+  match parseRun input with
+  | some inst =>
+    assertEqual (Token.toString inst.token) input "run mount flag line continuation round-trip"
+    assertAggregateKind inst.token.children[2]! .keyValue "run mount flag line continuation stays keyValue"
+    assertAggregateKind inst.token.children[2]!.children[4]! .lineContinuation
+      "run mount flag preserves line continuation child"
+  | none =>
+    throw (IO.Error.userError "Parse failed: RUN with mount line continuation should parse")
+
+open DockerfileModel.Parser.Instructions.Run in
 /-- Test: RUN --network=host echo hello — with network flag -/
 def testRunWithNetwork : IO Unit := do
   IO.println "Run: with --network flag"
@@ -2216,6 +2278,20 @@ def testCopyWithFrom : IO Unit := do
     throw (IO.Error.userError "Parse failed: COPY with --from should parse")
 
 open DockerfileModel.Parser.Instructions.Copy in
+/-- Test: COPY --from=\<newline>builder /app /app — from flag stays structured across line continuation. -/
+def testCopyWithFromLineContinuation : IO Unit := do
+  IO.println "Copy: with --from line continuation"
+  let input := "COPY --from=\\\nbuilder /app /app"
+  match parseCopy input with
+  | some inst =>
+    assertEqual (Token.toString inst.token) input "copy from flag line continuation round-trip"
+    assertAggregateKind inst.token.children[2]! .keyValue "copy from flag line continuation stays keyValue"
+    assertAggregateKind inst.token.children[2]!.children[4]! .lineContinuation
+      "copy from flag preserves line continuation child"
+  | none =>
+    throw (IO.Error.userError "Parse failed: COPY with --from line continuation should parse")
+
+open DockerfileModel.Parser.Instructions.Copy in
 /-- Test: COPY --chown=user:group src dest — with chown flag -/
 def testCopyWithChown : IO Unit := do
   IO.println "Copy: with --chown flag"
@@ -2274,6 +2350,20 @@ def testAddBasic : IO Unit := do
       "add basic round-trip"
   | none =>
     throw (IO.Error.userError "Parse failed: ADD basic should parse")
+
+open DockerfileModel.Parser.Instructions.Add in
+/-- Test: ADD --chown=\<newline>root src dest — chown flag stays structured across line continuation. -/
+def testAddWithChownLineContinuation : IO Unit := do
+  IO.println "Add: with --chown line continuation"
+  let input := "ADD --chown=\\\nroot src dest"
+  match parseAdd input with
+  | some inst =>
+    assertEqual (Token.toString inst.token) input "add chown flag line continuation round-trip"
+    assertAggregateKind inst.token.children[2]! .keyValue "add chown flag line continuation stays keyValue"
+    assertAggregateKind inst.token.children[2]!.children[4]! .lineContinuation
+      "add chown flag preserves line continuation child"
+  | none =>
+    throw (IO.Error.userError "Parse failed: ADD with --chown line continuation should parse")
 
 open DockerfileModel.Parser.Instructions.Add in
 /-- Test: ADD --checksum=sha256:abc123 file.tar /app — with checksum flag -/
@@ -2969,10 +3059,13 @@ def runParserTests_Infrastructure : IO Unit := do
   IO.println ""
   testFlagPlatform
   testFlagFrom
+  testFlagFromLineContinuation
   testBoolFlagLink
   testBoolFlagLinkTrue
   testBoolFlagLinkFalse
   testFlagChown
+  testFlagChownLineContinuation
+  testFlagMountLineContinuation
   IO.println ""
 
   IO.println "=== Shell Form Command Tests ==="
@@ -3110,6 +3203,7 @@ def runParserTests_PhaseD : IO Unit := do
   testRunShellForm
   testRunExecForm
   testRunWithMount
+  testRunWithMountLineContinuation
   testRunWithNetwork
   testRunWithSecurity
   testRunMultipleFlags
@@ -3122,6 +3216,7 @@ def runParserTests_PhaseD : IO Unit := do
   IO.println ""
   testCopyBasic
   testCopyWithFrom
+  testCopyWithFromLineContinuation
   testCopyWithChown
   testCopyWithLink
   testCopyExecForm
@@ -3135,6 +3230,7 @@ def runParserTests_PhaseD : IO Unit := do
   IO.println "=== ADD Instruction Tests ==="
   IO.println ""
   testAddBasic
+  testAddWithChownLineContinuation
   testAddWithChecksum
   testAddWithKeepGitDir
   testAddWithChmod
