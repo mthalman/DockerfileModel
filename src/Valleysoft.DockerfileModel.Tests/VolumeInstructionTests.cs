@@ -21,9 +21,13 @@ public class VolumeInstructionTests
     }
 
     [Fact]
-    public void Parse_DoesNotAllowMountFlag()
+    public void Parse_MountFlagTreatedAsLiteralPath()
     {
-        Assert.Throws<ParseException>(() => VolumeInstruction.Parse("VOLUME --mount=type=bind /data"));
+        VolumeInstruction result = VolumeInstruction.Parse("VOLUME --mount=type=bind,target=/data /data");
+        Assert.Equal("VOLUME --mount=type=bind,target=/data /data", result.ToString());
+        Assert.Collection(result.Paths,
+            path => Assert.Equal("--mount=type=bind,target=/data", path),
+            path => Assert.Equal("/data", path));
     }
 
     [Fact]
