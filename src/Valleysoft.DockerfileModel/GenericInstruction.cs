@@ -69,11 +69,16 @@ public class GenericInstruction : Instruction
 
         LiteralToken instructionArg = new(text.Trim(), canContainVariables: false, escapeChar);
         WhitespaceToken? trailingWhitespace = GetTrailingWhitespaceToken(text);
-        if (trailingWhitespace is not null)
+        if (trailingWhitespace is not null && !instructionArg.QuoteChar.HasValue)
         {
             AppendTrailingWhitespace(instructionArg, trailingWhitespace);
         }
 
         yield return instructionArg;
+
+        if (trailingWhitespace is not null && instructionArg.QuoteChar.HasValue)
+        {
+            yield return trailingWhitespace;
+        }
     }
 }
