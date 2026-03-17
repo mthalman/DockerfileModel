@@ -950,11 +950,13 @@ public class VariableRefTokenTests
     }
 
     [Fact]
-    public void VariableRefToken_Constructor_EmptyModifierValue_Throws()
+    public void VariableRefToken_Constructor_EmptyModifierValue_Succeeds()
     {
-        // modifierValue is required to be non-empty per Requires.NotNullOrEmpty
-        Assert.Throws<ArgumentException>(
-            () => new VariableRefToken("VAR", ":-", ""));
+        // Empty modifier value is allowed (e.g., ${VAR:-} parses to modifier ":-" with value "")
+        VariableRefToken token = new VariableRefToken("VAR", ":-", "");
+        Assert.Equal(":-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
+        Assert.Equal("${VAR:-}", token.ToString());
     }
 
     [Fact]
@@ -968,6 +970,78 @@ public class VariableRefTokenTests
         token.Modifier = null;
         Assert.Null(token.Modifier);
         Assert.Null(token.ModifierValue);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR-} (dash without colon, empty default): when variable is not set, resolves to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_Dash_EmptyDefault_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR-} (dash without colon): when variable is set to empty string, returns empty (var IS set).
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_Dash_EmptyDefault_VarSetToEmpty_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "" });
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:+} (colon-plus with empty alt value): when variable is set, resolves to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonPlus_EmptyAlt_VarSet_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:+}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "alpine" });
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:+} (colon-plus with empty alt value): when variable is not set, resolves to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonPlus_EmptyAlt_VarNotSet_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:+}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:?} (colon-question with empty error detail): when variable is not set, throws with empty detail.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonQuestion_EmptyError_ThrowsWhenUnset()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:?}");
+        Assert.Throws<VariableSubstitutionException>(
+            () => token.ResolveVariables('\\', new Dictionary<string, string?>()));
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:?} (colon-question with empty error detail): when variable is set, returns its value.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonQuestion_EmptyError_ReturnsValueWhenSet()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:?}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "alpine" });
+        Assert.Equal("alpine", resolved);
     }
 
     /// <summary>
