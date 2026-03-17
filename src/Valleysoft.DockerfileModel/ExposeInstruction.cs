@@ -56,5 +56,9 @@ public class ExposeInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+        // LiteralWithVariables already keeps '/' inside the LiteralToken because '/' is not
+        // in the set of excluded characters (whitespace, escape char, variable ref chars).
+        // This matches BuildKit, which treats port/protocol specs like "80/tcp" as single
+        // opaque literals rather than splitting on '/'.
         ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar).AtLeastOnce().Flatten();
 }
