@@ -111,9 +111,11 @@ public static class TokenJsonSerializer
             return;
         }
 
+        // All other instructions (FROM, ENV, EXPOSE, ARG, LABEL, etc.):
+        // hoist trailing whitespace from last aggregate child (#264)
         if (token is Instruction)
         {
-            SerializeAggregate(sb, "instruction", token);
+            SerializeInstructionWithTrailingWhitespaceHoist(sb, (Instruction)token);
             return;
         }
 
@@ -349,6 +351,17 @@ public static class TokenJsonSerializer
         List<Token> tokens = instruction.Tokens.ToList();
         bool first = true;
 
+        // Find the last aggregate child for trailing whitespace hoisting (#264)
+        int lastAggIdx = -1;
+        for (int i = tokens.Count - 1; i >= 0; i--)
+        {
+            if (tokens[i] is AggregateToken && !IsTransparentWrapper(tokens[i]))
+            {
+                lastAggIdx = i;
+                break;
+            }
+        }
+
         for (int i = 0; i < tokens.Count; i++)
         {
             Token child = tokens[i];
@@ -361,6 +374,26 @@ public static class TokenJsonSerializer
                 first = false;
                 SerializeUnrecognizedFlagAsKeyValue(sb, flagName!, flagValue);
                 continue;
+            }
+
+            // Workaround #264: hoist trailing whitespace from last aggregate child
+            if (i == lastAggIdx && child is AggregateToken lastAgg)
+            {
+                var (trimmedChildren, hoistedWs) = ExtractTrailingWhitespace(lastAgg);
+
+                if (trimmedChildren is not null)
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    SerializeAggregateWithOverriddenChildren(sb, GetAggregateKind(lastAgg), lastAgg, trimmedChildren);
+
+                    foreach (Token ws in hoistedWs) // #264
+                    {
+                        sb.Append(',');
+                        SerializeToken(sb, ws);
+                    }
+                    continue;
+                }
             }
 
             if (!first) sb.Append(',');
@@ -540,6 +573,153 @@ public static class TokenJsonSerializer
         }
 
         sb.Append("]}");
+    }
+
+    // ===================================================================
+    // Workaround #264: trailing whitespace hoisting
+    //
+    // C# absorbs trailing instruction whitespace into the last aggregate
+    // child token (e.g., the last LiteralToken or KeyValueToken in FROM,
+    // ENV, EXPOSE, COPY, ADD instructions). Lean (BuildKit) keeps trailing
+    // whitespace as a separate WhitespaceToken sibling at the instruction
+    // level. This helper detects trailing WhitespaceTokens inside the last
+    // aggregate child, strips them, and emits them at the instruction level.
+    // ===================================================================
+
+    /// <summary>
+    /// Extract trailing WhitespaceToken(s) from the last aggregate child's token list.
+    /// Returns a tuple: (tokens to serialize for the last child excluding trailing ws,
+    ///                    trailing ws tokens to hoist to instruction level).
+    /// If the last child is not an AggregateToken or has no trailing whitespace,
+    /// returns (null, empty list) meaning no hoisting is needed. // #264
+    /// </summary>
+    private static (List<Token>? trimmedChildren, List<Token> hoistedWs) ExtractTrailingWhitespace(AggregateToken lastChild)
+    {
+        List<Token> children = lastChild.Tokens.ToList();
+        // Don't hoist from quoted tokens — quotes delimit whitespace ownership // #264
+        if (lastChild is IQuotableToken quotable && quotable.QuoteChar.HasValue)
+            return (null, new List<Token>());
+
+        int splitIdx = children.Count;
+        while (splitIdx > 0 && children[splitIdx - 1] is WhitespaceToken && children[splitIdx - 1] is not NewLineToken)
+        {
+            splitIdx--;
+        }
+
+        if (splitIdx == children.Count)
+            return (null, new List<Token>()); // no trailing whitespace
+
+        List<Token> trimmed = children.GetRange(0, splitIdx);
+        List<Token> hoisted = children.GetRange(splitIdx, children.Count - splitIdx);
+        return (trimmed, hoisted);
+    }
+
+    /// <summary>
+    /// Serialize an instruction, hoisting trailing whitespace from the last
+    /// aggregate child to the instruction level. // #264
+    /// </summary>
+    private static void SerializeInstructionWithTrailingWhitespaceHoist(StringBuilder sb, Instruction instruction)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
+
+        List<Token> tokens = instruction.Tokens.ToList();
+        bool first = true;
+
+        // Find the last aggregate child (skip trailing primitives like standalone whitespace) // #264
+        int lastAggIdx = -1;
+        for (int i = tokens.Count - 1; i >= 0; i--)
+        {
+            if (tokens[i] is AggregateToken && !IsTransparentWrapper(tokens[i]))
+            {
+                lastAggIdx = i;
+                break;
+            }
+        }
+
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            Token child = tokens[i];
+
+            if (i == lastAggIdx && child is AggregateToken lastAgg)
+            {
+                var (trimmedChildren, hoistedWs) = ExtractTrailingWhitespace(lastAgg);
+
+                if (trimmedChildren is not null)
+                {
+                    // Serialize the aggregate with trimmed children // #264
+                    if (!first) sb.Append(',');
+                    first = false;
+                    SerializeAggregateWithOverriddenChildren(sb, GetAggregateKind(lastAgg), lastAgg, trimmedChildren);
+
+                    // Emit hoisted whitespace tokens at instruction level // #264
+                    foreach (Token ws in hoistedWs)
+                    {
+                        sb.Append(',');
+                        SerializeToken(sb, ws);
+                    }
+                }
+                else
+                {
+                    // No hoisting needed — serialize normally
+                    EmitChild(sb, child, ref first);
+                }
+            }
+            else
+            {
+                EmitChild(sb, child, ref first);
+            }
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Serialize an AggregateToken but with a custom children list instead of its actual tokens. // #264
+    /// </summary>
+    private static void SerializeAggregateWithOverriddenChildren(StringBuilder sb, string kind, Token token, List<Token> children)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"");
+        sb.Append(kind);
+        sb.Append("\",\"quoteChar\":");
+
+        if (token is IQuotableToken quotable && quotable.QuoteChar.HasValue)
+        {
+            sb.Append('"');
+            JsonEscapeString(sb, quotable.QuoteChar.Value.ToString());
+            sb.Append('"');
+        }
+        else
+        {
+            sb.Append("null");
+        }
+
+        sb.Append(",\"children\":[");
+
+        bool first = true;
+        foreach (Token child in children)
+        {
+            EmitChild(sb, child, ref first);
+        }
+
+        sb.Append("]}");
+    }
+
+    /// <summary>
+    /// Get the canonical kind string for an AggregateToken. // #264
+    /// </summary>
+    private static string GetAggregateKind(Token token)
+    {
+        if (token is KeywordToken) return "keyword";
+        if (token is VariableRefToken) return "variableRef";
+        if (token is LiteralToken) return "literal";
+        if (token is CommentToken) return "comment";
+        if (token is LineContinuationToken) return "lineContinuation";
+        if (token is IdentifierToken) return "identifier";
+        if (IsKeyValueToken(token)) return "keyValue";
+        if (token is IKeyValuePair) return "keyValue";
+        if (token is Instruction) return "instruction";
+        if (token is DockerfileConstruct) return "construct";
+        return "construct";
     }
 
     /// <summary>
