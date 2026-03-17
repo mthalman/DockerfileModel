@@ -62,8 +62,7 @@ public class VolumeInstruction : Instruction
     private static Parser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
         ArgTokens(
             from whitespace in Whitespace().Optional()
-            from mountFlag in Sprache.Parse.IgnoreCase("--mount=").Optional()
-            where !mountFlag.IsDefined
+            from _ in Sprache.Parse.Not(Sprache.Parse.IgnoreCase("--mount="))
             from path in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable()
             select ConcatTokens(whitespace.GetOrDefault(), path), escapeChar
         ).AtLeastOnce().Flatten();
