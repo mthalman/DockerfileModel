@@ -56,10 +56,9 @@ public class ExposeInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        ArgTokens(GetPortSpecParser(escapeChar).AsEnumerable(), escapeChar).AtLeastOnce().Flatten();
-
-    private static Parser<LiteralToken> GetPortSpecParser(char escapeChar) =>
-        // BuildKit treats EXPOSE port/protocol values as opaque literals, so '/'
-        // must stay inside the LiteralToken rather than being parsed separately.
-        LiteralWithVariables(escapeChar);
+        // LiteralWithVariables already keeps '/' inside the LiteralToken because '/' is not
+        // in the set of excluded characters (whitespace, escape char, variable ref chars).
+        // This matches BuildKit, which treats port/protocol specs like "80/tcp" as single
+        // opaque literals rather than splitting on '/'.
+        ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar).AtLeastOnce().Flatten();
 }
