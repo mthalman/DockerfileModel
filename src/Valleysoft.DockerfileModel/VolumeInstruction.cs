@@ -51,9 +51,9 @@ public class VolumeInstruction : Instruction
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from whitespace in Whitespace()
-        from command in ArgTokens(GetPathsParser(escapeChar), escapeChar)
+        from paths in ArgTokens(GetPathsParser(escapeChar), escapeChar)
         select ConcatTokens(
-            whitespace, command);
+            whitespace, paths);
 
     private static Parser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
         JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
