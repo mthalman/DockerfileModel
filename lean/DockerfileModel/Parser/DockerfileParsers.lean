@@ -553,6 +553,43 @@ def instructionParser (instructionName : String) (escapeChar : Char)
 -- Generic key-value flag parser (--name=value)
 -- ============================================================
 
+/-- Parse the tokens between `=` and a flag value.
+    Always preserves any line continuations immediately after `=`.
+    Non-strict flags may also absorb whitespace before the value, while strict
+    flags require the value to begin immediately after any preserved line
+    continuations.  When `allowLeadingWhitespace` is false (strict mode),
+    whitespace is still permitted *if* at least one line continuation was
+    consumed — this handles the common indentation pattern
+    `--mount=\<newline>  type=bind,...` while still rejecting bare
+    `--mount= type=...` (space without a continuation). -/
+private def flagValueAfterEquals (escapeChar : Char) (valueParser : Parser Token)
+    (allowLeadingWhitespace : Bool := true) : Parser (List Token × Token) := do
+  let lcsAfterEq ← lineContinuations escapeChar
+  let result : List Token × Token ←
+    if allowLeadingWhitespace then
+      or'
+        (do
+          let value ← valueParser
+          let empty : List Token := []
+          Parser.pure (empty, value))
+        (do
+          let ws ← whitespace
+          if ws.isEmpty then Parser.fail "expected whitespace before flag value"
+          let value ← valueParser
+          Parser.pure (ws, value))
+    else if !lcsAfterEq.isEmpty then do
+      -- Line continuations were consumed; allow (and preserve) indentation
+      -- whitespace before the value.
+      let ws ← whitespaceWithoutNewLine
+      let value ← valueParser
+      Parser.pure (match ws with | some w => ([w], value) | none => ([], value))
+    else do
+      let value ← valueParser
+      let empty : List Token := []
+      Parser.pure (empty, value)
+  let (prefixTokens, value) := result
+  Parser.pure (lcsAfterEq ++ prefixTokens, value)
+
 /-- Parse a generic key-value flag: `--name=value`.
     The value is parsed via `literalWithVariables` (supports variable substitution).
     When the value is separated from `=` by whitespace (e.g., `--name= value`),
@@ -560,7 +597,7 @@ def instructionParser (instructionName : String) (escapeChar : Char)
     as the value, matching C#'s behavior.
     Returns a KeyValueToken containing:
       SymbolToken('-'), SymbolToken('-'), KeywordToken(name), SymbolToken('='),
-      [WhitespaceToken?], LiteralToken(value)
+      [LineContinuationToken*], [WhitespaceToken?], LiteralToken(value)
     Corresponds to the C# `KeywordLiteralFlag` pattern.
 
     This is the shared implementation used by `platformFlagParser` and by
@@ -571,23 +608,12 @@ def flagParser (name : String) (escapeChar : Char) : Parser Token := do
   let dash2 ← char '-'
   let kw ← keywordParser name escapeChar
   let eq ← char '='
-  -- Consume any line continuations immediately after '='
-  let lcsAfterEq ← lineContinuations escapeChar
-  -- Try value immediately after '=' (or after line continuations); if that fails, consume whitespace then value
-  let result : List Token × Token ← or'
-    (do let v ← literalWithVariables escapeChar
-        let empty : List Token := []
-        Parser.pure (empty, v))
-    (do let ws ← whitespace
-        if ws.isEmpty then Parser.fail "expected whitespace before flag value"
-        let v ← literalWithVariables escapeChar
-        Parser.pure (ws, v))
-  let (wsTokens, value) := result
+  let (prefixTokens, value) ← flagValueAfterEquals escapeChar (literalWithVariables escapeChar)
   Parser.pure (Token.mkKeyValue (
     [Token.mkSymbol dash1,
      Token.mkSymbol dash2,
      kw,
-     Token.mkSymbol eq] ++ lcsAfterEq ++ wsTokens ++ [value]
+     Token.mkSymbol eq] ++ prefixTokens ++ [value]
   ))
 
 /-- Parse a --name=value flag where the value is a plain literal (no variable reference parsing).
@@ -599,44 +625,37 @@ def flagParserNoVars (name : String) (escapeChar : Char) : Parser Token := do
   let dash2 ← char '-'
   let kw ← keywordParser name escapeChar
   let eq ← char '='
-  -- Consume any line continuations immediately after '='
-  let lcsAfterEq ← lineContinuations escapeChar
-  -- Try value immediately after '=' (or after line continuations); if that fails, consume whitespace then value
-  let result : List Token × Token ← or'
-    (do let parts ← literalString escapeChar [] (excludeVariableRefChars := false)
-        let empty : List Token := []
-        Parser.pure (empty, Token.mkLiteral (collapseStringTokens parts)))
-    (do let ws ← whitespace
-        if ws.isEmpty then Parser.fail "expected whitespace before flag value"
-        let parts ← literalString escapeChar [] (excludeVariableRefChars := false)
-        Parser.pure (ws, Token.mkLiteral (collapseStringTokens parts)))
-  let (wsTokens, value) := result
+  let valueParser : Parser Token := do
+    let parts ← literalString escapeChar [] (excludeVariableRefChars := false)
+    Parser.pure (Token.mkLiteral (collapseStringTokens parts))
+  let (prefixTokens, value) ← flagValueAfterEquals escapeChar valueParser
   Parser.pure (Token.mkKeyValue (
     [Token.mkSymbol dash1,
      Token.mkSymbol dash2,
      kw,
-     Token.mkSymbol eq] ++ lcsAfterEq ++ wsTokens ++ [value]
+     Token.mkSymbol eq] ++ prefixTokens ++ [value]
   ))
 
-/-- Parse a key-value flag that requires the value immediately after `=` (no
-    whitespace absorption). Used for mount flags where C# uses a structured
-    value parser (MountParser) that fails on empty values — causing the entire
-    flag to fail and the instruction to fall through to shell form.
-    The value is parsed as an opaque literal matching Lean's treatment of mount
-    values as opaque strings. -/
+/-- Parse a key-value flag that requires the value immediately after `=` when
+    no line continuation is present.  Used for mount flags where C# uses a
+    structured value parser (MountParser) that fails on empty values — causing
+    the entire flag to fail and the instruction to fall through to shell form.
+    When at least one line continuation follows `=`, leading indentation
+    whitespace is permitted and preserved (e.g., `--mount=\<newline>  type=…`).
+    Bare whitespace without a preceding continuation (e.g., `--mount= type=…`)
+    is still rejected. -/
 def flagParserStrict (name : String) (escapeChar : Char) : Parser Token := do
   let dash1 ← char '-'
   let dash2 ← char '-'
   let kw ← keywordParser name escapeChar
   let eq ← char '='
-  -- Consume any line continuations immediately after '='
-  let lcsAfterEq ← lineContinuations escapeChar
-  let value ← literalWithVariables escapeChar
+  let (prefixTokens, value) ← flagValueAfterEquals escapeChar (literalWithVariables escapeChar)
+    (allowLeadingWhitespace := false)
   Parser.pure (Token.mkKeyValue (
     [Token.mkSymbol dash1,
      Token.mkSymbol dash2,
      kw,
-     Token.mkSymbol eq] ++ lcsAfterEq ++ [value]
+     Token.mkSymbol eq] ++ prefixTokens ++ [value]
   ))
 
 -- ============================================================
