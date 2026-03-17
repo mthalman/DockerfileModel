@@ -319,8 +319,8 @@ internal static class ParseHelper
             from end in Sprache.Parse.Return(Enumerable.Empty<Token>()).End()
             select ((IEnumerable<Token>)trailingWhitespaceOnly, true))
         .Or(
-            from separatorWhitespace in WhitespaceWithoutNewLine().AsEnumerable()
-            select ((IEnumerable<Token>)separatorWhitespace, false))
+            from separatorWhitespace in Parse.WhiteSpace.Except(Parse.LineTerminator).AtLeastOnce().Text()
+            select ((IEnumerable<Token>)new Token[] { new WhitespaceToken(separatorWhitespace) }, false))
         .Or(Sprache.Parse.Return((Enumerable.Empty<Token>(), false)));
 
     /// <summary>
