@@ -240,6 +240,12 @@ internal static class ParseHelper
             return ConcatTokens(tokenList, trailingTokenList);
         }
 
+        // Don't mutate SymbolToken values (e.g. "]") — keep trailing whitespace as sibling tokens instead
+        if (tokenList[tokenList.Count - 1] is SymbolToken)
+        {
+            return ConcatTokens(tokenList, trailingTokenList);
+        }
+
         AppendTrailingWhitespace(tokenList[tokenList.Count - 1], trailingWhitespace);
         return ConcatTokens(tokenList, remainingTrailingTokens);
     }
