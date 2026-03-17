@@ -17,6 +17,8 @@ public class ImageNameTests
     [InlineData("localhost:5000/myimage:latest", "localhost:5000", "myimage", "latest", null)]
     [InlineData("localhost/myimage:latest", "localhost", "myimage", "latest", null)]
     [InlineData("localhost", null, "localhost", null, null)]
+    [InlineData("Localhost/myimage:latest", "Localhost", "myimage", "latest", null)]
+    [InlineData("LOCALHOST/myimage:latest", "LOCALHOST", "myimage", "latest", null)]
     public void Parse(string input, string expectedRegistry, string expectedRepository, string expectedTag, string expectedDigest)
     {
         ImageName result = ImageName.Parse(input);

@@ -415,7 +415,7 @@ public class ImageName : AggregateToken
                 .Or(LocalhostParser());
 
             private static Parser<IEnumerable<Token>> LocalhostParser() =>
-                from localhost in Sprache.Parse.String("localhost").Text()
+                from localhost in Sprache.Parse.IgnoreCase("localhost").Text()
                 select new Token[] { new StringToken(localhost) };
 
             private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
