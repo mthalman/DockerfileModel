@@ -550,7 +550,7 @@ public class ArgInstructionTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void ArgDeclaration_WithBracedVarDefaultEmptyModifier_InArg()
+    public void ArgInstruction_WithBracedVarDefaultEmptyModifier()
     {
         string text = "ARG MYVAR=${DEFAULT:-}\n";
         ArgInstruction inst = ArgInstruction.Parse(text);
