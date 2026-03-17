@@ -636,12 +636,14 @@ def flagParserNoVars (name : String) (escapeChar : Char) : Parser Token := do
      Token.mkSymbol eq] ++ prefixTokens ++ [value]
   ))
 
-/-- Parse a key-value flag that requires the value immediately after `=` (no
-    whitespace absorption). Used for mount flags where C# uses a structured
-    value parser (MountParser) that fails on empty values — causing the entire
-    flag to fail and the instruction to fall through to shell form.
-    The value is parsed as an opaque literal matching Lean's treatment of mount
-    values as opaque strings. -/
+/-- Parse a key-value flag that requires the value immediately after `=` when
+    no line continuation is present.  Used for mount flags where C# uses a
+    structured value parser (MountParser) that fails on empty values — causing
+    the entire flag to fail and the instruction to fall through to shell form.
+    When at least one line continuation follows `=`, leading indentation
+    whitespace is permitted and preserved (e.g., `--mount=\<newline>  type=…`).
+    Bare whitespace without a preceding continuation (e.g., `--mount= type=…`)
+    is still rejected. -/
 def flagParserStrict (name : String) (escapeChar : Char) : Parser Token := do
   let dash1 ← char '-'
   let dash2 ← char '-'
