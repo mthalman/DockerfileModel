@@ -240,8 +240,9 @@ internal static class ParseHelper
             return ConcatTokens(tokenList, trailingTokenList);
         }
 
-        // Don't mutate SymbolToken values (e.g. "]") — keep trailing whitespace as sibling tokens instead
-        if (tokenList[tokenList.Count - 1] is SymbolToken)
+        // Don't mutate SymbolToken values (e.g. "]") or quoted tokens — keep trailing whitespace as sibling tokens instead
+        Token lastToken = tokenList[tokenList.Count - 1];
+        if (lastToken is SymbolToken || (lastToken is IQuotableToken quotable && quotable.QuoteChar.HasValue))
         {
             return ConcatTokens(tokenList, trailingTokenList);
         }
