@@ -300,6 +300,16 @@ public class TrailingWhitespaceTests
             token => ValidateLiteralWithTrailingWhitespace(token, "dst", "\t"));
     }
 
+    [Theory]
+    [InlineData("COPY src \"dst dir\" ")]
+    [InlineData("COPY src \"dst dir\"\t")]
+    public void Copy_QuotedDst_TrailingWhitespace_RoundTrip(string input)
+    {
+        CopyInstruction instr = CopyInstruction.Parse(input);
+        Assert.Equal(input, instr.ToString());
+        Assert.Equal("dst dir", instr.Destination);
+    }
+
     // -----------------------------------------------------------------------
     // ADD instruction
     // -----------------------------------------------------------------------
@@ -333,6 +343,16 @@ public class TrailingWhitespaceTests
             token => ValidateLiteral(token, "src"),
             token => ValidateWhitespace(token, " "),
             token => ValidateLiteralWithTrailingWhitespace(token, "dst", " "));
+    }
+
+    [Theory]
+    [InlineData("ADD \"my file.txt\" \"/my dst/\" ")]
+    [InlineData("ADD \"my file.txt\" \"/my dst/\"\t")]
+    public void Add_QuotedArgs_TrailingWhitespace_RoundTrip(string input)
+    {
+        AddInstruction instr = AddInstruction.Parse(input);
+        Assert.Equal(input, instr.ToString());
+        Assert.Equal("/my dst/", instr.Destination);
     }
 
     // -----------------------------------------------------------------------
