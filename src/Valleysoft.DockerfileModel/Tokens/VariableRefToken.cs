@@ -94,7 +94,31 @@ public class VariableRefToken : AggregateToken
     public string? ModifierValue
     {
         get => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());
-        set => SetOptionalLiteralTokenValue(ModifierValueToken, value, token => ModifierValueToken = token, canContainVariables: true, escapeChar);
+        set
+        {
+            if (value is null)
+            {
+                // Null means remove the modifier value (and modifier) entirely
+                SetOptionalLiteralTokenValue(ModifierValueToken, null, token => ModifierValueToken = token, canContainVariables: true, escapeChar);
+            }
+            else if (value.Length == 0)
+            {
+                // Empty string is a valid modifier value (e.g., ${VAR:-})
+                // Create or update the token with empty content
+                if (ModifierValueToken is not null)
+                {
+                    ModifierValueToken.Value = "";
+                }
+                else
+                {
+                    ModifierValueToken = new LiteralToken("", canContainVariables: true, escapeChar);
+                }
+            }
+            else
+            {
+                SetOptionalLiteralTokenValue(ModifierValueToken, value, token => ModifierValueToken = token, canContainVariables: true, escapeChar);
+            }
+        }
     }
 
     public LiteralToken? ModifierValueToken
