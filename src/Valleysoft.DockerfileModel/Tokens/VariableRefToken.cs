@@ -94,7 +94,31 @@ public class VariableRefToken : AggregateToken
     public string? ModifierValue
     {
         get => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());
-        set => SetOptionalLiteralTokenValue(ModifierValueToken, value, token => ModifierValueToken = token, canContainVariables: true, escapeChar);
+        set
+        {
+            if (value is null)
+            {
+                // Null means remove the modifier value (and modifier) entirely
+                SetOptionalLiteralTokenValue(ModifierValueToken, null, token => ModifierValueToken = token, canContainVariables: true, escapeChar);
+            }
+            else if (value.Length == 0)
+            {
+                // Empty string is a valid modifier value (e.g., ${VAR:-})
+                // Create or update the token with empty content
+                if (ModifierValueToken is not null)
+                {
+                    ModifierValueToken.Value = "";
+                }
+                else
+                {
+                    ModifierValueToken = new LiteralToken("", canContainVariables: true, escapeChar);
+                }
+            }
+            else
+            {
+                SetOptionalLiteralTokenValue(ModifierValueToken, value, token => ModifierValueToken = token, canContainVariables: true, escapeChar);
+            }
+        }
     }
 
     public LiteralToken? ModifierValueToken
@@ -241,7 +265,7 @@ public class VariableRefToken : AggregateToken
     {
         Requires.NotNullOrEmpty(variableName, nameof(variableName));
         Requires.NotNullOrEmpty(modifier, nameof(modifier));
-        Requires.NotNullOrEmpty(modifierValue, nameof(modifierValue));
+        Requires.NotNull(modifierValue, nameof(modifierValue));
         ValidateModifier(modifier);
 
         return GetTokens($"${{{variableName}{modifier}{modifierValue}}}", GetInnerParser(escapeChar));
@@ -306,9 +330,8 @@ public class VariableRefToken : AggregateToken
         from modifierTokens in (
             from modifier in variableSubstitutionModifiers.Aggregate((current, next) => current.Or(next)).Once()
             from modifierValueTokens in ValueOrVariableRef(escapeChar, ModifierValueParser(), new char[] { '}' })
-                .AtLeastOnce()
+                .Many()
                 .Flatten()
-                .Where(tokens => tokens.Any())
             select ConcatTokens(
                 String.Concat(modifier).Select(ch => new SymbolToken(ch)),
                 new Token[] { new LiteralToken(modifierValueTokens, canContainVariables: true, escapeChar) })

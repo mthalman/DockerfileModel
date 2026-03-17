@@ -826,12 +826,11 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRef_EmptyModifierValue_ColonDash_ThrowsParseException()
+    public void VariableRef_EmptyModifierValue_ColonDash_RoundTrips()
     {
-        // Current behavior: throws ParseException (bug)
-        // Expected behavior after fix: should parse successfully and round-trip as "FROM ${img:-}\n"
         string text = "FROM ${img:-}\n";
-        Assert.ThrowsAny<Exception>(() => FromInstruction.Parse(text));
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
     }
 
     /// <summary>
@@ -839,12 +838,11 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRef_EmptyModifierValue_Dash_ThrowsParseException()
+    public void VariableRef_EmptyModifierValue_Dash_RoundTrips()
     {
-        // Current behavior: throws ParseException (bug)
-        // Expected behavior after fix: should parse successfully and round-trip as "FROM ${img-}\n"
         string text = "FROM ${img-}\n";
-        Assert.ThrowsAny<Exception>(() => FromInstruction.Parse(text));
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
     }
 
     [Fact]
@@ -879,11 +877,11 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRef_Resolve_ColonDash_EmptyDefault_ThrowsParseException()
+    public void VariableRef_Resolve_ColonDash_EmptyDefault_ReturnsEmpty()
     {
-        // Current behavior: VariableRefToken.Parse throws ParseException (bug)
-        // Expected behavior after fix: should parse successfully and ResolveVariables should return ""
-        Assert.ThrowsAny<Exception>(() => VariableRefToken.Parse("${img:-}"));
+        VariableRefToken token = VariableRefToken.Parse("${img:-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
     }
 
     /// <summary>
@@ -952,11 +950,13 @@ public class VariableRefTokenTests
     }
 
     [Fact]
-    public void VariableRefToken_Constructor_EmptyModifierValue_Throws()
+    public void VariableRefToken_Constructor_EmptyModifierValue_Succeeds()
     {
-        // modifierValue is required to be non-empty per Requires.NotNullOrEmpty
-        Assert.Throws<ArgumentException>(
-            () => new VariableRefToken("VAR", ":-", ""));
+        // Empty modifier value is allowed (e.g., ${VAR:-} parses to modifier ":-" with value "")
+        VariableRefToken token = new VariableRefToken("VAR", ":-", "");
+        Assert.Equal(":-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
+        Assert.Equal("${VAR:-}", token.ToString());
     }
 
     [Fact]
@@ -973,30 +973,75 @@ public class VariableRefTokenTests
     }
 
     /// <summary>
-    /// Bug: Empty modifier values in variable references cause ParseException
+    /// Resolve ${VAR-} (dash without colon, empty default): when variable is not set, resolves to empty string.
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRefToken_Parse_EmptyColonDashModifier_ThrowsOrSucceeds()
+    public void VariableRef_Resolve_Dash_EmptyDefault_ReturnsEmpty()
     {
-        // ${img:-} — empty modifier value after :-
-        // The BracedVariableReference parser uses .AtLeastOnce() for modifierValueTokens,
-        // which means zero-length values are rejected.
-        // Document current behavior: does this throw ParseException?
-        string input = "${img:-}";
+        VariableRefToken token = VariableRefToken.Parse("${img-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
+    }
 
-        try
-        {
-            var token = VariableRefToken.Parse(input);
-            // If we get here, parsing succeeded
-            System.Console.WriteLine($"Parse succeeded: {token}");
-            System.Console.WriteLine($"Modifier: {token.Modifier}");
-            System.Console.WriteLine($"ModifierValue: [{token.ModifierValue}]");
-        }
-        catch (Exception ex)
-        {
-            System.Console.WriteLine($"Parse FAILED: {ex.GetType().Name}: {ex.Message}");
-        }
+    /// <summary>
+    /// Resolve ${VAR-} (dash without colon): when variable is set to empty string, returns empty (var IS set).
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_Dash_EmptyDefault_VarSetToEmpty_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "" });
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:+} (colon-plus with empty alt value): when variable is set, resolves to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonPlus_EmptyAlt_VarSet_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:+}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "alpine" });
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:+} (colon-plus with empty alt value): when variable is not set, resolves to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonPlus_EmptyAlt_VarNotSet_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:+}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:?} (colon-question with empty error detail): when variable is not set, throws with empty detail.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonQuestion_EmptyError_ThrowsWhenUnset()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:?}");
+        Assert.Throws<VariableSubstitutionException>(
+            () => token.ResolveVariables('\\', new Dictionary<string, string?>()));
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:?} (colon-question with empty error detail): when variable is set, returns its value.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonQuestion_EmptyError_ReturnsValueWhenSet()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:?}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "alpine" });
+        Assert.Equal("alpine", resolved);
     }
 
     /// <summary>
@@ -1004,20 +1049,12 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRefToken_Parse_EmptyDashModifier_ThrowsOrSucceeds()
+    public void VariableRefToken_Parse_EmptyColonDashModifier_Succeeds()
     {
-        // ${var-} — plain dash, empty modifier value
-        string input = "${var-}";
-
-        try
-        {
-            var token = VariableRefToken.Parse(input);
-            System.Console.WriteLine($"Parse succeeded: {token}");
-        }
-        catch (Exception ex)
-        {
-            System.Console.WriteLine($"Parse FAILED: {ex.GetType().Name}: {ex.Message}");
-        }
+        VariableRefToken token = VariableRefToken.Parse("${img:-}");
+        Assert.Equal("${img:-}", token.ToString());
+        Assert.Equal(":-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
     }
 
     /// <summary>
@@ -1025,19 +1062,24 @@ public class VariableRefTokenTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void VariableRefToken_Parse_EmptyColonPlusModifier_ThrowsOrSucceeds()
+    public void VariableRefToken_Parse_EmptyDashModifier_Succeeds()
     {
-        // ${var:+} — empty modifier value after :+
-        string input = "${var:+}";
+        VariableRefToken token = VariableRefToken.Parse("${var-}");
+        Assert.Equal("${var-}", token.ToString());
+        Assert.Equal("-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
+    }
 
-        try
-        {
-            var token = VariableRefToken.Parse(input);
-            System.Console.WriteLine($"Parse succeeded: {token}");
-        }
-        catch (Exception ex)
-        {
-            System.Console.WriteLine($"Parse FAILED: {ex.GetType().Name}: {ex.Message}");
-        }
+    /// <summary>
+    /// Bug: Empty modifier values in variable references cause ParseException
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRefToken_Parse_EmptyColonPlusModifier_Succeeds()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${var:+}");
+        Assert.Equal("${var:+}", token.ToString());
+        Assert.Equal(":+", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
     }
 }

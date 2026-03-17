@@ -550,20 +550,11 @@ public class ArgInstructionTests
     /// See https://github.com/mthalman/DockerfileModel/issues/281
     /// </summary>
     [Fact]
-    public void ArgDeclaration_WithBracedVarDefaultEmptyModifier_InArg()
+    public void ArgInstruction_WithBracedVarDefaultEmptyModifier()
     {
-        // ARG MYVAR=${DEFAULT:-} -- does ARG parse this?
         string text = "ARG MYVAR=${DEFAULT:-}\n";
-        try
-        {
-            ArgInstruction inst = ArgInstruction.Parse(text);
-            System.Console.WriteLine($"Parse succeeded: {inst}");
-            System.Console.WriteLine($"Arg value: [{inst.Args[0].Value}]");
-            Assert.Equal(text, inst.ToString());
-        }
-        catch (Exception ex)
-        {
-            System.Console.WriteLine($"Parse FAILED with {ex.GetType().Name}: {ex.Message}");
-        }
+        ArgInstruction inst = ArgInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("${DEFAULT:-}", inst.Args[0].Value);
     }
 }
