@@ -33,8 +33,9 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 ///     Workaround converts literal["--flagname[=value]"] → keyValue[-, -, keyword["flagname"],
 ///     optionally =, literal["value"]] when the literal starts with "--".
 ///   - #264 (trailing whitespace on instructions): FIXED. C# now absorbs trailing instruction
-///     whitespace into the preceding token instead of emitting a standalone instruction-level
-///     WhitespaceToken sibling, preserving round-trip fidelity without changing top-level shape.
+///     whitespace into the preceding token (nesting it as a child) instead of emitting it as a
+///     separate top-level WhitespaceToken sibling, which changes the instruction-level token
+///     sequence shape while preserving round-trip fidelity.
 ///   - #266 (flag line continuation): FIXED. Lean now parses line continuations inside
 ///     flag values as structured keyValue tokens, matching C#'s behavior.
 /// </summary>
