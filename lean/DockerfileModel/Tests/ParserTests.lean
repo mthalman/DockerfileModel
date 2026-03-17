@@ -1391,6 +1391,19 @@ def testFlagMountLineContinuation : IO Unit := do
   | none =>
     throw (IO.Error.userError "Parse failed: --mount with line continuation should parse")
 
+open DockerfileModel.Parser.Flags in
+/-- Test: --mount=\<newline>  type=bind,target=/src — strict flag preserves indentation after line continuation. -/
+def testFlagMountLineContinuationIndented : IO Unit := do
+  IO.println "Flags: --mount with indented line continuation"
+  let input := "--mount=\\\n  type=bind,target=/src"
+  let parser := DockerfileModel.Parser.flagParserStrict "mount" '\\'
+  match parser.tryParse input with
+  | some token =>
+    assertEqual (Token.toString token) input "mount flag indented line continuation round-trip"
+    assertAggregateKind token .keyValue "mount flag indented line continuation is keyValue"
+  | none =>
+    throw (IO.Error.userError "Parse failed: --mount with indented line continuation should parse")
+
 -- ============================================================================
 -- Shell Form Command Tests
 -- ============================================================================
@@ -3066,6 +3079,7 @@ def runParserTests_Infrastructure : IO Unit := do
   testFlagChown
   testFlagChownLineContinuation
   testFlagMountLineContinuation
+  testFlagMountLineContinuationIndented
   IO.println ""
 
   IO.println "=== Shell Form Command Tests ==="

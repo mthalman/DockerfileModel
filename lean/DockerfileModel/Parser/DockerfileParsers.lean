@@ -557,7 +557,11 @@ def instructionParser (instructionName : String) (escapeChar : Char)
     Always preserves any line continuations immediately after `=`.
     Non-strict flags may also absorb whitespace before the value, while strict
     flags require the value to begin immediately after any preserved line
-    continuations. -/
+    continuations.  When `allowLeadingWhitespace` is false (strict mode),
+    whitespace is still permitted *if* at least one line continuation was
+    consumed — this handles the common indentation pattern
+    `--mount=\<newline>  type=bind,...` while still rejecting bare
+    `--mount= type=...` (space without a continuation). -/
 private def flagValueAfterEquals (escapeChar : Char) (valueParser : Parser Token)
     (allowLeadingWhitespace : Bool := true) : Parser (List Token × Token) := do
   let lcsAfterEq ← lineContinuations escapeChar
@@ -573,6 +577,12 @@ private def flagValueAfterEquals (escapeChar : Char) (valueParser : Parser Token
           if ws.isEmpty then Parser.fail "expected whitespace before flag value"
           let value ← valueParser
           Parser.pure (ws, value))
+    else if !lcsAfterEq.isEmpty then do
+      -- Line continuations were consumed; allow (and preserve) indentation
+      -- whitespace before the value.
+      let ws ← whitespaceWithoutNewLine
+      let value ← valueParser
+      Parser.pure (match ws with | some w => ([w], value) | none => ([], value))
     else do
       let value ← valueParser
       let empty : List Token := []
