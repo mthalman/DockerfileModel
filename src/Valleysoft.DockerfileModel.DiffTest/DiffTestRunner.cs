@@ -147,14 +147,13 @@ public class DiffTestRunner
         catch (Exception ex)
         {
             // Workaround for #259: VOLUME [] crashes C# parser (empty exec-form array)
-            string errorMessage = ex.Message;
-            if (IsKnownCrash(instructionType, input, errorMessage))
+            if (IsKnownCrash(instructionType, input))
             {
                 return new DiffResult(instructionType, input, "", "", true);
             }
 
             return new DiffResult(instructionType, input, "", "", false,
-                $"C# parse error: {errorMessage}");
+                $"C# parse error: {ex.Message}");
         }
 
         string leanJson;
@@ -179,7 +178,7 @@ public class DiffTestRunner
     /// Covered cases:
     ///   #259: VOLUME [] — C# throws on empty JSON array input.
     /// </summary>
-    private static bool IsKnownCrash(string instructionType, string input, string? error)
+    private static bool IsKnownCrash(string instructionType, string input)
     {
         string upper = instructionType.ToUpperInvariant();
 
