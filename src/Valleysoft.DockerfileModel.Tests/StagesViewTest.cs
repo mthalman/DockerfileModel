@@ -255,13 +255,9 @@ public class StagesViewTest
         Assert.Single(stagesView.GlobalArgs);
         Assert.Equal(lines[2], stagesView.GlobalArgs.First().ToString());
 
-        Assert.Equal(3, stagesView.GlobalItems.Count());
-        Assert.IsType<ParserDirective>(stagesView.GlobalItems.ElementAt(0));
-        Assert.Equal(lines[0], stagesView.GlobalItems.ElementAt(0).ToString());
-        Assert.IsType<ParserDirective>(stagesView.GlobalItems.ElementAt(1));
-        Assert.Equal(lines[1], stagesView.GlobalItems.ElementAt(1).ToString());
-        Assert.IsType<ArgInstruction>(stagesView.GlobalItems.ElementAt(2));
-        Assert.Equal(lines[2], stagesView.GlobalItems.ElementAt(2).ToString());
+        Assert.Single(stagesView.GlobalItems);
+        Assert.IsType<ArgInstruction>(stagesView.GlobalItems.ElementAt(0));
+        Assert.Equal(lines[2], stagesView.GlobalItems.ElementAt(0).ToString());
 
         Assert.Single(stagesView.Stages);
         Assert.Equal(lines[3], stagesView.Stages.First().FromInstruction.ToString());

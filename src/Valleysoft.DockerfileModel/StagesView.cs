@@ -22,7 +22,7 @@ public class StagesView
                 {
                     currentStage = fromInstruction;
                 }
-                else
+                else if (item is not ParserDirective)
                 {
                     globalItems.Add(item);
                 }
