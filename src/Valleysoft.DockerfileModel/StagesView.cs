@@ -48,10 +48,11 @@ public class StagesView
         }
 
         GlobalItems = globalItems;
+        GlobalArgs = globalItems.OfType<ArgInstruction>().ToList();
         Stages = stages;
     }
 
-    public IEnumerable<ArgInstruction> GlobalArgs => GlobalItems.OfType<ArgInstruction>();
+    public IEnumerable<ArgInstruction> GlobalArgs { get; }
     public IEnumerable<DockerfileConstruct> GlobalItems { get; }
     public IEnumerable<Stage> Stages { get; }
 }
