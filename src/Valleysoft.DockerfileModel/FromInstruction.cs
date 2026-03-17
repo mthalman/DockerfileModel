@@ -131,8 +131,8 @@ public class FromInstruction : Instruction
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         (from instruction in Instruction("FROM", escapeChar, GetArgsParser(escapeChar))
-        from trailingWhitespace in Whitespace().Optional()
-        select ConcatTokens(instruction, trailingWhitespace.GetOrDefault())).End();
+        from trailingWhitespace in Whitespace()
+        select ConcatTokens(instruction, trailingWhitespace)).End();
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from platform in GetPlatformParser(escapeChar).Optional()
