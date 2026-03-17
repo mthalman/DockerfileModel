@@ -50,11 +50,10 @@ public class VolumeInstruction : Instruction
     }
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        from mounts in ArgTokens(MountFlag.GetParser(escapeChar).AsEnumerable(), escapeChar).Many()
         from whitespace in Whitespace()
-        from command in ArgTokens(GetPathsParser(escapeChar), escapeChar)
+        from paths in ArgTokens(GetPathsParser(escapeChar), escapeChar)
         select ConcatTokens(
-            mounts.Flatten(), whitespace, command);
+            whitespace, paths);
 
     private static Parser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
         JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
