@@ -241,7 +241,7 @@ public class VariableRefToken : AggregateToken
     {
         Requires.NotNullOrEmpty(variableName, nameof(variableName));
         Requires.NotNullOrEmpty(modifier, nameof(modifier));
-        Requires.NotNullOrEmpty(modifierValue, nameof(modifierValue));
+        Requires.NotNull(modifierValue, nameof(modifierValue));
         ValidateModifier(modifier);
 
         return GetTokens($"${{{variableName}{modifier}{modifierValue}}}", GetInnerParser(escapeChar));
