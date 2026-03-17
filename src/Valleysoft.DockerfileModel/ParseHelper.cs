@@ -286,7 +286,8 @@ internal static class ParseHelper
             tokenList.RemoveAt(tokenList.Count - 1);
         }
 
-        return String.Concat(tokenList.Select(token => token.ToString(TokenStringOptions.CreateOptionsForValueString())));
+        TokenStringOptions options = TokenStringOptions.CreateOptionsForValueString();
+        return String.Concat(tokenList.Select(token => token.ToString(options)));
     }
 
     internal static Parser<IEnumerable<Token>> ArgTrailingWhitespace(char escapeChar) =>
