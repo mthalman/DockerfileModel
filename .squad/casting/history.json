@@ -1,9 +1,0 @@
-[
-  {
-    "assignment_id": "alien-001",
-    "universe": "Alien",
-    "assigned_at": "2026-03-04T00:00:00Z",
-    "agents": ["Ripley", "Dallas", "Lambert", "Ash"],
-    "reason": "Team size 4 fits Alien capacity (8). Crew-under-pressure dynamic matches a parser library where precision and fidelity matter."
-  }
-]
