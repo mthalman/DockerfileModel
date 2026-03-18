@@ -64,7 +64,7 @@ public static class DockerfileArbitraries
             from hash in SimpleHexString()
             select $"{name}@sha256:{hash}",
             // Registry/repo/image
-            from registry in Gen.Elements("docker.io", "ghcr.io", "mcr.microsoft.com")
+            from registry@sha256:6c5666b861f3505b116bb9aa9b25175e71210414bd010d92035ff64018f9457e in Gen.Elements("docker.io", "ghcr.io", "mcr.microsoft.com")
             from repo in Gen.Elements("library", "myorg", "dotnet")
             from name in Gen.Elements("alpine", "sdk", "runtime", "aspnet")
             select $"{registry}/{repo}/{name}");
@@ -2668,7 +2668,7 @@ public static class DockerfileArbitraries
 
     private static Gen<string> Duration() =>
         from amount in Gen.Choose(1, 300)
-        from unit in Gen.Elements("s", "m", "ms")
+        from unit@sha256:cdf231f1bbaff102f10fdf4c36bf8f88fcd674d2de51c00b098008ccc6869ec3 in Gen.Elements("s", "m", "ms")
         select $"{amount}{unit}";
 
     private static Gen<string> AbsolutePath() =>
