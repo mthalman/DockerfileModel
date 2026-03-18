@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -8,126 +8,130 @@ public class UserInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(UserInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            UserInstruction result = UserInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => UserInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<UserInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, UserInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
     public void Create(CreateTestScenario scenario)
     {
-        UserInstruction result = new(scenario.User, scenario.Group);
+        UserInstruction result = new(scenario.User);
 
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
     }
 
     [Fact]
-    public void Maintainer()
+    public void UserProperty()
     {
         UserInstruction result = new("test");
-        Assert.Equal("test", result.UserAccount.ToString());
+        Assert.Equal("test", result.User);
         Assert.Equal("USER test", result.ToString());
 
-        result.UserAccount = new UserAccount("testa", "testb");
-        Assert.Equal("testa:testb", result.UserAccount.ToString());
-        Assert.Equal("USER testa:testb", result.ToString());
+        result.User = "root:root";
+        Assert.Equal("root:root", result.User);
+        Assert.Equal("USER root:root", result.ToString());
 
-        Assert.Throws<ArgumentNullException>(() => result.UserAccount = null);
+        Assert.Throws<ArgumentNullException>(() => result.User = null);
+        Assert.Throws<ArgumentException>(() => result.User = "");
+    }
+
+    [Fact]
+    public void UserTokenProperty()
+    {
+        UserInstruction result = UserInstruction.Parse("USER alice");
+        LiteralToken token = result.UserToken;
+        Assert.Equal("alice", token.Value);
+
+        result.UserToken = new LiteralToken("bob");
+        Assert.Equal("bob", result.User);
+        Assert.Equal("USER bob", result.ToString());
+
+        Assert.Throws<ArgumentNullException>(() => result.UserToken = null);
+    }
+
+    [Fact]
+    public void UserGroupIsOpaqueLiteral()
+    {
+        UserInstruction result = UserInstruction.Parse("USER alice:staff");
+
+        // The entire "alice:staff" is a single opaque LiteralToken
+        Assert.Equal("alice:staff", result.User);
+        Assert.IsType<LiteralToken>(result.UserToken);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        UserInstructionParseTestScenario[] testInputs = new UserInstructionParseTestScenario[]
+        ParseTestScenario<UserInstruction>[] testInputs = new ParseTestScenario<UserInstruction>[]
         {
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER name",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "name",
-                        token => ValidateLiteral(token, "name"))
+                    token => ValidateLiteral(token, "name")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("name", result.UserAccount.ToString());
+                    Assert.Equal("name", result.User);
                 }
             },
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER name\n",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "name",
-                        token => ValidateLiteral(token, "name")),
+                    token => ValidateLiteral(token, "name"),
                     token => ValidateNewLine(token, "\n")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("name", result.UserAccount.ToString());
+                    Assert.Equal("name", result.User);
                 }
             },
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER user:group",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "user:group",
-                        token => ValidateLiteral(token, "user"),
-                        token => ValidateSymbol(token, ':'),
-                        token => ValidateLiteral(token, "group"))
+                    token => ValidateLiteral(token, "user:group")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("user:group", result.UserAccount.ToString());
+                    Assert.Equal("user:group", result.User);
                 }
             },
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER $var",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "$var",
-                        token => ValidateQuotableAggregate<LiteralToken>(token, "$var", null,
-                            token => ValidateAggregate<VariableRefToken>(token, "$var",
-                                token => ValidateString(token, "var"))))
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "$var", null,
+                        token => ValidateAggregate<VariableRefToken>(token, "$var",
+                            token => ValidateString(token, "var")))
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("$var", result.UserAccount.ToString());
+                    Assert.Equal("$var", result.User);
                 }
             },
-            new UserInstructionParseTestScenario
+            new ParseTestScenario<UserInstruction>
             {
                 Text = "USER `\n name",
                 EscapeChar = '`',
@@ -137,14 +141,13 @@ public class UserInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLineContinuation(token, '`', "\n"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "name",
-                        token => ValidateLiteral(token, "name"))
+                    token => ValidateLiteral(token, "name")
                 },
                 Validate = result =>
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("USER", result.InstructionName);
-                    Assert.Equal("name", result.UserAccount.ToString());
+                    Assert.Equal("name", result.User);
                 }
             }
         };
@@ -163,22 +166,17 @@ public class UserInstructionTests
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "name",
-                        token => ValidateLiteral(token, "name"))
+                    token => ValidateLiteral(token, "name")
                 }
             },
             new CreateTestScenario
             {
-                User = "user",
-                Group = "group",
+                User = "user:group",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, "USER"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateAggregate<UserAccount>(token, "user:group",
-                        token => ValidateLiteral(token, "user"),
-                        token => ValidateSymbol(token, ':'),
-                        token => ValidateLiteral(token, "group"))
+                    token => ValidateLiteral(token, "user:group")
                 }
             }
         };
@@ -186,14 +184,25 @@ public class UserInstructionTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class UserInstructionParseTestScenario : ParseTestScenario<UserInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
-
     public class CreateTestScenario : TestScenario<UserInstruction>
     {
         public string User { get; set; }
-        public string Group { get; set; }
+    }
+
+    [Fact]
+    public void UserInstruction_User_DoesNotIncludeNewline()
+    {
+        string text = "USER root\n";
+        UserInstruction inst = UserInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("root", inst.User);
+    }
+
+    [Fact]
+    public void UserInstruction_User_WithNewlineInInput_NoNewlineInValue()
+    {
+        string text = "USER root\n";
+        UserInstruction inst = UserInstruction.Parse(text);
+        Assert.Equal("root", inst.User); // No newline expected
     }
 }

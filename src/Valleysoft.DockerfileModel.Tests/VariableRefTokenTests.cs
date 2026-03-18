@@ -7,23 +7,8 @@ public class VariableRefTokenTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(VariableRefTokenParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            VariableRefToken result = VariableRefToken.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => VariableRefToken.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<VariableRefToken> scenario) =>
+        TestHelper.RunParseTest(scenario, VariableRefToken.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -144,9 +129,9 @@ public class VariableRefTokenTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        VariableRefTokenParseTestScenario[] testInputs = new VariableRefTokenParseTestScenario[]
+        ParseTestScenario<VariableRefToken>[] testInputs = new ParseTestScenario<VariableRefToken>[]
         {
-            new VariableRefTokenParseTestScenario
+            new ParseTestScenario<VariableRefToken>
             {
                 Text = "$foo",
                 TokenValidators = new Action<Token>[]
@@ -158,7 +143,7 @@ public class VariableRefTokenTests
                     Assert.Equal("foo", result.VariableName);
                 }
             },
-            new VariableRefTokenParseTestScenario
+            new ParseTestScenario<VariableRefToken>
             {
                 Text = "${foo}",
                 TokenValidators = new Action<Token>[]
@@ -172,7 +157,7 @@ public class VariableRefTokenTests
                     Assert.Equal("foo", result.VariableName);
                 }
             },
-            new VariableRefTokenParseTestScenario
+            new ParseTestScenario<VariableRefToken>
             {
                 Text = "${foo:-test}",
                 TokenValidators = new Action<Token>[]
@@ -189,6 +174,266 @@ public class VariableRefTokenTests
                     Assert.Equal("foo", result.VariableName);
                     Assert.Equal(":-", result.Modifier);
                     Assert.Equal("test", result.ModifierValue);
+                }
+            },
+            // :? modifier with spaces in message
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${IMAGE:?must set image}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "IMAGE"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '?'),
+                    token => ValidateLiteral(token, "must set image"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("IMAGE", result.VariableName);
+                    Assert.Equal(":?", result.Modifier);
+                    Assert.Equal("must set image", result.ModifierValue);
+                    Assert.Equal("${IMAGE:?must set image}", result.ToString());
+                }
+            },
+            // ? modifier with spaces in message
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${IMAGE?must set image}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "IMAGE"),
+                    token => ValidateSymbol(token, '?'),
+                    token => ValidateLiteral(token, "must set image"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("IMAGE", result.VariableName);
+                    Assert.Equal("?", result.Modifier);
+                    Assert.Equal("must set image", result.ModifierValue);
+                    Assert.Equal("${IMAGE?must set image}", result.ToString());
+                }
+            },
+            // :- modifier with spaces in default value
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo:-default value}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateLiteral(token, "default value"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal(":-", result.Modifier);
+                    Assert.Equal("default value", result.ModifierValue);
+                    Assert.Equal("${foo:-default value}", result.ToString());
+                }
+            },
+            // :+ modifier with spaces in alternate value
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo:+alt value}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '+'),
+                    token => ValidateLiteral(token, "alt value"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal(":+", result.Modifier);
+                    Assert.Equal("alt value", result.ModifierValue);
+                    Assert.Equal("${foo:+alt value}", result.ToString());
+                }
+            },
+            // POSIX prefix removal: # (shortest)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo#pattern}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateLiteral(token, "pattern"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("#", result.Modifier);
+                    Assert.Equal("pattern", result.ModifierValue);
+                }
+            },
+            // POSIX prefix removal: ## (longest)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo##pattern}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateLiteral(token, "pattern"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("##", result.Modifier);
+                    Assert.Equal("pattern", result.ModifierValue);
+                }
+            },
+            // POSIX suffix removal: % (shortest)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo%suffix}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateLiteral(token, "suffix"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("%", result.Modifier);
+                    Assert.Equal("suffix", result.ModifierValue);
+                }
+            },
+            // POSIX suffix removal: %% (longest)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo%%suffix}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateLiteral(token, "suffix"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("%%", result.Modifier);
+                    Assert.Equal("suffix", result.ModifierValue);
+                }
+            },
+            // POSIX replacement: / (first occurrence)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo/old/new}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateLiteral(token, "old/new"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("/", result.Modifier);
+                    Assert.Equal("old/new", result.ModifierValue);
+                }
+            },
+            // POSIX replacement: // (all occurrences)
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${foo//old/new}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateLiteral(token, "old/new"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("foo", result.VariableName);
+                    Assert.Equal("//", result.Modifier);
+                    Assert.Equal("old/new", result.ModifierValue);
+                }
+            },
+            // Default value with leading slash — slash must not be split into a separate symbol token
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${BASE:-/opt}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "BASE"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateLiteral(token, "/opt"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("BASE", result.VariableName);
+                    Assert.Equal(":-", result.Modifier);
+                    Assert.Equal("/opt", result.ModifierValue);
+                }
+            },
+            // Default value with longer path — entire path stays as one literal
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${BASE:-/usr/local}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "BASE"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '-'),
+                    token => ValidateLiteral(token, "/usr/local"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("BASE", result.VariableName);
+                    Assert.Equal(":-", result.Modifier);
+                    Assert.Equal("/usr/local", result.ModifierValue);
+                }
+            },
+            // Alternate-value modifier with leading slash
+            new ParseTestScenario<VariableRefToken>
+            {
+                Text = "${APP:+/run}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "APP"),
+                    token => ValidateSymbol(token, ':'),
+                    token => ValidateSymbol(token, '+'),
+                    token => ValidateLiteral(token, "/run"),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("APP", result.VariableName);
+                    Assert.Equal(":+", result.Modifier);
+                    Assert.Equal("/run", result.ModifierValue);
                 }
             }
         };
@@ -430,14 +675,163 @@ public class VariableRefTokenTests
 
                 }
             },
+            // POSIX prefix removal: # (shortest) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "#",
+                ModifierValue = "pattern",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateAggregate<LiteralToken>(token, "pattern",
+                        token => ValidateString(token, "pattern")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    // POSIX modifiers return the raw variable reference text unchanged
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo#pattern}", result);
+                }
+            },
+            // POSIX prefix removal: ## (longest) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "##",
+                ModifierValue = "pattern",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateSymbol(token, '#'),
+                    token => ValidateAggregate<LiteralToken>(token, "pattern",
+                        token => ValidateString(token, "pattern")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo##pattern}", result);
+                }
+            },
+            // POSIX suffix removal: % (shortest) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "%",
+                ModifierValue = "suffix",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateAggregate<LiteralToken>(token, "suffix",
+                        token => ValidateString(token, "suffix")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo%suffix}", result);
+                }
+            },
+            // POSIX suffix removal: %% (longest) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "%%",
+                ModifierValue = "suffix",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateSymbol(token, '%'),
+                    token => ValidateAggregate<LiteralToken>(token, "suffix",
+                        token => ValidateString(token, "suffix")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo%%suffix}", result);
+                }
+            },
+            // POSIX replacement: / (first occurrence) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "/",
+                ModifierValue = "old/new",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateAggregate<LiteralToken>(token, "old/new",
+                        token => ValidateString(token, "old/new")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo/old/new}", result);
+                }
+            },
+            // POSIX replacement: // (all occurrences) — returns raw text since not supported for resolution
+            new CreateTestScenario
+            {
+                VariableName = "foo",
+                Modifier = "//",
+                ModifierValue = "old/new",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '{'),
+                    token => ValidateString(token, "foo"),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateSymbol(token, '/'),
+                    token => ValidateAggregate<LiteralToken>(token, "old/new",
+                        token => ValidateString(token, "old/new")),
+                    token => ValidateSymbol(token, '}')
+                },
+                Validate = token =>
+                {
+                    Dictionary<string, string?> variables = new() {
+                        { "foo", "hello_world" }
+                    };
+
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    Assert.Equal("${foo//old/new}", result);
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class VariableRefTokenParseTestScenario : ParseTestScenario<VariableRefToken>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<VariableRefToken>
@@ -445,5 +839,267 @@ public class VariableRefTokenTests
         public string VariableName { get; set; }
         public string Modifier { get; set; }
         public string ModifierValue { get; set; }
+    }
+
+    /// <summary>
+    /// Bug: ${var:-} with empty modifier value throws ParseException instead of parsing successfully.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_EmptyModifierValue_ColonDash_RoundTrips()
+    {
+        string text = "FROM ${img:-}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    /// <summary>
+    /// Bug: ${var-} with empty modifier value throws ParseException instead of parsing successfully.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_EmptyModifierValue_Dash_RoundTrips()
+    {
+        string text = "FROM ${img-}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void VariableRef_ColonPlus_RoundTrips()
+    {
+        // ${var:+alt} — colon-plus modifier
+        string text = "FROM ${img:+alpine}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void VariableRef_ColonQuestion_RoundTrips()
+    {
+        // ${var:?error message} — colon-question modifier with spaces in message
+        string text = "FROM ${img:?must set img variable}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void VariableRef_Question_NoColon_RoundTrips()
+    {
+        // ${var?error message} — question without colon, preserving spaces in the message
+        string text = "FROM ${img?must set img variable}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    /// <summary>
+    /// Bug: ${var:-} with empty modifier value throws ParseException during token parse instead of resolving to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonDash_EmptyDefault_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Bug: Empty modifier values in variable references cause ParseException
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonQuestion_ThrowsWhenUnset()
+    {
+        // ${var:?msg} should throw when variable is not set
+        VariableRefToken token = VariableRefToken.Parse("${img:?must be set}");
+        Assert.Throws<VariableSubstitutionException>(
+            () => token.ResolveVariables('\\', new Dictionary<string, string?>()));
+    }
+
+    /// <summary>
+    /// Bug: Empty modifier values in variable references cause ParseException
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonQuestion_DoesNotThrowWhenSet()
+    {
+        // ${var:?msg} should NOT throw when variable is set and non-empty
+        VariableRefToken token = VariableRefToken.Parse("${img:?must be set}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "alpine" });
+        Assert.Equal("alpine", resolved);
+    }
+
+    [Fact]
+    public void VariableRef_Resolve_Question_NoColon_SetToEmpty()
+    {
+        // ${var?msg} — without colon, variable set to empty string should NOT throw
+        // (only colon variant treats empty as unset)
+        VariableRefToken token = VariableRefToken.Parse("${img?must be set}");
+        // img is set (to empty string), so no exception should be thrown
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "" });
+        Assert.Equal("", resolved);
+    }
+
+    [Fact]
+    public void VariableRef_Resolve_PlusModifier_VarNotSet_ReturnsEmpty()
+    {
+        // ${var:+alt} — when var is NOT set, returns empty (not alt)
+        VariableRefToken token = VariableRefToken.Parse("${img:+alpine}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
+    }
+
+    [Fact]
+    public void VariableRef_Resolve_PlusModifier_VarSet_ReturnsAlt()
+    {
+        // ${var:+alt} — when var IS set, returns alt value
+        VariableRefToken token = VariableRefToken.Parse("${img:+alpine}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "ubuntu" });
+        Assert.Equal("alpine", resolved);
+    }
+
+    [Fact]
+    public void VariableRef_Resolve_PlusModifier_VarSetToEmpty_WithColon_ReturnsEmpty()
+    {
+        // ${var:+alt} — when var IS set but EMPTY, with colon treats empty as unset
+        VariableRefToken token = VariableRefToken.Parse("${img:+alpine}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "" });
+        // Colon variant: empty = unset, so returns empty (not "alpine")
+        Assert.Equal("", resolved);
+    }
+
+    [Fact]
+    public void VariableRefToken_Constructor_EmptyModifierValue_Succeeds()
+    {
+        // Empty modifier value is allowed (e.g., ${VAR:-} parses to modifier ":-" with value "")
+        VariableRefToken token = new VariableRefToken("VAR", ":-", "");
+        Assert.Equal(":-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
+        Assert.Equal("${VAR:-}", token.ToString());
+    }
+
+    [Fact]
+    public void VariableRefToken_Modifier_SetToNull_RemovesModifierAndValue()
+    {
+        // Build a token with modifier, then remove it
+        VariableRefToken token = new VariableRefToken("VAR", ":-", "default");
+        Assert.Equal(":-", token.Modifier);
+        Assert.Equal("default", token.ModifierValue);
+
+        token.Modifier = null;
+        Assert.Null(token.Modifier);
+        Assert.Null(token.ModifierValue);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR-} (dash without colon, empty default): when variable is not set, resolves to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_Dash_EmptyDefault_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR-} (dash without colon): when variable is set to empty string, returns empty (var IS set).
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_Dash_EmptyDefault_VarSetToEmpty_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img-}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "" });
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:+} (colon-plus with empty alt value): when variable is set, resolves to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonPlus_EmptyAlt_VarSet_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:+}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "alpine" });
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:+} (colon-plus with empty alt value): when variable is not set, resolves to empty string.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonPlus_EmptyAlt_VarNotSet_ReturnsEmpty()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:+}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?>());
+        Assert.Equal("", resolved);
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:?} (colon-question with empty error detail): when variable is not set, throws with empty detail.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonQuestion_EmptyError_ThrowsWhenUnset()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:?}");
+        Assert.Throws<VariableSubstitutionException>(
+            () => token.ResolveVariables('\\', new Dictionary<string, string?>()));
+    }
+
+    /// <summary>
+    /// Resolve ${VAR:?} (colon-question with empty error detail): when variable is set, returns its value.
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRef_Resolve_ColonQuestion_EmptyError_ReturnsValueWhenSet()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:?}");
+        string? resolved = token.ResolveVariables('\\', new Dictionary<string, string?> { ["img"] = "alpine" });
+        Assert.Equal("alpine", resolved);
+    }
+
+    /// <summary>
+    /// Bug: Empty modifier values in variable references cause ParseException
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRefToken_Parse_EmptyColonDashModifier_Succeeds()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${img:-}");
+        Assert.Equal("${img:-}", token.ToString());
+        Assert.Equal(":-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
+    }
+
+    /// <summary>
+    /// Bug: Empty modifier values in variable references cause ParseException
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRefToken_Parse_EmptyDashModifier_Succeeds()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${var-}");
+        Assert.Equal("${var-}", token.ToString());
+        Assert.Equal("-", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
+    }
+
+    /// <summary>
+    /// Bug: Empty modifier values in variable references cause ParseException
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void VariableRefToken_Parse_EmptyColonPlusModifier_Succeeds()
+    {
+        VariableRefToken token = VariableRefToken.Parse("${var:+}");
+        Assert.Equal("${var:+}", token.ToString());
+        Assert.Equal(":+", token.Modifier);
+        Assert.Equal("", token.ModifierValue);
     }
 }

@@ -9,12 +9,12 @@ public abstract class FileTransferInstructionTests<TInstruction>
 {
     private readonly string instructionName;
     private readonly Func<string, char, TInstruction> parse;
-    private readonly Func<IEnumerable<string>, string, UserAccount, string, char, TInstruction> create;
+    private readonly Func<IEnumerable<string>, string, string, string, char, TInstruction> create;
 
     public FileTransferInstructionTests(
         string instructionName,
         Func<string, char, TInstruction> parse,
-        Func<IEnumerable<string>, string, UserAccount, string, char, TInstruction> create)
+        Func<IEnumerable<string>, string, string, string, char, TInstruction> create)
     {
         this.instructionName = instructionName;
         this.parse = parse;
@@ -80,19 +80,66 @@ public abstract class FileTransferInstructionTests<TInstruction>
     }
 
     [Fact]
+    public void QuotedPathsWithSpaces_DoubleQuote()
+    {
+        TInstruction instruction = this.parse($"{instructionName} \"my file.txt\" /app/", Dockerfile.DefaultEscapeChar);
+        Assert.Equal($"{instructionName} \"my file.txt\" /app/", instruction.ToString());
+        Assert.Equal(new string[] { "my file.txt" }, instruction.Sources.ToArray());
+        Assert.Equal("/app/", instruction.Destination);
+
+        LiteralToken sourceToken = instruction.SourceTokens.Single();
+        Assert.Equal(ParseHelper.DoubleQuote, sourceToken.QuoteChar);
+        Assert.Equal("my file.txt", sourceToken.Value);
+    }
+
+    [Fact]
+    public void QuotedPathsWithSpaces_SingleQuote()
+    {
+        TInstruction instruction = this.parse($"{instructionName} 'my file.txt' /app/", Dockerfile.DefaultEscapeChar);
+        Assert.Equal($"{instructionName} 'my file.txt' /app/", instruction.ToString());
+        Assert.Equal(new string[] { "my file.txt" }, instruction.Sources.ToArray());
+        Assert.Equal("/app/", instruction.Destination);
+
+        LiteralToken sourceToken = instruction.SourceTokens.Single();
+        Assert.Equal('\'', sourceToken.QuoteChar);
+        Assert.Equal("my file.txt", sourceToken.Value);
+    }
+
+    [Fact]
+    public void QuotedPathsWithSpaces_QuotedDestination()
+    {
+        TInstruction instruction = this.parse($"{instructionName} src \"/my dst/\"", Dockerfile.DefaultEscapeChar);
+        Assert.Equal($"{instructionName} src \"/my dst/\"", instruction.ToString());
+        Assert.Equal(new string[] { "src" }, instruction.Sources.ToArray());
+        Assert.Equal("/my dst/", instruction.Destination);
+
+        LiteralToken destToken = instruction.DestinationToken!;
+        Assert.Equal(ParseHelper.DoubleQuote, destToken.QuoteChar);
+        Assert.Equal("/my dst/", destToken.Value);
+    }
+
+    [Fact]
+    public void QuotedPathsWithSpaces_BothQuoted()
+    {
+        TInstruction instruction = this.parse($"{instructionName} \"my file.txt\" \"/my dst/\"", Dockerfile.DefaultEscapeChar);
+        Assert.Equal($"{instructionName} \"my file.txt\" \"/my dst/\"", instruction.ToString());
+        Assert.Equal(new string[] { "my file.txt" }, instruction.Sources.ToArray());
+        Assert.Equal("/my dst/", instruction.Destination);
+    }
+
+    [Fact]
     public void ChangeOwner()
     {
-        void Validate(TInstruction instruction, string user)
+        void Validate(TInstruction instruction, string owner)
         {
-            Assert.Equal(user, instruction.ChangeOwner.User);
-            Assert.Equal($"{instructionName} --chown={user} src dst", instruction.ToString());
+            Assert.Equal(owner, instruction.ChangeOwner);
+            Assert.Equal($"{instructionName} --chown={owner} src dst", instruction.ToString());
         }
 
-        UserAccount changeOwner = new("user");
-        TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, null, Dockerfile.DefaultEscapeChar);
+        TInstruction instruction = this.create(new string[] { "src" }, "dst", "user", null, Dockerfile.DefaultEscapeChar);
         Validate(instruction, "user");
 
-        instruction.ChangeOwner = new UserAccount("user2");
+        instruction.ChangeOwner = "user2";
         Validate(instruction, "user2");
 
         instruction.ChangeOwner = null;
@@ -100,8 +147,8 @@ public abstract class FileTransferInstructionTests<TInstruction>
         Assert.Equal($"{instructionName} src dst", instruction.ToString());
 
         instruction = this.parse($"{instructionName}`\n src dst", '`');
-        instruction.ChangeOwner = new UserAccount("user");
-        Assert.Equal("user", instruction.ChangeOwner.User);
+        instruction.ChangeOwner = "user";
+        Assert.Equal("user", instruction.ChangeOwner);
         Assert.Equal($"{instructionName} --chown=user`\n src dst", instruction.ToString());
 
         instruction = this.parse($"{instructionName}`\n --chown=user`\n src dst", '`');
@@ -113,8 +160,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
     [Fact]
     public void ChangeOwner_ResolveVariable()
     {
-        UserAccount changeOwner = new("$var");
-        TInstruction instruction = this.create(new string[] { "src" }, "dst", changeOwner, null, Dockerfile.DefaultEscapeChar);
+        TInstruction instruction = this.create(new string[] { "src" }, "dst", "$var", null, Dockerfile.DefaultEscapeChar);
 
         Assert.Collection(instruction.Tokens, new Action<Token>[]
         {
@@ -125,10 +171,9 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, "chown"),
                 token => ValidateSymbol(token, '='),
-                token => ValidateAggregate<UserAccount>(token, "$var",
-                    token => ValidateAggregate<LiteralToken>(token, "$var",
-                        token => ValidateAggregate<VariableRefToken>(token, "$var",
-                            token => ValidateString(token, "var"))))),
+                token => ValidateAggregate<LiteralToken>(token, "$var",
+                    token => ValidateAggregate<VariableRefToken>(token, "$var",
+                        token => ValidateString(token, "var")))),
             token => ValidateWhitespace(token, " "),
             token => ValidateLiteral(token, "src"),
             token => ValidateWhitespace(token, " "),
@@ -152,8 +197,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, "chown"),
                 token => ValidateSymbol(token, '='),
-                token => ValidateAggregate<UserAccount>(token, "user",
-                    token => ValidateLiteral(token, "user"))),
+                token => ValidateLiteral(token, "user")),
             token => ValidateWhitespace(token, " "),
             token => ValidateLiteral(token, "src"),
             token => ValidateWhitespace(token, " "),
@@ -193,23 +237,8 @@ public abstract class FileTransferInstructionTests<TInstruction>
         Assert.Equal($"{instructionName}`\n`\n src dst", instruction.ToString());
     }
 
-    protected void RunParseTest(FileTransferInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            TInstruction result = this.parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => this.parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    protected void RunParseTest(ParseTestScenario<TInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, this.parse);
 
     protected void RunCreateTest(CreateTestScenario scenario)
     {
@@ -220,9 +249,9 @@ public abstract class FileTransferInstructionTests<TInstruction>
 
     public static IEnumerable<object[]> ParseTestInput(string instructionName)
     {
-        FileTransferInstructionParseTestScenario[] testInputs = new FileTransferInstructionParseTestScenario[]
+        ParseTestScenario<TInstruction>[] testInputs = new ParseTestScenario<TInstruction>[]
         {
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} src dst",
                 TokenValidators = new Action<Token>[]
@@ -241,7 +270,26 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Equal("dst", result.Destination);
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName}  src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("dst", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} --chown=1:2 src dst",
                 TokenValidators = new Action<Token>[]
@@ -253,10 +301,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "1:2",
-                            token => ValidateLiteral(token, "1"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "2"))),
+                        token => ValidateLiteral(token, "1:2")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
@@ -270,7 +315,33 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Equal("dst", result.Destination);
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} --chown=1:2  src dst",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ChangeOwnerFlag>(token, "--chown=1:2",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "chown"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateLiteral(token, "1:2")),
+                    token => ValidateWhitespace(token, "  "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "dst")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("dst", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} --chmod=755 src dst",
                 TokenValidators = new Action<Token>[]
@@ -297,7 +368,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Equal("dst", result.Destination);
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} --chown=1:2 --chmod=755 src dst",
                 TokenValidators = new Action<Token>[]
@@ -309,10 +380,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "1:2",
-                            token => ValidateLiteral(token, "1"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "2"))),
+                        token => ValidateLiteral(token, "1:2")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=755",
                         token => ValidateSymbol(token, '-'),
@@ -330,13 +398,12 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Empty(result.Comments);
                     Assert.Equal(instructionName, result.InstructionName);
                     Assert.Equal("755", result.Permissions);
-                    Assert.Equal("1", result.ChangeOwner.User);
-                    Assert.Equal("2", result.ChangeOwner.Group);
+                    Assert.Equal("1:2", result.ChangeOwner);
                     Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
                     Assert.Equal("dst", result.Destination);
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} --chmod=755 --chown=1:2 src dst",
                 TokenValidators = new Action<Token>[]
@@ -355,10 +422,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "1:2",
-                            token => ValidateLiteral(token, "1"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "2"))),
+                        token => ValidateLiteral(token, "1:2")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
@@ -369,13 +433,12 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Empty(result.Comments);
                     Assert.Equal(instructionName, result.InstructionName);
                     Assert.Equal("755", result.Permissions);
-                    Assert.Equal("1", result.ChangeOwner.User);
-                    Assert.Equal("2", result.ChangeOwner.Group);
+                    Assert.Equal("1:2", result.ChangeOwner);
                     Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
                     Assert.Equal("dst", result.Destination);
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} path/to/src1.txt src2 my/dst/",
                 TokenValidators = new Action<Token>[]
@@ -396,7 +459,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Equal("my/dst/", result.Destination);
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} $src dst",
                 TokenValidators = new Action<Token>[]
@@ -410,7 +473,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateLiteral(token, "dst")
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} [\"$src\", \"dst\"]",
                 TokenValidators = new Action<Token>[]
@@ -427,7 +490,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateSymbol(token, ']')
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} [\"$src\" \"dst\"]",
                 TokenValidators = new Action<Token>[]
@@ -443,7 +506,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateSymbol(token, ']')
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} [\"$src\", \"dst\"]\n",
                 TokenValidators = new Action<Token>[]
@@ -461,7 +524,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateNewLine(token, "\n")
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} [\"$src\", \"dst loc\"]\r\n",
                 TokenValidators = new Action<Token>[]
@@ -479,7 +542,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateNewLine(token, "\r\n")
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} s\\$rc dst",
                 EscapeChar = '\\',
@@ -492,7 +555,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateLiteral(token, "dst")
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} src `\n#test comment\ndst",
                 EscapeChar = '`',
@@ -518,7 +581,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Equal("dst", result.Destination);
                 }
             },
-            new FileTransferInstructionParseTestScenario
+            new ParseTestScenario<TInstruction>
             {
                 Text = $"{instructionName} [\"source 1.txt\", \"path/to/source 2.txt\", \"/my dst/\"]",
                 TokenValidators = new Action<Token>[]
@@ -540,6 +603,82 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     Assert.Empty(result.Comments);
                     Assert.Equal(instructionName, result.InstructionName);
                     Assert.Equal(new string[] { "source 1.txt", "path/to/source 2.txt" }, result.Sources.ToArray());
+                    Assert.Equal("/my dst/", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} \"my file.txt\" /app/",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "my file.txt", ParseHelper.DoubleQuote),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "my file.txt" }, result.Sources.ToArray());
+                    Assert.Equal("/app/", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} 'my file.txt' /app/",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "my file.txt", '\''),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/app/")
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "my file.txt" }, result.Sources.ToArray());
+                    Assert.Equal("/app/", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} src \"/my dst/\"",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "src"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/my dst/", ParseHelper.DoubleQuote)
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "src" }, result.Sources.ToArray());
+                    Assert.Equal("/my dst/", result.Destination);
+                }
+            },
+            new ParseTestScenario<TInstruction>
+            {
+                Text = $"{instructionName} \"my file.txt\" \"/my dst/\"",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, instructionName),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "my file.txt", ParseHelper.DoubleQuote),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateLiteral(token, "/my dst/", ParseHelper.DoubleQuote)
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal(instructionName, result.InstructionName);
+                    Assert.Equal(new string[] { "my file.txt" }, result.Sources.ToArray());
                     Assert.Equal("/my dst/", result.Destination);
                 }
             }
@@ -602,7 +741,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     "src2"
                 },
                 Destination = "dst",
-                ChangeOwner = new UserAccount("user", "group"),
+                ChangeOwner = "user:group",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, instructionName),
@@ -612,10 +751,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "user:group",
-                            token => ValidateLiteral(token, "user"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "group"))),
+                        token => ValidateLiteral(token, "user:group")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src1"),
                     token => ValidateWhitespace(token, " "),
@@ -660,7 +796,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 },
                 Destination = "dst",
                 Permissions = "777",
-                ChangeOwner = new UserAccount("user", "group"),
+                ChangeOwner = "user:group",
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateKeyword(token, instructionName),
@@ -670,10 +806,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "chown"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<UserAccount>(token, "user:group",
-                            token => ValidateLiteral(token, "user"),
-                            token => ValidateSymbol(token, ':'),
-                            token => ValidateLiteral(token, "group"))),
+                        token => ValidateLiteral(token, "user:group")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<ChangeModeFlag>(token, "--chmod=777",
                         token => ValidateSymbol(token, '-'),
@@ -694,16 +827,11 @@ public abstract class FileTransferInstructionTests<TInstruction>
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class FileTransferInstructionParseTestScenario : ParseTestScenario<TInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
-
     public class CreateTestScenario : TestScenario<TInstruction>
     {
         public string Destination { get; set; }
         public IEnumerable<string> Sources { get; set; }
-        public UserAccount ChangeOwner { get; set; }
+        public string ChangeOwner { get; set; }
         public string Permissions { get; set; }
         public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
     }

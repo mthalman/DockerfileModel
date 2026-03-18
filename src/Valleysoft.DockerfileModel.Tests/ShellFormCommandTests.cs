@@ -8,23 +8,8 @@ public class ShellFormCommandTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ShellFormCommandParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            ShellFormCommand result = ShellFormCommand.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => RunInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<ShellFormCommand> scenario) =>
+        TestHelper.RunParseTest(scenario, ShellFormCommand.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -63,9 +48,9 @@ public class ShellFormCommandTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ShellFormCommandParseTestScenario[] testInputs = new ShellFormCommandParseTestScenario[]
+        ParseTestScenario<ShellFormCommand>[] testInputs = new ParseTestScenario<ShellFormCommand>[]
         {
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "echo hello",
                 TokenValidators = new Action<Token>[]
@@ -79,7 +64,7 @@ public class ShellFormCommandTests
                     Assert.Equal("echo hello", result.Value);
                 }
             },
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "echo `\n#test comment\nhello",
                 EscapeChar = '`',
@@ -103,7 +88,7 @@ public class ShellFormCommandTests
                     Assert.Equal("echo hello", result.Value);
                 }
             },
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "echo`\n  `\n  hello",
                 EscapeChar = '`',
@@ -117,7 +102,7 @@ public class ShellFormCommandTests
                         token => ValidateString(token, "  hello")),
                 }
             },
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "ec`\nho `test",
                 EscapeChar = '`',
@@ -131,7 +116,7 @@ public class ShellFormCommandTests
                         token => ValidateString(token, "ho `test"))
                 }
             },
-            new ShellFormCommandParseTestScenario
+            new ParseTestScenario<ShellFormCommand>
             {
                 Text = "\"ec`\nh`\"o `test\"",
                 EscapeChar = '`',
@@ -143,6 +128,51 @@ public class ShellFormCommandTests
                             token => ValidateSymbol(token, '`'),
                             token => ValidateNewLine(token, "\n")),
                         token => ValidateString(token, "h`\"o `test\""))
+                }
+            },
+            // Hash (#) in shell-form arguments is NOT a comment delimiter — it is regular text.
+            new ParseTestScenario<ShellFormCommand>
+            {
+                Text = "echo #not-a-comment",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateLiteral(token, "echo #not-a-comment")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ShellForm, result.CommandType);
+                    Assert.Equal("echo #not-a-comment", result.ToString());
+                    Assert.Equal("echo #not-a-comment", result.Value);
+                }
+            },
+            // Hash at the start of a shell-form argument is also regular text.
+            new ParseTestScenario<ShellFormCommand>
+            {
+                Text = "#FF0000",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateLiteral(token, "#FF0000")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ShellForm, result.CommandType);
+                    Assert.Equal("#FF0000", result.ToString());
+                    Assert.Equal("#FF0000", result.Value);
+                }
+            },
+            // Multiple hash characters in a single shell-form command are all regular text.
+            new ParseTestScenario<ShellFormCommand>
+            {
+                Text = "echo #hash1 #hash2",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateLiteral(token, "echo #hash1 #hash2")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ShellForm, result.CommandType);
+                    Assert.Equal("echo #hash1 #hash2", result.ToString());
+                    Assert.Equal("echo #hash1 #hash2", result.Value);
                 }
             }
         };
@@ -165,11 +195,6 @@ public class ShellFormCommandTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class ShellFormCommandParseTestScenario : ParseTestScenario<ShellFormCommand>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<ShellFormCommand>

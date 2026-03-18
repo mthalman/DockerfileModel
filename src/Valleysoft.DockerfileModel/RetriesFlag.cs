@@ -1,31 +1,24 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
-public class RetriesFlag : KeyValueToken<KeywordToken, LiteralToken>
+public class RetriesFlag : KeywordLiteralFlag
 {
+    private const string Keyword = "retries";
+
     public RetriesFlag(string retryCount, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("retries", escapeChar), new LiteralToken(retryCount, canContainVariables: true, escapeChar), isFlag: true)
+        : base(Keyword, retryCount, escapeChar)
     {
     }
 
-    internal RetriesFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal RetriesFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static RetriesFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Parse(
-            text,
-            KeywordToken.GetParser("retries", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new RetriesFlag(tokens),
-            escapeChar: escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new RetriesFlag(tokens, esc), escapeChar);
 
     public static Parser<RetriesFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetParser(
-            KeywordToken.GetParser("retries", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new RetriesFlag(tokens),
-            escapeChar: escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new RetriesFlag(tokens, esc), escapeChar);
 }

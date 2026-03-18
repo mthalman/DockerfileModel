@@ -12,4 +12,5 @@ public class ParseTestScenario<T> : TestScenario<T>
 {
     public string Text { get; set; }
     public Position ParseExceptionPosition { get; set; }
+    public char EscapeChar { get; set; }
 }

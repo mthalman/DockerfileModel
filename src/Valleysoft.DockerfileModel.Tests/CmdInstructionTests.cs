@@ -8,23 +8,8 @@ public class CmdInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(CmdInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            CmdInstruction result = CmdInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => CmdInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<CmdInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, CmdInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -46,9 +31,9 @@ public class CmdInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        CmdInstructionParseTestScenario[] testInputs = new CmdInstructionParseTestScenario[]
+        ParseTestScenario<CmdInstruction>[] testInputs = new ParseTestScenario<CmdInstruction>[]
         {
-            new CmdInstructionParseTestScenario
+            new ParseTestScenario<CmdInstruction>
             {
                 Text = "CMD echo hello",
                 TokenValidators = new Action<Token>[]
@@ -69,7 +54,7 @@ public class CmdInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new CmdInstructionParseTestScenario
+            new ParseTestScenario<CmdInstruction>
             {
                 Text = "CMD $TEST",
                 TokenValidators = new Action<Token>[]
@@ -80,7 +65,7 @@ public class CmdInstructionTests
                         token => ValidateLiteral(token, "$TEST"))
                 }
             },
-            new CmdInstructionParseTestScenario
+            new ParseTestScenario<CmdInstruction>
             {
                 Text = "CMD echo $TEST",
                 TokenValidators = new Action<Token>[]
@@ -91,7 +76,7 @@ public class CmdInstructionTests
                         token => ValidateLiteral(token, "echo $TEST"))
                 }
             },
-            new CmdInstructionParseTestScenario
+            new ParseTestScenario<CmdInstruction>
             {
                 Text = "CMD T\\$EST",
                 TokenValidators = new Action<Token>[]
@@ -102,7 +87,49 @@ public class CmdInstructionTests
                         token => ValidateLiteral(token, "T\\$EST"))
                 }
             },
-            new CmdInstructionParseTestScenario
+            new ParseTestScenario<CmdInstruction>
+            {
+                Text = "CMD echo #not-a-comment",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo #not-a-comment",
+                        token => ValidateLiteral(token, "echo #not-a-comment"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("CMD", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo #not-a-comment", result.Command.ToString());
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    ShellFormCommand cmd = (ShellFormCommand)result.Command;
+                    Assert.Equal("echo #not-a-comment", cmd.Value);
+                }
+            },
+            new ParseTestScenario<CmdInstruction>
+            {
+                Text = "CMD #FF0000",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "#FF0000",
+                        token => ValidateLiteral(token, "#FF0000"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("CMD", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("#FF0000", result.Command.ToString());
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    ShellFormCommand cmd = (ShellFormCommand)result.Command;
+                    Assert.Equal("#FF0000", cmd.Value);
+                }
+            },
+            new ParseTestScenario<CmdInstruction>
             {
                 Text = "CMD echo `\n#test comment\nhello",
                 EscapeChar = '`',
@@ -134,7 +161,52 @@ public class CmdInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new CmdInstructionParseTestScenario
+            new ParseTestScenario<CmdInstruction>
+            {
+                Text = "CMD []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("CMD", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.Equal("[]", result.Command.ToString());
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            // Empty exec form array with interior whitespace
+            new ParseTestScenario<CmdInstruction>
+            {
+                Text = "CMD [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[ ]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("CMD", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            new ParseTestScenario<CmdInstruction>
             {
                 Text = "CMD [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
@@ -192,6 +264,25 @@ public class CmdInstructionTests
             },
             new CreateTestScenario
             {
+                Commands = Array.Empty<string>(),
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "CMD"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            new CreateTestScenario
+            {
                 Commands = new string[]
                 {
                     "/bin/bash",
@@ -217,11 +308,6 @@ public class CmdInstructionTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class CmdInstructionParseTestScenario : ParseTestScenario<CmdInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<CmdInstruction>

@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -8,23 +8,8 @@ public class RunInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(RunInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            RunInstruction result = RunInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => RunInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<RunInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, RunInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -33,39 +18,13 @@ public class RunInstructionTests
         RunInstruction result;
         if (scenario.Args is null)
         {
-            if (scenario.Mounts is null)
-            {
-                result = new RunInstruction(scenario.Command);
-            }
-            else
-            {
-                result = new RunInstruction(scenario.Command, scenario.Mounts);
-            }
+            result = new RunInstruction(scenario.Command, scenario.Mounts ?? Enumerable.Empty<Mount>(),
+                network: scenario.Network, security: scenario.Security);
         }
         else
         {
-            if (scenario.Mounts is null)
-            {
-                if (scenario.Args is null)
-                {
-                    result = new RunInstruction(scenario.Command);
-                }
-                else
-                {
-                    result = new RunInstruction(scenario.Command, scenario.Args);
-                }
-            }
-            else
-            {
-                if (scenario.Args is null)
-                {
-                    result = new RunInstruction(scenario.Command, scenario.Mounts);
-                }
-                else
-                {
-                    result = new RunInstruction(scenario.Command, scenario.Args, scenario.Mounts);
-                }
-            }
+            result = new RunInstruction(scenario.Command, scenario.Args, scenario.Mounts ?? Enumerable.Empty<Mount>(),
+                network: scenario.Network, security: scenario.Security);
         }
 
         Assert.Collection(result.Tokens, scenario.TokenValidators);
@@ -75,22 +34,155 @@ public class RunInstructionTests
     [Fact]
     public void Mounts()
     {
-        RunInstruction instruction = new("echo hello", new Mount[] { new SecretMount("id") });
+        RunInstruction instruction = new("echo hello", new Mount[] { Mount.Parse("type=secret,id=id") });
         Assert.Single(instruction.Mounts);
         Assert.Equal("RUN --mount=type=secret,id=id echo hello", instruction.ToString());
 
-        ((SecretMount)instruction.Mounts[0]).Id = "id2";
+        instruction.Mounts[0] = Mount.Parse("type=secret,id=id2");
         Assert.Equal("RUN --mount=type=secret,id=id2 echo hello", instruction.ToString());
 
-        instruction.Mounts[0] = new SecretMount("id3");
+        instruction.Mounts[0] = Mount.Parse("type=secret,id=id3");
         Assert.Equal("RUN --mount=type=secret,id=id3 echo hello", instruction.ToString());
+    }
+
+    [Fact]
+    public void Network()
+    {
+        RunInstruction instruction = new("echo hello", Enumerable.Empty<Mount>(), network: "host");
+        Assert.Equal("host", instruction.Network);
+        Assert.Equal("host", instruction.NetworkToken!.Value);
+        Assert.Equal("RUN --network=host echo hello", instruction.ToString());
+
+        instruction.Network = "none";
+        Assert.Equal("none", instruction.Network);
+        Assert.Equal("none", instruction.NetworkToken!.Value);
+        Assert.Equal("RUN --network=none echo hello", instruction.ToString());
+
+        instruction.Network = null;
+        Assert.Null(instruction.Network);
+        Assert.Null(instruction.NetworkToken);
+        Assert.Equal("RUN echo hello", instruction.ToString());
+
+        instruction.NetworkToken = new LiteralToken("default");
+        Assert.Equal("default", instruction.Network);
+        Assert.Equal("default", instruction.NetworkToken.Value);
+        Assert.Equal("RUN --network=default echo hello", instruction.ToString());
+
+        instruction.NetworkToken.Value = "host";
+        Assert.Equal("host", instruction.Network);
+        Assert.Equal("host", instruction.NetworkToken.Value);
+        Assert.Equal("RUN --network=host echo hello", instruction.ToString());
+
+        instruction.NetworkToken = null;
+        Assert.Null(instruction.Network);
+        Assert.Null(instruction.NetworkToken);
+        Assert.Equal("RUN echo hello", instruction.ToString());
+    }
+
+    [Fact]
+    public void NetworkWithVariables()
+    {
+        RunInstruction instruction = new("echo hello", Enumerable.Empty<Mount>(), network: "$var");
+        TestHelper.TestVariablesWithNullableLiteral(
+            () => instruction.NetworkToken!, token => instruction.NetworkToken = token, val => instruction.Network = val, "var", canContainVariables: true);
+    }
+
+    [Fact]
+    public void Security()
+    {
+        RunInstruction instruction = new("echo hello", Enumerable.Empty<Mount>(), security: "insecure");
+        Assert.Equal("insecure", instruction.Security);
+        Assert.Equal("insecure", instruction.SecurityToken!.Value);
+        Assert.Equal("RUN --security=insecure echo hello", instruction.ToString());
+
+        instruction.Security = "sandbox";
+        Assert.Equal("sandbox", instruction.Security);
+        Assert.Equal("sandbox", instruction.SecurityToken!.Value);
+        Assert.Equal("RUN --security=sandbox echo hello", instruction.ToString());
+
+        instruction.Security = null;
+        Assert.Null(instruction.Security);
+        Assert.Null(instruction.SecurityToken);
+        Assert.Equal("RUN echo hello", instruction.ToString());
+
+        instruction.SecurityToken = new LiteralToken("insecure");
+        Assert.Equal("insecure", instruction.Security);
+        Assert.Equal("insecure", instruction.SecurityToken.Value);
+        Assert.Equal("RUN --security=insecure echo hello", instruction.ToString());
+
+        instruction.SecurityToken.Value = "sandbox";
+        Assert.Equal("sandbox", instruction.Security);
+        Assert.Equal("sandbox", instruction.SecurityToken.Value);
+        Assert.Equal("RUN --security=sandbox echo hello", instruction.ToString());
+
+        instruction.SecurityToken = null;
+        Assert.Null(instruction.Security);
+        Assert.Null(instruction.SecurityToken);
+        Assert.Equal("RUN echo hello", instruction.ToString());
+    }
+
+    [Fact]
+    public void SecurityWithVariables()
+    {
+        RunInstruction instruction = new("echo hello", Enumerable.Empty<Mount>(), security: "$var");
+        TestHelper.TestVariablesWithNullableLiteral(
+            () => instruction.SecurityToken!, token => instruction.SecurityToken = token, val => instruction.Security = val, "var", canContainVariables: true);
+    }
+
+    [Fact]
+    public void NetworkFlag_LineContinuationInValue()
+    {
+        // RUN --network=\<newline>host echo hello — line continuation inside the network flag value
+        string text = "RUN --network=\\\nhost echo hello";
+        RunInstruction instruction = RunInstruction.Parse(text);
+
+        // The instruction should parse without error and extract the correct network value
+        Assert.Equal("host", instruction.Network);
+        Assert.NotNull(instruction.NetworkToken);
+        Assert.Equal("host", instruction.NetworkToken!.Value);
+
+        // The --network flag should be a structured NetworkFlag (keyValue token), not a literal fallback
+        NetworkFlag networkFlag = instruction.Tokens.OfType<NetworkFlag>().Single();
+        Assert.IsType<NetworkFlag>(networkFlag);
+
+        // The NetworkFlag contains the line continuation inside it
+        Assert.Collection(networkFlag.Tokens,
+            token => ValidateSymbol(token, '-'),
+            token => ValidateSymbol(token, '-'),
+            token => ValidateKeyword(token, "network"),
+            token => ValidateSymbol(token, '='),
+            token => ValidateLineContinuation(token, '\\', "\n"),
+            token => ValidateLiteral(token, "host"));
+
+        // Round-trip fidelity
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Fact]
+    public void MountFlag_LineContinuationInValue()
+    {
+        // RUN --mount=type=cache\<newline> echo hello — line continuation after the mount value
+        // The line continuation appears at the end of the flag value, before the next arg
+        string text = "RUN --mount=type=cache\\\n echo hello";
+        RunInstruction instruction = RunInstruction.Parse(text);
+
+        // The instruction should parse without error
+        Assert.Single(instruction.Mounts);
+        Assert.Equal("cache", instruction.Mounts.First().Type);
+
+        // The --mount flag should be a structured MountFlag (keyValue token), not a literal fallback
+        MountFlag mountFlag = instruction.Tokens.OfType<MountFlag>().Single();
+        Assert.IsType<MountFlag>(mountFlag);
+
+        // Round-trip fidelity
+        Assert.Equal(text, instruction.ToString());
     }
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        RunInstructionParseTestScenario[] testInputs = new RunInstructionParseTestScenario[]
+        ParseTestScenario<RunInstruction>[] testInputs = new ParseTestScenario<RunInstruction>[]
         {
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN echo hello",
                 TokenValidators = new Action<Token>[]
@@ -112,7 +204,7 @@ public class RunInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN $TEST",
                 TokenValidators = new Action<Token>[]
@@ -123,7 +215,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "$TEST"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN echo $TEST",
                 TokenValidators = new Action<Token>[]
@@ -134,7 +226,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "echo $TEST"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN [PowerShellType]::Type.Method",
                 TokenValidators = new Action<Token>[]
@@ -145,7 +237,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "[PowerShellType]::Type.Method"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN T\\$EST",
                 TokenValidators = new Action<Token>[]
@@ -156,7 +248,29 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "T\\$EST"))
                 }
             },
-            new RunInstructionParseTestScenario
+            // Hash (#) at the start of a RUN argument is NOT a comment — it is regular text.
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN #FF0000",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "#FF0000",
+                        token => ValidateLiteral(token, "#FF0000"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("#FF0000", result.Command.ToString());
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    ShellFormCommand cmd = (ShellFormCommand)result.Command;
+                    Assert.Equal("#FF0000", cmd.Value);
+                }
+            },
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN `\n`\necho hello",
                 EscapeChar = '`',
@@ -170,7 +284,7 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "echo hello"))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN echo `\n#test comment\nhello",
                 EscapeChar = '`',
@@ -202,7 +316,7 @@ public class RunInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
@@ -238,7 +352,7 @@ public class RunInstructionTests
                         cmd.Values.ToArray());
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN `\n[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
                 EscapeChar = '`',
@@ -289,7 +403,7 @@ public class RunInstructionTests
                         cmd.Values.ToArray());
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN ec`\nho `test",
                 EscapeChar = '`',
@@ -306,7 +420,7 @@ public class RunInstructionTests
                             token => ValidateString(token, "ho `test")))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN \"ec`\nh`\"o `test\"",
                 EscapeChar = '`',
@@ -323,7 +437,7 @@ public class RunInstructionTests
                             token => ValidateString(token, "h`\"o `test\"")))
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN --mount=type=secret,id=id echo hello",
                 TokenValidators = new Action<Token>[]
@@ -335,7 +449,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -354,11 +468,11 @@ public class RunInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
 
                     Assert.Single(result.Mounts);
-                    Assert.IsType<SecretMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
                 }
             },
-            new RunInstructionParseTestScenario
+            new ParseTestScenario<RunInstruction>
             {
                 Text = "RUN `\n --mount=type=secret,id=id `\n echo hello",
                 EscapeChar = '`',
@@ -373,7 +487,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -394,8 +508,432 @@ public class RunInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
 
                     Assert.Single(result.Mounts);
-                    Assert.IsType<SecretMount>(result.Mounts.First());
+                    Assert.IsType<Mount>(result.Mounts.First());
                     Assert.Equal("type=secret,id=id", result.Mounts.First().ToString());
+                }
+            },
+            // --mount with type=cache
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=cache,target=/var/cache echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=cache,target=/var/cache",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=cache,target=/var/cache",
+                            token => ValidateKeyValue(token, "type", "cache"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "target", "/var/cache"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("cache", result.Mounts.First().Type);
+                    Assert.Equal("type=cache,target=/var/cache", result.Mounts.First().ToString());
+                }
+            },
+            // --mount with type=tmpfs
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=tmpfs,target=/tmp echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=tmpfs,target=/tmp",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=tmpfs,target=/tmp",
+                            token => ValidateKeyValue(token, "type", "tmpfs"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "target", "/tmp"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("tmpfs", result.Mounts.First().Type);
+                }
+            },
+            // --mount with type=bind
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=bind,source=/src,target=/tgt echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=bind,source=/src,target=/tgt",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=bind,source=/src,target=/tgt",
+                            token => ValidateKeyValue(token, "type", "bind"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "source", "/src"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "target", "/tgt"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("bind", result.Mounts.First().Type);
+                }
+            },
+            // Single-key mount: trailing whitespace must NOT be absorbed into the mount value.
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=ssh echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=ssh",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=ssh",
+                            token => ValidateKeyValue(token, "type", "ssh"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("ssh", result.Mounts.First().Type);
+                    Assert.Equal("type=ssh", result.Mounts.First().ToString());
+                    Assert.Equal("RUN --mount=type=ssh echo hello", result.ToString());
+                }
+            },
+            // Single-key mount: type=cache with no additional key-value pairs.
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=cache echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=cache",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=cache",
+                            token => ValidateKeyValue(token, "type", "cache"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("cache", result.Mounts.First().Type);
+                    Assert.Equal("type=cache", result.Mounts.First().ToString());
+                    Assert.Equal("RUN --mount=type=cache echo hello", result.ToString());
+                }
+            },
+            // --mount with type=cache + --network flag
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=cache,target=/path --network=host echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=cache,target=/path",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=cache,target=/path",
+                            token => ValidateKeyValue(token, "type", "cache"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "target", "/path"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("host", result.Network);
+                }
+            },
+            // --network flag with shell form command
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --network=host echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo hello", result.Command.ToString());
+                    Assert.Equal("host", result.Network);
+                    Assert.Empty(result.Mounts);
+                    Assert.Null(result.Security);
+                }
+            },
+            // --security flag with shell form command
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --security=insecure echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo hello", result.Command.ToString());
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Empty(result.Mounts);
+                    Assert.Null(result.Network);
+                }
+            },
+            // Both --network and --security flags
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --network=host --security=insecure echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // --mount + --network flags together
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=secret,id=id --network=host echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
+                            token => ValidateKeyValue(token, "type", "secret"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "id", "id"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                    Assert.Equal("host", result.Network);
+                    Assert.Null(result.Security);
+                }
+            },
+            // All flags in mixed order: --network, --mount, --security
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --network=host --mount=type=secret,id=id --security=insecure echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=id",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
+                            token => ValidateKeyValue(token, "type", "secret"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "id", "id"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Single(result.Mounts);
+                    Assert.IsType<Mount>(result.Mounts.First());
+                }
+            },
+            // --network flag with exec form command
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --network=host [\"/bin/bash\", \"-c\", \"echo hello\"]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[\"/bin/bash\", \"-c\", \"echo hello\"]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ','),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Equal(
+                        new string[]
+                        {
+                            "/bin/bash",
+                            "-c",
+                            "echo hello"
+                        },
+                        cmd.Values.ToArray());
+                }
+            },
+            // Empty exec form array with no whitespace
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // Empty exec form array with interior whitespace
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[ ]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // Mount with bare key (required)
+            new ParseTestScenario<RunInstruction>
+            {
+                Text = "RUN --mount=type=secret,id=mysecret,required echo hello",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<MountFlag>(token, "--mount=type=secret,id=mysecret,required",
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateSymbol(token, '-'),
+                        token => ValidateKeyword(token, "mount"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=mysecret,required",
+                            token => ValidateKeyValue(token, "type", "secret"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyValue(token, "id", "mysecret"),
+                            token => ValidateSymbol(token, ','),
+                            token => ValidateKeyword(token, "required"))),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("RUN", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo hello", result.Command.ToString());
+                    Assert.Single(result.Mounts);
+                    Assert.Equal("secret", result.Mounts.First().Type);
+                    Assert.Equal("type=secret,id=mysecret,required", result.Mounts.First().ToString());
                 }
             },
         };
@@ -447,7 +985,7 @@ public class RunInstructionTests
                 Command = "echo hello",
                 Mounts = new Mount[]
                 {
-                    new SecretMount("id")
+                    Mount.Parse("type=secret,id=id")
                 },
                 TokenValidators = new Action<Token>[]
                 {
@@ -458,7 +996,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -472,8 +1010,8 @@ public class RunInstructionTests
                 Command = "echo hello",
                 Mounts = new Mount[]
                 {
-                    new SecretMount("id"),
-                    new SecretMount("id2")
+                    Mount.Parse("type=secret,id=id"),
+                    Mount.Parse("type=secret,id=id2")
                 },
                 TokenValidators = new Action<Token>[]
                 {
@@ -484,7 +1022,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id"))),
@@ -494,7 +1032,7 @@ public class RunInstructionTests
                         token => ValidateSymbol(token, '-'),
                         token => ValidateKeyword(token, "mount"),
                         token => ValidateSymbol(token, '='),
-                        token => ValidateAggregate<SecretMount>(token, "type=secret,id=id2",
+                        token => ValidateAggregate<Mount>(token, "type=secret,id=id2",
                             token => ValidateKeyValue(token, "type", "secret"),
                             token => ValidateSymbol(token, ','),
                             token => ValidateKeyValue(token, "id", "id2"))),
@@ -503,14 +1041,75 @@ public class RunInstructionTests
                         token => ValidateLiteral(token, "echo hello"))
                 }
             },
+            // Create with network flag
+            new CreateTestScenario
+            {
+                Command = "echo hello",
+                Network = "host",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Null(result.Security);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // Create with security flag
+            new CreateTestScenario
+            {
+                Command = "echo hello",
+                Security = "insecure",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Null(result.Network);
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Empty(result.Mounts);
+                }
+            },
+            // Create with both network and security flags
+            new CreateTestScenario
+            {
+                Command = "echo hello",
+                Network = "host",
+                Security = "insecure",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "RUN"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<NetworkFlag>(token, "network", "host"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateKeyValueFlag<SecurityFlag>(token, "security", "insecure"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo hello",
+                        token => ValidateLiteral(token, "echo hello"))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("host", result.Network);
+                    Assert.Equal("insecure", result.Security);
+                    Assert.Empty(result.Mounts);
+                }
+            },
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class RunInstructionParseTestScenario : ParseTestScenario<RunInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<RunInstruction>
@@ -518,5 +1117,59 @@ public class RunInstructionTests
         public string Command { get; set; }
         public IEnumerable<string> Args { get; set; }
         public IEnumerable<Mount> Mounts { get; set; }
+        public string Network { get; set; }
+        public string Security { get; set; }
+    }
+
+    [Fact]
+    public void RunInstruction_MultipleLineContinuations_RoundTrips()
+    {
+        string text = "RUN echo \\\n\\\nhello\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_VeryLongCommand_RoundTrips()
+    {
+        // 10000-char RUN command
+        string longCmd = new string('a', 10000);
+        string text = $"RUN {longCmd}\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_UnicodeInCommand_RoundTrips()
+    {
+        string text = "RUN echo 'こんにちは世界'\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_ExecForm_RoundTrips()
+    {
+        string text = "RUN [\"echo\", \"hello\"]\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_ExecFormEmptyArray_RoundTrips()
+    {
+        // Empty exec form — edge case
+        string text = "RUN []\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void RunInstruction_ShellFormWithHash_RoundTrips()
+    {
+        // # inside shell form RUN — treated as regular text, not comment
+        string text = "RUN echo #notacomment\n";
+        var inst = RunInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
     }
 }

@@ -1,30 +1,41 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
- 
+
 public class CopyInstruction : FileTransferInstruction
 {
     private const string Name = "COPY";
 
     public CopyInstruction(IEnumerable<string> sources, string destination,
-        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(GetTokens(sources, destination, fromStageName, changeOwner, permissions, escapeChar), escapeChar)
+        string? fromStageName = null, string? changeOwner = null, string? permissions = null,
+        bool link = false, bool parents = false, IEnumerable<string>? excludes = null,
+        char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(GetTokens(sources, destination, fromStageName, changeOwner, permissions, link, parents, excludes, escapeChar), escapeChar)
+    {
+        InitializeLists();
+    }
+
+    public CopyInstruction(IEnumerable<string> sources, string destination,
+        string? fromStageName, string? changeOwner, string? permissions,
+        bool link, char escapeChar)
+        : this(sources, destination, fromStageName, changeOwner, permissions, link, false, null, escapeChar)
     {
     }
 
     private CopyInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
+        InitializeLists();
     }
 
     public string? FromStageName
     {
         get => FromStageNameToken?.Value;
-        set => SetOptionalTokenValue(
-            FromStageNameToken, value, val => new StageName(val, EscapeChar), token => FromStageNameToken = token);
+        set => SetOptionalLiteralTokenValue(
+            FromStageNameToken, value, token => FromStageNameToken = token, canContainVariables: false, EscapeChar);
     }
 
-    public StageName? FromStageNameToken
+    public LiteralToken? FromStageNameToken
     {
         get => FromFlag?.ValueToken;
         set => SetOptionalKeyValueTokenValue(
@@ -37,6 +48,91 @@ public class CopyInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(FromFlag, value);
     }
 
+    public bool Link
+    {
+        get => LinkFlag?.BoolValue ?? false;
+        set
+        {
+            if (value)
+            {
+                if (LinkFlag is null)
+                {
+                    LinkFlagToken = new LinkFlag(EscapeChar);
+                }
+                else if (!LinkFlag.BoolValue)
+                {
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(LinkFlag, new LinkFlag(EscapeChar));
+                }
+            }
+            else if (LinkFlag is not null)
+            {
+                LinkFlagToken = null;
+            }
+        }
+    }
+
+    public LinkFlag? LinkFlagToken
+    {
+        get => LinkFlag;
+        set => SetOptionalFlagToken(LinkFlag, value);
+    }
+
+    private LinkFlag? LinkFlag
+    {
+        get => Tokens.OfType<LinkFlag>().FirstOrDefault();
+        set => SetOptionalFlagToken(LinkFlag, value);
+    }
+
+    public bool Parents
+    {
+        get => ParentsFlagInternal?.BoolValue ?? false;
+        set
+        {
+            if (value)
+            {
+                if (ParentsFlagInternal is null)
+                {
+                    ParentsFlagToken = new ParentsFlag(EscapeChar);
+                }
+                else if (!ParentsFlagInternal.BoolValue)
+                {
+                    // Replace explicit =false with a bare flag in-place to preserve position
+                    SetToken(ParentsFlagInternal, new ParentsFlag(EscapeChar));
+                }
+            }
+            else if (ParentsFlagInternal is not null)
+            {
+                ParentsFlagToken = null;
+            }
+        }
+    }
+
+    public ParentsFlag? ParentsFlagToken
+    {
+        get => ParentsFlagInternal;
+        set => SetOptionalFlagToken(ParentsFlagInternal, value);
+    }
+
+    private ParentsFlag? ParentsFlagInternal
+    {
+        get => Tokens.OfType<ParentsFlag>().FirstOrDefault();
+        set => SetOptionalFlagToken(ParentsFlagInternal, value);
+    }
+
+    public IList<string> Excludes { get; private set; } = null!;
+
+    public IList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
+
+    private void InitializeLists()
+    {
+        ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
+        Excludes = new ProjectedItemList<ExcludeFlag, string>(
+            ExcludeFlagTokens,
+            flag => flag.Value,
+            (flag, value) => flag.Value = value);
+    }
+
     public static CopyInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
@@ -46,13 +142,23 @@ public class CopyInstruction : FileTransferInstruction
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         GetInnerParser(escapeChar, Name,
-            ArgTokens(FromFlag.GetParser(escapeChar).AsEnumerable(), escapeChar));
+            ArgTokens(FromFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)
+                .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Or(ArgTokens(ParentsFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-        string? fromStageName, UserAccount? changeOwner, string? permissions, char escapeChar)
+        string? fromStageName, string? changeOwner, string? permissions, bool link, bool parents,
+        IEnumerable<string>? excludes, char escapeChar)
     {
         string fromFlag = fromStageName is null ? "" : new FromFlag(fromStageName, escapeChar).ToString() + " ";
-        string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, fromFlag);
+        string linkFlag = link ? new LinkFlag(escapeChar).ToString() + " " : "";
+        string parentsFlag = parents ? new ParentsFlag(escapeChar).ToString() + " " : "";
+        string excludeFlags = excludes is not null
+            ? string.Join("", excludes.Select(p => $"{new ExcludeFlag(p, escapeChar)} "))
+            : "";
+        string trailingFlags = $"{linkFlag}{parentsFlag}{excludeFlags}";
+        string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, fromFlag, trailingFlags);
         return GetTokens(text, GetInnerParser(escapeChar));
     }
 }

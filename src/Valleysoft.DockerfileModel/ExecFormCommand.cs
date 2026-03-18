@@ -21,7 +21,8 @@ public class ExecFormCommand : Command
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> values, char escapeChar)
     {
-        Requires.NotNullEmptyOrNullElements(values, nameof(values));
+        Requires.NotNull(values, nameof(values));
+
         return GetTokens(StringHelper.FormatAsJson(values), GetInnerParser(escapeChar));
     }
 
@@ -39,5 +40,5 @@ public class ExecFormCommand : Command
     public override CommandType CommandType => CommandType.ExecForm;
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-        ArgTokens(JsonArray(escapeChar, canContainVariables: false), escapeChar);
+        ArgTokens(JsonArray(escapeChar, canContainVariables: false, allowEmpty: true), escapeChar);
 }

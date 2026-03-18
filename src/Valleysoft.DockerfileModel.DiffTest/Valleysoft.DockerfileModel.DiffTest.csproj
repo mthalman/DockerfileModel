@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>10.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FsCheck" Version="3.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Valleysoft.DockerfileModel\Valleysoft.DockerfileModel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Valleysoft.DockerfileModel.Tests\Generators\DockerfileArbitraries.cs"
+             Link="Generators\DockerfileArbitraries.cs" />
+  </ItemGroup>
+
+</Project>

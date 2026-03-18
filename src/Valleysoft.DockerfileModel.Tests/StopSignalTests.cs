@@ -8,23 +8,8 @@ public class StopSignalInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(StopSignalInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            StopSignalInstruction result = StopSignalInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => StopSignalInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<StopSignalInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, StopSignalInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -61,9 +46,9 @@ public class StopSignalInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        StopSignalInstructionParseTestScenario[] testInputs = new StopSignalInstructionParseTestScenario[]
+        ParseTestScenario<StopSignalInstruction>[] testInputs = new ParseTestScenario<StopSignalInstruction>[]
         {
-            new StopSignalInstructionParseTestScenario
+            new ParseTestScenario<StopSignalInstruction>
             {
                 Text = "STOPSIGNAL name",
                 TokenValidators = new Action<Token>[]
@@ -79,7 +64,7 @@ public class StopSignalInstructionTests
                     Assert.Equal("name", result.Signal);
                 }
             },
-            new StopSignalInstructionParseTestScenario
+            new ParseTestScenario<StopSignalInstruction>
             {
                 Text = "STOPSIGNAL `\n name",
                 EscapeChar = '`',
@@ -96,6 +81,87 @@ public class StopSignalInstructionTests
                     Assert.Empty(result.Comments);
                     Assert.Equal("STOPSIGNAL", result.InstructionName);
                     Assert.Equal("name", result.Signal);
+                }
+            },
+            new ParseTestScenario<StopSignalInstruction>
+            {
+                Text = "STOPSIGNAL $SIG",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "STOPSIGNAL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "$SIG",
+                        token => ValidateAggregate<VariableRefToken>(token, "$SIG",
+                            token => ValidateString(token, "SIG")))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("STOPSIGNAL", result.InstructionName);
+                    Assert.Equal("$SIG", result.Signal);
+                }
+            },
+            new ParseTestScenario<StopSignalInstruction>
+            {
+                Text = "STOPSIGNAL ${SIGNAL}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "STOPSIGNAL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "${SIGNAL}",
+                        token => ValidateAggregate<VariableRefToken>(token, "${SIGNAL}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "SIGNAL"),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("STOPSIGNAL", result.InstructionName);
+                    Assert.Equal("${SIGNAL}", result.Signal);
+                }
+            },
+            new ParseTestScenario<StopSignalInstruction>
+            {
+                Text = "STOPSIGNAL SIG$RT",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "STOPSIGNAL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "SIG$RT",
+                        token => ValidateString(token, "SIG"),
+                        token => ValidateAggregate<VariableRefToken>(token, "$RT",
+                            token => ValidateString(token, "RT")))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("STOPSIGNAL", result.InstructionName);
+                    Assert.Equal("SIG$RT", result.Signal);
+                }
+            },
+            new ParseTestScenario<StopSignalInstruction>
+            {
+                Text = "STOPSIGNAL ${SIG:-SIGTERM}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "STOPSIGNAL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "${SIG:-SIGTERM}",
+                        token => ValidateAggregate<VariableRefToken>(token, "${SIG:-SIGTERM}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "SIG"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateAggregate<LiteralToken>(token, "SIGTERM",
+                                token => ValidateString(token, "SIGTERM")),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("STOPSIGNAL", result.InstructionName);
+                    Assert.Equal("${SIG:-SIGTERM}", result.Signal);
                 }
             }
         };
@@ -132,13 +198,28 @@ public class StopSignalInstructionTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class StopSignalInstructionParseTestScenario : ParseTestScenario<StopSignalInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
-
     public class CreateTestScenario : TestScenario<StopSignalInstruction>
     {
         public string Signal { get; set; }
+    }
+
+    [Fact]
+    public void StopSignalInstruction_Signal_DoesNotIncludeNewline()
+    {
+        // Check if other instructions using TokenWithTrailingWhitespace pattern have same issue
+        string text = "STOPSIGNAL SIGTERM\n";
+        StopSignalInstruction inst = StopSignalInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("SIGTERM", inst.Signal);  // Should NOT be "SIGTERM\n"
+    }
+
+    [Fact]
+    public void StopSignalInstruction_Signal_WithNewlineInInput_NoNewlineInValue()
+    {
+        // StopSignal uses LiteralWithVariables without WhitespaceMode.Allowed
+        // So it should NOT include the trailing newline in its property
+        string text = "STOPSIGNAL SIGTERM\n";
+        StopSignalInstruction inst = StopSignalInstruction.Parse(text);
+        Assert.Equal("SIGTERM", inst.Signal); // No newline expected
     }
 }

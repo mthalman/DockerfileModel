@@ -11,7 +11,6 @@ public class TokenBuilderTests
     {
         TokenBuilder builder = new();
         builder
-            .UserAccount("user")
             .Comment("comment")
             .ExecFormCommand("cmd1", "cmd2")
             .FromFlag("stage")
@@ -21,13 +20,14 @@ public class TokenBuilderTests
             .Keyword("key")
             .LineContinuation()
             .Literal("literal")
-            .MountFlag(new SecretMount("id"))
+            .MountFlag(Mount.Parse("type=secret,id=id"))
             .NewLine()
             .PlatformFlag("platform")
             .RetriesFlag("2")
-            .SecretMount("id")
+            .Mount("type=secret,id=id")
             .ShellFormCommand("cmd")
             .StageName("stage")
+            .StartIntervalFlag("5s")
             .StartPeriodFlag("1s")
             .Symbol('-')
             .TimeoutFlag("2h")
@@ -37,8 +37,6 @@ public class TokenBuilderTests
 
         Assert.Collection(builder.Tokens, new Action<Token>[]
         {
-            token => ValidateAggregate<UserAccount>(token, "user",
-                token => ValidateLiteral(token, "user")),
             token => ValidateAggregate<CommentToken>(token, "#comment",
                 token => ValidateSymbol(token, '#'),
                 token => ValidateString(token, "comment")),
@@ -54,7 +52,7 @@ public class TokenBuilderTests
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, "from"),
                 token => ValidateSymbol(token, '='),
-                token => ValidateIdentifier<StageName>(token, "stage")),
+                token => ValidateLiteral(token, "stage")),
             token => ValidateAggregate<ImageName>(token, "repo",
                 token => {
                     Assert.Equal("repo", ((LiteralToken)token).Value);
@@ -69,7 +67,7 @@ public class TokenBuilderTests
                 token => ValidateSymbol(token, '-'),
                 token => ValidateKeyword(token, "mount"),
                 token => ValidateSymbol(token, '='),
-                token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+                token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                     token => ValidateKeyValue(token, "type", "secret"),
                     token => ValidateSymbol(token, ','),
                     token => ValidateKeyValue(token, "id", "id"))),
@@ -81,13 +79,14 @@ public class TokenBuilderTests
                 token => ValidateSymbol(token, '='),
                 token => ValidateLiteral(token, "platform")),
             token => ValidateKeyValueFlag<RetriesFlag>(token, "retries", "2"),
-            token => ValidateAggregate<SecretMount>(token, "type=secret,id=id",
+            token => ValidateAggregate<Mount>(token, "type=secret,id=id",
                 token => ValidateKeyValue(token, "type", "secret"),
                 token => ValidateSymbol(token, ','),
                 token => ValidateKeyValue(token, "id", "id")),
             token => ValidateAggregate<ShellFormCommand>(token, "cmd",
                 token => ValidateLiteral(token, "cmd")),
             token => ValidateIdentifier<StageName>(token, "stage"),
+            token => ValidateKeyValueFlag<StartIntervalFlag>(token, "start-interval", "5s"),
             token => ValidateKeyValueFlag<StartPeriodFlag>(token, "start-period", "1s"),
             token => ValidateSymbol(token, '-'),
             token => ValidateKeyValueFlag<TimeoutFlag>(token, "timeout", "2h"),
@@ -98,7 +97,6 @@ public class TokenBuilderTests
         });
 
         string expectedResult =
-            "user" +
             "#comment" +
             "[\"cmd1\", \"cmd2\"]" +
             "--from=stage" +
@@ -115,6 +113,7 @@ public class TokenBuilderTests
             "type=secret,id=id" +
             "cmd" +
             "stage" +
+            "--start-interval=5s" +
             "--start-period=1s" +
             "-" +
             "--timeout=2h" +
@@ -156,5 +155,30 @@ public class TokenBuilderTests
 
         string expectedResult = "`" + Environment.NewLine;
         Assert.Equal(expectedResult, result);
+    }
+
+    [Fact]
+    public void ActionBasedFlagBuildersPreserveEscapeChar()
+    {
+        TokenBuilder builder = new()
+        {
+            EscapeChar = '`'
+        };
+
+        builder.IntervalFlag(tokens =>
+            tokens
+                .Symbol('-')
+                .Symbol('-')
+                .Keyword("interval")
+                .Symbol('='));
+
+        IntervalFlag flag = Assert.IsType<IntervalFlag>(builder.Tokens.Single());
+        Assert.Null(flag.ValueToken);
+
+        flag.Value = "`$MY_VAR";
+
+        Assert.Equal("`$MY_VAR", flag.Value);
+        Assert.Equal("--interval=`$MY_VAR", flag.ToString());
+        Assert.DoesNotContain(flag.ValueToken!.Tokens, token => token is VariableRefToken);
     }
 }

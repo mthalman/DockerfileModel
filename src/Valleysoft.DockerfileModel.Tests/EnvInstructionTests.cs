@@ -8,23 +8,8 @@ public class EnvInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(EnvInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            EnvInstruction result = EnvInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => EnvInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<EnvInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, EnvInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -80,6 +65,95 @@ public class EnvInstructionTests
     }
 
     [Fact]
+    public void SetValueOnEmptyEnvVar()
+    {
+        // Parse "ENV key=" which produces a KeyValueToken with no value token
+        EnvInstruction result = EnvInstruction.Parse("ENV MY_VAR=");
+        Assert.Equal("MY_VAR", result.Variables[0].Key);
+        Assert.Equal("", result.Variables[0].Value);
+        Assert.Null(result.VariableTokens[0].ValueToken);
+
+        // Set a value token via the ValueToken setter
+        result.VariableTokens[0].ValueToken = new LiteralToken("hello", canContainVariables: true);
+        Assert.Equal("hello", result.Variables[0].Value);
+        Assert.Equal("ENV MY_VAR=hello", result.ToString());
+
+        // Now the Value setter should work since a value token exists
+        result.VariableTokens[0].Value = "world";
+        Assert.Equal("world", result.Variables[0].Value);
+        Assert.Equal("ENV MY_VAR=world", result.ToString());
+
+        // Setting ValueToken to null should remove it
+        result.VariableTokens[0].ValueToken = null;
+        Assert.Null(result.VariableTokens[0].ValueToken);
+        Assert.Equal("", result.Variables[0].Value);
+        Assert.Equal("ENV MY_VAR=", result.ToString());
+    }
+
+    [Fact]
+    public void SetValueOnEmptyEnvVarViaVariablesList()
+    {
+        // Parse "ENV key=" which produces a KeyValueToken with no value token
+        EnvInstruction result = EnvInstruction.Parse("ENV MY_VAR=");
+        Assert.Equal("MY_VAR", result.Variables[0].Key);
+        Assert.Equal("", result.Variables[0].Value);
+        Assert.Null(result.VariableTokens[0].ValueToken);
+
+        // Setting a value via the Variables projected list (IKeyValuePair.Value)
+        // should auto-insert a LiteralToken
+        result.Variables[0].Value = "hello";
+        Assert.Equal("hello", result.Variables[0].Value);
+        Assert.NotNull(result.VariableTokens[0].ValueToken);
+        Assert.Equal("ENV MY_VAR=hello", result.ToString());
+
+        // Subsequent value changes should work via the normal path
+        result.Variables[0].Value = "world";
+        Assert.Equal("world", result.Variables[0].Value);
+        Assert.Equal("ENV MY_VAR=world", result.ToString());
+    }
+
+    [Fact]
+    public void SetValueOnEmptyEnvVarWithNonDefaultEscapeChar()
+    {
+        // Parse "ENV key=" with a non-default escape char (backtick)
+        EnvInstruction result = EnvInstruction.Parse("ENV key=", escapeChar: '`');
+        Assert.Equal("key", result.Variables[0].Key);
+        Assert.Equal("", result.Variables[0].Value);
+        Assert.Null(result.VariableTokens[0].ValueToken);
+
+        // Set a value and verify round-trip
+        result.Variables[0].Value = "myval";
+        Assert.Equal("myval", result.Variables[0].Value);
+        Assert.NotNull(result.VariableTokens[0].ValueToken);
+        Assert.Equal("ENV key=myval", result.ToString());
+
+        // Subsequent value changes should also round-trip
+        result.Variables[0].Value = "updated";
+        Assert.Equal("updated", result.Variables[0].Value);
+        Assert.Equal("ENV key=updated", result.ToString());
+    }
+
+    [Fact]
+    public void SetValueOnEmptyEnvVarWithBacktickEscapeChar_EscapedVariableRef()
+    {
+        // Regression test for #286: When setting a value containing an escaped
+        // variable reference on a KeyValueToken parsed with backtick escape char,
+        // the LiteralToken must preserve the backtick escape semantics so $VAR
+        // remains escaped instead of being tokenized as a VariableRefToken.
+        EnvInstruction result = EnvInstruction.Parse("ENV key=", escapeChar: '`');
+        Assert.Null(result.VariableTokens[0].ValueToken);
+
+        result.Variables[0].Value = "`$MY_VAR";
+        Assert.Equal("`$MY_VAR", result.Variables[0].Value);
+        Assert.NotNull(result.VariableTokens[0].ValueToken);
+        Assert.Equal("ENV key=`$MY_VAR", result.ToString());
+
+        LiteralToken? valueToken = result.VariableTokens[0].ValueToken;
+        Assert.NotNull(valueToken);
+        Assert.DoesNotContain(valueToken!.Tokens, t => t is VariableRefToken);
+    }
+
+    [Fact]
     public void EnvVarWithVariables()
     {
         EnvInstruction result = new(
@@ -93,9 +167,9 @@ public class EnvInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        EnvInstructionParseTestScenario[] testInputs = new EnvInstructionParseTestScenario[]
+        ParseTestScenario<EnvInstruction>[] testInputs = new ParseTestScenario<EnvInstruction>[]
         {
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=",
                 TokenValidators = new Action<Token>[]
@@ -104,8 +178,7 @@ public class EnvInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "MY_NAME=",
                         token => ValidateIdentifier<Variable>(token, "MY_NAME"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, ""))
+                        token => ValidateSymbol(token, '='))
                 },
                 Validate = result =>
                 {
@@ -121,7 +194,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV VAR1= VAR2=foo",
                 TokenValidators = new Action<Token>[]
@@ -130,8 +203,7 @@ public class EnvInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR1=",
                         token => ValidateIdentifier<Variable>(token, "VAR1"),
-                        token => ValidateSymbol(token, '='),
-                        token => ValidateLiteral(token, "")),
+                        token => ValidateSymbol(token, '=')),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "VAR2=foo",
                         token => ValidateIdentifier<Variable>(token, "VAR2"),
@@ -157,7 +229,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=\"\"",
                 TokenValidators = new Action<Token>[]
@@ -183,7 +255,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME John\r\n",
                 TokenValidators = new Action<Token>[]
@@ -198,7 +270,7 @@ public class EnvInstructionTests
                             token => ValidateNewLine(token, "\r\n")))
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=John",
                 TokenValidators = new Action<Token>[]
@@ -224,7 +296,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=\"John Doe\"",
                 TokenValidators = new Action<Token>[]
@@ -250,7 +322,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=John` Doe",
                 EscapeChar = '`',
@@ -277,7 +349,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME=\"John Doe\" MY_DOG=Rex` The` Dog ` \n MY_CAT=fluffy",
                 EscapeChar = '`',
@@ -329,7 +401,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME John",
                 TokenValidators = new Action<Token>[]
@@ -355,7 +427,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_NAME \"John Doe\"",
                 TokenValidators = new Action<Token>[]
@@ -381,7 +453,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV MY_`\nNAME `\nJo`\nhn",
                 EscapeChar = '`',
@@ -415,7 +487,7 @@ public class EnvInstructionTests
                     });
                 }
             },
-            new EnvInstructionParseTestScenario
+            new ParseTestScenario<EnvInstruction>
             {
                 Text = "ENV VAR1`\n  foo=`\n  bar",
                 EscapeChar = '`',
@@ -432,6 +504,41 @@ public class EnvInstructionTests
                             token => ValidateLineContinuation(token, '`', "\n"),
                             token => ValidateWhitespace(token, "  "),
                             token => ValidateString(token, "bar")))
+                }
+            },
+            // Variable reference default value with path — leading slash must stay in the literal
+            new ParseTestScenario<EnvInstruction>
+            {
+                Text = "ENV PATH=${BASE:-/usr/local}/bin",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENV"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "PATH=${BASE:-/usr/local}/bin",
+                        token => ValidateIdentifier<Variable>(token, "PATH"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateAggregate<LiteralToken>(token, "${BASE:-/usr/local}/bin",
+                            token => ValidateAggregate<VariableRefToken>(token, "${BASE:-/usr/local}",
+                                token => ValidateSymbol(token, '{'),
+                                token => ValidateString(token, "BASE"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateSymbol(token, '-'),
+                                token => ValidateLiteral(token, "/usr/local"),
+                                token => ValidateSymbol(token, '}')),
+                            token => ValidateString(token, "/bin")))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("ENV", result.InstructionName);
+                    Assert.Collection(result.Variables, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("PATH", pair.Key);
+                            Assert.Equal("${BASE:-/usr/local}/bin", pair.Value);
+                        }
+                    });
+                    Assert.Equal("ENV PATH=${BASE:-/usr/local}/bin", result.ToString());
                 }
             }
         };
@@ -502,13 +609,111 @@ public class EnvInstructionTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class EnvInstructionParseTestScenario : ParseTestScenario<EnvInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
-
     public class CreateTestScenario : TestScenario<EnvInstruction>
     {
         public Dictionary<string, string> Variables { get; set; }
+    }
+
+    /// <summary>
+    /// Regression test for https://github.com/mthalman/DockerfileModel/issues/294
+    /// FlagParser was always included via .Optional() in KeyValueToken.GetInnerParser,
+    /// causing input starting with "--" to have the dashes incorrectly consumed as a
+    /// flag prefix. Before the fix, "ENV --FOO=bar" would parse successfully with key
+    /// "FOO" (wrong — the "--" was silently consumed). After the fix, "--FOO" is not a
+    /// valid variable name and the parse correctly fails.
+    /// </summary>
+    [Fact]
+    public void EnvInstruction_DoubleDashPrefix_NotConsumedAsFlagPrefix()
+    {
+        // "--FOO" is not a valid ENV variable name (dashes are not valid identifier
+        // characters). Before the fix, the FlagParser would consume "--" and the
+        // Variable parser would match "FOO", silently dropping the dashes. After the
+        // fix, no FlagParser is attempted and the parse correctly fails.
+        Assert.Throws<ParseException>(() => EnvInstruction.Parse("ENV --FOO=bar"));
+    }
+
+    [Fact]
+    public void EnvInstruction_DoubleDashPrefix_SingleVarFormat_NotConsumedAsFlagPrefix()
+    {
+        Assert.Throws<ParseException>(() => EnvInstruction.Parse("ENV --FOO bar"));
+    }
+
+    [Fact]
+    public void EnvInstruction_ValueWithDoubleQuotes_RoundTrips()
+    {
+        string text = "ENV FOO=\"bar baz\"\n";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("bar baz", inst.Variables[0].Value);
+    }
+
+    [Fact]
+    public void EnvInstruction_ValueWithEscapedQuote_RoundTrips()
+    {
+        string text = "ENV FOO=bar\\\"baz\n";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+    }
+
+    [Fact]
+    public void EnvInstruction_MultipleVarsNewFormat_RoundTrips()
+    {
+        string text = "ENV FOO=hello BAR=world\n";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal(2, inst.Variables.Count);
+        Assert.Equal("FOO", inst.Variables[0].Key);
+        Assert.Equal("hello", inst.Variables[0].Value);
+        Assert.Equal("BAR", inst.Variables[1].Key);
+        Assert.Equal("world", inst.Variables[1].Value);
+    }
+
+    [Fact]
+    public void EnvInstruction_SingleVarFormat_WithWhitespaceBeforeArgument_RoundTrips()
+    {
+        string text = "ENV \\\n  FOO bar";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+
+        Assert.Collection(inst.Tokens, new Action<Token>[]
+        {
+            token => ValidateKeyword(token, "ENV"),
+            token => ValidateWhitespace(token, " "),
+            token => ValidateLineContinuation(token, '\\', "\n"),
+            token => ValidateWhitespace(token, "  "),
+            token => ValidateAggregate<KeyValueToken<Variable, LiteralToken>>(token, "FOO bar",
+                token => ValidateIdentifier<Variable>(token, "FOO"),
+                token => ValidateWhitespace(token, " "),
+                token => ValidateLiteral(token, "bar"))
+        });
+
+        Assert.Equal(text, inst.ToString());
+        Assert.Collection(inst.Variables, new Action<IKeyValuePair>[]
+        {
+            pair =>
+            {
+                Assert.Equal("FOO", pair.Key);
+                Assert.Equal("bar", pair.Value);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Bug: WorkdirInstruction.Path includes trailing newline character
+    /// See https://github.com/mthalman/DockerfileModel/issues/282
+    /// </summary>
+    [Fact]
+    public void EnvInstruction_SingleVarFormat_ValueWithNewline_Bug()
+    {
+        // ENV VAR value (space-separated single var format)
+        string text = "ENV FOO bar baz\n";
+        EnvInstruction inst = EnvInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString()); // Round-trip should work
+        string val = inst.Variables[0].Value ?? "(null)";
+        // Check if trailing newline is included in value
+        System.Console.WriteLine($"ENV single-format value=[{val}]");
+        if (val.Contains('\n'))
+        {
+            System.Console.WriteLine("BUG: ENV single-format value contains newline");
+        }
     }
 }

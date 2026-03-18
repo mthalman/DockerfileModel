@@ -1,31 +1,24 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
-public class TimeoutFlag : KeyValueToken<KeywordToken, LiteralToken>
+public class TimeoutFlag : KeywordLiteralFlag
 {
+    private const string Keyword = "timeout";
+
     public TimeoutFlag(string timeout, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("timeout", escapeChar), new LiteralToken(timeout, canContainVariables: true, escapeChar), isFlag: true)
+        : base(Keyword, timeout, escapeChar)
     {
     }
 
-    internal TimeoutFlag(IEnumerable<Token> tokens) : base(tokens)
+    internal TimeoutFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static TimeoutFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Parse(
-            text,
-            KeywordToken.GetParser("timeout", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new TimeoutFlag(tokens),
-            escapeChar: escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new TimeoutFlag(tokens, esc), escapeChar);
 
     public static Parser<TimeoutFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetParser(
-            KeywordToken.GetParser("timeout", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new TimeoutFlag(tokens),
-            escapeChar: escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new TimeoutFlag(tokens, esc), escapeChar);
 }

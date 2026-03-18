@@ -130,16 +130,18 @@ public class FromInstruction : Instruction
     }
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-        Instruction("FROM", escapeChar, GetArgsParser(escapeChar));
+        (from instruction in Instruction("FROM", escapeChar, GetArgsParser(escapeChar))
+        from trailingWhitespace in Whitespace()
+        select ConcatTokens(instruction, trailingWhitespace)).End();
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        (from platform in GetPlatformParser(escapeChar).Optional()
+        from platform in GetPlatformParser(escapeChar).Optional()
         from imageName in GetImageNameParser(escapeChar)
         from stageName in GetStageNameParser(escapeChar).Optional()
         select ConcatTokens(
             platform.GetOrDefault(),
             imageName,
-            stageName.GetOrDefault())).End();
+            stageName.GetOrDefault());
 
     private static Parser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
         from asKeyword in ArgTokens(KeywordToken.GetParser("AS", escapeChar).AsEnumerable(), escapeChar)

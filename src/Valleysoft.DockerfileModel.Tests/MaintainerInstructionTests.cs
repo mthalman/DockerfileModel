@@ -8,23 +8,8 @@ public class MaintainerInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(MaintainerInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            MaintainerInstruction result = MaintainerInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => MaintainerInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<MaintainerInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, MaintainerInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -70,9 +55,9 @@ public class MaintainerInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        MaintainerInstructionParseTestScenario[] testInputs = new MaintainerInstructionParseTestScenario[]
+        ParseTestScenario<MaintainerInstruction>[] testInputs = new ParseTestScenario<MaintainerInstruction>[]
         {
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER name",
                 TokenValidators = new Action<Token>[]
@@ -88,7 +73,7 @@ public class MaintainerInstructionTests
                     Assert.Equal("name", result.Maintainer);
                 }
             },
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER \"name\"",
                 TokenValidators = new Action<Token>[]
@@ -104,7 +89,7 @@ public class MaintainerInstructionTests
                     Assert.Equal("name", result.Maintainer);
                 }
             },
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER \"\"",
                 TokenValidators = new Action<Token>[]
@@ -120,7 +105,7 @@ public class MaintainerInstructionTests
                     Assert.Equal("", result.Maintainer);
                 }
             },
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER $var",
                 TokenValidators = new Action<Token>[]
@@ -138,7 +123,7 @@ public class MaintainerInstructionTests
                     Assert.Equal("$var", result.Maintainer);
                 }
             },
-            new MaintainerInstructionParseTestScenario
+            new ParseTestScenario<MaintainerInstruction>
             {
                 Text = "MAINTAINER `\n name",
                 EscapeChar = '`',
@@ -155,6 +140,24 @@ public class MaintainerInstructionTests
                     Assert.Empty(result.Comments);
                     Assert.Equal("MAINTAINER", result.InstructionName);
                     Assert.Equal("name", result.Maintainer);
+                }
+            },
+            new ParseTestScenario<MaintainerInstruction>
+            {
+                Text = "MAINTAINER test@example.com\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "MAINTAINER"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<LiteralToken>(token, "test@example.com\n",
+                        token => ValidateString(token, "test@example.com"),
+                        token => ValidateNewLine(token, "\n"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("MAINTAINER", result.InstructionName);
+                    Assert.Equal("test@example.com", result.Maintainer);
                 }
             }
         };
@@ -191,13 +194,70 @@ public class MaintainerInstructionTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class MaintainerInstructionParseTestScenario : ParseTestScenario<MaintainerInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
-
     public class CreateTestScenario : TestScenario<MaintainerInstruction>
     {
         public string Maintainer { get; set; }
+    }
+
+    /// <summary>
+    /// Fixed: MaintainerInstruction.Maintainer no longer includes trailing newline character.
+    /// See https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void MaintainerInstruction_Maintainer_ExcludesTrailingNewline()
+    {
+        string text = "MAINTAINER test@example.com\n";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("test@example.com", inst.Maintainer);
+    }
+
+    [Fact]
+    public void MaintainerInstruction_Maintainer_NoNewlineInInput_Works()
+    {
+        string text = "MAINTAINER test@example.com";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        Assert.Equal("test@example.com", inst.Maintainer);
+    }
+
+    /// <summary>
+    /// Fixed: MaintainerInstruction.Maintainer no longer includes trailing newline character.
+    /// See https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void MaintainerInstruction_Maintainer_WithNewlineInInput_ExcludesNewline()
+    {
+        string text = "MAINTAINER test@example.com\n";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        string maintainer = inst.Maintainer;
+        Assert.DoesNotContain("\n", maintainer);
+    }
+
+    /// <summary>
+    /// Fixed: MaintainerInstruction.Maintainer no longer includes trailing newline character.
+    /// See https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void MaintainerInstruction_MaintainerWithSpaces_WithNewline_ExcludesNewline()
+    {
+        string text = "MAINTAINER John Doe <john@example.com>\n";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        string maintainer = inst.Maintainer;
+        Assert.DoesNotContain("\n", maintainer);
+        Assert.Equal("John Doe <john@example.com>", maintainer);
+    }
+
+    /// <summary>
+    /// Fixed: MaintainerInstruction.Maintainer no longer includes trailing newline character,
+    /// while round-trip fidelity is preserved.
+    /// See https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void MaintainerInstruction_RoundTrip_PreservedWithCorrectMaintainerProperty()
+    {
+        string text = "MAINTAINER maintainer@example.com\n";
+        MaintainerInstruction inst = MaintainerInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("maintainer@example.com", inst.Maintainer);
     }
 }

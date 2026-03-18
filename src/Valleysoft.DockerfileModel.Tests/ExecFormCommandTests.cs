@@ -8,23 +8,8 @@ public class ExecFormCommandTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ExecFormCommandParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            ExecFormCommand result = ExecFormCommand.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => RunInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<ExecFormCommand> scenario) =>
+        TestHelper.RunParseTest(scenario, ExecFormCommand.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -98,6 +83,15 @@ public class ExecFormCommandTests
     }
 
     [Fact]
+    public void CreateEmptyExecForm()
+    {
+        ExecFormCommand result = new(Array.Empty<string>());
+        Assert.Equal("[]", result.ToString());
+        Assert.Empty(result.Values);
+        Assert.Equal(CommandType.ExecForm, result.CommandType);
+    }
+
+    [Fact]
     public void CommandArgsWithVariablesNotParsed()
     {
         ExecFormCommand result = new(new string[]
@@ -109,9 +103,9 @@ public class ExecFormCommandTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ExecFormCommandParseTestScenario[] testInputs = new ExecFormCommandParseTestScenario[]
+        ParseTestScenario<ExecFormCommand>[] testInputs = new ParseTestScenario<ExecFormCommand>[]
         {
-            new ExecFormCommandParseTestScenario
+            new ParseTestScenario<ExecFormCommand>
             {
                 Text = "[\"/bin/bash\", \"-c\", \"echo hello\"]\n",
                 TokenValidators = new Action<Token>[]
@@ -141,7 +135,7 @@ public class ExecFormCommandTests
                         result.Values.ToArray());
                 }
             },
-            new ExecFormCommandParseTestScenario
+            new ParseTestScenario<ExecFormCommand>
             {
                 Text = "[\"/bin/bash\" \"-c\" \"echo hello\"]\n",
                 TokenValidators = new Action<Token>[]
@@ -169,7 +163,7 @@ public class ExecFormCommandTests
                         result.Values.ToArray());
                 }
             },
-            new ExecFormCommandParseTestScenario
+            new ParseTestScenario<ExecFormCommand>
             {
                 Text = "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
                 EscapeChar = '`',
@@ -210,7 +204,40 @@ public class ExecFormCommandTests
                         result.Values.ToArray());
                 }
             },
-            new ExecFormCommandParseTestScenario
+            new ParseTestScenario<ExecFormCommand>
+            {
+                Text = "[]\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateSymbol(token, ']'),
+                    token => ValidateNewLine(token, "\n")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.CommandType);
+                    Assert.Equal("[]\n", result.ToString());
+                    Assert.Empty(result.Values);
+                }
+            },
+            new ParseTestScenario<ExecFormCommand>
+            {
+                Text = "[ ]\n",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, ']'),
+                    token => ValidateNewLine(token, "\n")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.CommandType);
+                    Assert.Equal("[ ]\n", result.ToString());
+                    Assert.Empty(result.Values);
+                }
+            },
+            new ParseTestScenario<ExecFormCommand>
             {
                 Text = "echo hello",
                 ParseExceptionPosition = new Position(0, 1, 1)
@@ -224,6 +251,21 @@ public class ExecFormCommandTests
     {
         CreateTestScenario[] testInputs = new CreateTestScenario[]
         {
+            new CreateTestScenario
+            {
+                Commands = Array.Empty<string>(),
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.CommandType);
+                    Assert.Equal("[]", result.ToString());
+                    Assert.Empty(result.Values);
+                }
+            },
             new CreateTestScenario
             {
                 Commands = new string[]
@@ -248,11 +290,6 @@ public class ExecFormCommandTests
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class ExecFormCommandParseTestScenario : ParseTestScenario<ExecFormCommand>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<ExecFormCommand>

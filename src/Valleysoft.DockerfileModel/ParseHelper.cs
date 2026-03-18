@@ -1,4 +1,6 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using System.Text;
+using System.Text.RegularExpressions;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -145,6 +147,25 @@ internal static class ParseHelper
     }
 
     /// <summary>
+    /// Returns a whitespace token for any leading whitespace in the given string.
+    /// </summary>
+    /// <param name="text">String to parse.</param>
+    public static WhitespaceToken? GetLeadingWhitespaceToken(string text)
+    {
+        string? whitespace = new(
+            text
+                .TakeWhile(ch => Char.IsWhiteSpace(ch))
+                .ToArray());
+
+        if (whitespace == String.Empty)
+        {
+            return null;
+        }
+
+        return new WhitespaceToken(whitespace);
+    }
+
+    /// <summary>
     /// Tokenizes an argument of an instruction. This handles the parsing of whitespace and line continuations.
     /// </summary>
     /// <param name="tokenParser">Parser for the argument.</param>
@@ -184,20 +205,34 @@ internal static class ParseHelper
                     select ConcatTokens(leadingWhitespace, token);
             }
 
-            return WithTrailingComments(
+            return
                 from tokens in primaryParser
-                from trailingWhitespace in
-                    (from trailingWhitespace in Whitespace()
-                        from lineContinuation in LineContinuations(escapeChar)
-                        select ConcatTokens(trailingWhitespace, lineContinuation)).Or(
-                        from whitespace in WhitespaceWithoutNewLine()
-                        from newLine in NewLine()
-                        select ConcatTokens(whitespace, newLine)).Optional()
-                select ConcatTokens(
-                    tokens,
-                    trailingWhitespace.GetOrDefault()));
+                from trailingWhitespace in ArgTrailingWhitespace(escapeChar)
+                select ConcatTokens(tokens, trailingWhitespace);
         }
     }
+
+    internal static Parser<IEnumerable<Token>> ArgTrailingWhitespace(char escapeChar) =>
+        // After at least one line continuation, comments (# ...) at the start of the
+        // next line are recognized as Dockerfile comments. This matches BuildKit, which
+        // only treats # as a comment delimiter at the beginning of a line — including
+        // continuation lines within a multi-line instruction. Inline # (not preceded
+        // by a newline) is NOT a comment and is treated as regular argument text.
+        (from whitespaceBeforeContinuation in Whitespace()
+            from firstContinuation in LineContinuationToken.GetParser(escapeChar)
+            from moreContinuations in LineContinuations(escapeChar)
+            from trailingComments in CommentText().Many()
+            select ConcatTokens(
+                whitespaceBeforeContinuation,
+                new Token[] { firstContinuation },
+                moreContinuations,
+                trailingComments.SelectMany(c => c))).Or(
+        // Fallback: whitespace and zero-or-more line continuations with no comments.
+        // LineContinuations uses .Many() so it succeeds with zero matches,
+        // making this branch always succeed and subsume any plain-newline case.
+            from trailingWhitespaceOnly in Whitespace()
+            from lineContinuations in LineContinuations(escapeChar)
+            select ConcatTokens(trailingWhitespaceOnly, lineContinuations));
 
     /// <summary>
     /// Parses a string.
@@ -260,6 +295,7 @@ internal static class ParseHelper
         from instructionArgs in instructionArgsParser
         select ConcatTokens(instructionNameTokens, instructionArgs);
 
+
     /// <summary>
     /// Parses a symbol.
     /// </summary>
@@ -292,11 +328,32 @@ internal static class ParseHelper
     public static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> IdentifierTokens(Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar) =>
         WrappedInOptionalQuotes(
             (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
-                WrappedInQuotesIdentifier(escapeChar, firstCharacterParser, tailCharacterParser),
+                WrappedInQuotesIdentifier(escapeChar, firstCharacterParser, tailCharacterParser,
+                    wrappingQuoteChar: tokenWrapper.OpeningString[0]),
             (char escapeChar, IEnumerable<char> excludedChars) =>
                 IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser),
             escapeChar,
             Enumerable.Empty<char>());
+
+    /// <summary>
+    /// Parses the tokens within a LABEL key. Unquoted keys use identifier character
+    /// restrictions; quoted keys allow characters like whitespace and special characters
+    /// (e.g. apostrophes) that aren't valid in unquoted keys, but still exclude variable
+    /// reference characters (<c>$</c>), the key-value separator (<c>=</c>), and treat
+    /// the escape character specially.
+    /// </summary>
+    /// <param name="firstCharacterParser">Parser of the first character of an unquoted identifier.</param>
+    /// <param name="tailCharacterParser">Parser of the rest of the characters of an unquoted identifier.</param>
+    /// <param name="escapeChar">Escape character.</param>
+    public static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> LabelKeyTokens(Parser<char> firstCharacterParser, Parser<char> tailCharacterParser, char escapeChar) =>
+        WrappedInOptionalQuotes(
+            (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
+                WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true,
+                    excludeVariableRefChars: true, wrappingQuoteChar: tokenWrapper.OpeningString[0]),
+            (char escapeChar, IEnumerable<char> excludedChars) =>
+                IdentifierString(escapeChar, firstCharacterParser, tailCharacterParser),
+            escapeChar,
+            new[] { '=' });
 
     /// <summary>
     /// Parses a literal string that is not wrapped in quotes.
@@ -327,17 +384,21 @@ internal static class ParseHelper
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether variables are allowed to be contained in the strings.</param>
-    public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables) =>
+    /// <param name="allowEmpty">When true, allows parsing an empty array (e.g. [] or [ ]). Defaults to false.
+    /// VOLUME, COPY, ADD, and exec-form command parsers all pass true to match BuildKit behavior,
+    /// which accepts empty JSON arrays as a no-op.</param>
+    public static Parser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false) =>
         from openingBracket in Symbol('[').AsEnumerable()
-        from execFormArgs in
-            from arg in JsonArrayElement(escapeChar, canContainVariables).Once().Flatten()
-            from tail in (
-                from delimiter in JsonArrayElementDelimiter(escapeChar)
-                from nextArg in JsonArrayElement(escapeChar, canContainVariables)
-                select ConcatTokens(delimiter, nextArg)).Many()
-            select ConcatTokens(arg, tail.Flatten())
+        // Consume optional whitespace after '[' at the array level (not inside
+        // the element parser) so the empty-array fallback works correctly.
+        // Without this, JsonArrayElement would consume whitespace and then fail
+        // at the opening quote, preventing backtracking to the empty-array case.
+        // This matches the Lean/BuildKit parser structure, which parses
+        // interElementSpace before attempting the optional first element.
+        from leadingWs in OptionalWhitespaceOrLineContinuation(escapeChar)
+        from execFormArgs in JsonArrayElements(escapeChar, canContainVariables, allowEmpty)
         from closingBracket in Symbol(']').AsEnumerable()
-        select ConcatTokens(openingBracket, execFormArgs, closingBracket);
+        select ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
 
     /// <summary>
     /// Parses a required new line.
@@ -389,7 +450,8 @@ internal static class ParseHelper
                         WrappedInQuotesLiteralString(
                             escapeChar,
                             excludedChars.Union(additionalExcludedChars),
-                            whitespaceMode == WhitespaceMode.AllowedInQuotes || whitespaceMode == WhitespaceMode.Allowed),
+                            whitespaceMode == WhitespaceMode.AllowedInQuotes || whitespaceMode == WhitespaceMode.Allowed,
+                            wrappingQuoteChar: tokenWrapper.OpeningString[0]),
                     excludedChars)
                     .Many()
                     .Flatten()
@@ -429,7 +491,8 @@ internal static class ParseHelper
         char escapeChar, bool excludeVariableRefChars) =>
         WrappedInOptionalQuotes(
             (char escapeChar, IEnumerable<char> excludedChars, TokenWrapper tokenWrapper) =>
-                WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true, excludeVariableRefChars: excludeVariableRefChars),
+                WrappedInQuotesLiteralString(escapeChar, excludedChars, isWhitespaceAllowed: true,
+                    excludeVariableRefChars: excludeVariableRefChars, wrappingQuoteChar: tokenWrapper.OpeningString[0]),
             (char escapeChar, IEnumerable<char> excludedChars) =>
                 from tokens in LiteralString(escapeChar, excludedChars, excludeVariableRefChars: excludeVariableRefChars)
                     .Or(Whitespace()).Many().Flatten()
@@ -465,7 +528,7 @@ internal static class ParseHelper
     /// <returns>A token parser.</returns>
     public static Parser<IEnumerable<Token>> ValueOrVariableRef(char escapeChar, CreateTokenParserDelegate createParser,
         IEnumerable<char> excludedChars) =>
-        VariableRefToken.GetParser(createParser, escapeChar).AsEnumerable()
+        VariableRefToken.GetParser(escapeChar).AsEnumerable()
             .Or(createParser(escapeChar, excludedChars));
 
     /// <summary>
@@ -542,7 +605,76 @@ internal static class ParseHelper
     }
 
     /// <summary>
-    /// Parses a JSON aray element delimiter (i.e. comma) with optional whitespace.
+    /// Creates a <see cref="LiteralToken"/> for a JSON array element from its parsed tokens.
+    /// When the element is an empty string (e.g. ""), the token sequence is empty and
+    /// <see cref="CollapseLiteralTokens"/> cannot be used because it requires non-empty input.
+    /// In that case, a zero-length <see cref="LiteralToken"/> with <see cref="LiteralToken.QuoteChar"/>
+    /// set to double-quote is returned directly.
+    /// </summary>
+    private static IEnumerable<Token> CreateJsonArrayElementLiteral(IEnumerable<Token> tokens,
+        bool canContainVariables, char escapeChar)
+    {
+        var materializedTokens = tokens.ToList();
+        if (!materializedTokens.Any())
+        {
+            return new Token[]
+            {
+                new LiteralToken(Enumerable.Empty<Token>(), canContainVariables, escapeChar)
+                {
+                    QuoteChar = DoubleQuote
+                }
+            };
+        }
+
+        return CollapseLiteralTokens(materializedTokens, canContainVariables, escapeChar, DoubleQuote);
+    }
+
+    /// <summary>
+    /// Parses the elements of a JSON array. When <paramref name="allowEmpty"/> is true,
+    /// an empty array (no elements) is accepted via a lookahead-guarded fallback that
+    /// checks for <c>]</c> before returning an empty result. The <c>.Or()</c> combinator
+    /// (as opposed to <c>.XOr()</c>) is used so that even if the element parser partially
+    /// consumes whitespace before failing, it backtracks cleanly to the empty-array path
+    /// for inputs like <c>[ ]</c> or <c>[\n]</c>.
+    /// When false, at least one element is required and no empty fallback is added,
+    /// giving clearer error messages.
+    /// </summary>
+    /// <param name="escapeChar">Escape character.</param>
+    /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
+    /// <param name="allowEmpty">A value indicating whether an empty array is allowed.</param>
+    private static Parser<IEnumerable<Token>> JsonArrayElements(char escapeChar, bool canContainVariables, bool allowEmpty)
+    {
+        var elements =
+            from firstArg in JsonArrayElement(escapeChar, canContainVariables, consumeLeadingWhitespace: false).Once().Flatten()
+            from tail in (
+                from delimiter in JsonArrayElementDelimiter(escapeChar)
+                from nextArg in JsonArrayElement(escapeChar, canContainVariables)
+                select ConcatTokens(delimiter, nextArg)).Many()
+            select ConcatTokens(firstArg, tail.Flatten());
+
+        if (allowEmpty)
+        {
+            // Use a lookahead for ']' so only truly empty arrays (e.g. [] or [ ]) take
+            // the empty path. Without this, inputs like [foo] would silently fall through
+            // to the empty branch (because the element parser fails without consuming
+            // input) and report "expected ']'" instead of "expected opening quote".
+            var emptyArrayLookahead =
+                from preview in Symbol(']').Preview()
+                where preview.IsDefined
+                select Enumerable.Empty<Token>();
+
+            // Use .Or() (not .XOr()) so that the empty-array lookahead is attempted
+            // even if the element parser partially consumed input before failing.
+            // This ensures whitespace-only empty arrays like [ ] or [\n] backtrack
+            // correctly to the empty-array path.
+            elements = elements.Or(emptyArrayLookahead);
+        }
+
+        return elements;
+    }
+
+    /// <summary>
+    /// Parses a JSON array element delimiter (i.e. comma) with optional whitespace.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     private static Parser<IEnumerable<Token>> JsonArrayElementDelimiter(char escapeChar) =>
@@ -555,28 +687,43 @@ internal static class ParseHelper
             trailing);
 
     /// <summary>
-    /// Parses a JSON array string element.
+    /// Parses a JSON array string element. When <paramref name="consumeLeadingWhitespace"/> is
+    /// <c>false</c> (used for the first element), leading whitespace is not consumed because the
+    /// caller (<see cref="JsonArray"/>) already handled it. When <c>true</c> (used for subsequent
+    /// elements), leading whitespace is consumed as part of the element.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
-    private static Parser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables)
+    /// <param name="consumeLeadingWhitespace">Whether to consume leading whitespace before the element.</param>
+    private static Parser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables, bool consumeLeadingWhitespace = true)
     {
         Parser<LiteralToken> literalParser = canContainVariables ?
             LiteralWithVariables(escapeChar, new char[] { DoubleQuote }) :
             LiteralToken(escapeChar, new char[] { DoubleQuote });
 
+        if (consumeLeadingWhitespace)
+        {
+            return
+                from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
+                from openingQuote in Symbol(DoubleQuote)
+                from argValue in ArgTokens(literalParser.AsEnumerable(), escapeChar).Many()
+                from closingQuote in Symbol(DoubleQuote)
+                from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
+                select ConcatTokens(
+                    leading,
+                    CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
+                    trailing);
+        }
+
         return
-            from leading in OptionalWhitespaceOrLineContinuation(escapeChar)
             from openingQuote in Symbol(DoubleQuote)
             from argValue in ArgTokens(literalParser.AsEnumerable(), escapeChar).Many()
             from closingQuote in Symbol(DoubleQuote)
             from trailing in OptionalWhitespaceOrLineContinuation(escapeChar)
             select ConcatTokens(
-                leading,
-                CollapseLiteralTokens(argValue.Flatten(), canContainVariables, escapeChar, DoubleQuote),
+                CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
     }
-
 
     /// <summary>
     /// Enumerates the tokens while extracting the contents of any literal tokens encountered.
@@ -606,13 +753,14 @@ internal static class ParseHelper
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="firstCharacterParser">Parser of the first character of the identifier.</param>
     /// <param name="tailCharacterParser">Parser of the rest of the characters of the identifier.</param>
+    /// <param name="wrappingQuoteChar">The quote character wrapping this identifier. Only this quote is excluded from content.</param>
     /// <returns>Parser for an identifier string wrapped in quotes.</returns>
     private static Parser<IEnumerable<Token>> WrappedInQuotesIdentifier(char escapeChar, Parser<char> firstCharacterParser,
-        Parser<char> tailCharacterParser) =>
+        Parser<char> tailCharacterParser, char? wrappingQuoteChar = null) =>
         IdentifierString(
             escapeChar,
-            ExceptQuotes(firstCharacterParser),
-            ExceptQuotes(tailCharacterParser));
+            ExceptQuote(firstCharacterParser, wrappingQuoteChar),
+            ExceptQuote(tailCharacterParser, wrappingQuoteChar));
 
     /// <summary>
     /// Parses an identifier string.
@@ -646,11 +794,12 @@ internal static class ParseHelper
     /// <param name="excludedChars">Characters to exclude from the parsing.</param>
     /// <param name="isWhitespaceAllowed">A value indicating whether whitespace is allowed in the string.</param>
     /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
+    /// <param name="wrappingQuoteChar">The quote character wrapping this string. Only this quote is excluded from content.</param>
     /// <returns>Parser for a literal string wrapped in quotes.</returns>
     private static Parser<IEnumerable<Token>> WrappedInQuotesLiteralString(char escapeChar, IEnumerable<char> excludedChars,
-        bool isWhitespaceAllowed = false, bool excludeVariableRefChars = true)
+        bool isWhitespaceAllowed = false, bool excludeVariableRefChars = true, char? wrappingQuoteChar = null)
     {
-        Parser<char> parser = ExceptQuotes(LiteralChar(escapeChar, excludedChars, isWhitespaceAllowed, excludeVariableRefChars));
+        Parser<char> parser = ExceptQuote(LiteralChar(escapeChar, excludedChars, isWhitespaceAllowed, excludeVariableRefChars), wrappingQuoteChar);
         return
             from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
             from rest in OrConcat(
@@ -675,6 +824,44 @@ internal static class ParseHelper
         return
             from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
             from rest in StringTokenCharWithOptionalLineContinuation(escapeChar, parser)
+                .Many()
+                .Flatten()
+            select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
+    }
+
+    /// <summary>
+    /// Parses a literal string that allows any non-newline characters (including spaces and tabs),
+    /// stopping only at excluded characters.
+    /// Used for variable modifier values inside braces (e.g., "must set" in ${VAR:?must set}).
+    /// </summary>
+    /// <param name="escapeChar">Escape character.</param>
+    /// <param name="excludedChars">Characters to exclude from the parsing.</param>
+    /// <param name="excludeVariableRefChars">A value indicating whether to exclude the variable ref characters.</param>
+    /// <returns>Parser for a literal string that allows any non-newline characters.</returns>
+    internal static Parser<IEnumerable<Token>> LiteralStringAllowingSpaces(char escapeChar, IEnumerable<char> excludedChars,
+        bool excludeVariableRefChars = true)
+    {
+        // Allow any non-newline character except excluded chars and the escape char itself.
+        Parser<char> parser = Parse.AnyChar
+            .Except(Parse.LineTerminator)
+            .ExceptChars(excludedChars)
+            .Except(Parse.Char(escapeChar));
+
+        if (excludeVariableRefChars)
+        {
+            parser = parser.Except(VariableRefChars());
+        }
+
+        // Mirror LiteralStringWithoutSpaces: use StringTokenCharWithOptionalLineContinuation
+        // for subsequent characters so that escaped characters and line continuations are
+        // handled consistently throughout the entire value, not just at the first character.
+        Parser<IEnumerable<Token>> charParser =
+            StringTokenCharWithOptionalLineContinuation(escapeChar, parser)
+                .Or(EscapedChar(escapeChar));
+
+        return
+            from first in ToStringTokens(parser).Or(EscapedChar(escapeChar))
+            from rest in charParser
                 .Many()
                 .Flatten()
             select TokenHelper.CollapseStringTokens(ConcatTokens(first, rest));
@@ -706,7 +893,7 @@ internal static class ParseHelper
     /// Parses variable ref characters.
     /// </summary>
     private static Parser<char> VariableRefChars() =>
-        Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{')));
+        Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{')).Or(Parse.Char('_')));
 
     /// <summary>
     /// Parses an escaped character.
@@ -771,6 +958,17 @@ internal static class ParseHelper
         parser.ExceptChars(Quotes);
 
     /// <summary>
+    /// Parses a character that excludes only the specified wrapping quote character.
+    /// If no wrapping quote is specified, falls back to excluding both quote types.
+    /// </summary>
+    /// <param name="parser">A character parser to exclude the quote from.</param>
+    /// <param name="wrappingQuoteChar">The wrapping quote character to exclude, or null to exclude both.</param>
+    private static Parser<char> ExceptQuote(Parser<char> parser, char? wrappingQuoteChar) =>
+        wrappingQuoteChar.HasValue
+            ? parser.Except(Parse.Char(wrappingQuoteChar.Value))
+            : ExceptQuotes(parser);
+
+    /// <summary>
     /// Parses a token that is wrapped by a set of characters.
     /// </summary>
     /// <param name="createParser">A delegate that creates a token parser.</param>
@@ -790,20 +988,22 @@ internal static class ParseHelper
     /// <param name="instructionName">Name of the instruction.</param>
     /// <param name="escapeChar">Escape character.</param>
     private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
-        WithTrailingComments(
-            from leading in Whitespace()
-            from instruction in TokenWithTrailingWhitespace(KeywordToken.GetParser(instructionName, escapeChar))
-            from lineContinuation in LineContinuations(escapeChar).Optional()
-            select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault()));
+        // Comments (# ...) are only recognized after a mandatory line continuation,
+        // never directly after the instruction keyword. This prevents "RUN #arg" from
+        // incorrectly treating "#arg" as a comment.
+        from leading in Whitespace()
+        from instruction in TokenWithTrailingWhitespace(KeywordToken.GetParser(instructionName, escapeChar))
+        from lineContinuationAndComments in (
+            from firstContinuation in LineContinuationToken.GetParser(escapeChar)
+            from moreContinuations in LineContinuations(escapeChar)
+            from trailingComments in CommentText().Many()
+            select ConcatTokens(
+                new Token[] { firstContinuation },
+                moreContinuations,
+                trailingComments.SelectMany(c => c))
+        ).Optional()
+        select ConcatTokens(leading, instruction, lineContinuationAndComments.GetOrDefault());
 
-    /// <summary>
-    /// Parses a set of tokens and any trailing comments.
-    /// </summary>
-    /// <param name="parser">Set of token parsers.</param>
-    private static Parser<IEnumerable<Token>> WithTrailingComments(Parser<IEnumerable<Token>> parser) =>
-        from tokens in parser
-        from commentSets in CommentText().Many()
-        select ConcatTokens(tokens, commentSets.SelectMany(comments => comments));
 
     /// <summary>
     /// Delegate for creating a parser of a token that is wrapped by a set of characters.
@@ -826,14 +1026,415 @@ internal static class ParseHelper
     private delegate Parser<IEnumerable<Token>> CreateValueParserDelegate(char escapeChar, IEnumerable<char> excludedChars);
 
     /// <summary>
+    /// Parses one or more heredoc markers and bodies from the input.
+    /// Produces HeredocMarkerTokens inline in the command stream, StringTokens for text between markers,
+    /// a NewLineToken for the end of the command line, then HeredocBodyTokens sequentially.
+    /// </summary>
+    /// <returns>A parser that produces a flat list of instruction-level tokens.</returns>
+    public static Parser<IEnumerable<Token>> HeredocTokenParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+        input => HeredocTokenParseImpl(input, escapeChar);
+
+    private static readonly Regex HeredocMarkerRegex = new(
+        @"<<(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
+
+    // Regex for scanning the rest of the line for additional markers.
+    private static readonly Regex HeredocMarkerScanRegex = new(
+        @"<<(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
+
+    /// <summary>
+    /// Holds parsed information about a heredoc marker found on the command line.
+    /// </summary>
+    private class HeredocMarkerInfo
+    {
+        public string DelimiterName { get; set; } = "";
+        public bool Chomp { get; set; }
+        public char? QuoteChar { get; set; }
+        /// <summary>Position in source where this marker starts.</summary>
+        public int MarkerStartPos { get; set; }
+        /// <summary>Position in source immediately after this marker.</summary>
+        public int MarkerEndPos { get; set; }
+    }
+
+    /// <summary>
+    /// Produces a flat list of instruction-level tokens for heredoc syntax:
+    /// HeredocMarkerToken(s) inline, StringToken(s) for text between markers,
+    /// NewLineToken for end of command line, HeredocBodyToken(s) in marker order.
+    /// </summary>
+    private static IResult<IEnumerable<Token>> HeredocTokenParseImpl(IInput input, char escapeChar)
+    {
+        string source = input.Source;
+        int pos = input.Position;
+
+        // Must start with <<
+        if (pos + 1 >= source.Length || source[pos] != '<' || source[pos + 1] != '<')
+        {
+            return Result.Failure<IEnumerable<Token>>(
+                input, "Expected heredoc marker <<", Array.Empty<string>());
+        }
+
+        // Match the first marker using regex starting from current position
+        Match firstMatch = HeredocMarkerRegex.Match(source, pos);
+        if (!firstMatch.Success || firstMatch.Index != pos)
+        {
+            return Result.Failure<IEnumerable<Token>>(
+                input, "Invalid heredoc marker", Array.Empty<string>());
+        }
+
+        // Find end of the command line (the line containing the marker(s))
+        int lineEndPos = pos;
+        while (lineEndPos < source.Length && source[lineEndPos] != '\n' && source[lineEndPos] != '\r')
+        {
+            lineEndPos++;
+        }
+
+        string commandLine = source.Substring(pos, lineEndPos - pos);
+
+        // Strip trailing comments before scanning so that `RUN <<EOF # <<BAR`
+        // does not pick up `<<BAR` as a second marker (matches DockerfileParser behaviour).
+        string strippedCommandLine = DockerfileParser.StripTrailingComment(commandLine, escapeChar);
+
+        // Scan the (comment-stripped) command line for all heredoc markers,
+        // respecting shell quoting so that e.g. `echo "<<BAR"` does not
+        // produce a spurious marker for <<BAR.
+        List<HeredocMarkerInfo> markers = new();
+        {
+            bool inSingleQuote = false;
+            bool inDoubleQuote = false;
+            for (int scanIdx = 0; scanIdx < strippedCommandLine.Length; scanIdx++)
+            {
+                char sc = strippedCommandLine[scanIdx];
+
+                // Skip escaped characters (the active escape char is not special inside single quotes)
+                if (sc == escapeChar && !inSingleQuote && scanIdx + 1 < strippedCommandLine.Length)
+                {
+                    scanIdx++; // skip next character
+                    continue;
+                }
+
+                if (sc == '\'' && !inDoubleQuote)
+                {
+                    inSingleQuote = !inSingleQuote;
+                    continue;
+                }
+
+                if (sc == '"' && !inSingleQuote)
+                {
+                    inDoubleQuote = !inDoubleQuote;
+                    continue;
+                }
+
+                // Only look for << when outside quotes
+                if (!inSingleQuote && !inDoubleQuote
+                    && sc == '<' && scanIdx + 1 < strippedCommandLine.Length && strippedCommandLine[scanIdx + 1] == '<')
+                {
+                    Match m = HeredocMarkerScanRegex.Match(strippedCommandLine, scanIdx);
+                    if (m.Success && m.Index == scanIdx)
+                    {
+                        markers.Add(new HeredocMarkerInfo
+                        {
+                            DelimiterName = m.Groups[3].Success ? m.Groups[3].Value : m.Groups[4].Value,
+                            Chomp = m.Groups[1].Value == "-",
+                            QuoteChar = m.Groups[2].Success && m.Groups[2].Value != "" ? m.Groups[2].Value[0] : null,
+                            MarkerStartPos = pos + m.Index,
+                            MarkerEndPos = pos + m.Index + m.Length
+                        });
+                        // Advance past the matched marker text
+                        scanIdx += m.Length - 1;
+                    }
+                }
+            }
+        }
+
+        // Build the flat list of instruction-level tokens
+        List<Token> resultTokens = new();
+
+        // Emit inline tokens: HeredocMarkerToken for each marker, StringToken for text between markers
+        int cursor = pos;
+        for (int i = 0; i < markers.Count; i++)
+        {
+            // Text before this marker (gap between previous marker/start and this marker)
+            if (markers[i].MarkerStartPos > cursor)
+            {
+                string gap = source.Substring(cursor, markers[i].MarkerStartPos - cursor);
+                resultTokens.Add(new StringToken(gap));
+            }
+
+            // The marker itself — decomposed into child tokens
+            List<Token> markerChildren = new()
+            {
+                new SymbolToken('<'),
+                new SymbolToken('<')
+            };
+            if (markers[i].Chomp)
+            {
+                markerChildren.Add(new SymbolToken('-'));
+            }
+            char? quoteChar = markers[i].QuoteChar;
+            if (quoteChar.HasValue)
+            {
+                markerChildren.Add(new SymbolToken(quoteChar.Value));
+            }
+            markerChildren.Add(new HeredocDelimiterToken(markers[i].DelimiterName));
+            if (quoteChar.HasValue)
+            {
+                markerChildren.Add(new SymbolToken(quoteChar.Value));
+            }
+            resultTokens.Add(new HeredocMarkerToken(markerChildren));
+
+            cursor = markers[i].MarkerEndPos;
+        }
+
+        // Text after the last marker to end of command line —
+        // tokenize into WhitespaceToken + LiteralToken segments so that
+        // FileTransferInstruction.DestinationToken can find the destination.
+        // Strip trailing comments first so that `# comment` is not tokenized
+        // as LiteralTokens (which would confuse DestinationToken).
+        if (lineEndPos > cursor)
+        {
+            string restOfLine = source.Substring(cursor, lineEndPos - cursor);
+            string argsOnly = DockerfileParser.StripTrailingComment(restOfLine, escapeChar);
+            TokenizeRestOfLine(argsOnly, resultTokens, escapeChar);
+
+            // Preserve the comment portion as a CommentToken so that
+            // Instruction.Comments and ExcludeComments work correctly.
+            if (argsOnly.Length < restOfLine.Length)
+            {
+                string commentSegment = restOfLine.Substring(argsOnly.Length);
+                resultTokens.Add(CommentToken.Parse(commentSegment));
+            }
+        }
+
+        // Newline after command line
+        if (lineEndPos < source.Length)
+        {
+            string newLine = ReadNewLine(source, lineEndPos);
+            resultTokens.Add(new NewLineToken(newLine));
+            lineEndPos += newLine.Length;
+        }
+        else
+        {
+            // No newline after marker - no bodies possible
+            IInput advancedInput = AdvanceInput(input, lineEndPos - pos);
+            return Result.Success<IEnumerable<Token>>(resultTokens, advancedInput);
+        }
+
+        // Read bodies for all markers sequentially
+        int currentPos = lineEndPos;
+        for (int i = 0; i < markers.Count; i++)
+        {
+            List<Token> bodyChildren = new();
+            bool found = false;
+            StringBuilder bodyContent = new();
+
+            while (currentPos < source.Length)
+            {
+                int lineStart = currentPos;
+                int lineEnd = FindLineEnd(source, lineStart);
+                string lineContent = source.Substring(lineStart, lineEnd - lineStart);
+
+                string trimmedLine = markers[i].Chomp ? lineContent.TrimStart('\t') : lineContent;
+                if (trimmedLine == markers[i].DelimiterName)
+                {
+                    // Emit accumulated body content as a single StringToken (if non-empty)
+                    if (bodyContent.Length > 0)
+                    {
+                        bodyChildren.Add(new StringToken(bodyContent.ToString()));
+                    }
+
+                    // Closing delimiter — use HeredocDelimiterToken for the delimiter name
+                    // lineContent may include leading tabs (for chomp mode); preserve them as StringToken
+                    if (lineContent.Length > markers[i].DelimiterName.Length)
+                    {
+                        string prefix = lineContent.Substring(0, lineContent.Length - markers[i].DelimiterName.Length);
+                        bodyChildren.Add(new StringToken(prefix));
+                    }
+                    bodyChildren.Add(new HeredocDelimiterToken(markers[i].DelimiterName));
+                    int afterDelim = lineEnd;
+                    if (afterDelim < source.Length)
+                    {
+                        string delimNewLine = ReadNewLine(source, afterDelim);
+                        bodyChildren.Add(new NewLineToken(delimNewLine));
+                        afterDelim += delimNewLine.Length;
+                    }
+                    currentPos = afterDelim;
+                    found = true;
+                    break;
+                }
+
+                string bodyNewLine = lineEnd < source.Length ? ReadNewLine(source, lineEnd) : "";
+                bodyContent.Append(lineContent + bodyNewLine);
+                currentPos = lineEnd + bodyNewLine.Length;
+            }
+
+            if (!found)
+            {
+                // Unterminated heredoc — emit accumulated body content as a single StringToken
+                if (bodyContent.Length > 0)
+                {
+                    bodyChildren.Add(new StringToken(bodyContent.ToString()));
+                }
+            }
+
+            resultTokens.Add(new HeredocBodyToken(bodyChildren));
+        }
+
+        IInput advancedInput2 = AdvanceInput(input, currentPos - pos);
+        return Result.Success<IEnumerable<Token>>(resultTokens, advancedInput2);
+    }
+
+    /// <summary>
+    /// Tokenizes the rest-of-line text (after the last heredoc marker) into alternating
+    /// WhitespaceToken and LiteralToken segments. This allows FileTransferInstruction.DestinationToken
+    /// to find the destination path as a LiteralToken for COPY/ADD heredocs.
+    /// </summary>
+    private static void TokenizeRestOfLine(string text, List<Token> tokens, char escapeChar)
+    {
+        int i = 0;
+        while (i < text.Length)
+        {
+            if (char.IsWhiteSpace(text[i]))
+            {
+                int start = i;
+                while (i < text.Length && char.IsWhiteSpace(text[i]))
+                {
+                    i++;
+                }
+                tokens.Add(new WhitespaceToken(text.Substring(start, i - start)));
+            }
+            else
+            {
+                int start = i;
+                while (i < text.Length && !char.IsWhiteSpace(text[i]))
+                {
+                    i++;
+                }
+                tokens.Add(new LiteralToken(text.Substring(start, i - start), canContainVariables: true, escapeChar));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads a newline sequence (\n or \r\n) at the given position.
+    /// </summary>
+    private static string ReadNewLine(string source, int position)
+    {
+        if (source[position] == '\r' && position + 1 < source.Length && source[position + 1] == '\n')
+        {
+            return "\r\n";
+        }
+        return source[position].ToString();
+    }
+
+    /// <summary>
+    /// Finds the end of a line (position of \n or \r, or end of string).
+    /// </summary>
+    private static int FindLineEnd(string source, int start)
+    {
+        int pos = start;
+        while (pos < source.Length && source[pos] != '\n' && source[pos] != '\r')
+        {
+            pos++;
+        }
+        return pos;
+    }
+
+    /// <summary>
+    /// Advances the input by the specified number of characters using direct position offset.
+    /// Line and column are computed by scanning the source up to the target position,
+    /// so the runtime complexity scales with the position in the source.
+    /// </summary>
+    private static IInput AdvanceInput(IInput input, int count)
+    {
+        return new OffsetInput(input.Source, input.Position + count, input.Memos);
+    }
+
+    /// <summary>
+    /// Lightweight <see cref="IInput"/> that jumps to an arbitrary position
+    /// without walking character-by-character.  Line and column are computed
+    /// by scanning the source string up to the target position.
+    /// </summary>
+    private sealed class OffsetInput : IInput, IEquatable<IInput>
+    {
+        private readonly string _source;
+        private readonly int _position;
+        private readonly int _line;
+        private readonly int _column;
+
+        public OffsetInput(string source, int position, IDictionary<object, object> memos)
+        {
+            _source = source;
+            _position = position;
+
+            // Compute line and column by scanning source up to position
+            int line = 1;
+            int lastNewlinePos = -1;
+            for (int i = 0; i < position && i < source.Length; i++)
+            {
+                if (source[i] == '\n')
+                {
+                    line++;
+                    lastNewlinePos = i;
+                }
+            }
+            _line = line;
+            _column = position - lastNewlinePos;
+
+            Memos = memos;
+        }
+
+        private OffsetInput(string source, int position, int line, int column, IDictionary<object, object> memos)
+        {
+            _source = source;
+            _position = position;
+            _line = line;
+            _column = column;
+            Memos = memos;
+        }
+
+        public string Source => _source;
+        public int Position => _position;
+        public bool AtEnd => _position >= _source.Length;
+        public char Current => _source[_position];
+        public int Line => _line;
+        public int Column => _column;
+        public IDictionary<object, object> Memos { get; }
+
+        public IInput Advance()
+        {
+            if (AtEnd)
+            {
+                throw new InvalidOperationException("The input is already at the end of the source.");
+            }
+
+            int newLine = _line;
+            int newColumn = _column + 1;
+            if (_source[_position] == '\n')
+            {
+                newLine++;
+                newColumn = 1;
+            }
+            return new OffsetInput(_source, _position + 1, newLine, newColumn, Memos);
+        }
+
+        public bool Equals(IInput? other)
+        {
+            return other is not null && _source == other.Source && _position == other.Position;
+        }
+
+        public override bool Equals(object? obj) => obj is IInput other && Equals(other);
+
+        public override int GetHashCode() => (_source?.GetHashCode() ?? 0) ^ _position;
+    }
+
+    /// <summary>
     /// Describes the opening and closing strings that wrap a token.
     /// </summary>
     private class TokenWrapper
     {
         public TokenWrapper(string openingString, string closingString)
         {
-            this.OpeningString = openingString;
-            this.ClosingString = closingString;
+            OpeningString = openingString;
+            ClosingString = closingString;
         }
 
         public string OpeningString { get; }

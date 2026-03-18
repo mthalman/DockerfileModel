@@ -53,5 +53,5 @@ public class MaintainerInstruction : Instruction
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(
             LiteralWithVariables(
-                escapeChar, whitespaceMode: WhitespaceMode.Allowed).AsEnumerable(), escapeChar, excludeTrailingWhitespace: true);
+                escapeChar, whitespaceMode: WhitespaceMode.Allowed).AsEnumerable(), escapeChar);
 }
