@@ -100,15 +100,8 @@ public class Dockerfile : IConstructContainer
         Func<Instruction, bool> processInstruction,
         ResolutionOptions? options)
     {
-        if (variableOverrides is null)
-        {
-            variableOverrides = new Dictionary<string, string?>();
-        }
-
-        if (options is null)
-        {
-            options = new ResolutionOptions();
-        }
+        variableOverrides ??= new Dictionary<string, string?>();
+        options ??= new ResolutionOptions();
 
         StagesView stagesView = new(this);
 
@@ -136,25 +129,13 @@ public class Dockerfile : IConstructContainer
             {
                 if (instruction is ArgInstruction argInstruction)
                 {
-                    foreach (ArgDeclaration arg in argInstruction.Args)
-                    {
-                        // If this is just an arg declaration and a value has been provided from a global arg or arg override
-                        if (arg.Value is null && globalArgs.TryGetValue(arg.Name, out string? globalArg))
-                        {
-                            stageArgs.Add(arg.Name, globalArg);
-                        }
-                        // If an arg override exists for this arg
-                        else if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
-                        {
-                            stageArgs.Add(arg.Name, overrideArgValue);
-                        }
-                        else
-                        {
-                            string? resolvedArgValue = arg.ValueToken?.ResolveVariables(escapeChar, stageArgs, options);
-                            stageArgs[arg.Name] = resolvedArgValue;
-                            resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
-                        }
-                    }
+                    resolvedValue = ResolveArgInstruction(
+                        argInstruction,
+                        escapeChar,
+                        stageArgs,
+                        globalArgs,
+                        variableOverrides,
+                        options);
                 }
                 else
                 {
@@ -164,6 +145,44 @@ public class Dockerfile : IConstructContainer
         }
 
         return resolvedValue ?? String.Empty;
+    }
+
+    private static string ResolveArgInstruction(ArgInstruction instruction, char escapeChar,
+        Dictionary<string, string?> stageArgs, IDictionary<string, string?> globalArgs,
+        IDictionary<string, string?> variableOverrides, ResolutionOptions options)
+    {
+        ResolutionOptions inlineOptions = options.UpdateInline
+            ? options
+            : new ResolutionOptions
+            {
+                UpdateInline = true,
+                RemoveEscapeCharacters = options.RemoveEscapeCharacters
+            };
+
+        ArgInstruction resolvedInstruction = options.UpdateInline
+            ? instruction
+            : ArgInstruction.Parse(instruction.ToString(), escapeChar);
+
+        foreach (ArgDeclaration arg in resolvedInstruction.ArgTokens)
+        {
+            // If this is just an arg declaration and a value has been provided from a global arg
+            if (arg.Value is null && globalArgs.TryGetValue(arg.Name, out string? globalArg))
+            {
+                stageArgs[arg.Name] = globalArg;
+            }
+            // If an arg override exists for this arg
+            else if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
+            {
+                stageArgs[arg.Name] = overrideArgValue;
+            }
+            else
+            {
+                string? resolvedArgValue = arg.ValueToken?.ResolveVariables(escapeChar, stageArgs, inlineOptions);
+                stageArgs[arg.Name] = resolvedArgValue;
+            }
+        }
+
+        return options.FormatValue(escapeChar, resolvedInstruction.ToString());
     }
 
     private static Dictionary<string, string?> GetGlobalArgs(StagesView stagesView, char escapeChar, IDictionary<string, string?> variables,

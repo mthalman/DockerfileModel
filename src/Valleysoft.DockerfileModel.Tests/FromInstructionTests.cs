@@ -8,23 +8,8 @@ public class FromInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(FromInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            FromInstruction result = FromInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => FromInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<FromInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, FromInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -33,6 +18,17 @@ public class FromInstructionTests
         FromInstruction result = new(scenario.ImageName, scenario.Stage, scenario.Platform);
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
+    }
+
+    [Fact]
+    public void Parse_AllowsTrailingWhitespace()
+    {
+        const string text = "FROM ubuntu:22.04 ";
+
+        FromInstruction result = FromInstruction.Parse(text);
+
+        Assert.Equal(text, result.ToString());
+        Assert.Equal("ubuntu:22.04", result.ImageName);
     }
 
     [Fact]
@@ -148,9 +144,9 @@ public class FromInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        FromInstructionParseTestScenario[] testInputs = new FromInstructionParseTestScenario[]
+        ParseTestScenario<FromInstruction>[] testInputs = new ParseTestScenario<FromInstruction>[]
         {
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM scratch",
                 TokenValidators = new Action<Token>[]
@@ -168,7 +164,7 @@ public class FromInstructionTests
                     Assert.Null(result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM `\nscratch",
                 EscapeChar = '`',
@@ -190,7 +186,7 @@ public class FromInstructionTests
                     Assert.Null(result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM alpine:latest as build",
                 TokenValidators = new Action<Token>[]
@@ -212,7 +208,7 @@ public class FromInstructionTests
                     Assert.Equal("build", result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM alpine`\n as build",
                 EscapeChar = '`',
@@ -236,7 +232,7 @@ public class FromInstructionTests
                     Assert.Equal("build", result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM `\nalpine:latest `\nas `\n#comment\nbuild",
                 EscapeChar = '`',
@@ -279,7 +275,7 @@ public class FromInstructionTests
                     Assert.Equal("build", result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM --platform=linux/amd64 alpine as build",
                 TokenValidators = new Action<Token>[]
@@ -308,7 +304,7 @@ public class FromInstructionTests
                     Assert.Equal("build", result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM --platform=linux/amd64 alpine",
                 TokenValidators = new Action<Token>[]
@@ -333,7 +329,7 @@ public class FromInstructionTests
                     Assert.Null(result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM `\n  --platform=linux/amd64`\n  alpine",
                 EscapeChar = '`',
@@ -366,7 +362,7 @@ public class FromInstructionTests
                     Assert.Null(result.StageName);
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM al\\\npine",
                 EscapeChar = '\\',
@@ -382,7 +378,7 @@ public class FromInstructionTests
                         token => ValidateString(token, "pine"))
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM alpine AS bui`\nld",
                 EscapeChar = '`',
@@ -400,7 +396,7 @@ public class FromInstructionTests
                         token => ValidateString(token, "ld"))
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM \"al\\\npine\"",
                 EscapeChar = '\\',
@@ -416,30 +412,80 @@ public class FromInstructionTests
                         token => ValidateString(token, "pine"))
                 }
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "xFROM ",
                 ParseExceptionPosition = new Position(1, 1, 1)
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM ",
                 ParseExceptionPosition = new Position(1, 1, 6)
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM x y",
                 ParseExceptionPosition = new Position(1, 1, 8)
             },
-            new FromInstructionParseTestScenario
+            // After fixing #294 (FlagParser no longer included for non-flag contexts),
+            // "platform=" is no longer partially consumed as a flag. The parser now treats
+            // "platform=" as the image name and "alpine" as unexpected trailing input,
+            // producing an error at column 16 instead of the old column 22.
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM platform= alpine",
-                ParseExceptionPosition = new Position(1, 1, 22)
+                ParseExceptionPosition = new Position(1, 1, 16)
             },
-            new FromInstructionParseTestScenario
+            new ParseTestScenario<FromInstruction>
             {
                 Text = "FROM alpine AS",
                 ParseExceptionPosition = new Position(1, 1, 13)
+            },
+            // FROM with :? modifier containing spaces - should not crash
+            new ParseTestScenario<FromInstruction>
+            {
+                Text = "FROM ${IMAGE:?must set image}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "FROM"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "${IMAGE:?must set image}", null,
+                        token => ValidateAggregate<VariableRefToken>(token, "${IMAGE:?must set image}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "IMAGE"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateSymbol(token, '?'),
+                            token => ValidateLiteral(token, "must set image"),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("${IMAGE:?must set image}", result.ImageName);
+                    Assert.Equal("FROM ${IMAGE:?must set image}", result.ToString());
+                }
+            },
+            // FROM with :- default containing spaces - round-trip fidelity
+            new ParseTestScenario<FromInstruction>
+            {
+                Text = "FROM ${BASE:-ubuntu focal}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "FROM"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "${BASE:-ubuntu focal}", null,
+                        token => ValidateAggregate<VariableRefToken>(token, "${BASE:-ubuntu focal}",
+                            token => ValidateSymbol(token, '{'),
+                            token => ValidateString(token, "BASE"),
+                            token => ValidateSymbol(token, ':'),
+                            token => ValidateSymbol(token, '-'),
+                            token => ValidateLiteral(token, "ubuntu focal"),
+                            token => ValidateSymbol(token, '}')))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("${BASE:-ubuntu focal}", result.ImageName);
+                    Assert.Equal("FROM ${BASE:-ubuntu focal}", result.ToString());
+                }
             },
         };
 
@@ -549,15 +595,136 @@ public class FromInstructionTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class FromInstructionParseTestScenario : ParseTestScenario<FromInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
-
     public class CreateTestScenario : TestScenario<FromInstruction>
     {
         public string Platform { get; set; }
         public string ImageName { get; set; }
         public string Stage { get; set; }
+    }
+
+    [Fact]
+    public void FromInstruction_DoubleLineContinuation_RoundTrips()
+    {
+        // Two consecutive continuations — should not confuse the parser
+        string text = "FROM \\\n\\\nalpine\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_CRLF_RoundTrips()
+    {
+        string text = "FROM alpine\r\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_ImageWithTag_RoundTrips()
+    {
+        string text = "FROM alpine:3.18\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine:3.18", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_ImageWithDigest_RoundTrips()
+    {
+        string text = "FROM alpine@sha256:abcdef1234567890\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine@sha256:abcdef1234567890", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_TagAndDigest_RoundTrips()
+    {
+        // Both tag and digest specified — Docker allows this
+        string text = "FROM alpine:3.18@sha256:abcdef1234567890\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine:3.18@sha256:abcdef1234567890", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_VeryLongImageName_RoundTrips()
+    {
+        // 1000-char image name
+        string longName = "registry.example.com/" + new string('a', 500) + "/" + new string('b', 400) + ":latest";
+        string text = $"FROM {longName}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal(longName, inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_NoTrailingNewline_RoundTrips()
+    {
+        string text = "FROM alpine";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_LowercaseKeyword_RoundTrips()
+    {
+        string text = "from alpine\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_MixedCaseKeyword_RoundTrips()
+    {
+        string text = "FrOm alpine\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_BacktickLineContinuation_RoundTrips()
+    {
+        // Using backtick as escape in a line continuation
+        string text = "FROM al`\npine\n";
+        FromInstruction inst = FromInstruction.Parse(text, '`');
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("alpine", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_AllComponents_RoundTrips()
+    {
+        string text = "FROM --platform=linux/amd64 alpine:3.18 AS mybase\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("linux/amd64", inst.Platform);
+        Assert.Equal("alpine:3.18", inst.ImageName);
+        Assert.Equal("mybase", inst.StageName);
+    }
+
+    [Fact]
+    public void FromInstruction_WithBracedVarNoModifier_RoundTrips()
+    {
+        // Basic ${VAR} with no modifier — this SHOULD work
+        string text = "FROM ${BASE_IMAGE}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("${BASE_IMAGE}", inst.ImageName);
+    }
+
+    [Fact]
+    public void FromInstruction_WithBracedVarColonDash_RoundTrips()
+    {
+        // ${var:-default} — non-empty default, should work
+        string text = "FROM ${BASE:-alpine}\n";
+        FromInstruction inst = FromInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("${BASE:-alpine}", inst.ImageName);
     }
 }

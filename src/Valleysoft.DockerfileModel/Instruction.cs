@@ -59,7 +59,7 @@ public abstract class Instruction : DockerfileConstruct, ICommentable
             .Select(instructionName => KeywordToken.GetParser(instructionName, escapeChar))
             .Aggregate((current, next) => current.Or(next));
 
-    private static Parser<string> InstructionNameParser(char escapeChar) =>
+    internal static Parser<string> InstructionNameParser(char escapeChar) =>
         from leading in Whitespace()
         from instruction in InstructionIdentifier(escapeChar)
         select instruction.Value;

@@ -8,23 +8,8 @@ public class VolumeInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(VolumeInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            VolumeInstruction result = VolumeInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => VolumeInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<VolumeInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, VolumeInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -36,29 +21,41 @@ public class VolumeInstructionTests
     }
 
     [Fact]
+    public void Parse_MountFlagTreatedAsLiteralPath()
+    {
+        VolumeInstruction result = VolumeInstruction.Parse("VOLUME --mount=type=bind,target=/data /data");
+        Assert.Equal("VOLUME --mount=type=bind,target=/data /data", result.ToString());
+        Assert.Collection(result.Paths,
+            path => Assert.Equal("--mount=type=bind,target=/data", path),
+            path => Assert.Equal("/data", path));
+    }
+
+    [Fact]
     public void Paths()
     {
+        // Single-path constructor produces shell form (no JSON array)
         VolumeInstruction result = new("/var/db");
         Assert.Collection(result.Paths, new Action<string>[]
         {
             path => Assert.Equal("/var/db", path)
         });
-        Assert.Equal("VOLUME [\"/var/db\"]", result.ToString());
-            
+        Assert.Equal("VOLUME /var/db", result.ToString());
+
         result.Paths[0] = "/var/db1";
         Assert.Collection(result.Paths, new Action<string>[]
         {
             path => Assert.Equal("/var/db1", path)
         });
-        Assert.Equal("VOLUME [\"/var/db1\"]", result.ToString());
+        Assert.Equal("VOLUME /var/db1", result.ToString());
 
         result.PathTokens[0].Value = "/var/db2";
         Assert.Collection(result.Paths, new Action<string>[]
         {
             path => Assert.Equal("/var/db2", path)
         });
-        Assert.Equal("VOLUME [\"/var/db2\"]", result.ToString());
+        Assert.Equal("VOLUME /var/db2", result.ToString());
 
+        // Multi-path constructor produces JSON array form
         result = new VolumeInstruction(new string[] { "/var/db3", "/var/db4" });
         Assert.Collection(result.Paths, new Action<string>[]
         {
@@ -76,11 +73,71 @@ public class VolumeInstructionTests
         Assert.Equal("VOLUME [\"/var/db3\", \"/var/db5\"]", result.ToString());
     }
 
+    [Fact]
+    public void SinglePathListConstructor_ProducesShellForm()
+    {
+        // When the list constructor receives exactly one path, it should produce
+        // shell form (VOLUME /data) not JSON array form (VOLUME ["/data"])
+        VolumeInstruction result = new(new string[] { "/data" });
+        Assert.Equal("VOLUME /data", result.ToString());
+        Assert.Collection(result.Paths, new Action<string>[]
+        {
+            path => Assert.Equal("/data", path)
+        });
+    }
+
+    [Fact]
+    public void MultiPathListConstructor_ProducesJsonForm()
+    {
+        // When the list constructor receives multiple paths, it should produce
+        // JSON array form (VOLUME ["/data", "/logs"])
+        VolumeInstruction result = new(new string[] { "/data", "/logs" });
+        Assert.Equal("VOLUME [\"/data\", \"/logs\"]", result.ToString());
+        Assert.Collection(result.Paths, new Action<string>[]
+        {
+            path => Assert.Equal("/data", path),
+            path => Assert.Equal("/logs", path)
+        });
+    }
+
+    [Fact]
+    public void SinglePathListConstructor_WithWhitespace_ProducesJsonForm()
+    {
+        VolumeInstruction result = new(new string[] { "/my data" });
+        Assert.Equal("VOLUME [\"/my data\"]", result.ToString());
+        Assert.Collection(result.Paths, new Action<string>[]
+        {
+            path => Assert.Equal("/my data", path)
+        });
+    }
+
+    [Fact]
+    public void SinglePathListConstructor_WithTab_ProducesJsonForm()
+    {
+        VolumeInstruction result = new(new string[] { "/my\tdata" });
+        Assert.Equal("VOLUME [\"/my\tdata\"]", result.ToString());
+        Assert.Collection(result.Paths, new Action<string>[]
+        {
+            path => Assert.Equal("/my\tdata", path)
+        });
+    }
+
+    [Fact]
+    public void SinglePathListConstructor_WithEmptyPath_ProducesJsonForm()
+    {
+        VolumeInstruction result = new(new string[] { "" });
+        Assert.Equal("VOLUME [\"\"]", result.ToString());
+        Assert.Collection(result.Paths, new Action<string>[]
+        {
+            path => Assert.Equal(string.Empty, path)
+        });
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
-        VolumeInstructionParseTestScenario[] testInputs = new VolumeInstructionParseTestScenario[]
+        ParseTestScenario<VolumeInstruction>[] testInputs = new ParseTestScenario<VolumeInstruction>[]
         {
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME /var/log",
                 TokenValidators = new Action<Token>[]
@@ -99,7 +156,7 @@ public class VolumeInstructionTests
                     });
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME /var/log /var/db",
                 TokenValidators = new Action<Token>[]
@@ -121,7 +178,7 @@ public class VolumeInstructionTests
                     });
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME [\"/var/log\"]",
                 TokenValidators = new Action<Token>[]
@@ -142,7 +199,7 @@ public class VolumeInstructionTests
                     });
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME [\"/var/log\", \"/var/db\"]",
                 TokenValidators = new Action<Token>[]
@@ -167,7 +224,42 @@ public class VolumeInstructionTests
                     });
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
+            {
+                Text = "VOLUME []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "VOLUME"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("VOLUME", result.InstructionName);
+                    Assert.Empty(result.Paths);
+                }
+            },
+            new ParseTestScenario<VolumeInstruction>
+            {
+                Text = "VOLUME [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "VOLUME"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, '['),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("VOLUME", result.InstructionName);
+                    Assert.Empty(result.Paths);
+                }
+            },
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME $TEST",
                 TokenValidators = new Action<Token>[]
@@ -179,7 +271,7 @@ public class VolumeInstructionTests
                             token => ValidateString(token, "TEST")))
                 }
             },
-            new VolumeInstructionParseTestScenario
+            new ParseTestScenario<VolumeInstruction>
             {
                 Text = "VOLUME /var/log `\n#test comment\n/var/db",
                 EscapeChar = '`',
@@ -227,9 +319,15 @@ public class VolumeInstructionTests
                 {
                     token => ValidateKeyword(token, "VOLUME"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "/var/log", ParseHelper.DoubleQuote),
-                    token => ValidateSymbol(token, ']')
+                    token => ValidateLiteral(token, "/var/log")
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("VOLUME /var/log", result.ToString());
+                    Assert.Collection(result.Paths, new Action<string>[]
+                    {
+                        path => Assert.Equal("/var/log", path)
+                    });
                 }
             },
             new CreateTestScenario
@@ -249,16 +347,20 @@ public class VolumeInstructionTests
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "/var/db", ParseHelper.DoubleQuote),
                     token => ValidateSymbol(token, ']')
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("VOLUME [\"/var/log\", \"/var/db\"]", result.ToString());
+                    Assert.Collection(result.Paths, new Action<string>[]
+                    {
+                        path => Assert.Equal("/var/log", path),
+                        path => Assert.Equal("/var/db", path)
+                    });
                 }
             }
         };
 
         return testInputs.Select(input => new object[] { input });
-    }
-
-    public class VolumeInstructionParseTestScenario : ParseTestScenario<VolumeInstruction>
-    {
-        public char EscapeChar { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<VolumeInstruction>

@@ -32,20 +32,14 @@ public abstract class AggregateToken : Token
             Tokens
                 .Where(token => !options.ExcludeLineContinuations || token is not LineContinuationToken)
                 .Where(token => !options.ExcludeComments || token is not CommentToken)
+                .Where(token => !options.ExcludeNewLines || token is not NewLineToken)
                 .Select(token => token.ToString(options)));
     }
 
     public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
     {
-        if (variables is null)
-        {
-            variables = new Dictionary<string, string?>();
-        }
-
-        if (options is null)
-        {
-            options = new ResolutionOptions();
-        }
+        variables ??= new Dictionary<string, string?>();
+        options ??= new ResolutionOptions();
 
         if (this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
         {

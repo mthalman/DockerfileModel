@@ -8,23 +8,8 @@ public class ArgInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(ArgInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            ArgInstruction result = ArgInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => ArgInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<ArgInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, ArgInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
@@ -79,9 +64,9 @@ public class ArgInstructionTests
     }
     public static IEnumerable<object[]> ParseTestInput()
     {
-        ArgInstructionParseTestScenario[] testInputs = new ArgInstructionParseTestScenario[]
+        ParseTestScenario<ArgInstruction>[] testInputs = new ParseTestScenario<ArgInstruction>[]
         {
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG MYARG",
                 TokenValidators = new Action<Token>[]
@@ -101,7 +86,7 @@ public class ArgInstructionTests
                     Assert.Null(result.Args[0].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG MYARG1 MYARG2",
                 TokenValidators = new Action<Token>[]
@@ -126,7 +111,7 @@ public class ArgInstructionTests
                     Assert.Null(result.Args[1].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG `\nMYARG",
                 EscapeChar = '`',
@@ -150,7 +135,7 @@ public class ArgInstructionTests
                     Assert.Null(result.Args[0].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG MYARG=",
                 TokenValidators = new Action<Token>[]
@@ -171,7 +156,7 @@ public class ArgInstructionTests
                     Assert.Equal("", result.Args[0].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG MYARG1= MYARG2=",
                 TokenValidators = new Action<Token>[]
@@ -198,7 +183,7 @@ public class ArgInstructionTests
                     Assert.Equal("", result.Args[1].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG MYARG=\"\"",
                 TokenValidators = new Action<Token>[]
@@ -220,7 +205,7 @@ public class ArgInstructionTests
                     Assert.Equal("", result.Args[0].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG MYARG1=\"\" MYARG2=\"\"",
                 TokenValidators = new Action<Token>[]
@@ -249,7 +234,7 @@ public class ArgInstructionTests
                     Assert.Equal("", result.Args[1].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG `\n# my comment\n  MYARG=",
                 EscapeChar = '`',
@@ -281,7 +266,7 @@ public class ArgInstructionTests
                     Assert.Equal("", result.Args[0].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG myarg=1",
                 TokenValidators = new Action<Token>[]
@@ -303,7 +288,7 @@ public class ArgInstructionTests
                     Assert.Equal("1", result.Args[0].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG myarg1=1 myarg2=2",
                 TokenValidators = new Action<Token>[]
@@ -332,20 +317,74 @@ public class ArgInstructionTests
                     Assert.Equal("2", result.Args[1].Value);
                 }
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "xARG ",
                 ParseExceptionPosition = new Position(1, 1, 1)
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG ",
                 ParseExceptionPosition = new Position(1, 1, 5)
             },
-            new ArgInstructionParseTestScenario
+            new ParseTestScenario<ArgInstruction>
             {
                 Text = "ARG =",
                 ParseExceptionPosition = new Position(1, 1, 5)
+            },
+            // ARG with :? modifier containing spaces - should not truncate
+            new ParseTestScenario<ArgInstruction>
+            {
+                Text = "ARG MY_ARG=${VAR:?must set}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ARG"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ArgDeclaration>(token, "MY_ARG=${VAR:?must set}",
+                        token => ValidateIdentifier<Variable>(token, "MY_ARG"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "${VAR:?must set}", null,
+                            token => ValidateAggregate<VariableRefToken>(token, "${VAR:?must set}",
+                                token => ValidateSymbol(token, '{'),
+                                token => ValidateString(token, "VAR"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateSymbol(token, '?'),
+                                token => ValidateLiteral(token, "must set"),
+                                token => ValidateSymbol(token, '}'))))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_ARG", result.Args[0].Key);
+                    Assert.Equal("${VAR:?must set}", result.Args[0].Value);
+                    Assert.Equal("ARG MY_ARG=${VAR:?must set}", result.ToString());
+                }
+            },
+            // ARG with :- default containing spaces - round-trip fidelity
+            new ParseTestScenario<ArgInstruction>
+            {
+                Text = "ARG MY_ARG=${VAR:-some default}",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ARG"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ArgDeclaration>(token, "MY_ARG=${VAR:-some default}",
+                        token => ValidateIdentifier<Variable>(token, "MY_ARG"),
+                        token => ValidateSymbol(token, '='),
+                        token => ValidateQuotableAggregate<LiteralToken>(token, "${VAR:-some default}", null,
+                            token => ValidateAggregate<VariableRefToken>(token, "${VAR:-some default}",
+                                token => ValidateSymbol(token, '{'),
+                                token => ValidateString(token, "VAR"),
+                                token => ValidateSymbol(token, ':'),
+                                token => ValidateSymbol(token, '-'),
+                                token => ValidateLiteral(token, "some default"),
+                                token => ValidateSymbol(token, '}'))))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal("MY_ARG", result.Args[0].Key);
+                    Assert.Equal("${VAR:-some default}", result.Args[0].Value);
+                    Assert.Equal("ARG MY_ARG=${VAR:-some default}", result.ToString());
+                }
             }
         };
 
@@ -466,13 +505,56 @@ public class ArgInstructionTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class ArgInstructionParseTestScenario : ParseTestScenario<ArgInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
-
     public class CreateTestScenario : TestScenario<ArgInstruction>
     {
         public Dictionary<string, string> Args { get; set; }
+    }
+
+    [Fact]
+    public void ArgInstruction_NoValue_RoundTrips()
+    {
+        // ARG with no default value
+        string text = "ARG MYVAR\n";
+        ArgInstruction inst = ArgInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Single(inst.Args);
+        Assert.Equal("MYVAR", inst.Args[0].Key);
+        Assert.Null(inst.Args[0].Value);
+    }
+
+    [Fact]
+    public void ArgInstruction_EmptyDefault_RoundTrips()
+    {
+        // ARG MYVAR= (explicitly empty default)
+        string text = "ARG MYVAR=\n";
+        ArgInstruction inst = ArgInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Single(inst.Args);
+        Assert.Equal("MYVAR", inst.Args[0].Key);
+        // Empty string default, not null
+        Assert.Equal("", inst.Args[0].Value);
+    }
+
+    [Fact]
+    public void ArgInstruction_EmptyQuotedDefault_RoundTrips()
+    {
+        // ARG MYVAR="" (empty quoted default)
+        string text = "ARG MYVAR=\"\"\n";
+        ArgInstruction inst = ArgInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("", inst.Args[0].Value);
+    }
+
+    /// <summary>
+    /// Bug: Empty modifier values in variable references cause ParseException
+    /// See https://github.com/mthalman/DockerfileModel/issues/281
+    /// </summary>
+    [Fact]
+    public void ArgInstruction_WithBracedVarDefaultEmptyModifier()
+    {
+        string text = "ARG MYVAR=${DEFAULT:-}\n";
+        ArgInstruction inst = ArgInstruction.Parse(text);
+        Assert.Equal(text, inst.ToString());
+        Assert.Equal("${DEFAULT:-}", inst.Args[0].Value);
     }
 }

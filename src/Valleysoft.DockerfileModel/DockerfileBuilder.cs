@@ -36,9 +36,11 @@ public class DockerfileBuilder
     public DockerfileBuilder NewLine() =>
         AddConstruct(new Whitespace(DefaultNewLine));
 
-    public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, UserAccount? changeOwnerFlag = null,
-        string? permissions = null) =>
-        AddConstruct(new AddInstruction(sources, destination, changeOwnerFlag, permissions, EscapeChar));
+    public DockerfileBuilder AddInstruction(IEnumerable<string> sources, string destination, string? changeOwnerFlag = null,
+        string? permissions = null, string? checksum = null, bool keepGitDir = false, bool link = false,
+        bool unpack = false, IEnumerable<string>? excludes = null) =>
+        AddConstruct(new AddInstruction(sources, destination, changeOwner: changeOwnerFlag, permissions: permissions,
+            checksum: checksum, keepGitDir: keepGitDir, link: link, unpack: unpack, excludes: excludes, escapeChar: EscapeChar));
 
     public DockerfileBuilder AddInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.AddInstruction.Parse);
@@ -71,14 +73,19 @@ public class DockerfileBuilder
         ParseTokens(configureBuilder, DockerfileModel.Comment.Parse);
 
     public DockerfileBuilder CopyInstruction(IEnumerable<string> sources, string destination,
-        string? fromStageName = null, UserAccount? changeOwner = null, string? permissions = null) =>
-        AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, permissions, EscapeChar));
+        string? fromStageName = null, string? changeOwner = null, string? permissions = null,
+        bool link = false, bool parents = false, IEnumerable<string>? excludes = null) =>
+        AddConstruct(new CopyInstruction(sources, destination, fromStageName, changeOwner, permissions,
+            link, parents, excludes, EscapeChar));
 
     public DockerfileBuilder CopyInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.CopyInstruction.Parse);
 
     public DockerfileBuilder EntrypointInstruction(string commandWithArgs) =>
         AddConstruct(new EntrypointInstruction(commandWithArgs, EscapeChar));
+
+    public DockerfileBuilder EntrypointInstruction(IEnumerable<string> execArgs) =>
+        AddConstruct(new EntrypointInstruction(execArgs, EscapeChar));
 
     public DockerfileBuilder EntrypointInstruction(string command, IEnumerable<string> args) =>
         AddConstruct(new EntrypointInstruction(command, args, EscapeChar));
@@ -92,8 +99,11 @@ public class DockerfileBuilder
     public DockerfileBuilder EnvInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.EnvInstruction.Parse);
 
-    public DockerfileBuilder ExposeInstruction(string port, string? protocol = null) =>
-        AddConstruct(new ExposeInstruction(port, protocol, EscapeChar));
+    public DockerfileBuilder ExposeInstruction(string portSpecs) =>
+        AddConstruct(new ExposeInstruction(portSpecs, EscapeChar));
+
+    public DockerfileBuilder ExposeInstruction(IEnumerable<string> portSpecs) =>
+        AddConstruct(new ExposeInstruction(portSpecs, EscapeChar));
 
     public DockerfileBuilder ExposeInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.ExposeInstruction.Parse);
@@ -111,16 +121,16 @@ public class DockerfileBuilder
         ParseTokens(configureBuilder, DockerfileModel.GenericInstruction.Parse);
 
     public DockerfileBuilder HealthCheckInstruction(string commandWithArgs, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null) =>
-        AddConstruct(new HealthCheckInstruction(commandWithArgs, interval, timeout, startPeriod, retries, EscapeChar));
+        string? startPeriod = null, string? startInterval = null, string? retries = null) =>
+        AddConstruct(new HealthCheckInstruction(commandWithArgs, interval, timeout, startPeriod, startInterval, retries, EscapeChar));
 
     public DockerfileBuilder HealthCheckInstruction(IEnumerable<string> defaultArgs, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null) =>
-        AddConstruct(new HealthCheckInstruction(defaultArgs, interval, timeout, startPeriod, retries, EscapeChar));
+        string? startPeriod = null, string? startInterval = null, string? retries = null) =>
+        AddConstruct(new HealthCheckInstruction(defaultArgs, interval, timeout, startPeriod, startInterval, retries, EscapeChar));
 
     public DockerfileBuilder HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
-        string? startPeriod = null, string? retries = null) =>
-        AddConstruct(new HealthCheckInstruction(command, args, interval, timeout, startPeriod, retries, EscapeChar));
+        string? startPeriod = null, string? startInterval = null, string? retries = null) =>
+        AddConstruct(new HealthCheckInstruction(command, args, interval, timeout, startPeriod, startInterval, retries, EscapeChar));
 
     public DockerfileBuilder HealthCheckDisabledInstruction() =>
         AddConstruct(new HealthCheckInstruction(EscapeChar));
@@ -155,14 +165,16 @@ public class DockerfileBuilder
     public DockerfileBuilder RunInstruction(string command) =>
         RunInstruction(command, Enumerable.Empty<Mount>());
 
-    public DockerfileBuilder RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts) =>
-        AddConstruct(new RunInstruction(commandWithArgs, mounts, EscapeChar));
+    public DockerfileBuilder RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts,
+        string? network = null, string? security = null) =>
+        AddConstruct(new RunInstruction(commandWithArgs, mounts, network, security, EscapeChar));
 
     public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args) =>
         RunInstruction(command, args, Enumerable.Empty<Mount>());
 
-    public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts) =>
-        AddConstruct(new RunInstruction(command, args, mounts, EscapeChar));
+    public DockerfileBuilder RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts,
+        string? network = null, string? security = null) =>
+        AddConstruct(new RunInstruction(command, args, mounts, network, security, EscapeChar));
 
     public DockerfileBuilder RunInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.RunInstruction.Parse);
@@ -182,11 +194,8 @@ public class DockerfileBuilder
     public DockerfileBuilder StopSignalInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.StopSignalInstruction.Parse);
 
-    public DockerfileBuilder UserInstruction(string user, string? group = null) =>
-        AddConstruct(new UserInstruction(user, group, EscapeChar));
-
-    public DockerfileBuilder UserInstruction(UserAccount userAccount) =>
-        AddConstruct(new UserInstruction(userAccount, EscapeChar));
+    public DockerfileBuilder UserInstruction(string user) =>
+        AddConstruct(new UserInstruction(user, EscapeChar));
 
     public DockerfileBuilder UserInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.UserInstruction.Parse);
@@ -278,9 +287,12 @@ public class DockerfileBuilder
 
         if (construct is ParserDirective parserDirective)
         {
+            // No need to auto-add an escape directive when the construct being added is
+            // itself an escape directive with the same escape character value. The guard
+            // above already returns false when EscapeChar == DefaultEscapeChar, so that
+            // sub-condition is unreachable here and has been removed.
             if (parserDirective.DirectiveName == DockerfileModel.ParserDirective.EscapeDirective &&
-                (EscapeChar == Dockerfile.DefaultEscapeChar ||
-                parserDirective.DirectiveValue == EscapeChar.ToString()))
+                parserDirective.DirectiveValue == EscapeChar.ToString())
             {
                 return false;
             }

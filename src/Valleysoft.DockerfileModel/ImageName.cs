@@ -411,7 +411,12 @@ public class ImageName : AggregateToken
                         FirstCharParser(),
                         TailCharParser().Or(Sprache.Parse.Char('.')),
                         ':',
-                        minimumDelimiters: 1));
+                        minimumDelimiters: 1))
+                .Or(LocalhostParser());
+
+            private static Parser<IEnumerable<Token>> LocalhostParser() =>
+                from localhost in Sprache.Parse.IgnoreCase("localhost").Text()
+                select new Token[] { new StringToken(localhost) };
 
             private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
 

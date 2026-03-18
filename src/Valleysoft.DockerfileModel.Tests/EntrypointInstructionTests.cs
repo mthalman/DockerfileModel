@@ -8,30 +8,19 @@ public class EntrypointInstructionTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(EntrypointInstructionParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            EntrypointInstruction result = EntrypointInstruction.Parse(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => EntrypointInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<EntrypointInstruction> scenario) =>
+        TestHelper.RunParseTest(scenario, EntrypointInstruction.Parse);
 
     [Theory]
     [MemberData(nameof(CreateTestInput))]
     public void Create(CreateTestScenario scenario)
     {
         EntrypointInstruction result;
-        if (scenario.Args is null)
+        if (scenario.ExecArgs is not null)
+        {
+            result = new EntrypointInstruction(scenario.ExecArgs);
+        }
+        else if (scenario.Args is null)
         {
             result = new EntrypointInstruction(scenario.Command);
         }
@@ -46,9 +35,9 @@ public class EntrypointInstructionTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        EntrypointInstructionParseTestScenario[] testInputs = new EntrypointInstructionParseTestScenario[]
+        ParseTestScenario<EntrypointInstruction>[] testInputs = new ParseTestScenario<EntrypointInstruction>[]
         {
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT echo hello",
                 TokenValidators = new Action<Token>[]
@@ -69,7 +58,7 @@ public class EntrypointInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT $TEST",
                 TokenValidators = new Action<Token>[]
@@ -80,7 +69,7 @@ public class EntrypointInstructionTests
                         token => ValidateLiteral(token, "$TEST"))
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT echo $TEST",
                 TokenValidators = new Action<Token>[]
@@ -91,7 +80,7 @@ public class EntrypointInstructionTests
                         token => ValidateLiteral(token, "echo $TEST"))
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT T\\$EST",
                 TokenValidators = new Action<Token>[]
@@ -102,7 +91,49 @@ public class EntrypointInstructionTests
                         token => ValidateLiteral(token, "T\\$EST"))
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
+            {
+                Text = "ENTRYPOINT echo #not-a-comment",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "echo #not-a-comment",
+                        token => ValidateLiteral(token, "echo #not-a-comment"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ENTRYPOINT", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("echo #not-a-comment", result.Command.ToString());
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    ShellFormCommand cmd = (ShellFormCommand)result.Command;
+                    Assert.Equal("echo #not-a-comment", cmd.Value);
+                }
+            },
+            new ParseTestScenario<EntrypointInstruction>
+            {
+                Text = "ENTRYPOINT #FF0000",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ShellFormCommand>(token, "#FF0000",
+                        token => ValidateLiteral(token, "#FF0000"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ENTRYPOINT", result.InstructionName);
+                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
+                    Assert.Equal("#FF0000", result.Command.ToString());
+                    Assert.IsType<ShellFormCommand>(result.Command);
+                    ShellFormCommand cmd = (ShellFormCommand)result.Command;
+                    Assert.Equal("#FF0000", cmd.Value);
+                }
+            },
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT echo `\n#test comment\nhello",
                 EscapeChar = '`',
@@ -134,7 +165,52 @@ public class EntrypointInstructionTests
                     Assert.Equal("echo hello", cmd.Value);
                 }
             },
-            new EntrypointInstructionParseTestScenario
+            new ParseTestScenario<EntrypointInstruction>
+            {
+                Text = "ENTRYPOINT []",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ENTRYPOINT", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.Equal("[]", result.Command.ToString());
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            // Empty exec form array with interior whitespace
+            new ParseTestScenario<EntrypointInstruction>
+            {
+                Text = "ENTRYPOINT [ ]",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[ ]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("ENTRYPOINT", result.InstructionName);
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            new ParseTestScenario<EntrypointInstruction>
             {
                 Text = "ENTRYPOINT [\"/bin/bash\", \"-c\", \"echo hello\"]",
                 TokenValidators = new Action<Token>[]
@@ -192,6 +268,25 @@ public class EntrypointInstructionTests
             },
             new CreateTestScenario
             {
+                ExecArgs = Array.Empty<string>(),
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "ENTRYPOINT"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<ExecFormCommand>(token, "[]",
+                        token => ValidateSymbol(token, '['),
+                        token => ValidateSymbol(token, ']'))
+                },
+                Validate = result =>
+                {
+                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    Assert.IsType<ExecFormCommand>(result.Command);
+                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    Assert.Empty(cmd.Values);
+                }
+            },
+            new CreateTestScenario
+            {
                 Command = "/bin/bash",
                 Args = new string[]
                 {
@@ -219,14 +314,10 @@ public class EntrypointInstructionTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class EntrypointInstructionParseTestScenario : ParseTestScenario<EntrypointInstruction>
-    {
-        public char EscapeChar { get; set; }
-    }
-
     public class CreateTestScenario : TestScenario<EntrypointInstruction>
     {
         public string Command { get; set; }
+        public IEnumerable<string> ExecArgs { get; set; }
         public IEnumerable<string> Args { get; set; }
     }
 }

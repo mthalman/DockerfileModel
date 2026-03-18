@@ -1,13 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <LangVersion>10.0</LangVersion>
+    <LangVersion>13.0</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FsCheck" Version="3.1.0" />
+    <PackageReference Include="FsCheck.Xunit" Version="3.1.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
@@ -22,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Valleysoft.DockerfileModel\Valleysoft.DockerfileModel.csproj" />
+    <ProjectReference Include="..\Valleysoft.DockerfileModel.DiffTest\Valleysoft.DockerfileModel.DiffTest.csproj" />
   </ItemGroup>
 
 </Project>

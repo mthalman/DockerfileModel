@@ -1,32 +1,24 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
-public class PlatformFlag : KeyValueToken<KeywordToken, LiteralToken>
+public class PlatformFlag : KeywordLiteralFlag
 {
+    private const string Keyword = "platform";
+
     public PlatformFlag(string platform, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : base(new KeywordToken("platform", escapeChar), new LiteralToken(platform, canContainVariables: true, escapeChar), isFlag: true)
+        : base(Keyword, platform, escapeChar)
     {
     }
 
-    internal PlatformFlag(IEnumerable<Token> tokens)
-        : base(tokens)
+    internal PlatformFlag(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar)
+        : base(tokens, escapeChar)
     {
     }
 
     public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Parse(
-            text,
-            KeywordToken.GetParser("platform", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new PlatformFlag(tokens),
-            escapeChar: escapeChar);
+        ParseFlag(text, Keyword, (tokens, esc) => new PlatformFlag(tokens, esc), escapeChar);
 
     public static Parser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        GetParser(
-            KeywordToken.GetParser("platform", escapeChar),
-            LiteralWithVariables(escapeChar),
-            tokens => new PlatformFlag(tokens),
-            escapeChar: escapeChar);
+        GetFlagParser(Keyword, (tokens, esc) => new PlatformFlag(tokens, esc), escapeChar);
 }

@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.ParseHelper;
 
@@ -7,7 +7,7 @@ namespace Valleysoft.DockerfileModel;
 public abstract class FileTransferInstruction : Instruction
 {
     protected FileTransferInstruction(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName)
+        string? changeOwner, string? permissions, char escapeChar, string instructionName)
         : this(GetTokens(sources, destination, changeOwner, permissions, escapeChar, instructionName), escapeChar)
     {
     }
@@ -29,43 +29,95 @@ public abstract class FileTransferInstruction : Instruction
 
     public IList<LiteralToken> SourceTokens { get; }
 
-    public string Destination
+    /// <summary>
+    /// Gets or sets the destination path. For heredoc instructions, the destination is
+    /// properly tokenized as a separate LiteralToken after the marker.
+    /// </summary>
+    public string? Destination
     {
-        get => DestinationToken.Value;
+        get
+        {
+            LiteralToken? destToken = DestinationToken;
+            return destToken?.Value;
+        }
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
-            DestinationToken.Value = value;
+            Requires.NotNullOrEmpty(value!, nameof(value));
+            LiteralToken? destToken = DestinationToken;
+            if (destToken is null)
+            {
+                throw new InvalidOperationException("No destination token exists to update.");
+            }
+            destToken.Value = value;
         }
     }
 
-    public LiteralToken DestinationToken
+    /// <summary>
+    /// Gets or sets the destination token. For heredoc instructions, the destination
+    /// is a LiteralToken that appears after the marker in the command stream.
+    /// Returns null only if no LiteralToken exists.
+    /// </summary>
+    public LiteralToken? DestinationToken
     {
-        get => Tokens.OfType<LiteralToken>().Last();
+        get => Tokens.OfType<LiteralToken>().LastOrDefault();
         set
         {
-            Requires.NotNull(value, nameof(value));
-            SetToken(DestinationToken, value);
+            Requires.NotNull(value!, nameof(value));
+            LiteralToken? current = DestinationToken;
+            if (current is null)
+            {
+                throw new InvalidOperationException("No destination token exists to replace.");
+            }
+            SetToken(current, value);
         }
     }
 
-    public UserAccount? ChangeOwner
+    /// <summary>
+    /// Gets the heredoc marker tokens in this instruction.
+    /// </summary>
+    public IEnumerable<HeredocMarkerToken> HeredocMarkerTokens => Tokens.OfType<HeredocMarkerToken>();
+
+    /// <summary>
+    /// Gets the heredoc body tokens in this instruction.
+    /// </summary>
+    public IEnumerable<HeredocBodyToken> HeredocBodyTokens => Tokens.OfType<HeredocBodyToken>();
+
+    /// <summary>
+    /// Gets the paired heredoc marker+body objects in this instruction.
+    /// Association is positional: first marker pairs with first body, etc.
+    /// </summary>
+    public IReadOnlyList<Heredoc> Heredocs
+    {
+        get
+        {
+            var markerList = HeredocMarkerTokens.ToList();
+            var bodyList = HeredocBodyTokens.ToList();
+            int count = Math.Min(markerList.Count, bodyList.Count);
+            List<Heredoc> result = new(count);
+            for (int i = 0; i < count; i++)
+            {
+                result.Add(new Heredoc(markerList[i], bodyList[i]));
+            }
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Gets the heredoc tokens in this instruction (marker tokens, for backward compatibility checks).
+    /// </summary>
+    public IEnumerable<HeredocMarkerToken> HeredocTokens => HeredocMarkerTokens;
+
+    public string? ChangeOwner
+    {
+        get => ChangeOwnerFlagToken?.Value;
+        set => SetOptionalLiteralTokenValue(ChangeOwnerToken, value, token => ChangeOwnerToken = token, canContainVariables: true, EscapeChar);
+    }
+
+    public LiteralToken? ChangeOwnerToken
     {
         get => ChangeOwnerFlagToken?.ValueToken;
-        set
-        {
-            ChangeOwnerFlag? changeOwnerToken = ChangeOwnerFlagToken;
-            if (changeOwnerToken is not null && value is not null)
-            {
-                changeOwnerToken.ValueToken = value;
-            }
-            else
-            {
-                ChangeOwnerFlagToken = value is null ?
-                    null :
-                    new ChangeOwnerFlag(value, EscapeChar);
-            }
-        }
+        set => SetOptionalKeyValueTokenValue(
+            ChangeOwnerFlagToken, value, val => new ChangeOwnerFlag(val, EscapeChar), token => ChangeOwnerFlagToken = token);
     }
 
     private ChangeOwnerFlag? ChangeOwnerFlagToken
@@ -98,14 +150,15 @@ public abstract class FileTransferInstruction : Instruction
         Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName)
+        string? changeOwner, string? permissions, char escapeChar, string instructionName)
     {
         string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, instructionName, null);
         return GetTokens(text, GetInnerParser(escapeChar, instructionName));
     }
 
     protected static string CreateInstructionString(IEnumerable<string> sources, string destination,
-        UserAccount? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag)
+        string? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag,
+        string? trailingOptionalFlag = null)
     {
         Requires.NotNullEmptyOrNullElements(sources, nameof(sources));
         Requires.NotNullOrEmpty(destination, nameof(destination));
@@ -120,18 +173,7 @@ public abstract class FileTransferInstruction : Instruction
             string.Empty :
             $"{new ChangeModeFlag(permissions, escapeChar)} ";
 
-        string flags = $"{optionalFlag}{changeOwnerFlagStr}{changeModeFlagStr}";
-
-        TokenBuilder builder = new();
-        builder
-            .Keyword(instructionName)
-            .Whitespace(" ");
-
-        if (changeOwner is not null)
-        {
-            builder.Tokens.Add(changeOwner);
-            builder.Whitespace(" ");
-        }
+        string flags = $"{optionalFlag}{changeOwnerFlagStr}{changeModeFlagStr}{trailingOptionalFlag}";
 
         bool useJsonForm = locations.Any(loc => loc.Contains(' '));
         if (useJsonForm)
@@ -145,21 +187,29 @@ public abstract class FileTransferInstruction : Instruction
     }
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
-        from flags in ArgTokens(
-            from flag in FlagOption(escapeChar, optionalFlagParser).Optional()
-            select flag.GetOrDefault(), escapeChar).Many().Flatten()
+        from flags in FlagOption(escapeChar, optionalFlagParser).Many().Flatten()
         from whitespace in Whitespace()
-        from files in ArgTokens(JsonArray(escapeChar, canContainVariables: true), escapeChar).Or(
-            from literals in ArgTokens(
-                LiteralWithVariables(escapeChar).AsEnumerable(),
-                escapeChar).Many()
-            select literals.Flatten())
+        from files in HeredocTokenParser(escapeChar)
+            .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar))
+            .Or(from literals in ArgTokens(
+                    LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
+                    escapeChar).Many()
+                select literals.Flatten())
         select ConcatTokens(flags, whitespace, files);
 
-    private static Parser<IEnumerable<Token>?> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
-        ChangeOwnerFlag.GetParser(escapeChar)
-            .Cast<ChangeOwnerFlag, Token>()
-            .AsEnumerable()
-            .Or(ChangeModeFlag.GetParser(escapeChar).AsEnumerable())
-            .Or(optionalFlagParser ?? Parse.Return<IEnumerable<Token>?>(null));
+    private static Parser<IEnumerable<Token>> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser)
+    {
+        Parser<IEnumerable<Token>> parser =
+            ArgTokens(ChangeOwnerFlag.GetParser(escapeChar)
+                .Cast<ChangeOwnerFlag, Token>()
+                .AsEnumerable(), escapeChar)
+            .Or(ArgTokens(ChangeModeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar));
+
+        if (optionalFlagParser is not null)
+        {
+            parser = parser.Or(optionalFlagParser);
+        }
+
+        return parser;
+    }
 }

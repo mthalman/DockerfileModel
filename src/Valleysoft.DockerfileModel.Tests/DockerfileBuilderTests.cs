@@ -65,11 +65,218 @@ public class DockerfileBuilderTests
             "SHELL [\"cmd\"]" + Environment.NewLine +
             "STOPSIGNAL 1" + Environment.NewLine +
             "USER test" + Environment.NewLine +
-            "VOLUME [\"path\"]" + Environment.NewLine +
+            "VOLUME path" + Environment.NewLine +
             "WORKDIR path" + Environment.NewLine;
 
         Assert.Equal(expectedOutput, builder.Dockerfile.ToString());
         Assert.Equal(expectedOutput, builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithChecksum()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "https://example.com/file.tar" }, "dst", checksum: "sha256:abc123");
+        Assert.Equal("ADD --checksum=sha256:abc123 https://example.com/file.tar dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithKeepGitDir()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "https://github.com/user/repo.git" }, "dst", keepGitDir: true);
+        Assert.Equal("ADD --keep-git-dir https://github.com/user/repo.git dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithLink()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "src" }, "dst", link: true);
+        Assert.Equal("ADD --link src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithAllNewFlags()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "https://example.com/file.tar" }, "dst",
+            checksum: "sha256:abc123", keepGitDir: true, link: true);
+        Assert.Equal("ADD --checksum=sha256:abc123 --keep-git-dir --link https://example.com/file.tar dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithChecksum_AndChown()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "src" }, "dst", changeOwnerFlag: "myuser", checksum: "sha256:abc123");
+        Assert.Equal("ADD --checksum=sha256:abc123 --chown=myuser src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithUnpack()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "src.tar" }, "dst", unpack: true);
+        Assert.Equal("ADD --unpack src.tar dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithExcludes()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "src" }, "dst", excludes: new[] { "*.log", "temp" });
+        Assert.Equal("ADD --exclude=*.log --exclude=temp src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void AddInstruction_WithUnpackAndExcludes()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.AddInstruction(new string[] { "src.tar" }, "dst", unpack: true, excludes: new[] { "*.tmp" });
+        Assert.Equal("ADD --unpack --exclude=*.tmp src.tar dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithLink()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        // Build a COPY with --link flag
+        builder.CopyInstruction(new string[] { "src" }, "dst", link: true);
+        Assert.Equal("COPY --link src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithLink_AndFromStageName()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", fromStageName: "base", link: true);
+        Assert.Equal("COPY --from=base --link src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithLink_AndChown()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", changeOwner: "myuser", link: true);
+        Assert.Equal("COPY --chown=myuser --link src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithLink_AndChmod()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", permissions: "644", link: true);
+        Assert.Equal("COPY --chmod=644 --link src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithParents()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", parents: true);
+        Assert.Equal("COPY --parents src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithParents_AndLink()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", link: true, parents: true);
+        Assert.Equal("COPY --link --parents src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithExclude()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", excludes: new string[] { "*.txt" });
+        Assert.Equal("COPY --exclude=*.txt src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithMultipleExcludes()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst", excludes: new string[] { "*.txt", "*.log" });
+        Assert.Equal("COPY --exclude=*.txt --exclude=*.log src dst", builder.ToString());
+    }
+
+    [Fact]
+    public void CopyInstruction_WithAllNewFlags()
+    {
+        DockerfileBuilder builder = new()
+        {
+            DisableAutoNewLines = true
+        };
+
+        builder.CopyInstruction(new string[] { "src" }, "dst",
+            fromStageName: "base", link: true, parents: true, excludes: new string[] { "*.txt" });
+        Assert.Equal("COPY --from=base --link --parents --exclude=*.txt src dst", builder.ToString());
     }
 
     [Fact]

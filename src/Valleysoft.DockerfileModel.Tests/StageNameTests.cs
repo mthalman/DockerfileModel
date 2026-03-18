@@ -8,23 +8,8 @@ public class StageNameTests
 {
     [Theory]
     [MemberData(nameof(ParseTestInput))]
-    public void Parse(StageNameParseTestScenario scenario)
-    {
-        if (scenario.ParseExceptionPosition is null)
-        {
-            StageName result = new(scenario.Text, scenario.EscapeChar);
-            Assert.Equal(scenario.Text, result.ToString());
-            Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate?.Invoke(result);
-        }
-        else
-        {
-            ParseException exception = Assert.Throws<ParseException>(
-                () => new StageName(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
-        }
-    }
+    public void Parse(ParseTestScenario<StageName> scenario) =>
+        TestHelper.RunParseTest(scenario, (text, escapeChar) => new StageName(text, escapeChar));
 
     [Fact]
     public void Value()
@@ -38,9 +23,9 @@ public class StageNameTests
 
     public static IEnumerable<object[]> ParseTestInput()
     {
-        StageNameParseTestScenario[] testInputs = new StageNameParseTestScenario[]
+        ParseTestScenario<StageName>[] testInputs = new ParseTestScenario<StageName>[]
         {
-            new StageNameParseTestScenario
+            new ParseTestScenario<StageName>
             {
                 Text = "test",
                 TokenValidators = new Action<Token>[]
@@ -52,7 +37,7 @@ public class StageNameTests
                     Assert.Equal("test", result.Value);
                 }
             },
-            new StageNameParseTestScenario
+            new ParseTestScenario<StageName>
             {
                 Text = "test_-.x",
                 TokenValidators = new Action<Token>[]
@@ -64,7 +49,7 @@ public class StageNameTests
                     Assert.Equal("test_-.x", result.Value);
                 }
             },
-            new StageNameParseTestScenario
+            new ParseTestScenario<StageName>
             {
                 Text = "te`\nst",
                 EscapeChar = '`',
@@ -79,7 +64,7 @@ public class StageNameTests
                     Assert.Equal("test", result.Value);
                 }
             },
-            new StageNameParseTestScenario
+            new ParseTestScenario<StageName>
             {
                 Text = "-test",
                 ParseExceptionPosition = new Position(1, 1, 1)
@@ -89,8 +74,4 @@ public class StageNameTests
         return testInputs.Select(input => new object[] { input });
     }
 
-    public class StageNameParseTestScenario : ParseTestScenario<StageName>
-    {
-        public char EscapeChar { get; set; }
-    }
 }

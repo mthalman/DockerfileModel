@@ -143,10 +143,29 @@ public class LiteralTokenTests
 
         return testInputs.Select(input => new object[] { input });
     }
+
+    /// <summary>
+    /// Fixed: LiteralToken.Value no longer includes newline characters.
+    /// NewLineToken children are excluded by CreateOptionsForValueString().
+    /// See https://github.com/mthalman/DockerfileModel/issues/282,
+    ///     https://github.com/mthalman/DockerfileModel/issues/283
+    /// </summary>
+    [Fact]
+    public void LiteralToken_ValueWithNewline_ExcludesNewlineFromValue()
+    {
+        // When a LiteralToken contains a NewLineToken as a child,
+        // LiteralToken.Value (which uses CreateOptionsForValueString) now strips newlines
+        // via the ExcludeNewLines option.
+        Tokens.LiteralToken lit = new("hello\nworld");
+        string value = lit.Value;
+        // The newline is NOT in the value (but ToString() still includes it for round-trip)
+        Assert.DoesNotContain("\n", value);
+        Assert.Equal("helloworld", value);
+        Assert.Contains("\n", lit.ToString());
+    }
 }
 
 public class LiteralTokenParseTestScenario : ParseTestScenario<LiteralToken>
 {
-    public char EscapeChar { get; set; }
     public bool ParseVariableRefs { get; set; }
 }

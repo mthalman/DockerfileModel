@@ -40,16 +40,7 @@ public class EnvInstruction : Instruction
         Requires.NotNullOrEmpty(variables, nameof(variables));
 
         string[] keyValueAssignments = variables
-            .Select(kvp =>
-            {
-                string value = kvp.Value;
-                if (value[0] != '\"' && value.Last() != '\"' && value.Contains(' ') && !value.Contains("\\ "))
-                {
-                    value = "\"" + value + "\"";
-                }
-
-                return $"{kvp.Key}={value}";
-            })
+            .Select(kvp => StringHelper.FormatKeyValueAssignment(kvp.Key, kvp.Value))
             .ToArray();
 
         return GetTokens($"ENV {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));
@@ -60,25 +51,20 @@ public class EnvInstruction : Instruction
             GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        from whitespace in Whitespace().Optional()
-        from variables in MultiVariableFormat(escapeChar).Or(SingleVariableFormat(escapeChar))
-        select ConcatTokens(whitespace.GetOrDefault(), variables);
+        MultiVariableFormat(escapeChar).Or(SingleVariableFormat(escapeChar));
 
     private static Parser<IEnumerable<Token>> MultiVariableFormat(char escapeChar) =>
         ArgTokens(
             from whitespace in Whitespace().Optional()
             from variable in KeyValueToken<Variable, LiteralToken>.GetParser(
                 Variable.GetParser(escapeChar),
-                MultiVariableFormatValueParser(escapeChar),
+                LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes),
                 escapeChar: escapeChar,
                 excludeLeadingWhitespaceInValue: true,
-                excludeTrailingWhitespaceInSeparator: true).AsEnumerable()
+                excludeTrailingWhitespaceInSeparator: true,
+                optionalValue: true).AsEnumerable()
             select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
         ).AtLeastOnce().Flatten();
-
-    private static Parser<LiteralToken> MultiVariableFormatValueParser(char escapeChar) =>
-        from literal in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).Optional()
-        select literal.GetOrElse(new LiteralToken("", canContainVariables: true, escapeChar));
 
     private static Parser<IEnumerable<Token>> SingleVariableFormat(char escapeChar) =>
         ArgTokens(
