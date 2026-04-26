@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FsCheck" Version="3.3.2" />
+    <PackageReference Include="FsCheck" Version="3.3.3" />
   </ItemGroup>
 
   <ItemGroup>
