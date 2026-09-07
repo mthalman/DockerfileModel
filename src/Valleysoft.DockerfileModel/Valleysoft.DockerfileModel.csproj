@@ -11,9 +11,11 @@
     <PackageId>Valleysoft.DockerfileModel</PackageId>
     <PackageDescription>Structured model for parsing and generating Dockerfiles.</PackageDescription>
     <PackageTags>docker dockerfile</PackageTags>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MinVer" Version="7.0.0" PrivateAssets="All" />
     <PackageReference Include="Sprache" Version="2.3.1" />
     <PackageReference Include="Validation" Version="2.6.68" />
   </ItemGroup>
