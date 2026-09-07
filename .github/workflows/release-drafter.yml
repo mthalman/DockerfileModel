@@ -10,8 +10,8 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: release-drafter-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-drafter
+  cancel-in-progress: false
 
 jobs:
   update_release_draft:
