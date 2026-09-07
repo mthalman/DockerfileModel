@@ -123,3 +123,42 @@ The Lean spec includes both machine-checked proofs (`Proofs/`) and SlimCheck pro
 - `lean/` — Lean 4 formal specification (token model, parser combinators, proofs, differential test CLI)
 - `global.json` — pins .NET SDK version
 - `src/Directory.Build.props` — shared MSBuild properties (license, authors, repo URL)
+
+## Pull request labels
+
+Every pull request must have exactly one semantic-version label, selected by the
+highest-impact public change:
+
+- `semver:major` for breaking public API or behavior
+- `semver:minor` for backward-compatible public functionality
+- `semver:patch` for fixes, documentation, dependencies, tests, build changes,
+  or maintenance
+
+Apply at most one canonical visible category:
+
+- `enhancement` for features
+- `bug` for fixes
+- `documentation` for documentation-only changes
+- `dependencies` for dependency updates
+- No category for maintenance, refactoring, tests, or infrastructure
+
+The existing `type:feature`, `type:bug`, and `type:docs` labels are accepted as
+aliases for `enhancement`, `bug`, and `documentation`. Apply only the canonical
+label to new pull requests.
+
+For mixed pull requests, classify by the highest-impact public change. A
+test-heavy pull request that fixes a product bug is `bug`; a dependency pull
+request spanning production and tooling dependencies remains `dependencies`.
+
+Apply `skip-changelog` to internal-only test dependency updates, CI action
+updates, build or tooling changes, and repository administration that are not
+useful to package users. Do not apply it to production dependency updates,
+user-facing fixes, features, documentation, or significant release behavior
+that users or maintainers should know about.
+
+Renovate automatically applies `dependencies` and `semver:patch`, plus
+`skip-changelog` for internal dependency and build-tool updates. Replace its
+semantic-version label when an update has a higher public impact.
+
+After creating a pull request, apply the labels on GitHub and verify them before
+considering pull request creation complete.

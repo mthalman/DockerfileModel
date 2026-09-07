@@ -1,0 +1,65 @@
+name-template: "Dockerfile Model $RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+tag-prefix: "v"
+commitish: refs/heads/main
+include-pre-releases: true
+
+categories:
+  - type: pre-exclude
+    when:
+      label: skip-changelog
+
+  - title: "Features"
+    exclusive: true
+    when:
+      labels:
+        - enhancement
+        - type:feature
+
+  - title: "Bug Fixes"
+    exclusive: true
+    when:
+      labels:
+        - bug
+        - type:bug
+
+  - title: "Documentation"
+    exclusive: true
+    when:
+      labels:
+        - documentation
+        - type:docs
+
+  - title: "Dependencies"
+    exclusive: true
+    collapse-after: 5
+    when:
+      label: dependencies
+
+  - title: "Maintenance"
+
+  - type: version-resolver
+    semver-increment: major
+    when:
+      label: semver:major
+
+  - type: version-resolver
+    semver-increment: minor
+    when:
+      label: semver:minor
+
+  - type: version-resolver
+    semver-increment: patch
+    when:
+      label: semver:patch
+
+  - type: version-resolver
+    semver-increment: patch
+
+change-template: "- $TITLE (#$NUMBER) by $AUTHORS"
+change-title-escapes: '\<*_&'
+template: |
+  ## What's Changed
+
+  $CHANGES
+no-changes-template: "* No user-facing changes"

@@ -6,6 +6,33 @@
   "dependencyDashboard": false,
   "minimumReleaseAge": "10 days",
   "mode": "full",
+  "addLabels": [
+    "dependencies",
+    "semver:patch"
+  ],
+  "packageRules": [
+    {
+      "description": "Exclude internal dependency updates from release notes",
+      "matchFileNames": [
+        ".github/workflows/**",
+        "global.json",
+        "src/Valleysoft.DockerfileModel.DiffTest/**",
+        "src/Valleysoft.DockerfileModel.Tests/**"
+      ],
+      "addLabels": [
+        "skip-changelog"
+      ]
+    },
+    {
+      "description": "Exclude build-only tooling from release notes",
+      "matchPackageNames": [
+        "MinVer"
+      ],
+      "addLabels": [
+        "skip-changelog"
+      ]
+    }
+  ],
   "ignorePaths": [
     "src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs"
   ]
