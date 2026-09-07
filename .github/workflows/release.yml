@@ -1,11 +1,9 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      packageVersion:
-        description: 'Package version'
-        required: true
+  push:
+    tags:
+      - 'v*'
 
 defaults:
   run:
@@ -17,9 +15,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
 
       - name: Install dependencies
         run: dotnet restore
@@ -38,9 +40,17 @@ jobs:
           path: src/test-results/*
 
       - name: Pack
-        env:
-          PACKAGE_VERSION: ${{ github.event.inputs.packageVersion }}
-        run: dotnet pack -c Release -p:Version=$PACKAGE_VERSION Valleysoft.DockerfileModel
-      
+        run: dotnet pack -c Release --no-build Valleysoft.DockerfileModel
+
       - name: Publish Package
-        run: dotnet nuget push "Valleysoft.DockerfileModel/bin/Release/*.nupkg" -k ${{secrets.NUGET_ORG_API_KEY}} -s https://nuget.org
+        shell: bash
+        run: |
+          expected_version="${GITHUB_REF_NAME#v}"
+          package_path="Valleysoft.DockerfileModel/bin/Release/Valleysoft.DockerfileModel.${expected_version}.nupkg"
+
+          if [[ "$GITHUB_REF_NAME" == "$expected_version" || ! -f "$package_path" ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match the MinVer package '$package_path'."
+            exit 1
+          fi
+
+          dotnet nuget push "$package_path" -k "${{ secrets.NUGET_ORG_API_KEY }}" -s https://nuget.org --skip-duplicate
