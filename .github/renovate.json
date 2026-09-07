@@ -3,6 +3,7 @@
   "extends": [
     "config:best-practices"
   ],
+  "dependencyDashboard": false,
   "mode": "full",
   "ignorePaths": [
     "src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs"
