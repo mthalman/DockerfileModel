@@ -4,6 +4,7 @@
     "config:best-practices"
   ],
   "dependencyDashboard": false,
+  "minimumReleaseAge": "10 days",
   "mode": "full",
   "ignorePaths": [
     "src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs"
