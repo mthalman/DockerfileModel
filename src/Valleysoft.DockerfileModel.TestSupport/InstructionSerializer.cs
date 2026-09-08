@@ -1,3 +1,4 @@
+using Valleysoft.DockerfileModel;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel.TestSupport;
