@@ -1416,15 +1416,15 @@ public class AddInstructionTests : FileTransferInstructionTests<AddInstruction>
 
     public class AddInstructionCreateTestScenario : TestScenario<AddInstruction>
     {
-        public IEnumerable<string> Sources { get; set; }
-        public string Destination { get; set; }
-        public string ChangeOwner { get; set; }
-        public string Permissions { get; set; }
-        public string Checksum { get; set; }
+        public required IEnumerable<string> Sources { get; set; }
+        public required string Destination { get; set; }
+        public string? ChangeOwner { get; set; }
+        public string? Permissions { get; set; }
+        public string? Checksum { get; set; }
         public bool KeepGitDir { get; set; }
         public bool Link { get; set; }
         public bool Unpack { get; set; }
-        public IEnumerable<string> Excludes { get; set; }
+        public IEnumerable<string>? Excludes { get; set; }
         public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
     }
 }

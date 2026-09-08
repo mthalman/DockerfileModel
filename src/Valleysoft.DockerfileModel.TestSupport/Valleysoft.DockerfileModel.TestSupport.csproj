@@ -1,12 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <LangVersion>10.0</LangVersion>
+    <IsPackable>false</IsPackable>
+    <LangVersion>13.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,7 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Valleysoft.DockerfileModel\Valleysoft.DockerfileModel.csproj" />
-    <ProjectReference Include="..\Valleysoft.DockerfileModel.TestSupport\Valleysoft.DockerfileModel.TestSupport.csproj" />
   </ItemGroup>
 
 </Project>

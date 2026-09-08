@@ -6,6 +6,18 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public static class TestHelper
 {
+    public static void AssertCommandType(Command? command, CommandType expected)
+    {
+        Assert.NotNull(command);
+        Assert.Equal(expected, command.CommandType);
+    }
+
+    public static void AssertCommandText(Command? command, string expected)
+    {
+        Assert.NotNull(command);
+        Assert.Equal(expected, command.ToString());
+    }
+
     public static string ConcatLines(IEnumerable<string> lines, string lineEnding = "\n") =>
         string.Join(lineEnding, lines.ToArray());
 
@@ -31,10 +43,25 @@ public static class TestHelper
     public static void TestVariablesWithLiteral(Func<LiteralToken> getLiteral, string initialValue, bool canContainVariables) =>
         TestVariablesWithLiteral(getLiteral, initialValue, canContainVariables, null, null);
 
-    public static void TestVariablesWithNullableLiteral(Func<LiteralToken> getLiteral, Action<LiteralToken> setLiteral, Action<string> setValue, string initialValue, bool canContainVariables) =>
-        TestVariablesWithLiteral(getLiteral, initialValue, canContainVariables, setLiteral, setValue);
+    public static void TestVariablesWithNullableLiteral(
+        Func<LiteralToken?> getLiteral,
+        Action<LiteralToken?> setLiteral,
+        Action<string?> setValue,
+        string initialValue,
+        bool canContainVariables) =>
+        TestVariablesWithLiteral(
+            () => Assert.IsType<LiteralToken>(getLiteral()),
+            initialValue,
+            canContainVariables,
+            setLiteral,
+            setValue);
 
-    private static void TestVariablesWithLiteral(Func<LiteralToken> getLiteral, string initialValue, bool canContainVariables, Action<LiteralToken> setLiteral, Action<string> setValue)
+    private static void TestVariablesWithLiteral(
+        Func<LiteralToken> getLiteral,
+        string initialValue,
+        bool canContainVariables,
+        Action<LiteralToken?>? setLiteral,
+        Action<string?>? setValue)
     {
         if (canContainVariables)
         {
@@ -59,6 +86,7 @@ public static class TestHelper
 
             if (setLiteral is not null)
             {
+                Assert.NotNull(setValue);
                 setLiteral(null);
                 setValue("$var3");
                 Assert.Collection(getLiteral().Tokens, new Action<Token>[]
@@ -90,6 +118,7 @@ public static class TestHelper
 
             if (setLiteral is not null)
             {
+                Assert.NotNull(setValue);
                 setLiteral(null);
                 setValue("$var3");
                 Assert.Collection(getLiteral().Tokens, new Action<Token>[]

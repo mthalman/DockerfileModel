@@ -32,7 +32,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
         static void Validate(CopyInstruction instruction, string stage)
         {
             Assert.Equal(stage, instruction.FromStageName);
-            Assert.Equal(stage, instruction.FromStageNameToken.Value);
+            Assert.Equal(stage, Assert.IsType<LiteralToken>(instruction.FromStageNameToken).Value);
             Assert.Equal($"COPY --from={stage} src dst", instruction.ToString());
         }
 
@@ -70,8 +70,7 @@ public class CopyInstructionTests : FileTransferInstructionTests<CopyInstruction
         FromFlag fromFlag = instruction.Tokens.OfType<FromFlag>().Single();
 
         // The flag value should be a LiteralToken
-        LiteralToken valueToken = fromFlag.ValueToken;
-        Assert.NotNull(valueToken);
+        LiteralToken valueToken = Assert.IsType<LiteralToken>(fromFlag.ValueToken);
         Assert.Equal(expectedFlagValue, valueToken.Value);
 
         // The literal should contain NO VariableRefToken children — $VAR is plain string text

@@ -22,10 +22,12 @@ public class EntrypointInstructionTests
         }
         else if (scenario.Args is null)
         {
+            Assert.NotNull(scenario.Command);
             result = new EntrypointInstruction(scenario.Command);
         }
         else
         {
+            Assert.NotNull(scenario.Command);
             result = new EntrypointInstruction(scenario.Command, scenario.Args);
         }
 
@@ -51,8 +53,8 @@ public class EntrypointInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("ENTRYPOINT", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo hello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo hello");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
                     Assert.Equal("echo hello", cmd.Value);
@@ -105,8 +107,8 @@ public class EntrypointInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("ENTRYPOINT", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo #not-a-comment", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo #not-a-comment");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
                     Assert.Equal("echo #not-a-comment", cmd.Value);
@@ -126,8 +128,8 @@ public class EntrypointInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("ENTRYPOINT", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("#FF0000", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "#FF0000");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
                     Assert.Equal("#FF0000", cmd.Value);
@@ -158,8 +160,8 @@ public class EntrypointInstructionTests
                     Assert.Single(result.Comments);
                     Assert.Equal("test comment", result.Comments.First());
                     Assert.Equal("ENTRYPOINT", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo `\n#test comment\nhello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo `\n#test comment\nhello");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
                     Assert.Equal("echo hello", cmd.Value);
@@ -180,8 +182,8 @@ public class EntrypointInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("ENTRYPOINT", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
-                    Assert.Equal("[]", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
+                    TestHelper.AssertCommandText(result.Command, "[]");
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Empty(cmd.Values);
@@ -204,7 +206,7 @@ public class EntrypointInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("ENTRYPOINT", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Empty(cmd.Values);
@@ -232,8 +234,8 @@ public class EntrypointInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("ENTRYPOINT", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
-                    Assert.Equal("[\"/bin/bash\", \"-c\", \"echo hello\"]", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
+                    TestHelper.AssertCommandText(result.Command, "[\"/bin/bash\", \"-c\", \"echo hello\"]");
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Equal(
@@ -279,7 +281,7 @@ public class EntrypointInstructionTests
                 },
                 Validate = result =>
                 {
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Empty(cmd.Values);
@@ -316,8 +318,8 @@ public class EntrypointInstructionTests
 
     public class CreateTestScenario : TestScenario<EntrypointInstruction>
     {
-        public string Command { get; set; }
-        public IEnumerable<string> ExecArgs { get; set; }
-        public IEnumerable<string> Args { get; set; }
+        public string? Command { get; set; }
+        public IEnumerable<string>? ExecArgs { get; set; }
+        public IEnumerable<string>? Args { get; set; }
     }
 }

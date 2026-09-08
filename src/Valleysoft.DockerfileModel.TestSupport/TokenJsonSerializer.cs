@@ -2,7 +2,7 @@ using System.Text;
 using Valleysoft.DockerfileModel;
 using Valleysoft.DockerfileModel.Tokens;
 
-namespace Valleysoft.DockerfileModel.DiffTest;
+namespace Valleysoft.DockerfileModel.TestSupport;
 
 /// <summary>
 /// Hand-written recursive JSON serializer for the C# Token hierarchy.

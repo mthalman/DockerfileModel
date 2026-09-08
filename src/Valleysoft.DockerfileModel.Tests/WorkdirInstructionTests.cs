@@ -44,9 +44,9 @@ public class WorkdirInstructionTests
         Assert.Equal("/test4", result.PathToken.Value);
         Assert.Equal("WORKDIR /test4", result.ToString());
 
-        Assert.Throws<ArgumentNullException>(() => result.Path = null);
+        Assert.Throws<ArgumentNullException>(() => result.Path = null!);
         Assert.Throws<ArgumentException>(() => result.Path = "");
-        Assert.Throws<ArgumentNullException>(() => result.PathToken = null);
+        Assert.Throws<ArgumentNullException>(() => result.PathToken = null!);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class WorkdirInstructionTests
 
     public class CreateTestScenario : TestScenario<WorkdirInstruction>
     {
-        public string Path { get; set; }
+        public required string Path { get; set; }
     }
 
     /// <summary>

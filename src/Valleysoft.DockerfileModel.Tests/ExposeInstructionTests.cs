@@ -455,7 +455,7 @@ public class ExposeInstructionTests
 
     public class CreateTestScenario : TestScenario<ExposeInstruction>
     {
-        public string PortSpec { get; set; }
+        public required string PortSpec { get; set; }
     }
 
     [Fact]
@@ -464,8 +464,7 @@ public class ExposeInstructionTests
         string text = "EXPOSE 80\n";
         ExposeInstruction inst = ExposeInstruction.Parse(text);
         Assert.Equal(text, inst.ToString());
-        Assert.Equal(1, inst.Ports.Count);
-        Assert.Equal("80", inst.Ports[0]);
+        Assert.Equal("80", Assert.Single(inst.Ports));
     }
 
     [Fact]

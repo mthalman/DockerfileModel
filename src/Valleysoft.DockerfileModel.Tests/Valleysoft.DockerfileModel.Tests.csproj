@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <LangVersion>13.0</LangVersion>
+    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
@@ -24,7 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Valleysoft.DockerfileModel\Valleysoft.DockerfileModel.csproj" />
-    <ProjectReference Include="..\Valleysoft.DockerfileModel.DiffTest\Valleysoft.DockerfileModel.DiffTest.csproj" />
+    <ProjectReference Include="..\Valleysoft.DockerfileModel.TestSupport\Valleysoft.DockerfileModel.TestSupport.csproj" />
   </ItemGroup>
 
 </Project>

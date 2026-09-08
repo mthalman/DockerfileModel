@@ -19,7 +19,7 @@ public class ImageNameTests
     [InlineData("localhost", null, "localhost", null, null)]
     [InlineData("Localhost/myimage:latest", "Localhost", "myimage", "latest", null)]
     [InlineData("LOCALHOST/myimage:latest", "LOCALHOST", "myimage", "latest", null)]
-    public void Parse(string input, string expectedRegistry, string expectedRepository, string expectedTag, string expectedDigest)
+    public void Parse(string input, string? expectedRegistry, string expectedRepository, string? expectedTag, string? expectedDigest)
     {
         ImageName result = ImageName.Parse(input);
         Assert.Equal(expectedRegistry, result.Registry);
@@ -38,7 +38,7 @@ public class ImageNameTests
     [InlineData(null, "repo1", "tag1", null, "repo1:tag1")]
     [InlineData(null, "repo1", null, TestSha, "repo1@" + TestSha)]
     [InlineData("docker.io", "library/image", null, TestSha, "docker.io/library/image@" + TestSha)]
-    public void Create(string registry, string repository, string tag, string digest, string expectedOutput)
+    public void Create(string? registry, string repository, string? tag, string? digest, string expectedOutput)
     {
         ImageName result = new(repository, registry, tag, digest);
         Assert.Equal(expectedOutput, result.ToString());
@@ -130,7 +130,7 @@ public class ImageNameTests
         imageName.Repository = "test2";
         Assert.Equal("test2", imageName.Repository);
 
-        Assert.Throws<ArgumentNullException>(() => imageName.Repository = null);
+        Assert.Throws<ArgumentNullException>(() => imageName.Repository = null!);
     }
 
     [Fact]

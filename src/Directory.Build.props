@@ -4,5 +4,7 @@
     <RepositoryUrl>https://github.com/mthalman/DockerfileModel</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <Authors>Matt Thalman and Contributors</Authors>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900</WarningsNotAsErrors>
   </PropertyGroup>
 </Project>

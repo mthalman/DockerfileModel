@@ -1,7 +1,7 @@
 using FsCheck;
 using FsCheck.Fluent;
 
-namespace Valleysoft.DockerfileModel.Tests.Generators;
+namespace Valleysoft.DockerfileModel.TestSupport.Generators;
 
 /// <summary>
 /// FsCheck 3.x generators that produce valid Dockerfile instruction strings.

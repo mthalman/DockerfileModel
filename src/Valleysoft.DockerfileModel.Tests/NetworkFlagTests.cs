@@ -164,6 +164,6 @@ public class NetworkFlagTests
 
     public class CreateTestScenario : TestScenario<NetworkFlag>
     {
-        public string Network { get; set; }
+        public required string Network { get; set; }
     }
 }

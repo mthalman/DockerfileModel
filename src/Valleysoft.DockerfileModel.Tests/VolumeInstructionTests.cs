@@ -365,6 +365,6 @@ public class VolumeInstructionTests
 
     public class CreateTestScenario : TestScenario<VolumeInstruction>
     {
-        public IEnumerable<string> Paths { get; set; }
+        public required IEnumerable<string> Paths { get; set; }
     }
 }

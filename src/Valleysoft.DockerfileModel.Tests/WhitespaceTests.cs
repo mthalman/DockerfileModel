@@ -31,7 +31,7 @@ public class WhitespaceTests
     {
         Whitespace whitespace = new(" ");
         Assert.Equal(" ", whitespace.Value);
-        Assert.Equal(" ", whitespace.ValueToken.Value);
+        Assert.Equal(" ", Assert.IsType<WhitespaceToken>(whitespace.ValueToken).Value);
 
         whitespace.Value = "\t";
         Assert.Equal("\t", whitespace.Value);
@@ -63,7 +63,7 @@ public class WhitespaceTests
 
         whitespace.NewLine = "\n";
         Assert.Equal("\n", whitespace.NewLine);
-        Assert.Equal("\n", whitespace.NewLineToken.Value);
+        Assert.Equal("\n", Assert.IsType<NewLineToken>(whitespace.NewLineToken).Value);
 
         whitespace.NewLine = null;
         Assert.Null(whitespace.NewLine);

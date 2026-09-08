@@ -17,6 +17,7 @@
         ".github/workflows/**",
         "global.json",
         "src/Valleysoft.DockerfileModel.DiffTest/**",
+        "src/Valleysoft.DockerfileModel.TestSupport/**",
         "src/Valleysoft.DockerfileModel.Tests/**"
       ],
       "addLabels": [
@@ -34,6 +35,6 @@
     }
   ],
   "ignorePaths": [
-    "src/Valleysoft.DockerfileModel.Tests/Generators/DockerfileArbitraries.cs"
+    "src/Valleysoft.DockerfileModel.TestSupport/Generators/DockerfileArbitraries.cs"
   ]
 }

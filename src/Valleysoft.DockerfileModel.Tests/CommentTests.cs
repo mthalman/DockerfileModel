@@ -15,7 +15,7 @@ public class CommentTests
             Comment result = Comment.Parse(scenario.Text);
             Assert.Equal(scenario.Text, result.ToString());
             Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate(result);
+            scenario.Validate?.Invoke(result);
         }
         else
         {
@@ -32,7 +32,7 @@ public class CommentTests
     {
         Comment result = new(scenario.Comment);
         Assert.Collection(result.Tokens, scenario.TokenValidators);
-        scenario.Validate(result);
+        scenario.Validate?.Invoke(result);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class CommentTests
         Assert.Null(comment.Value);
         Assert.Null(comment.ValueToken.Text);
 
-        Assert.Throws<ArgumentNullException>(() => comment.ValueToken = null);
+        Assert.Throws<ArgumentNullException>(() => comment.ValueToken = null!);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -174,6 +174,6 @@ public class CommentTests
 
     public class CreateTestScenario : TestScenario<Comment>
     {
-        public string Comment { get; set; }
+        public required string Comment { get; set; }
     }
 }

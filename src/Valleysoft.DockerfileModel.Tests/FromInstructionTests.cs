@@ -50,9 +50,9 @@ public class FromInstructionTests
         Assert.Equal("test4", instruction.ImageName);
         Assert.Equal("test4", instruction.ImageNameToken.Value);
 
-        Assert.Throws<ArgumentNullException>(() => instruction.ImageName = null);
+        Assert.Throws<ArgumentNullException>(() => instruction.ImageName = null!);
         Assert.Throws<ArgumentException>(() => instruction.ImageName = "");
-        Assert.Throws<ArgumentNullException>(() => instruction.ImageNameToken = null);
+        Assert.Throws<ArgumentNullException>(() => instruction.ImageNameToken = null!);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class FromInstructionTests
 
         instruction.Platform = "foo";
         Assert.Equal("foo", instruction.Platform);
-        Assert.Equal("foo", instruction.PlatformToken.Value);
+        Assert.Equal("foo", Assert.IsType<LiteralToken>(instruction.PlatformToken).Value);
 
         instruction.PlatformToken.Value = "foo2";
         Assert.Equal("foo2", instruction.Platform);
@@ -119,7 +119,7 @@ public class FromInstructionTests
 
         instruction.StageName = "foo";
         Assert.Equal("foo", instruction.StageName);
-        Assert.Equal("foo", instruction.StageNameToken.Value);
+        Assert.Equal("foo", Assert.IsType<StageName>(instruction.StageNameToken).Value);
 
         instruction.StageNameToken.Value = "foo2";
         Assert.Equal("foo2", instruction.StageName);
@@ -597,9 +597,9 @@ public class FromInstructionTests
 
     public class CreateTestScenario : TestScenario<FromInstruction>
     {
-        public string Platform { get; set; }
-        public string ImageName { get; set; }
-        public string Stage { get; set; }
+        public string? Platform { get; set; }
+        public required string ImageName { get; set; }
+        public string? Stage { get; set; }
     }
 
     [Fact]

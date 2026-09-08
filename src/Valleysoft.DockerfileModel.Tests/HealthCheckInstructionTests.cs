@@ -42,7 +42,7 @@ public class HealthCheckInstructionTests
     {
         HealthCheckInstruction instruction = new("command", interval: "10s");
         Assert.Equal("10s", instruction.Interval);
-        Assert.Equal("10s", instruction.IntervalToken.Value);
+        Assert.Equal("10s", Assert.IsType<LiteralToken>(instruction.IntervalToken).Value);
         Assert.Equal("HEALTHCHECK --interval=10s CMD command", instruction.ToString());
 
         instruction.Interval = "20s";
@@ -84,7 +84,7 @@ public class HealthCheckInstructionTests
     {
         HealthCheckInstruction instruction = new("command", timeout: "10s");
         Assert.Equal("10s", instruction.Timeout);
-        Assert.Equal("10s", instruction.TimeoutToken.Value);
+        Assert.Equal("10s", Assert.IsType<LiteralToken>(instruction.TimeoutToken).Value);
         Assert.Equal("HEALTHCHECK --timeout=10s CMD command", instruction.ToString());
 
         instruction.Timeout = "20s";
@@ -126,7 +126,7 @@ public class HealthCheckInstructionTests
     {
         HealthCheckInstruction instruction = new("command", startPeriod: "10s");
         Assert.Equal("10s", instruction.StartPeriod);
-        Assert.Equal("10s", instruction.StartPeriodToken.Value);
+        Assert.Equal("10s", Assert.IsType<LiteralToken>(instruction.StartPeriodToken).Value);
         Assert.Equal("HEALTHCHECK --start-period=10s CMD command", instruction.ToString());
 
         instruction.StartPeriod = "20s";
@@ -168,7 +168,7 @@ public class HealthCheckInstructionTests
     {
         HealthCheckInstruction instruction = new("command", startInterval: "10s");
         Assert.Equal("10s", instruction.StartInterval);
-        Assert.Equal("10s", instruction.StartIntervalToken.Value);
+        Assert.Equal("10s", Assert.IsType<LiteralToken>(instruction.StartIntervalToken).Value);
         Assert.Equal("HEALTHCHECK --start-interval=10s CMD command", instruction.ToString());
 
         instruction.StartInterval = "20s";
@@ -210,7 +210,7 @@ public class HealthCheckInstructionTests
     {
         HealthCheckInstruction instruction = new("command", retries: "10s");
         Assert.Equal("10s", instruction.Retries);
-        Assert.Equal("10s", instruction.RetriesToken.Value);
+        Assert.Equal("10s", Assert.IsType<LiteralToken>(instruction.RetriesToken).Value);
         Assert.Equal("HEALTHCHECK --retries=10s CMD command", instruction.ToString());
 
         instruction.Retries = "20s";
@@ -707,12 +707,12 @@ public class HealthCheckInstructionTests
 
     public class CreateTestScenario : TestScenario<HealthCheckInstruction>
     {
-        public string Command { get; set; }
-        public IEnumerable<string> Args { get; set; }
-        public string Interval { get; set; }
-        public string Timeout { get; set; }
-        public string StartPeriod { get; set; }
-        public string StartInterval { get; set; }
-        public string Retries { get; set; }
+        public string? Command { get; set; }
+        public IEnumerable<string>? Args { get; set; }
+        public string? Interval { get; set; }
+        public string? Timeout { get; set; }
+        public string? StartPeriod { get; set; }
+        public string? StartInterval { get; set; }
+        public string? Retries { get; set; }
     }
 }

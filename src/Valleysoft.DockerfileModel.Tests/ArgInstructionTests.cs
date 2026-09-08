@@ -44,7 +44,7 @@ public class ArgInstructionTests
         }
 
         ArgInstruction result = new(
-            new Dictionary<string, string>
+            new Dictionary<string, string?>
             {
                 { "VAR1", "test" }
             });
@@ -397,7 +397,7 @@ public class ArgInstructionTests
         {
             new CreateTestScenario
             {
-                Args = new Dictionary<string, string>
+                Args = new Dictionary<string, string?>
                 {
                     { "TEST1", null }
                 },
@@ -411,7 +411,7 @@ public class ArgInstructionTests
             },
             new CreateTestScenario
             {
-                Args = new Dictionary<string, string>
+                Args = new Dictionary<string, string?>
                 {
                     { "TEST1", null },
                     { "TEST2", null }
@@ -429,7 +429,7 @@ public class ArgInstructionTests
             },
             new CreateTestScenario
             {
-                Args = new Dictionary<string, string>
+                Args = new Dictionary<string, string?>
                 {
                     { "TEST1", "b" }
                 },
@@ -445,7 +445,7 @@ public class ArgInstructionTests
             },
             new CreateTestScenario
             {
-                Args = new Dictionary<string, string>
+                Args = new Dictionary<string, string?>
                 {
                     { "TEST1", "b" },
                     { "TEST2", "c" }
@@ -467,7 +467,7 @@ public class ArgInstructionTests
             },
             new CreateTestScenario
             {
-                Args = new Dictionary<string, string>
+                Args = new Dictionary<string, string?>
                 {
                     { "TEST1", "" }
                 },
@@ -482,7 +482,7 @@ public class ArgInstructionTests
             },
             new CreateTestScenario
             {
-                Args = new Dictionary<string, string>
+                Args = new Dictionary<string, string?>
                 {
                     { "TEST1", "" },
                     { "TEST2", "" }
@@ -507,7 +507,7 @@ public class ArgInstructionTests
 
     public class CreateTestScenario : TestScenario<ArgInstruction>
     {
-        public Dictionary<string, string> Args { get; set; }
+        public required Dictionary<string, string?> Args { get; set; }
     }
 
     [Fact]

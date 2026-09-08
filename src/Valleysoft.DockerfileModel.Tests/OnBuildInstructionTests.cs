@@ -32,7 +32,7 @@ public class OnBuildInstructionTests
         Assert.Equal("RUN test2", result.Instruction.ToString());
         Assert.Equal("ONBUILD RUN test2", result.ToString());
 
-        Assert.Throws<ArgumentNullException>(() => result.Instruction = null);
+        Assert.Throws<ArgumentNullException>(() => result.Instruction = null!);
     }
 
     [Theory]
@@ -153,7 +153,7 @@ public class OnBuildInstructionTests
                     Assert.Equal("test comment", result.Comments.First());
                     Assert.Equal("ONBUILD", result.InstructionName);
                     RunInstruction instruction = Assert.IsType<RunInstruction>(result.Instruction);
-                    Assert.Equal(CommandType.ShellForm, instruction.Command.CommandType);
+                    TestHelper.AssertCommandType(instruction.Command, CommandType.ShellForm);
                     ShellFormCommand command = Assert.IsType<ShellFormCommand>(instruction.Command);
                     Assert.Equal("echo hello \\\n# test comment\nworld", command.ToString());
                     Assert.Equal("echo hello world", command.Value);
@@ -278,7 +278,7 @@ public class OnBuildInstructionTests
 
     public class CreateTestScenario : TestScenario<OnBuildInstruction>
     {
-        public Instruction Instruction { get; set; }
+        public required Instruction Instruction { get; set; }
     }
 
     [Fact]

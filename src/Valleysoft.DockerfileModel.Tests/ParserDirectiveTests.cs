@@ -15,7 +15,7 @@ public class ParserDirectiveTests
             ParserDirective result = ParserDirective.Parse(scenario.Text);
             Assert.Equal(scenario.Text, result.ToString());
             Assert.Collection(result.Tokens, scenario.TokenValidators);
-            scenario.Validate(result);
+            scenario.Validate?.Invoke(result);
         }
         else
         {
@@ -32,7 +32,7 @@ public class ParserDirectiveTests
     {
         ParserDirective result = new(scenario.Directive, scenario.Value);
         Assert.Collection(result.Tokens, scenario.TokenValidators);
-        scenario.Validate(result);
+        scenario.Validate?.Invoke(result);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -147,19 +147,19 @@ public class ParserDirectiveTests
 
     public abstract class TestScenario
     {
-        public Action<ParserDirective> Validate { get; set; }
-        public Action<Token>[] TokenValidators { get; set; }
+        public Action<ParserDirective>? Validate { get; set; }
+        public Action<Token>[] TokenValidators { get; set; } = [];
     }
 
     public class ParseTestScenario : TestScenario
     {
-        public string Text { get; set; }
-        public Position ParseExceptionPosition { get; set; }
+        public required string Text { get; set; }
+        public Position? ParseExceptionPosition { get; set; }
     }
 
     public class CreateTestScenario : TestScenario
     {
-        public string Directive { get; set; }
-        public string Value { get; set; }
+        public required string Directive { get; set; }
+        public required string Value { get; set; }
     }
 }

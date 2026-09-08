@@ -168,6 +168,6 @@ public class ChecksumFlagTests
 
     public class CreateTestScenario : TestScenario<ChecksumFlag>
     {
-        public string Checksum { get; set; }
+        public required string Checksum { get; set; }
     }
 }

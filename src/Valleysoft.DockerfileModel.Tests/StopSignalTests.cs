@@ -39,9 +39,9 @@ public class StopSignalInstructionTests
         Assert.Equal("test3", result.SignalToken.Value);
         Assert.Equal("STOPSIGNAL test3", result.ToString());
 
-        Assert.Throws<ArgumentNullException>(() => result.Signal = null);
+        Assert.Throws<ArgumentNullException>(() => result.Signal = null!);
         Assert.Throws<ArgumentException>(() => result.Signal = "");
-        Assert.Throws<ArgumentNullException>(() => result.SignalToken = null);
+        Assert.Throws<ArgumentNullException>(() => result.SignalToken = null!);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -200,7 +200,7 @@ public class StopSignalInstructionTests
 
     public class CreateTestScenario : TestScenario<StopSignalInstruction>
     {
-        public string Signal { get; set; }
+        public required string Signal { get; set; }
     }
 
     [Fact]
