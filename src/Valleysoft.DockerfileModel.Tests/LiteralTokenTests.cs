@@ -33,7 +33,7 @@ public class LiteralTokenTests
         {
             Value = "$REPO:tag"
         };
-        token.ResolveVariables(Dockerfile.DefaultEscapeChar, new Dictionary<string, string>
+        token.ResolveVariables(Dockerfile.DefaultEscapeChar, new Dictionary<string, string?>
         {
             { "REPO", "test" }
         }, options: new ResolutionOptions { UpdateInline = true});

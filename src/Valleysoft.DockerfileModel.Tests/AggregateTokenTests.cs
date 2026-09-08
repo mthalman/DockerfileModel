@@ -52,10 +52,10 @@ public class AggregateTokenTests
     [InlineData("repo:${TAG:-${TAG2}}", '\\', "TAG", "test", "TAG2", "foo", "repo:test")]
     [InlineData("repo:${TAG:-${TAG2:-a${TAG3}b}}", '\\', "TAG3", "foo", null, null, "repo:afoob")]
     public void Resolve(
-        string text, char escapeChar, string arg1Name, string arg1Value, string arg2Name, string arg2Value, string expected,
-        bool removeEscapeCharacters = false, string expectedError = null)
+        string text, char escapeChar, string? arg1Name, string? arg1Value, string? arg2Name, string? arg2Value, string? expected,
+        bool removeEscapeCharacters = false, string? expectedError = null)
     {
-        Dictionary<string, string> args = new();
+        Dictionary<string, string?> args = new();
         if (arg1Name != null)
         {
             args.Add(arg1Name, arg1Value);
@@ -75,7 +75,7 @@ public class AggregateTokenTests
 
         if (expectedError is null)
         {
-            string actual = inst.ResolveVariables(escapeChar, args, options);
+            string? actual = inst.ResolveVariables(escapeChar, args, options);
             Assert.Equal($"FROM {expected}", actual);
         }
         else

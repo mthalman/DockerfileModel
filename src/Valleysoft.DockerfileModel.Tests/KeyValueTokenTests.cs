@@ -12,6 +12,7 @@ public class KeyValueTokenTests
     {
         if (scenario.ParseExceptionPosition is null)
         {
+            Assert.NotNull(scenario.Key);
             KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.Parse(
                 scenario.Text,
                 KeywordToken.GetParser(scenario.Key, scenario.EscapeChar),
@@ -214,12 +215,12 @@ public class KeyValueTokenTests
 
     public class KeyValueTokenParseTestScenario : ParseTestScenario<KeyValueToken<KeywordToken, LiteralToken>>
     {
-        public string Key { get; set; }
+        public string? Key { get; set; }
     }
 
     public class CreateTestScenario : TestScenario<KeyValueToken<KeywordToken, LiteralToken>>
     {
-        public string Key { get; set; }
-        public string Value { get; set; }
+        public required string Key { get; set; }
+        public required string Value { get; set; }
     }
 }

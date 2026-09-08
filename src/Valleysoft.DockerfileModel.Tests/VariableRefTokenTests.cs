@@ -21,6 +21,7 @@ public class VariableRefTokenTests
         }
         else
         {
+            Assert.NotNull(scenario.ModifierValue);
             result = new VariableRefToken(scenario.VariableName, scenario.Modifier, scenario.ModifierValue);
         }
 
@@ -47,9 +48,9 @@ public class VariableRefTokenTests
         Assert.Equal("test3", token.VariableName);
         Assert.Equal("test3", token.VariableNameToken.Value);
 
-        Assert.Throws<ArgumentNullException>(() => token.VariableName = null);
+        Assert.Throws<ArgumentNullException>(() => token.VariableName = null!);
         Assert.Throws<ArgumentException>(() => token.VariableName = "");
-        Assert.Throws<ArgumentNullException>(() => token.VariableNameToken = null);
+        Assert.Throws<ArgumentNullException>(() => token.VariableNameToken = null!);
     }
 
     [Fact]
@@ -81,7 +82,7 @@ public class VariableRefTokenTests
     {
         VariableRefToken token = new("foo", "-", "bar");
         Assert.Equal("bar", token.ModifierValue);
-        Assert.Equal("bar", token.ModifierValueToken.Value);
+        Assert.Equal("bar", Assert.IsType<LiteralToken>(token.ModifierValueToken).Value);
         Assert.NotEmpty(token.ModifierTokens);
         Assert.Equal("${foo-bar}", token.ToString());
 
@@ -473,11 +474,11 @@ public class VariableRefTokenTests
                 },
                 Validate = token =>
                 {
-                    Dictionary<string, string> variables = new() {
+                    Dictionary<string, string?> variables = new() {
 
                     };
 
-                    string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                     Assert.Equal("test", result);
 
                     variables["foo"] = null;
@@ -506,10 +507,10 @@ public class VariableRefTokenTests
                 },
                 Validate = token =>
                 {
-                    Dictionary<string, string> variables = new() {
+                    Dictionary<string, string?> variables = new() {
                     };
 
-                    string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                     Assert.Equal("test", result);
 
                     variables["foo"] = null;
@@ -537,10 +538,10 @@ public class VariableRefTokenTests
                 },
                 Validate = token =>
                 {
-                    Dictionary<string, string> variables = new() {
+                    Dictionary<string, string?> variables = new() {
                     };
 
-                    string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                     Assert.Equal("", result);
 
                     variables["foo"] = null;
@@ -569,10 +570,10 @@ public class VariableRefTokenTests
                 },
                 Validate = token =>
                 {
-                    Dictionary<string, string> variables = new() {
+                    Dictionary<string, string?> variables = new() {
                     };
 
-                    string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                     Assert.Equal("", result);
 
                     variables["foo"] = null;
@@ -600,13 +601,13 @@ public class VariableRefTokenTests
                 },
                 Validate = token =>
                 {
-                    Dictionary<string, string> variables = new() {
+                    Dictionary<string, string?> variables = new() {
                     };
 
                     Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables));
 
                     variables["foo"] = null;
-                    string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                     Assert.Equal("", result);
 
                     variables["foo"] = "test2";
@@ -631,7 +632,7 @@ public class VariableRefTokenTests
                 },
                 Validate = token =>
                 {
-                    Dictionary<string, string> variables = new() {
+                    Dictionary<string, string?> variables = new() {
                     };
 
                     Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables));
@@ -640,7 +641,7 @@ public class VariableRefTokenTests
                     Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables));
 
                     variables["foo"] = "test2";
-                    string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                     Assert.Equal("test2", result);
                 }
             },
@@ -666,11 +667,11 @@ public class VariableRefTokenTests
                 },
                 Validate = token =>
                 {
-                    Dictionary<string, string> variables = new() {
+                    Dictionary<string, string?> variables = new() {
                         { "bar", "test2" }
                     };
 
-                    string result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
+                    string? result = token.ResolveVariables(Dockerfile.DefaultEscapeChar, variables);
                     Assert.Equal("atest2x", result);
 
                 }
@@ -836,9 +837,9 @@ public class VariableRefTokenTests
 
     public class CreateTestScenario : TestScenario<VariableRefToken>
     {
-        public string VariableName { get; set; }
-        public string Modifier { get; set; }
-        public string ModifierValue { get; set; }
+        public required string VariableName { get; set; }
+        public string? Modifier { get; set; }
+        public string? ModifierValue { get; set; }
     }
 
     /// <summary>

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Valleysoft.DockerfileModel.DiffTest;
+using Valleysoft.DockerfileModel.TestSupport;
 
 namespace Valleysoft.DockerfileModel.Tests;
 
@@ -26,7 +26,7 @@ public class TokenJsonSerializerTests
     {
         // "RUN echo hello \\\nworld" — backslash + newline is a line continuation
         string input = "RUN echo hello \\" + "\n" + "world";
-        string json = DiffTestRunner.ParseCSharp("RUN", input, '\\');
+        string json = InstructionSerializer.ParseCSharp("RUN", input, '\\');
 
         // The literal children should contain:
         //   string("echo hello "), lineContinuation[symbol("\\"), newLine("\n")], string("world")
@@ -56,7 +56,7 @@ public class TokenJsonSerializerTests
     public void ShellForm_CMD_WhitespaceBeforeLineContinuation()
     {
         string input = "CMD foo bar \\" + "\n" + "baz";
-        string json = DiffTestRunner.ParseCSharp("CMD", input, '\\');
+        string json = InstructionSerializer.ParseCSharp("CMD", input, '\\');
 
         // The literal children should NOT contain separate whitespace tokens
         Assert.DoesNotContain("\"kind\":\"whitespace\"", GetLiteralChildrenJson(json));
@@ -74,7 +74,7 @@ public class TokenJsonSerializerTests
     public void ShellForm_ENTRYPOINT_MultipleLineContinuations()
     {
         string input = "ENTRYPOINT a b \\" + "\n" + "c d \\" + "\n" + "e";
-        string json = DiffTestRunner.ParseCSharp("ENTRYPOINT", input, '\\');
+        string json = InstructionSerializer.ParseCSharp("ENTRYPOINT", input, '\\');
 
         // No whitespace tokens inside the literal
         Assert.DoesNotContain("\"kind\":\"whitespace\"", GetLiteralChildrenJson(json));
@@ -94,7 +94,7 @@ public class TokenJsonSerializerTests
     public void ShellForm_NoLineContinuation_WhitespaceCollapsed()
     {
         string input = "RUN echo hello world";
-        string json = DiffTestRunner.ParseCSharp("RUN", input, '\\');
+        string json = InstructionSerializer.ParseCSharp("RUN", input, '\\');
 
         // The literal should contain a single string with all text
         Assert.Contains("\"value\":\"echo hello world\"", json);
@@ -108,7 +108,7 @@ public class TokenJsonSerializerTests
     public void RUN_MountAndShellFormWithLineContinuation()
     {
         string input = "RUN --mount=type=secret,id=mysecret echo hello \\" + "\n" + "world";
-        string json = DiffTestRunner.ParseCSharp("RUN", input, '\\');
+        string json = InstructionSerializer.ParseCSharp("RUN", input, '\\');
 
         // Mount flag should be serialized as keyValue
         Assert.Contains("\"kind\":\"keyValue\"", json);

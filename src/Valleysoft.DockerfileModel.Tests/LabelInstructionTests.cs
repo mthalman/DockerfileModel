@@ -566,7 +566,7 @@ public class LabelInstructionTests
 
     public class CreateTestScenario : TestScenario<LabelInstruction>
     {
-        public Dictionary<string, string> Variables { get; set; }
+        public required Dictionary<string, string> Variables { get; set; }
     }
 
     /// <summary>

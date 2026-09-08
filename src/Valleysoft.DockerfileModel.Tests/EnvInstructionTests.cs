@@ -162,7 +162,7 @@ public class EnvInstructionTests
                 { "VAR1", "$var" }
             });
         TestHelper.TestVariablesWithLiteral(
-            () => result.VariableTokens[0].ValueToken, "var", canContainVariables: true);
+            () => Assert.IsType<LiteralToken>(result.VariableTokens[0].ValueToken), "var", canContainVariables: true);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -611,7 +611,7 @@ public class EnvInstructionTests
 
     public class CreateTestScenario : TestScenario<EnvInstruction>
     {
-        public Dictionary<string, string> Variables { get; set; }
+        public required Dictionary<string, string> Variables { get; set; }
     }
 
     /// <summary>

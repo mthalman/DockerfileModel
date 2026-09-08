@@ -82,10 +82,16 @@ Key components:
 
 The `src/Valleysoft.DockerfileModel.DiffTest/` project bridges C# and Lean:
 
-- **`InputGenerator.cs`** — generates random Dockerfile instruction strings using FsCheck generators from `DockerfileArbitraries.cs` across all 18 instruction types.
+- **`InputGenerator.cs`** — generates random Dockerfile instruction strings using the shared FsCheck generators across all 18 instruction types.
 - **`DiffTestRunner.cs`** — parses each input with both C# and Lean, compares canonical JSON output for byte-identical match.
-- **`TokenJsonSerializer.cs`** — hand-written recursive JSON serializer that transforms C# token trees into the canonical format. Includes workarounds for known C# tokenization differences (each tagged with the GitHub issue tracking the underlying fix).
 - **`Program.cs`** — CLI with `--compare`, `--parse`, and `--generate` modes.
+
+The `src/Valleysoft.DockerfileModel.TestSupport/` project provides shared,
+non-production infrastructure to Tests and DiffTest:
+
+- **`Generators/DockerfileArbitraries.cs`** — FsCheck generators used by property and differential tests.
+- **`InstructionSerializer.cs`** — parses C# instructions for canonical comparison.
+- **`TokenJsonSerializer.cs`** — transforms C# token trees into canonical JSON and contains tracked workarounds for known tokenization differences.
 
 ### Source of Truth
 
@@ -104,7 +110,7 @@ Tests use **xUnit** with `[Theory]`/`[InlineData]` for data-driven tests and `[F
 
 ### Property-Based Tests (FsCheck)
 
-`PropertyTests.cs` contains property-based tests using FsCheck generators from `Generators/DockerfileArbitraries.cs`:
+`PropertyTests.cs` contains property-based tests using FsCheck generators from the TestSupport project:
 - **Round-trip fidelity** — `Parse(text).ToString() == text` for all 18 instruction types + full Dockerfiles
 - **Token tree consistency** — at every `AggregateToken` node, `ToString() == concat(children.ToString())`
 - **Variable resolution non-mutation** — `ResolveVariables()` without `UpdateInline` doesn't change the model
@@ -118,7 +124,8 @@ The Lean spec includes both machine-checked proofs (`Proofs/`) and SlimCheck pro
 ## Project Layout
 
 - `src/Valleysoft.DockerfileModel/` — library targeting `netstandard2.0` and `net10.0` (C# 13, nullable enabled)
-- `src/Valleysoft.DockerfileModel.Tests/` — test project targeting `net10.0` (unit tests, property tests, FsCheck generators)
+- `src/Valleysoft.DockerfileModel.Tests/` — test project targeting `net10.0` (unit and property tests)
+- `src/Valleysoft.DockerfileModel.TestSupport/` — shared non-production generators and canonical serialization support targeting `net8.0`
 - `src/Valleysoft.DockerfileModel.DiffTest/` — differential test CLI targeting `net8.0` (compares C# vs Lean parser output)
 - `lean/` — Lean 4 formal specification (token model, parser combinators, proofs, differential test CLI)
 - `global.json` — pins .NET SDK version

@@ -34,9 +34,9 @@ public class ArgDeclarationTests
         Assert.Equal("test3", arg.Name);
         Assert.Equal("test3", arg.NameToken.Value);
 
-        Assert.Throws<ArgumentNullException>(() => arg.Name = null);
+        Assert.Throws<ArgumentNullException>(() => arg.Name = null!);
         Assert.Throws<ArgumentException>(() => arg.Name = "");
-        Assert.Throws<ArgumentNullException>(() => arg.NameToken = null);
+        Assert.Throws<ArgumentNullException>(() => arg.NameToken = null!);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class ArgDeclarationTests
 
         arg.Value = "foo";
         Assert.Equal("foo", arg.Value);
-        Assert.Equal("foo", arg.ValueToken.Value);
+        Assert.Equal("foo", Assert.IsType<LiteralToken>(arg.ValueToken).Value);
         Assert.True(arg.HasAssignmentOperator);
 
         arg.Value = "";
@@ -243,7 +243,7 @@ public class ArgDeclarationTests
                 Validate = result =>
                 {
                     Assert.Equal("MY_ARG", result.Name);
-                    Assert.Empty(result.Value);
+                    Assert.Equal(string.Empty, result.Value);
                 }
             },
             // Line continuation after = with indented default value (issue #288)
@@ -412,7 +412,7 @@ public class ArgDeclarationTests
 
     public class CreateTestScenario : TestScenario<ArgDeclaration>
     {
-        public string Name { get; set; }
-        public string Value { get; set; }
+        public required string Name { get; set; }
+        public string? Value { get; set; }
     }
 }

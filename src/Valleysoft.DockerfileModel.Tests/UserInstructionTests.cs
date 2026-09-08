@@ -32,7 +32,7 @@ public class UserInstructionTests
         Assert.Equal("root:root", result.User);
         Assert.Equal("USER root:root", result.ToString());
 
-        Assert.Throws<ArgumentNullException>(() => result.User = null);
+        Assert.Throws<ArgumentNullException>(() => result.User = null!);
         Assert.Throws<ArgumentException>(() => result.User = "");
     }
 
@@ -47,7 +47,7 @@ public class UserInstructionTests
         Assert.Equal("bob", result.User);
         Assert.Equal("USER bob", result.ToString());
 
-        Assert.Throws<ArgumentNullException>(() => result.UserToken = null);
+        Assert.Throws<ArgumentNullException>(() => result.UserToken = null!);
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class UserInstructionTests
 
     public class CreateTestScenario : TestScenario<UserInstruction>
     {
-        public string User { get; set; }
+        public required string User { get; set; }
     }
 
     [Fact]

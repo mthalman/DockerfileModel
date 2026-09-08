@@ -1,6 +1,6 @@
 using FsCheck;
 using FsCheck.Fluent;
-using Valleysoft.DockerfileModel.Tests.Generators;
+using Valleysoft.DockerfileModel.TestSupport.Generators;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel.Tests;
@@ -415,7 +415,7 @@ public class PropertyTests
             string beforeResolve = parsed.ToString();
 
             // Resolve with overrides but still UpdateInline = false
-            var overrides = new Dictionary<string, string> { { "anyvar", "anyval" } };
+            var overrides = new Dictionary<string, string?> { { "anyvar", "anyval" } };
             parsed.ResolveVariables(overrides);
 
             string afterResolve = parsed.ToString();
@@ -455,7 +455,7 @@ public class PropertyTests
     /// If false, the variable is never declared (truly "unset").</param>
     private static string ResolveModifierDockerfile(
         string varName, string modifier, string modValue,
-        Dictionary<string, string> argOverrides = null,
+        Dictionary<string, string?>? argOverrides = null,
         bool declareArg = true)
     {
         string argLine = declareArg ? $"ARG {varName}\n" : "";
@@ -486,7 +486,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "" } };
+            var overrides = new Dictionary<string, string?> { { varName, "" } };
             string result = ResolveModifierDockerfile(varName, ":-", modValue, overrides);
             Assert.Equal($"LABEL key={modValue}", result);
         }
@@ -499,7 +499,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "realval" } };
+            var overrides = new Dictionary<string, string?> { { varName, "realval" } };
             string result = ResolveModifierDockerfile(varName, ":-", modValue, overrides);
             Assert.Equal("LABEL key=realval", result);
         }
@@ -526,7 +526,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "" } };
+            var overrides = new Dictionary<string, string?> { { varName, "" } };
             string result = ResolveModifierDockerfile(varName, "-", modValue, overrides);
             Assert.Equal("LABEL key=", result);
         }
@@ -539,7 +539,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "something" } };
+            var overrides = new Dictionary<string, string?> { { varName, "something" } };
             string result = ResolveModifierDockerfile(varName, ":+", modValue, overrides);
             Assert.Equal($"LABEL key={modValue}", result);
         }
@@ -564,7 +564,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "" } };
+            var overrides = new Dictionary<string, string?> { { varName, "" } };
             string result = ResolveModifierDockerfile(varName, ":+", modValue, overrides);
             Assert.Equal("LABEL key=", result);
         }
@@ -577,7 +577,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "" } };
+            var overrides = new Dictionary<string, string?> { { varName, "" } };
             string result = ResolveModifierDockerfile(varName, "+", modValue, overrides);
             Assert.Equal($"LABEL key={modValue}", result);
         }
@@ -615,7 +615,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "" } };
+            var overrides = new Dictionary<string, string?> { { varName, "" } };
             Assert.Throws<VariableSubstitutionException>(() =>
                 ResolveModifierDockerfile(varName, ":?", modValue, overrides));
         }
@@ -628,7 +628,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "realval" } };
+            var overrides = new Dictionary<string, string?> { { varName, "realval" } };
             string result = ResolveModifierDockerfile(varName, ":?", modValue, overrides);
             Assert.Equal("LABEL key=realval", result);
         }
@@ -654,7 +654,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "" } };
+            var overrides = new Dictionary<string, string?> { { varName, "" } };
             string result = ResolveModifierDockerfile(varName, "?", modValue, overrides);
             Assert.Equal("LABEL key=", result);
         }
@@ -667,7 +667,7 @@ public class PropertyTests
         var samples = DockerfileArbitraries.VariableModifierComponents().Sample(SampleSize, 50);
         foreach (var (varName, _, modValue) in samples)
         {
-            var overrides = new Dictionary<string, string> { { varName, "realval" } };
+            var overrides = new Dictionary<string, string?> { { varName, "realval" } };
             string result = ResolveModifierDockerfile(varName, "?", modValue, overrides);
             Assert.Equal("LABEL key=realval", result);
         }

@@ -196,7 +196,7 @@ public class MaintainerInstructionTests
 
     public class CreateTestScenario : TestScenario<MaintainerInstruction>
     {
-        public string Maintainer { get; set; }
+        public required string Maintainer { get; set; }
     }
 
     /// <summary>

@@ -72,7 +72,7 @@ public class DockerfileTests
 
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-        Dictionary<string, string> argValues = new()
+        Dictionary<string, string?> argValues = new()
         {
             { "test", "b" }
         };
@@ -134,7 +134,7 @@ public class DockerfileTests
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
         StagesView stagesView = new(dockerfile);
 
-        Dictionary<string, string> argValues = new()
+        Dictionary<string, string?> argValues = new()
         {
             { "test", "z" }
         };
@@ -205,7 +205,7 @@ public class DockerfileTests
 
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-        Dictionary<string, string> argValues = new()
+        Dictionary<string, string?> argValues = new()
         {
             { "test1", "a1" },
             { "test2", "b1" },
@@ -299,7 +299,7 @@ public class DockerfileTests
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
         StagesView stagesView = new(dockerfile);
 
-        Dictionary<string, string> argValues = new()
+        Dictionary<string, string?> argValues = new()
         {
             { "test1", "a1" },
             { "test2", "b1" },
@@ -343,7 +343,7 @@ public class DockerfileTests
 
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-        Dictionary<string, string> argValues = new();
+        Dictionary<string, string?> argValues = new();
 
         string originalDockerfileString = dockerfile.ToString();
 
@@ -425,7 +425,7 @@ public class DockerfileTests
 
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-        Dictionary<string, string> argValues = new()
+        Dictionary<string, string?> argValues = new()
         {
             { "test1", "foo" }
         };
@@ -448,7 +448,7 @@ public class DockerfileTests
 
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-        Dictionary<string, string> argValues = new()
+        Dictionary<string, string?> argValues = new()
         {
             { "test", "foo" }
         };
@@ -477,7 +477,7 @@ public class DockerfileTests
 
         Dockerfile dockerfile = Dockerfile.Parse(String.Join("\n", lines.ToArray()));
 
-        Dictionary<string, string> argValues = new()
+        Dictionary<string, string?> argValues = new()
         {
             { "test", null }
         };

@@ -9,12 +9,12 @@ public abstract class FileTransferInstructionTests<TInstruction>
 {
     private readonly string instructionName;
     private readonly Func<string, char, TInstruction> parse;
-    private readonly Func<IEnumerable<string>, string, string, string, char, TInstruction> create;
+    private readonly Func<IEnumerable<string>, string, string?, string?, char, TInstruction> create;
 
     public FileTransferInstructionTests(
         string instructionName,
         Func<string, char, TInstruction> parse,
-        Func<IEnumerable<string>, string, string, string, char, TInstruction> create)
+        Func<IEnumerable<string>, string, string?, string?, char, TInstruction> create)
     {
         this.instructionName = instructionName;
         this.parse = parse;
@@ -53,7 +53,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
     {
         TInstruction instruction = this.create(new string[] { "src1", "src2" }, "dst", null, null, Dockerfile.DefaultEscapeChar);
         Assert.Equal("dst", instruction.Destination);
-        Assert.Equal("dst", instruction.DestinationToken.Value);
+        Assert.Equal("dst", Assert.IsType<LiteralToken>(instruction.DestinationToken).Value);
 
         instruction.Destination = "test";
         Assert.Equal("test", instruction.Destination);
@@ -67,16 +67,17 @@ public abstract class FileTransferInstructionTests<TInstruction>
         Assert.Equal("bar", instruction.Destination);
         Assert.Equal("bar", instruction.DestinationToken.Value);
 
-        Assert.Throws<ArgumentNullException>(() => instruction.Destination = null);
+        Assert.Throws<ArgumentNullException>(() => instruction.Destination = null!);
         Assert.Throws<ArgumentException>(() => instruction.Destination = "");
-        Assert.Throws<ArgumentNullException>(() => instruction.DestinationToken = null);
+        Assert.Throws<ArgumentNullException>(() => instruction.DestinationToken = null!);
     }
 
     [Fact]
     public void DestinationWithVariables()
     {
         TInstruction instruction = this.create(new string[] { "src1", "src2" }, "$var", null, null, Dockerfile.DefaultEscapeChar);
-        TestHelper.TestVariablesWithLiteral(() => instruction.DestinationToken, "var", canContainVariables: true);
+        TestHelper.TestVariablesWithLiteral(
+            () => Assert.IsType<LiteralToken>(instruction.DestinationToken), "var", canContainVariables: true);
     }
 
     [Fact]
@@ -180,7 +181,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
             token => ValidateLiteral(token, "dst")
         });
 
-        string result = instruction.ResolveVariables(Dockerfile.DefaultEscapeChar, new Dictionary<string, string>
+        string? result = instruction.ResolveVariables(Dockerfile.DefaultEscapeChar, new Dictionary<string, string?>
         {
             { "var", "user" }
         },
@@ -211,7 +212,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
         void Validate(TInstruction instruction, string permissions)
         {
             Assert.Equal(permissions, instruction.Permissions);
-            Assert.Equal(permissions, instruction.PermissionsToken.Value);
+            Assert.Equal(permissions, Assert.IsType<LiteralToken>(instruction.PermissionsToken).Value);
             Assert.Equal($"{instructionName} --chmod={permissions} src dst", instruction.ToString());
         }
 
@@ -829,10 +830,10 @@ public abstract class FileTransferInstructionTests<TInstruction>
 
     public class CreateTestScenario : TestScenario<TInstruction>
     {
-        public string Destination { get; set; }
-        public IEnumerable<string> Sources { get; set; }
-        public string ChangeOwner { get; set; }
-        public string Permissions { get; set; }
+        public required string Destination { get; set; }
+        public required IEnumerable<string> Sources { get; set; }
+        public string? ChangeOwner { get; set; }
+        public string? Permissions { get; set; }
         public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
     }
 }

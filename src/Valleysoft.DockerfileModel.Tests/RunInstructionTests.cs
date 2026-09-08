@@ -196,8 +196,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo hello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo hello");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     Assert.Empty(result.Mounts);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
@@ -263,8 +263,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("#FF0000", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "#FF0000");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
                     Assert.Equal("#FF0000", cmd.Value);
@@ -309,8 +309,8 @@ public class RunInstructionTests
                     Assert.Single(result.Comments);
                     Assert.Equal("test comment", result.Comments.First());
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo `\n#test comment\nhello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo `\n#test comment\nhello");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
                     Assert.Equal("echo hello", cmd.Value);
@@ -338,8 +338,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
-                    Assert.Equal("[\"/bin/bash\", \"-c\", \"echo hello\"]", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
+                    TestHelper.AssertCommandText(result.Command, "[\"/bin/bash\", \"-c\", \"echo hello\"]");
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Equal(
@@ -389,8 +389,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
-                    Assert.Equal("[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
+                    TestHelper.AssertCommandText(result.Command, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]");
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Equal(
@@ -461,8 +461,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo hello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo hello");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
                     Assert.Equal("echo hello", cmd.Value);
@@ -501,8 +501,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo hello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo hello");
                     Assert.IsType<ShellFormCommand>(result.Command);
                     ShellFormCommand cmd = (ShellFormCommand)result.Command;
                     Assert.Equal("echo hello", cmd.Value);
@@ -702,8 +702,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo hello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo hello");
                     Assert.Equal("host", result.Network);
                     Assert.Empty(result.Mounts);
                     Assert.Null(result.Security);
@@ -726,8 +726,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo hello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo hello");
                     Assert.Equal("insecure", result.Security);
                     Assert.Empty(result.Mounts);
                     Assert.Null(result.Network);
@@ -843,8 +843,8 @@ public class RunInstructionTests
                 Validate = result =>
                 {
                     Assert.Equal("host", result.Network);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
-                    ExecFormCommand cmd = (ExecFormCommand)result.Command;
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
+                    ExecFormCommand cmd = Assert.IsType<ExecFormCommand>(result.Command);
                     Assert.Equal(
                         new string[]
                         {
@@ -871,7 +871,7 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Empty(cmd.Values);
@@ -895,7 +895,7 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Empty(cmd.Values);
@@ -929,8 +929,8 @@ public class RunInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
-                    Assert.Equal(CommandType.ShellForm, result.Command.CommandType);
-                    Assert.Equal("echo hello", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ShellForm);
+                    TestHelper.AssertCommandText(result.Command, "echo hello");
                     Assert.Single(result.Mounts);
                     Assert.Equal("secret", result.Mounts.First().Type);
                     Assert.Equal("type=secret,id=mysecret,required", result.Mounts.First().ToString());
@@ -1114,11 +1114,11 @@ public class RunInstructionTests
 
     public class CreateTestScenario : TestScenario<RunInstruction>
     {
-        public string Command { get; set; }
-        public IEnumerable<string> Args { get; set; }
-        public IEnumerable<Mount> Mounts { get; set; }
-        public string Network { get; set; }
-        public string Security { get; set; }
+        public required string Command { get; set; }
+        public IEnumerable<string>? Args { get; set; }
+        public IEnumerable<Mount>? Mounts { get; set; }
+        public string? Network { get; set; }
+        public string? Security { get; set; }
     }
 
     [Fact]

@@ -31,7 +31,7 @@ public class GenericInstructionTests
     {
         GenericInstruction result = new(scenario.InstructionName, scenario.Args);
         Assert.Collection(result.Tokens, scenario.TokenValidators);
-        scenario.Validate(result);
+        scenario.Validate?.Invoke(result);
     }
 
     public static IEnumerable<object[]> ParseTestInput()
@@ -215,7 +215,7 @@ public class GenericInstructionTests
 
     public class CreateTestScenario : TestScenario<GenericInstruction>
     {
-        public string InstructionName { get; set; }
-        public string Args { get; set; }
+        public required string InstructionName { get; set; }
+        public required string Args { get; set; }
     }
 }

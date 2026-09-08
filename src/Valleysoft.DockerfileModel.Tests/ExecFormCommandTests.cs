@@ -294,6 +294,6 @@ public class ExecFormCommandTests
 
     public class CreateTestScenario : TestScenario<ExecFormCommand>
     {
-        public IEnumerable<string> Commands { get; set; }
+        public required IEnumerable<string> Commands { get; set; }
     }
 }

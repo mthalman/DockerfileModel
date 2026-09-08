@@ -30,7 +30,7 @@ public class CommentTokenTests
         CommentToken comment = new("test");
 
         Assert.Equal("test", comment.Text);
-        Assert.Equal("test", comment.TextToken.Value);
+        Assert.Equal("test", Assert.IsType<StringToken>(comment.TextToken).Value);
 
         comment.Text = "foo";
         Assert.Equal("foo", comment.Text);

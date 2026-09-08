@@ -35,7 +35,7 @@ public class ShellFormCommandTests
         Assert.Equal("echo hola", result.Value);
         Assert.Equal("echo hola", result.ValueToken.Value);
 
-        Assert.Throws<ArgumentNullException>(() => result.Value = null);
+        Assert.Throws<ArgumentNullException>(() => result.Value = null!);
         Assert.Throws<ArgumentException>(() => result.Value = "");
     }
 
@@ -199,6 +199,6 @@ public class ShellFormCommandTests
 
     public class CreateTestScenario : TestScenario<ShellFormCommand>
     {
-        public string Command { get; set; }
+        public required string Command { get; set; }
     }
 }

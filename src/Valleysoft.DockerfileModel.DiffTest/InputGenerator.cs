@@ -1,11 +1,11 @@
 using FsCheck;
 using FsCheck.Fluent;
-using Valleysoft.DockerfileModel.Tests.Generators;
+using Valleysoft.DockerfileModel.TestSupport.Generators;
 
 namespace Valleysoft.DockerfileModel.DiffTest;
 
 /// <summary>
-/// Wraps the linked FsCheck generators (DockerfileArbitraries) to produce
+/// Wraps the shared FsCheck generators (DockerfileArbitraries) to produce
 /// random test inputs for differential testing. Returns a list of
 /// (InstructionType, Text, EscapeChar) tuples distributed evenly across all 18
 /// Dockerfile instruction types, shuffled with a fixed seed for reproducibility.

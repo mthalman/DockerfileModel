@@ -95,7 +95,7 @@ public class ScenarioTests
         // arguments with their resolved values. Be aware of this if your intention is
         // write the model back to the Dockerfile on disk.
         dockerfile.ResolveVariables(
-            new Dictionary<string, string>
+            new Dictionary<string, string?>
             {
                 { "TAG", "3.12" }
             },

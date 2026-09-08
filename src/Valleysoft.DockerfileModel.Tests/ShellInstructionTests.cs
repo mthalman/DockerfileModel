@@ -44,8 +44,8 @@ public class ShellInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("SHELL", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
-                    Assert.Equal("[\"echo\", \"hello\"]", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
+                    TestHelper.AssertCommandText(result.Command, "[\"echo\", \"hello\"]");
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Collection(cmd.Values, new Action<string>[]
@@ -71,8 +71,8 @@ public class ShellInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("SHELL", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
-                    Assert.Equal("[\"echo\"]", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
+                    TestHelper.AssertCommandText(result.Command, "[\"echo\"]");
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Collection(cmd.Values, new Action<string>[]
@@ -99,8 +99,8 @@ public class ShellInstructionTests
                 {
                     Assert.Empty(result.Comments);
                     Assert.Equal("SHELL", result.InstructionName);
-                    Assert.Equal(CommandType.ExecForm, result.Command.CommandType);
-                    Assert.Equal("[\"echo\"]", result.Command.ToString());
+                    TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
+                    TestHelper.AssertCommandText(result.Command, "[\"echo\"]");
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Collection(cmd.Values, new Action<string>[]
@@ -162,7 +162,7 @@ public class ShellInstructionTests
 
     public class CreateTestScenario : TestScenario<ShellInstruction>
     {
-        public string Command { get; set; }
+        public required string Command { get; set; }
         public IEnumerable<string> Args { get; set; } = Enumerable.Empty<string>();
     }
 }

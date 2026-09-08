@@ -10,7 +10,7 @@ public class DurationTests
     [InlineData("1.5h", "01:30:00", "1h30m")]
     [InlineData("61s", "00:01:01", "1m1s")]
     [InlineData("34h", "1.10:00:00")]
-    public void Parse(string text, string expectedTimeSpanString, string expected = null)
+    public void Parse(string text, string expectedTimeSpanString, string? expected = null)
     {
         TimeSpan expectedTimeSpan = TimeSpan.Parse(expectedTimeSpanString);
 

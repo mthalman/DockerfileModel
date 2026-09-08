@@ -129,6 +129,6 @@ public class SecurityFlagTests
 
     public class CreateTestScenario : TestScenario<SecurityFlag>
     {
-        public string Security { get; set; }
+        public required string Security { get; set; }
     }
 }
