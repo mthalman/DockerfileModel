@@ -28,8 +28,8 @@ public class ShellInstruction : CommandInstruction
 
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)
     {
-        Requires.NotNull(command, nameof(command));
-        Requires.NotNull(args, nameof(args));
+        Guard.NotNull(command, nameof(command));
+        Guard.NotNull(args, nameof(args));
         return GetTokens($"SHELL {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
     }
 

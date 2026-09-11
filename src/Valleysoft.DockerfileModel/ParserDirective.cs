@@ -30,7 +30,7 @@ public class ParserDirective : DockerfileConstruct
         get => DirectiveValueToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             DirectiveValueToken.Value = value;
         }
     }
@@ -40,7 +40,7 @@ public class ParserDirective : DockerfileConstruct
         get => Tokens.OfType<LiteralToken>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(DirectiveValueToken, value);
         }
     }
@@ -68,8 +68,8 @@ public class ParserDirective : DockerfileConstruct
 
     private static IEnumerable<Token> GetTokens(string directive, string value)
     {
-        Requires.NotNullOrEmpty(directive, nameof(directive));
-        Requires.NotNullOrEmpty(value, nameof(value));
+        Guard.NotNullOrEmpty(directive, nameof(directive));
+        Guard.NotNullOrEmpty(value, nameof(value));
         return GetTokens($"#{directive}={value}", GetParser());
     }
 

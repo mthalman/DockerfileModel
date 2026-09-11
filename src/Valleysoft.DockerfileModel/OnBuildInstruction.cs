@@ -28,7 +28,7 @@ public class OnBuildInstruction : Instruction
         get => Tokens.OfType<Instruction>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(Instruction, value);
         }
     }
@@ -42,7 +42,7 @@ public class OnBuildInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(Instruction instruction, char escapeChar)
     {
-        Requires.NotNull(instruction, nameof(instruction));
+        Guard.NotNull(instruction, nameof(instruction));
         return GetTokens($"ONBUILD {instruction}", GetInnerParser(escapeChar));
     }
 

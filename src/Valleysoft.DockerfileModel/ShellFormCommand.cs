@@ -29,7 +29,7 @@ public class ShellFormCommand : Command
         get => ValueToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             ValueToken.Value = value;
         }
     }
@@ -39,14 +39,14 @@ public class ShellFormCommand : Command
         get => Tokens.OfType<LiteralToken>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(ValueToken, value);
         }
     }
 
     private static IEnumerable<Token> GetTokens(string command, char escapeChar)
     {
-        Requires.NotNullOrEmpty(command, nameof(command));
+        Guard.NotNullOrEmpty(command, nameof(command));
         return GetTokens(command, GetInnerParser(escapeChar));
     }
 

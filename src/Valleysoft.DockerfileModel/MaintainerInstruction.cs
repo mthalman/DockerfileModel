@@ -19,7 +19,7 @@ public class MaintainerInstruction : Instruction
         get => MaintainerToken.Value;
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             MaintainerToken.Value = value;
         }
     }
@@ -29,7 +29,7 @@ public class MaintainerInstruction : Instruction
         get => Tokens.OfType<LiteralToken>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(MaintainerToken, value);
         }
     }
@@ -43,7 +43,7 @@ public class MaintainerInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string maintainer, char escapeChar)
     {
-        Requires.NotNull(maintainer, nameof(maintainer));
+        Guard.NotNull(maintainer, nameof(maintainer));
         return GetTokens($"MAINTAINER {(String.IsNullOrEmpty(maintainer) ? "\"\"" : maintainer)}", GetInnerParser(escapeChar));
     }
 

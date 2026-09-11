@@ -30,7 +30,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             ReplaceWithTokens(GetInnerTokens(value));
         }
     }
@@ -42,7 +42,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)
     {
-        Requires.NotNull(value, nameof(value));
+        Guard.NotNull(value, nameof(value));
 
         if (value == string.Empty)
         {

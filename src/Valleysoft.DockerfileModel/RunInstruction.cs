@@ -53,7 +53,7 @@ public class RunInstruction : CommandInstruction
                 throw new InvalidOperationException("Cannot set Command on a heredoc RUN instruction.");
             }
 
-            Requires.NotNull(value!, nameof(value));
+            Guard.NotNull(value!, nameof(value));
             Command? current = Command;
             if (current is null)
             {
@@ -148,8 +148,8 @@ public class RunInstruction : CommandInstruction
     private static IEnumerable<Token> GetTokens(string commandWithArgs, IEnumerable<Mount> mounts,
         string? network, string? security, char escapeChar)
     {
-        Requires.NotNullOrEmpty(commandWithArgs, nameof(commandWithArgs));
-        Requires.NotNull(mounts, nameof(mounts));
+        Guard.NotNullOrEmpty(commandWithArgs, nameof(commandWithArgs));
+        Guard.NotNull(mounts, nameof(mounts));
 
         return GetTokens($"RUN {GetFlagArgs(mounts, network, security, escapeChar)}{commandWithArgs}", GetInnerParser(escapeChar));
     }
@@ -157,9 +157,9 @@ public class RunInstruction : CommandInstruction
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, IEnumerable<Mount> mounts,
         string? network, string? security, char escapeChar)
     {
-        Requires.NotNullOrEmpty(command, nameof(command));
-        Requires.NotNull(args, nameof(args));
-        Requires.NotNull(mounts, nameof(mounts));
+        Guard.NotNullOrEmpty(command, nameof(command));
+        Guard.NotNull(args, nameof(args));
+        Guard.NotNull(mounts, nameof(mounts));
 
         return GetTokens(
             $"RUN {GetFlagArgs(mounts, network, security, escapeChar)}{StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));

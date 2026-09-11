@@ -27,8 +27,8 @@ public class GenericInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string instruction, string args, char escapeChar)
     {
-        Requires.NotNullOrEmpty(instruction, nameof(instruction));
-        Requires.NotNullOrEmpty(args, nameof(args));
+        Guard.NotNullOrEmpty(instruction, nameof(instruction));
+        Guard.NotNullOrEmpty(args, nameof(args));
         return GetTokens($"{instruction} {args}", GetInnerParser(escapeChar));
     }
 

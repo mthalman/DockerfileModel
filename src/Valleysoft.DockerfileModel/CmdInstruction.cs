@@ -36,21 +36,21 @@ public class CmdInstruction : CommandInstruction
 
     private static IEnumerable<Token> GetTokens(string commandWithArgs, char escapeChar)
     {
-        Requires.NotNullOrEmpty(commandWithArgs, nameof(commandWithArgs));
+        Guard.NotNullOrEmpty(commandWithArgs, nameof(commandWithArgs));
         return GetTokens($"CMD {commandWithArgs}", GetInnerParser(escapeChar));
     }
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> defaultArgs, char escapeChar)
     {
-        Requires.NotNull(defaultArgs, nameof(defaultArgs));
+        Guard.NotNull(defaultArgs, nameof(defaultArgs));
 
         return GetTokens($"CMD {StringHelper.FormatAsJson(defaultArgs)}", GetInnerParser(escapeChar));
     }
 
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)
     {
-        Requires.NotNullOrEmpty(command, nameof(command));
-        Requires.NotNull(args, nameof(args));
+        Guard.NotNullOrEmpty(command, nameof(command));
+        Guard.NotNull(args, nameof(args));
         return GetTokens($"CMD {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
     }
 }

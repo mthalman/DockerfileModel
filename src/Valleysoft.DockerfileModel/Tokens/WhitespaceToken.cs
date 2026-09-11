@@ -8,8 +8,8 @@ public class WhitespaceToken : PrimitiveToken
 
     internal static string ValidateValue(string value)
     {
-        Requires.NotNullOrEmpty(value, nameof(value));
-        Verify.Operation(value.Trim().Length == 0, $"'{value}' contains non-whitespace characters.");
+        Guard.NotNullOrEmpty(value, nameof(value));
+        Guard.Operation(value.Trim().Length == 0, $"'{value}' contains non-whitespace characters.");
         return value;
     }
 }

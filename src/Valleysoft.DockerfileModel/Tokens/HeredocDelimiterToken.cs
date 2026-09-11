@@ -18,7 +18,7 @@ public class HeredocDelimiterToken : IdentifierToken
 
     private static IEnumerable<Token> GetTokens(string value)
     {
-        Requires.NotNullOrEmpty(value, nameof(value));
+        Guard.NotNullOrEmpty(value, nameof(value));
         return new Token[] { new StringToken(value) };
     }
 }

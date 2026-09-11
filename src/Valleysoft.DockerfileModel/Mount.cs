@@ -20,7 +20,7 @@ public class Mount : AggregateToken
         get => TypeToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             var valueToken = TypeToken.ValueToken
                 ?? throw new InvalidOperationException("Mount.TypeToken.ValueToken cannot be null when setting Mount.Type.");
             valueToken.Value = value;
@@ -32,7 +32,7 @@ public class Mount : AggregateToken
         get => Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(TypeToken, value);
         }
     }

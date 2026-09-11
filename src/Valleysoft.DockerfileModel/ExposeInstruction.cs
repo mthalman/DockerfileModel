@@ -23,7 +23,7 @@ public class ExposeInstruction : Instruction
             token => token.Value,
             (token, value) =>
             {
-                Requires.NotNullOrEmpty(value, nameof(value));
+                Guard.NotNullOrEmpty(value, nameof(value));
                 token.Value = value;
             });
     }
@@ -41,13 +41,13 @@ public class ExposeInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string portSpecs, char escapeChar)
     {
-        Requires.NotNullOrEmpty(portSpecs, nameof(portSpecs));
+        Guard.NotNullOrEmpty(portSpecs, nameof(portSpecs));
         return GetTokens($"EXPOSE {portSpecs}", GetInnerParser(escapeChar));
     }
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> portSpecs, char escapeChar)
     {
-        Requires.NotNullEmptyOrNullElements(portSpecs, nameof(portSpecs));
+        Guard.NotNullEmptyOrNullElements(portSpecs, nameof(portSpecs));
         return GetTokens(string.Join(" ", portSpecs), escapeChar);
     }
 

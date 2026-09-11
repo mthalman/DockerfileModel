@@ -19,7 +19,7 @@ public class WorkdirInstruction : Instruction
         get => PathToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             PathToken.Value = value;
         }
     }
@@ -29,7 +29,7 @@ public class WorkdirInstruction : Instruction
         get => Tokens.OfType<LiteralToken>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(PathToken, value);
         }
     }
@@ -46,7 +46,7 @@ public class WorkdirInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string path, char escapeChar)
     {
-        Requires.NotNullOrEmpty(path, nameof(path));
+        Guard.NotNullOrEmpty(path, nameof(path));
         return GetTokens($"WORKDIR {path}", GetInnerParser(escapeChar));
     }
 

@@ -12,7 +12,7 @@ public class Dockerfile : IConstructContainer
 
     public Dockerfile(IEnumerable<DockerfileConstruct> items)
     {
-        Requires.NotNull(items, nameof(items));
+        Guard.NotNull(items, nameof(items));
         this.Items = items.ToList();
     }
 
@@ -28,7 +28,7 @@ public class Dockerfile : IConstructContainer
 
     public static Dockerfile Parse(string text)
     {
-        Requires.NotNull(text, nameof(text));
+        Guard.NotNull(text, nameof(text));
         return DockerfileParser.ParseContent(text);
     }
 
@@ -38,7 +38,7 @@ public class Dockerfile : IConstructContainer
         ResolutionOptions? options = null)
         where TInstruction : Instruction
     {
-        Requires.NotNull(instruction, nameof(instruction));
+        Guard.NotNull(instruction, nameof(instruction));
 
         bool foundInstruction = false;
 

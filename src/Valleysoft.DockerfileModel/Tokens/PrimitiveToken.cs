@@ -6,7 +6,7 @@ public abstract class PrimitiveToken : Token, IValueToken
 
     public PrimitiveToken(string value)
     {
-        Requires.NotNull(value, nameof(value));
+        Guard.NotNull(value, nameof(value));
         this.value = value;
     }
 
@@ -15,7 +15,7 @@ public abstract class PrimitiveToken : Token, IValueToken
         get => value;
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             this.value = value;
         }
     }

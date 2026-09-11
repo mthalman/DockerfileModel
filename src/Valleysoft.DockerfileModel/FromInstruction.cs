@@ -36,7 +36,7 @@ public class FromInstruction : Instruction
         get => this.imageName.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             this.imageName.Value = value;
         }
     }
@@ -46,7 +46,7 @@ public class FromInstruction : Instruction
         get => this.imageName;
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(ImageNameToken, value);
             this.imageName = value;
         }
@@ -111,7 +111,7 @@ public class FromInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string imageName, string? stageName, string? platform, char escapeChar)
     {
-        Requires.NotNullOrEmpty(imageName, nameof(imageName));
+        Guard.NotNullOrEmpty(imageName, nameof(imageName));
 
         StringBuilder builder = new("FROM ");
         if (platform is not null)
