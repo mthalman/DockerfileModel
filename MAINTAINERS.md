@@ -73,11 +73,14 @@ To publish a stable release:
 
 1. Review the accumulated draft on the GitHub Releases page.
 2. Confirm that its proposed version and release notes are correct.
-3. Publish the draft. GitHub creates its proposed `v*` tag on `main`, which
-   starts the release workflow and publishes the matching NuGet package.
+3. Leave the draft unpublished and push the chosen `v*` tag at the reviewed
+   commit on `main`.
+4. Approve deployment to the protected `nuget.org` environment. The workflow
+   builds, tests, and validates the package before requesting approval, then
+   publishes to NuGet, publishes the accumulated draft, and attaches the packages.
 
-For a prerelease, create a GitHub prerelease with a tag such as
-`v1.2.3-preview.1`. Creating the tag starts the same package release workflow.
+For a prerelease, push a tag such as `v1.2.3-preview.1`. The workflow publishes
+the accumulated draft as a prerelease and does not mark it Latest.
 Publishing a prerelease starts a new draft range, so the later stable release
 notes contain only changes made after that prerelease. The prerelease remains
 the release-note record for the changes it introduced.
@@ -85,10 +88,60 @@ the release-note record for the changes it introduced.
 Published GitHub Releases are the release-note system of record; this repository
 does not maintain a `CHANGELOG.md`.
 
+### Release operating constraints and recovery
+
+This workflow follows the two-job design in
+[mthalman/DockerRegistryClient#154](https://github.com/mthalman/DockerRegistryClient/pull/154).
+The validation job packs once, runs the package-contract gate, attests the
+archives, and uploads them with one-day retention. The protected publish job
+downloads those artifacts; it does not check out source or rebuild packages.
+
+Release **one version at a time, in increasing version order**. Keep exactly
+one accumulated draft, and pause merges to `main` and manual Release Drafter
+runs from the tag push until publication completes. The workflow does not
+freeze release notes: Release Drafter can otherwise change the draft while a
+release awaits approval. Review the draft before approving publication.
+
+For a partial publication failure, use **Re-run failed jobs** within the
+one-day artifact retention window. Package and symbol pushes separately skip
+already-published versions. An existing GitHub Release for the tag is reused;
+asset uploads use `--clobber` so the original validated artifacts can replace
+incomplete uploads. This assumes ordinary mutable GitHub Releases.
+
+Do not use a full rebuild as an automatic recovery mechanism after any package
+has been published. Archive bytes are not guaranteed to be reproducible, and
+this workflow does not compare them with previously published bytes. If the
+artifacts expire or the draft changes, stop and reconcile the release manually
+using the original artifacts, or release corrected contents under a new version.
+Do not push another release tag until the pending release is resolved.
+
+Out-of-order recovery of an older draft requires manual handling: publishing a
+stable draft marks it Latest. The workflow intentionally does not implement
+version-aware Latest selection or automatic draft reconstruction.
+
+## Configure trusted publishing
+
+Complete this one-time setup before the first release:
+
+1. Create a protected GitHub Actions environment named `nuget.org` and
+   configure required reviewers or other deployment protection rules.
+2. Add a Trusted Publishing policy to the NuGet.org account `thalman`:
+
+   | Setting | Value |
+   | --- | --- |
+   | Repository owner | `mthalman` |
+   | Repository | `DockerfileModel` |
+   | Workflow file | `release.yml` |
+   | Environment | `nuget.org` |
+
+The environment name must match exactly. `NuGet/login` exchanges the job's OIDC
+token for a short-lived API key. Remove the old `NUGET_ORG_API_KEY` secret after
+trusted publishing is configured and a release succeeds.
+
 ## Package contract and API baseline
 
-CI uses the reusable post-pack gate `.github/scripts/Validate-Package.ps1`.
-It validates both archives' IDs, versions,
+CI and releases use the reusable prerequisite gate
+`.github/scripts/Validate-Package.ps1`. It validates both archives' IDs, versions,
 file allowlists, target assemblies, production dependency groups, README, XML
 documentation, portable PDB identities and checksums, and SourceLink repository
 and commit mappings. A temporary consumer compiles for `netstandard2.0` and
