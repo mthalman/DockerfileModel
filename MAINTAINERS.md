@@ -84,3 +84,37 @@ the release-note record for the changes it introduced.
 
 Published GitHub Releases are the release-note system of record; this repository
 does not maintain a `CHANGELOG.md`.
+
+## Package contract and API baseline
+
+CI uses the reusable post-pack gate `.github/scripts/Validate-Package.ps1`.
+It validates both archives' IDs, versions,
+file allowlists, target assemblies, production dependency groups, README, XML
+documentation, portable PDB identities and checksums, and SourceLink repository
+and commit mappings. A temporary consumer compiles for `netstandard2.0` and
+`net10.0` using a `PackageReference`, an empty package cache, and source mapping
+that restricts this package to the local publication feed. Its restored archive
+must have the same digest as the publication package.
+
+To run the gate locally from the repository root with PowerShell 7:
+
+```powershell
+dotnet build src -c Release -p:ContinuousIntegrationBuild=true
+dotnet pack src\Valleysoft.DockerfileModel -c Release --no-build -p:ContinuousIntegrationBuild=true -o src\artifacts
+.\.github\scripts\Validate-Package.ps1 -PackageDirectory src\artifacts -ExpectedCommit (git rev-parse HEAD)
+```
+
+Pass `-ExpectedVersion 1.2.3` to require that exact version. Without it, CI
+validates the Git-derived development version.
+The artifact-dependent xUnit test is deliberately skipped during ordinary
+pre-pack tests; the validation script enables it and propagates any failure.
+
+SDK package validation runs during `dotnet pack` and compares the package's
+public API with the pinned NuGet baseline `2.0.0`, including parameter names.
+It also checks compatibility between target frameworks. Do not advance
+`PackageValidationBaselineVersion` simply to silence a failure. Intentional
+breaks require a reviewed major-version decision and documented, narrow
+suppressions, or an explicit baseline update after the corresponding release
+exists. Review baseline updates together with changes to the package contract
+and consumer fixture. Missing XML comments on existing APIs are tolerated
+(`CS1591`); malformed comments and other build warnings still fail the build.

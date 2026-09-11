@@ -83,6 +83,7 @@ internal static class ParseHelper
     /// <summary>
     /// Parses identifiers, delimited by a character.
     /// </summary>
+    /// <param name="escapeChar">Escape character.</param>
     /// <param name="firstCharParser">Parser for the first character of the identifier.</param>
     /// <param name="tailCharParser">Parser for the rest of the characters of the identifier.</param>
     /// <param name="delimiter">Character which delimits segments of the string.</param>
@@ -419,6 +420,7 @@ internal static class ParseHelper
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="excludedChars">Characters to exclude from parsing.</param>
+    /// <param name="whitespaceMode">Controls how whitespace is parsed.</param>
     /// <returns>A parsed aggregate token.</returns>
     public static Parser<LiteralToken> LiteralWithVariables(
         char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed) =>
@@ -433,6 +435,7 @@ internal static class ParseHelper
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="excludedChars">Characters to exclude from parsing.</param>
+    /// <param name="whitespaceMode">Controls how whitespace is parsed.</param>
     /// <returns>A parsed aggregate token.</returns>
     public static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> LiteralWithVariablesTokens(
         char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed)
@@ -585,6 +588,8 @@ internal static class ParseHelper
     /// Collapses any sequential string or whitespace tokens and wraps them in a literal token.
     /// </summary>
     /// <param name="tokens">Set of tokens to process.</param>
+    /// <param name="canContainVariables">Whether the literal supports variable references.</param>
+    /// <param name="escapeChar">Escape character.</param>
     /// <param name="quoteChar">The quote character associated with the literal.</param>
     private static IEnumerable<Token> CollapseLiteralTokens(IEnumerable<Token> tokens,
         bool canContainVariables, char escapeChar, char? quoteChar = null)
@@ -1008,7 +1013,6 @@ internal static class ParseHelper
     /// <summary>
     /// Delegate for creating a parser of a token that is wrapped by a set of characters.
     /// </summary>
-    /// <typeparam name="TToken">Type of the token.</typeparam>
     /// <param name="escapeChar">The escape character.</param>
     /// <param name="excludedChars">Characters to be excluded from parsing.</param>
     /// <param name="tokenWrapper">Description of characters are wrapping the token.</param>
