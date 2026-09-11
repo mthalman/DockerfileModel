@@ -41,7 +41,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         get => KeyToken.Value;
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             KeyToken.Value = value;
         }
     }
@@ -51,7 +51,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         get => Tokens.OfType<TKey>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(KeyToken, value);
         }
     }
@@ -71,7 +71,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         }
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
 
             TValue? existingToken = Tokens.After(KeyToken).OfType<TValue>().FirstOrDefault();
             if (existingToken is IValueToken valueToken)

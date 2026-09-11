@@ -4,7 +4,7 @@ public class StagesView
 {
     public StagesView(Dockerfile dockerfile)
     {
-        Requires.NotNull(dockerfile, nameof(dockerfile));
+        Guard.NotNull(dockerfile, nameof(dockerfile));
 
         List<DockerfileConstruct> items = dockerfile.Items.ToList();
 

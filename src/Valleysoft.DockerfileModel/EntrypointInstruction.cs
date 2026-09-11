@@ -33,21 +33,21 @@ public class EntrypointInstruction : CommandInstruction
 
     private static IEnumerable<Token> GetTokens(string commandWithArgs, char escapeChar)
     {
-        Requires.NotNullOrEmpty(commandWithArgs, nameof(commandWithArgs));
+        Guard.NotNullOrEmpty(commandWithArgs, nameof(commandWithArgs));
         return GetTokens($"ENTRYPOINT {commandWithArgs}", GetInnerParser(escapeChar));
     }
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> execArgs, char escapeChar)
     {
-        Requires.NotNull(execArgs, nameof(execArgs));
+        Guard.NotNull(execArgs, nameof(execArgs));
 
         return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(execArgs)}", GetInnerParser(escapeChar));
     }
 
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)
     {
-        Requires.NotNullOrEmpty(command, nameof(command));
-        Requires.NotNull(args, nameof(args));
+        Guard.NotNullOrEmpty(command, nameof(command));
+        Guard.NotNull(args, nameof(args));
         return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
     }
 

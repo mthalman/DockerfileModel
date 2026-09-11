@@ -40,7 +40,7 @@ public class VolumeInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> paths, char escapeChar)
     {
-        Requires.NotNullEmptyOrNullElements(paths, nameof(paths));
+        Guard.NotNullEmptyOrNullElements(paths, nameof(paths));
         string[] pathArray = paths.ToArray();
         bool useShellForm = pathArray.Length == 1 && pathArray[0].Length > 0 && !pathArray[0].Any(char.IsWhiteSpace);
         string args = useShellForm

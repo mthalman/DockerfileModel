@@ -43,7 +43,7 @@ public class VariableRefToken : AggregateToken
         get => VariableNameToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             VariableNameToken.Value = value;
         }
     }
@@ -53,7 +53,7 @@ public class VariableRefToken : AggregateToken
         get => Tokens.OfType<StringToken>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(VariableNameToken, value);
         }
     }
@@ -263,9 +263,9 @@ public class VariableRefToken : AggregateToken
 
     private static IEnumerable<Token> GetTokens(string variableName, string modifier, string modifierValue, char escapeChar)
     {
-        Requires.NotNullOrEmpty(variableName, nameof(variableName));
-        Requires.NotNullOrEmpty(modifier, nameof(modifier));
-        Requires.NotNull(modifierValue, nameof(modifierValue));
+        Guard.NotNullOrEmpty(variableName, nameof(variableName));
+        Guard.NotNullOrEmpty(modifier, nameof(modifier));
+        Guard.NotNull(modifierValue, nameof(modifierValue));
         ValidateModifier(modifier);
 
         return GetTokens($"${{{variableName}{modifier}{modifierValue}}}", GetInnerParser(escapeChar));
@@ -273,7 +273,7 @@ public class VariableRefToken : AggregateToken
 
     private static IEnumerable<Token> GetTokens(string variableName, bool includeBraces, char escapeChar)
     {
-        Requires.NotNullOrEmpty(variableName, nameof(variableName));
+        Guard.NotNullOrEmpty(variableName, nameof(variableName));
 
         StringBuilder builder = new("$");
         if (includeBraces)
@@ -293,7 +293,7 @@ public class VariableRefToken : AggregateToken
     {
         if (!String.IsNullOrEmpty(modifier))
         {
-            Verify.Operation(ValidModifiers.Contains(modifier),
+            Guard.Operation(ValidModifiers.Contains(modifier),
                 $"'{modifier}' is not a valid modifier. Supported modifiers: {String.Join(", ", ValidModifiers)}");
         }
     }

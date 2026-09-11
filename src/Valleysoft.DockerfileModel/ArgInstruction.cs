@@ -30,7 +30,7 @@ public class ArgInstruction : Instruction
             token => token,
             (token, keyValuePair) =>
             {
-                Requires.NotNull(keyValuePair, "value");
+                Guard.NotNull(keyValuePair, "value");
                 token.Name = keyValuePair.Key;
                 token.Value = keyValuePair.Value;
             });
@@ -49,7 +49,7 @@ public class ArgInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(IDictionary<string, string?> args, char escapeChar)
     {
-        Requires.NotNullOrEmpty(args, nameof(args));
+        Guard.NotNullOrEmpty(args, nameof(args));
 
         string[] keyValueAssignments = args
             .Select(kvp => kvp.Value is not null

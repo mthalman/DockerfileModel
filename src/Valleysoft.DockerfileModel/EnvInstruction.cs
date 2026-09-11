@@ -18,7 +18,7 @@ public class EnvInstruction : Instruction
             token => token,
             (token, keyValuePair) =>
             {
-                Requires.NotNull(keyValuePair, "value");
+                Guard.NotNull(keyValuePair, "value");
                 token.Key = keyValuePair.Key;
                 token.Value = keyValuePair.Value!;
             });
@@ -37,7 +37,7 @@ public class EnvInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(IDictionary<string, string> variables, char escapeChar)
     {
-        Requires.NotNullOrEmpty(variables, nameof(variables));
+        Guard.NotNullOrEmpty(variables, nameof(variables));
 
         string[] keyValueAssignments = variables
             .Select(kvp => StringHelper.FormatKeyValueAssignment(kvp.Key, kvp.Value))

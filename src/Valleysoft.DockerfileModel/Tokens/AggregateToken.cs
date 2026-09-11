@@ -6,15 +6,15 @@ public abstract class AggregateToken : Token
 {
     protected AggregateToken(IEnumerable<Token> tokens)
     {
-        Requires.NotNull(tokens, nameof(tokens));
+        Guard.NotNull(tokens, nameof(tokens));
 
         this.TokenList = tokens.ToList();
     }
 
     protected static IEnumerable<Token> GetTokens(string text, Parser<IEnumerable<Token?>> parser)
     {
-        Requires.NotNull(text, nameof(text));
-        Requires.NotNull(parser, nameof(parser));
+        Guard.NotNull(text, nameof(text));
+        Guard.NotNull(parser, nameof(parser));
 
         return FilterNulls(parser.Parse(text))
             .ToList();
@@ -26,7 +26,7 @@ public abstract class AggregateToken : Token
 
     protected override string GetUnderlyingValue(TokenStringOptions options)
     {
-        Requires.NotNull(options, nameof(options));
+        Guard.NotNull(options, nameof(options));
 
         return String.Concat(
             Tokens

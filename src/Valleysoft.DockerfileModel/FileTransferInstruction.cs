@@ -42,7 +42,7 @@ public abstract class FileTransferInstruction : Instruction
         }
         set
         {
-            Requires.NotNullOrEmpty(value!, nameof(value));
+            Guard.NotNullOrEmpty(value!, nameof(value));
             LiteralToken? destToken = DestinationToken;
             if (destToken is null)
             {
@@ -62,7 +62,7 @@ public abstract class FileTransferInstruction : Instruction
         get => Tokens.OfType<LiteralToken>().LastOrDefault();
         set
         {
-            Requires.NotNull(value!, nameof(value));
+            Guard.NotNull(value!, nameof(value));
             LiteralToken? current = DestinationToken;
             if (current is null)
             {
@@ -160,8 +160,8 @@ public abstract class FileTransferInstruction : Instruction
         string? changeOwner, string? permissions, char escapeChar, string instructionName, string? optionalFlag,
         string? trailingOptionalFlag = null)
     {
-        Requires.NotNullEmptyOrNullElements(sources, nameof(sources));
-        Requires.NotNullOrEmpty(destination, nameof(destination));
+        Guard.NotNullEmptyOrNullElements(sources, nameof(sources));
+        Guard.NotNullOrEmpty(destination, nameof(destination));
 
         IEnumerable<string> locations = sources.Append(destination);
 

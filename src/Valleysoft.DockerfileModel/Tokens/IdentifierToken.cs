@@ -11,7 +11,7 @@ public abstract class IdentifierToken : AggregateToken, IQuotableValueToken
         get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             ReplaceWithTokens(GetInnerTokens(value));
         }
     }
@@ -23,7 +23,7 @@ public abstract class IdentifierToken : AggregateToken, IQuotableValueToken
     protected static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value,
         Parser<(IEnumerable<Token> Token, char? QuoteChar)> parser)
     {
-        Requires.NotNull(value, nameof(value));
+        Guard.NotNull(value, nameof(value));
         return parser.Parse(value);
     }
 }

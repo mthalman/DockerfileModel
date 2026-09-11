@@ -11,7 +11,7 @@ public class DockerfileBuilder
 
     public DockerfileBuilder(Dockerfile dockerfile)
     {
-        Requires.NotNull(dockerfile, nameof(dockerfile));
+        Guard.NotNull(dockerfile, nameof(dockerfile));
         Dockerfile = dockerfile;
         EscapeChar = dockerfile.EscapeChar;
     }

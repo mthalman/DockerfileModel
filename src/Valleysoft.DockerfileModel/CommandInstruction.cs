@@ -19,7 +19,7 @@ public abstract class CommandInstruction : Instruction
         get => this.Tokens.OfType<Command>().FirstOrDefault();
         set
         {
-            Requires.NotNull(value!, nameof(value));
+            Guard.NotNull(value!, nameof(value));
             Command? current = Command;
             if (current is null)
             {

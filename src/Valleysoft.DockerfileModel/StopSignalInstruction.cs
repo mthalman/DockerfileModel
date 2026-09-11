@@ -19,7 +19,7 @@ public class StopSignalInstruction : Instruction
         get => SignalToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             SignalToken.Value = value;
         }
     }
@@ -29,7 +29,7 @@ public class StopSignalInstruction : Instruction
         get => Tokens.OfType<LiteralToken>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(SignalToken, value);
         }
     }
@@ -43,7 +43,7 @@ public class StopSignalInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string signal, char escapeChar)
     {
-        Requires.NotNullOrEmpty(signal, nameof(signal));
+        Guard.NotNullOrEmpty(signal, nameof(signal));
         return GetTokens($"STOPSIGNAL {signal}", GetInnerParser(escapeChar));
     }
 

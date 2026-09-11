@@ -25,7 +25,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         get => NameToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             NameToken.Value = value;
         }
     }
@@ -41,7 +41,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         get => Tokens.OfType<Variable>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(NameToken, value);
         }
     }
@@ -114,7 +114,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
 
     private static IEnumerable<Token> GetTokens(string name, string? value, char escapeChar)
     {
-        Requires.NotNullOrEmpty(name, nameof(name));
+        Guard.NotNullOrEmpty(name, nameof(name));
 
         StringBuilder builder = new(name);
         if (value != null)

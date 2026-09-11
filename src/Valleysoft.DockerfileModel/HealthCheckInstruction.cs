@@ -219,7 +219,7 @@ public class HealthCheckInstruction : Instruction
     private static IEnumerable<Token> GetTokens(string commandBody, string? interval, string? timeout,
         string? startPeriod, string? startInterval, string? retries, char escapeChar)
     {
-        Requires.NotNullOrEmpty(commandBody, nameof(commandBody));
+        Guard.NotNullOrEmpty(commandBody, nameof(commandBody));
         return GetTokens(
             $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, startInterval, retries, escapeChar)}CMD {commandBody}", GetInnerParser(escapeChar));
     }
@@ -281,20 +281,20 @@ public class HealthCheckInstruction : Instruction
 
     private static string ValidateNotNullOrEmpty(string value, string paramName)
     {
-        Requires.NotNullOrEmpty(value, paramName);
+        Guard.NotNullOrEmpty(value, paramName);
         return value;
     }
 
     private static string ValidateAndFormatAsJson(IEnumerable<string> defaultArgs, string paramName)
     {
-        Requires.NotNull(defaultArgs, paramName);
+        Guard.NotNull(defaultArgs, paramName);
         return StringHelper.FormatAsJson(defaultArgs);
     }
 
     private static string ValidateAndFormatAsJson(string command, IEnumerable<string> args)
     {
-        Requires.NotNullOrEmpty(command, nameof(command));
-        Requires.NotNull(args, nameof(args));
+        Guard.NotNullOrEmpty(command, nameof(command));
+        Guard.NotNull(args, nameof(args));
         return StringHelper.FormatAsJson(new string[] { command }.Concat(args));
     }
 }

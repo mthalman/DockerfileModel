@@ -19,7 +19,7 @@ public class UserInstruction : Instruction
         get => UserToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             UserToken.Value = value;
         }
     }
@@ -29,7 +29,7 @@ public class UserInstruction : Instruction
         get => Tokens.OfType<LiteralToken>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(UserToken, value);
         }
     }
@@ -43,7 +43,7 @@ public class UserInstruction : Instruction
 
     private static IEnumerable<Token> GetTokens(string user, char escapeChar)
     {
-        Requires.NotNullOrEmpty(user, nameof(user));
+        Guard.NotNullOrEmpty(user, nameof(user));
         return GetTokens($"USER {user}", GetInnerParser(escapeChar));
     }
 

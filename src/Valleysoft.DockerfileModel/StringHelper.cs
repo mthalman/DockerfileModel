@@ -7,7 +7,7 @@ internal static class StringHelper
 
     public static string FormatAsJson(IEnumerable<string> values)
     {
-        Requires.NotNull(values, nameof(values));
+        Guard.NotNull(values, nameof(values));
 
         // Materialize the sequence once to avoid double enumeration, then
         // validate that no element is null.

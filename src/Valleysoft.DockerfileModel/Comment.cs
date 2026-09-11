@@ -25,7 +25,7 @@ public class Comment : DockerfileConstruct
         get => Tokens.OfType<CommentToken>().First();
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(ValueToken, value);
         }
     }
@@ -34,19 +34,19 @@ public class Comment : DockerfileConstruct
 
     public static Comment Parse(string text)
     {
-        Requires.NotNullOrEmpty(text, nameof(text));
+        Guard.NotNullOrEmpty(text, nameof(text));
         return new Comment(GetTokens(text, ParseHelper.CommentText()));
     }
 
     private static IEnumerable<Token> GetTokens(string comment)
     {
-        Requires.NotNullOrEmpty(comment, nameof(comment));
+        Guard.NotNullOrEmpty(comment, nameof(comment));
         return GetTokens($"#{comment}", ParseHelper.CommentText());
     }
 
     public static bool IsComment(string text)
     {
-        Requires.NotNullOrEmpty(text, nameof(text));
+        Guard.NotNullOrEmpty(text, nameof(text));
         return ParseHelper.CommentText().TryParse(text).WasSuccessful;
     }
 }

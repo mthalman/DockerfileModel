@@ -589,7 +589,7 @@ internal static class ParseHelper
     private static IEnumerable<Token> CollapseLiteralTokens(IEnumerable<Token> tokens,
         bool canContainVariables, char escapeChar, char? quoteChar = null)
     {
-        Requires.NotNullEmptyOrNullElements(tokens, nameof(tokens));
+        Guard.NotNullEmptyOrNullElements(tokens, nameof(tokens));
         return new Token[]
         {
             new LiteralToken(

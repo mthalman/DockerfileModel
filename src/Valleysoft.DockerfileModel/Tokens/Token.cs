@@ -9,7 +9,7 @@ public abstract class Token
 
     public string ToString(TokenStringOptions options)
     {
-        Requires.NotNull(options, nameof(options));
+        Guard.NotNull(options, nameof(options));
 
         string value = GetUnderlyingValue(options);
 

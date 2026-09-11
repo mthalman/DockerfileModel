@@ -74,7 +74,7 @@ public class ImageName : AggregateToken
         get => RepositoryToken.Value;
         set
         {
-            Requires.NotNullOrEmpty(value, nameof(value));
+            Guard.NotNullOrEmpty(value, nameof(value));
             RepositoryToken.Value = value;
         }
     }
@@ -84,7 +84,7 @@ public class ImageName : AggregateToken
         get => repositoryToken;
         set
         {
-            Requires.NotNull(value, nameof(value));
+            Guard.NotNull(value, nameof(value));
             SetToken(RepositoryToken, value);
             repositoryToken = value;
         }
@@ -95,7 +95,7 @@ public class ImageName : AggregateToken
         get => this.tagToken?.Value;
         set
         {
-            Verify.Operation(
+            Guard.Operation(
                 value is null || Digest is null,
                 $"{nameof(Tag)} cannot be set when {nameof(Digest)} is already set.");
 
@@ -116,7 +116,7 @@ public class ImageName : AggregateToken
         get => tagToken;
         set
         {
-            Verify.Operation(
+            Guard.Operation(
                 value is null || DigestToken is null,
                 $"{nameof(TagToken)} cannot be set when {nameof(DigestToken)} is already set.");
 
@@ -144,7 +144,7 @@ public class ImageName : AggregateToken
         get => this.digestToken?.Value;
         set
         {
-            Verify.Operation(
+            Guard.Operation(
                 value is null || Tag is null,
                 $"{nameof(Digest)} cannot be set when {nameof(Tag)} is already set.");
 
@@ -165,7 +165,7 @@ public class ImageName : AggregateToken
         get => digestToken;
         set
         {
-            Verify.Operation(
+            Guard.Operation(
                 value is null || Tag is null,
                 $"{nameof(DigestToken)} cannot be set when {nameof(TagToken)} is already set.");
 
@@ -190,8 +190,8 @@ public class ImageName : AggregateToken
 
     public static string FormatImageName(string repository, string? registry, string? tag, string? digest)
     {
-        Requires.NotNullOrWhiteSpace(repository, nameof(repository));
-        Verify.Operation(
+        Guard.NotNullOrWhiteSpace(repository, nameof(repository));
+        Guard.Operation(
             (tag is null && digest is null) || String.IsNullOrEmpty(tag) ^ String.IsNullOrEmpty(digest),
             $"Either {nameof(tag)} may be set or {nameof(digest)} may be set but not both.");
 
