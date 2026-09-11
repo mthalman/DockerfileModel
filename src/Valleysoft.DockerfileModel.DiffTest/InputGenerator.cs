@@ -6,10 +6,10 @@ namespace Valleysoft.DockerfileModel.DiffTest;
 
 /// <summary>
 /// Wraps the shared FsCheck generators (DockerfileArbitraries) to produce
-/// random test inputs for differential testing. Returns a list of
-/// (InstructionType, Text, EscapeChar) tuples distributed evenly across all 18
-/// Dockerfile instruction types, shuffled with a fixed seed for reproducibility.
-/// About 10% of inputs use backtick (`) as escape char instead of backslash (\).
+/// deterministic <see cref="DiffCase"/> values for differential testing,
+/// distributed evenly across instruction and targeted edge-case generators,
+/// then shuffled using the supplied seed. Each case includes the metadata
+/// required to regenerate its input.
 /// </summary>
 public static class InputGenerator
 {

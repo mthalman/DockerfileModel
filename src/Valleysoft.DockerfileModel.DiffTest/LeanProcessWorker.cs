@@ -31,6 +31,9 @@ public sealed class LeanInfrastructureException : Exception
 
 public sealed class LeanProcessWorker : ILeanParser
 {
+    private static readonly Encoding StrictUtf8 =
+        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     private readonly string _leanCliPath;
     private readonly IReadOnlyList<string> _arguments;
     private readonly string? _leanLibDir;
@@ -109,12 +112,12 @@ public sealed class LeanProcessWorker : ILeanParser
             string body;
             try
             {
-                body = Encoding.UTF8.GetString(Convert.FromBase64String(fields[2]));
+                body = StrictUtf8.GetString(Convert.FromBase64String(fields[2]));
             }
-            catch (FormatException ex)
+            catch (Exception ex) when (ex is FormatException or DecoderFallbackException)
             {
                 throw new LeanInfrastructureException(
-                    $"Lean response {requestId} contained invalid base64.", ex);
+                    $"Lean response {requestId} contained invalid base64 or UTF-8.", ex);
             }
 
             return fields[1] switch
@@ -225,9 +228,28 @@ public sealed class LeanProcessWorker : ILeanParser
 
     private async Task<LeanInfrastructureException> CreateExitedExceptionAsync(string message)
     {
-        string stderr = _stderrTask is null ? "" : (await _stderrTask).Trim();
+        string stderr = await ReadStderrAsync(_stderrTask, TimeSpan.FromSeconds(1));
         int? exitCode = _process is { HasExited: true } ? _process.ExitCode : null;
         return CreateExitedException(message, exitCode, stderr);
+    }
+
+    internal static async Task<string> ReadStderrAsync(
+        Task<string>? stderrTask,
+        TimeSpan timeout)
+    {
+        if (stderrTask is null)
+        {
+            return "";
+        }
+
+        try
+        {
+            return (await stderrTask.WaitAsync(timeout)).Trim();
+        }
+        catch (TimeoutException)
+        {
+            return "Timed out waiting for stderr to close.";
+        }
     }
 
     internal static LeanInfrastructureException CreateExitedException(

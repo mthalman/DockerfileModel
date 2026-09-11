@@ -1,3 +1,4 @@
+using System.Text;
 using Valleysoft.DockerfileModel.DiffTest;
 
 namespace Valleysoft.DockerfileModel.Tests;
@@ -304,6 +305,35 @@ public class DiffTestInfrastructureTests
     }
 
     [Fact]
+    public async Task LeanProcessWorker_RejectsInvalidUtf8Response()
+    {
+        await using FakeLeanProcess process = FakeLeanProcess.Create("1\tok\t/w==");
+        await using LeanProcessWorker worker = process.CreateWorker();
+
+        LeanInfrastructureException exception =
+            await Assert.ThrowsAsync<LeanInfrastructureException>(
+                () => worker.ParseAsync(
+                    "FROM alpine",
+                    '\\',
+                    CancellationToken.None));
+
+        Assert.Contains("invalid base64 or UTF-8", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LeanProcessWorker_BoundsStderrDrain()
+    {
+        TaskCompletionSource<string> stderr = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        string result = await LeanProcessWorker.ReadStderrAsync(
+            stderr.Task,
+            TimeSpan.FromMilliseconds(10));
+
+        Assert.Equal("Timed out waiting for stderr to close.", result);
+    }
+
+    [Fact]
     public async Task LeanProcessWorker_RejectsMalformedResponseAndEof()
     {
         await using FakeLeanProcess malformedProcess =
@@ -468,6 +498,22 @@ public class DiffTestInfrastructureTests
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Fact]
+    public void RegressionCorpus_RejectsInvalidUtf8Input()
+    {
+        RegressionFixture fixture = new(
+            "invalid-utf8",
+            "FROM",
+            "/w==",
+            "\\");
+
+        InvalidDataException exception =
+            Assert.Throws<InvalidDataException>(() => fixture.ToCase());
+
+        Assert.Contains("invalid base64 or UTF-8", exception.Message, StringComparison.Ordinal);
+        Assert.IsType<DecoderFallbackException>(exception.InnerException);
     }
 
     [Fact]

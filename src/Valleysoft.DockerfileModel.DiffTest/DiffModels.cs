@@ -66,6 +66,9 @@ public sealed record RegressionFixture(
     int? Seed = null,
     int? CaseIndex = null)
 {
+    private static readonly Encoding StrictUtf8 =
+        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     public DiffCase ToCase()
     {
         if (string.IsNullOrWhiteSpace(Id))
@@ -100,12 +103,12 @@ public sealed record RegressionFixture(
         string input;
         try
         {
-            input = Encoding.UTF8.GetString(Convert.FromBase64String(InputBase64));
+            input = StrictUtf8.GetString(Convert.FromBase64String(InputBase64));
         }
-        catch (FormatException ex)
+        catch (Exception ex) when (ex is FormatException or DecoderFallbackException)
         {
             throw new InvalidDataException(
-                $"Regression fixture '{Id}' has invalid base64 input.", ex);
+                $"Regression fixture '{Id}' has invalid base64 or UTF-8 input.", ex);
         }
 
         return new DiffCase(
