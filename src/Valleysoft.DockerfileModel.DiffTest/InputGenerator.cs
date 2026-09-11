@@ -15,104 +15,151 @@ public static class InputGenerator
 {
     private const int SampleSize = 50;
 
-    public static List<(string InstructionType, string Text, char EscapeChar)> Generate(int count, int seed = 42)
+    private sealed record GeneratorSpec(string Name, string InstructionType, Gen<string> Generator);
+
+    public static List<DiffCase> Generate(int count, int seed = 42)
     {
-        // All instruction generators with their type labels.
-        // The first 18 are the standard instruction generators; the remaining
-        // are edge-case generators targeting specific bugs found via
-        // differential testing.
-        var generators = new (string Type, Gen<string> Gen)[]
+        if (count < 0)
         {
-            ("FROM", DockerfileArbitraries.FromInstruction()),
-            ("ARG", DockerfileArbitraries.ArgInstruction()),
-            ("RUN", DockerfileArbitraries.RunInstruction()),
-            ("CMD", DockerfileArbitraries.CmdInstruction()),
-            ("ENTRYPOINT", DockerfileArbitraries.EntrypointInstruction()),
-            ("COPY", DockerfileArbitraries.CopyInstruction()),
-            ("ADD", DockerfileArbitraries.AddInstruction()),
-            ("ENV", DockerfileArbitraries.EnvInstruction()),
-            ("EXPOSE", DockerfileArbitraries.ExposeInstruction()),
-            ("VOLUME", DockerfileArbitraries.VolumeInstruction()),
-            ("USER", DockerfileArbitraries.UserInstruction()),
-            ("WORKDIR", DockerfileArbitraries.WorkdirInstruction()),
-            ("LABEL", DockerfileArbitraries.LabelInstruction()),
-            ("STOPSIGNAL", DockerfileArbitraries.StopSignalInstruction()),
-            ("HEALTHCHECK", DockerfileArbitraries.HealthCheckInstruction()),
-            ("SHELL", DockerfileArbitraries.ShellInstruction()),
-            ("MAINTAINER", DockerfileArbitraries.MaintainerInstruction()),
-            ("ONBUILD", DockerfileArbitraries.OnBuildInstruction()),
-            // Edge-case generators targeting specific differential test bugs
-            ("RUN", DockerfileArbitraries.RunHeredocInstruction()),        // Bugs 7-11: heredoc
-            ("COPY", DockerfileArbitraries.CopyHeredocInstruction()),      // Bugs 7-11: heredoc
-            ("ADD", DockerfileArbitraries.AddHeredocInstruction()),         // Bugs 7-11: heredoc
-            ("COPY", DockerfileArbitraries.CopyEmptyFlagInstruction()),    // Bug 12: empty flags
-            ("ADD", DockerfileArbitraries.AddEmptyFlagInstruction()),      // Bug 12: empty flags
-            // FromEmptyPlatformInstruction excluded: C# throws a parse error
-            // on FROM --platform= (empty value), which is a known C# limitation,
-            // not a Lean issue.
-            ("RUN", DockerfileArbitraries.RunEmptyFlagInstruction()),      // Bug 12: empty flags
-            // #259: empty exec-form arrays
-            ("VOLUME", DockerfileArbitraries.VolumeEmptyExecInstruction()),  // #259
-            ("COPY", DockerfileArbitraries.CopyEmptyExecInstruction()),     // #259
-            ("ADD", DockerfileArbitraries.AddEmptyExecInstruction()),       // #259
-            // #260: quoted file paths in COPY/ADD
-            ("COPY", DockerfileArbitraries.CopyQuotedPathInstruction()),    // #260
-            ("ADD", DockerfileArbitraries.AddQuotedPathInstruction()),      // #260
-            // #261: variable :? modifier
-            ("FROM", DockerfileArbitraries.FromErrorModifierInstruction()), // #261
-            ("ARG", DockerfileArbitraries.ArgErrorModifierInstruction()),   // #261
-            // #262: variable default value with slash
-            ("WORKDIR", DockerfileArbitraries.WorkdirSlashDefaultInstruction()), // #262
-            ("ENV", DockerfileArbitraries.EnvSlashDefaultInstruction()),    // #262
-            // #263: mount value trailing whitespace
-            ("RUN", DockerfileArbitraries.RunMinimalMountInstruction()),    // #263
-            // #264: trailing whitespace
-            ("FROM", DockerfileArbitraries.FromTrailingWhitespaceInstruction()),  // #264
-            ("ENV", DockerfileArbitraries.EnvTrailingWhitespaceInstruction()),    // #264
-            ("COPY", DockerfileArbitraries.CopyTrailingWhitespaceInstruction()), // #264
-            // #265: hash in shell-form and values
-            ("RUN", DockerfileArbitraries.RunHashInShellInstruction()),     // #265
-            ("CMD", DockerfileArbitraries.CmdHashInShellInstruction()),     // #265
-            ("LABEL", DockerfileArbitraries.LabelHashInValueInstruction()), // #265
-            // #266: line continuation in flag values
-            ("COPY", DockerfileArbitraries.CopyFlagLineContinuationInstruction()), // #266
-            ("ADD", DockerfileArbitraries.AddFlagLineContinuationInstruction()),   // #266
-        };
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
 
-        int perType = count / generators.Length;
-        int remainder = count % generators.Length;
+        IReadOnlyList<GeneratorSpec> generators = GetGenerators();
+        int perGenerator = count / generators.Count;
+        int remainder = count % generators.Count;
+        List<DiffCase> inputs = new(count);
 
-        List<(string InstructionType, string Text, char EscapeChar)> inputs = new();
-        Random escapeRng = new(seed + 1); // separate RNG for escape char selection
-
-        for (int g = 0; g < generators.Length; g++)
+        for (int generatorIndex = 0; generatorIndex < generators.Count; generatorIndex++)
         {
-            int n = perType + (g < remainder ? 1 : 0);
-            var samples = generators[g].Gen.Sample(SampleSize, n);
-            foreach (string text in samples)
+            GeneratorSpec spec = generators[generatorIndex];
+            int generatorCount = perGenerator + (generatorIndex < remainder ? 1 : 0);
+
+            for (int caseIndex = 0; caseIndex < generatorCount; caseIndex++)
             {
-                // ~10% of inputs use backtick escape char
-                if (escapeRng.NextDouble() < 0.10)
-                {
-                    // Replace backslash continuations with backtick continuations
-                    string backtickText = text.Replace("\\\n", "`\n").Replace("\\\r\n", "`\r\n");
-                    inputs.Add((generators[g].Type, backtickText, '`'));
-                }
-                else
-                {
-                    inputs.Add((generators[g].Type, text, '\\'));
-                }
+                inputs.Add(GenerateCase(spec, generatorIndex, caseIndex, seed));
             }
         }
 
-        // Shuffle with fixed seed for reproducibility
-        Random rng = new(seed);
+        Random shuffle = new(seed);
         for (int i = inputs.Count - 1; i > 0; i--)
         {
-            int j = rng.Next(i + 1);
+            int j = shuffle.Next(i + 1);
             (inputs[i], inputs[j]) = (inputs[j], inputs[i]);
         }
 
         return inputs;
     }
+
+    public static DiffCase Replay(string generatorName, int caseIndex, int seed)
+    {
+        IReadOnlyList<GeneratorSpec> generators = GetGenerators();
+        int generatorIndex = generators
+            .Select((spec, index) => (spec, index))
+            .Where(item => string.Equals(item.spec.Name, generatorName, StringComparison.Ordinal))
+            .Select(item => item.index)
+            .DefaultIfEmpty(-1)
+            .Single();
+
+        if (generatorIndex < 0)
+        {
+            throw new ArgumentException($"Unknown generator '{generatorName}'.", nameof(generatorName));
+        }
+
+        if (caseIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(caseIndex));
+        }
+
+        return GenerateCase(generators[generatorIndex], generatorIndex, caseIndex, seed)
+            with { Source = DiffCaseSource.Replay };
+    }
+
+    private static DiffCase GenerateCase(
+        GeneratorSpec spec,
+        int generatorIndex,
+        int caseIndex,
+        int seed)
+    {
+        ulong firstSeed = unchecked((ulong)(uint)seed);
+        ulong secondSeed = CreateGamma(generatorIndex, caseIndex);
+        string text = spec.Generator.Sample(
+            1,
+            new Rnd(firstSeed, secondSeed),
+            SampleSize).Single();
+
+        Random escapeRandom = new(unchecked(seed * 397 ^ generatorIndex * 31 ^ caseIndex));
+        char escapeChar = '\\';
+        if (escapeRandom.NextDouble() < 0.10)
+        {
+            text = text.Replace("\\\r\n", "`\r\n").Replace("\\\n", "`\n");
+            escapeChar = '`';
+        }
+
+        return new DiffCase(
+            $"{spec.Name}-{caseIndex}",
+            DiffCaseSource.Generated,
+            spec.InstructionType,
+            text,
+            escapeChar,
+            spec.Name,
+            seed,
+            caseIndex);
+    }
+
+    internal static ulong CreateGamma(int generatorIndex, int caseIndex) =>
+        unchecked(
+            ((ulong)(uint)(generatorIndex + 1) << 33) |
+            ((ulong)(uint)(caseIndex + 1) << 1) |
+            1UL);
+
+    private static IReadOnlyList<GeneratorSpec> GetGenerators() =>
+        new GeneratorSpec[]
+        {
+            new("from", "FROM", DockerfileArbitraries.FromInstruction()),
+            new("arg", "ARG", DockerfileArbitraries.ArgInstruction()),
+            new("run", "RUN", DockerfileArbitraries.RunInstruction()),
+            new("cmd", "CMD", DockerfileArbitraries.CmdInstruction()),
+            new("entrypoint", "ENTRYPOINT", DockerfileArbitraries.EntrypointInstruction()),
+            new("copy", "COPY", DockerfileArbitraries.CopyInstruction()),
+            new("add", "ADD", DockerfileArbitraries.AddInstruction()),
+            new("env", "ENV", DockerfileArbitraries.EnvInstruction()),
+            new("expose", "EXPOSE", DockerfileArbitraries.ExposeInstruction()),
+            new("volume", "VOLUME", DockerfileArbitraries.VolumeInstruction()),
+            new("user", "USER", DockerfileArbitraries.UserInstruction()),
+            new("workdir", "WORKDIR", DockerfileArbitraries.WorkdirInstruction()),
+            new("label", "LABEL", DockerfileArbitraries.LabelInstruction()),
+            new("stopsignal", "STOPSIGNAL", DockerfileArbitraries.StopSignalInstruction()),
+            new("healthcheck", "HEALTHCHECK", DockerfileArbitraries.HealthCheckInstruction()),
+            new("shell", "SHELL", DockerfileArbitraries.ShellInstruction()),
+            new("maintainer", "MAINTAINER", DockerfileArbitraries.MaintainerInstruction()),
+            new("onbuild", "ONBUILD", DockerfileArbitraries.OnBuildInstruction()),
+            // Edge-case generators targeting specific differential test bugs
+            new("run-heredoc", "RUN", DockerfileArbitraries.RunHeredocInstruction()),
+            new("copy-heredoc", "COPY", DockerfileArbitraries.CopyHeredocInstruction()),
+            new("add-heredoc", "ADD", DockerfileArbitraries.AddHeredocInstruction()),
+            new("copy-empty-flag", "COPY", DockerfileArbitraries.CopyEmptyFlagInstruction()),
+            new("add-empty-flag", "ADD", DockerfileArbitraries.AddEmptyFlagInstruction()),
+            // FromEmptyPlatformInstruction excluded: C# throws a parse error
+            // on FROM --platform= (empty value), which is a known C# limitation,
+            // not a Lean issue.
+            new("run-empty-flag", "RUN", DockerfileArbitraries.RunEmptyFlagInstruction()),
+            new("volume-empty-exec", "VOLUME", DockerfileArbitraries.VolumeEmptyExecInstruction()),
+            new("copy-empty-exec", "COPY", DockerfileArbitraries.CopyEmptyExecInstruction()),
+            new("add-empty-exec", "ADD", DockerfileArbitraries.AddEmptyExecInstruction()),
+            new("copy-quoted-path", "COPY", DockerfileArbitraries.CopyQuotedPathInstruction()),
+            new("add-quoted-path", "ADD", DockerfileArbitraries.AddQuotedPathInstruction()),
+            new("from-error-modifier", "FROM", DockerfileArbitraries.FromErrorModifierInstruction()),
+            new("arg-error-modifier", "ARG", DockerfileArbitraries.ArgErrorModifierInstruction()),
+            new("workdir-slash-default", "WORKDIR", DockerfileArbitraries.WorkdirSlashDefaultInstruction()),
+            new("env-slash-default", "ENV", DockerfileArbitraries.EnvSlashDefaultInstruction()),
+            new("run-minimal-mount", "RUN", DockerfileArbitraries.RunMinimalMountInstruction()),
+            new("from-trailing-whitespace", "FROM", DockerfileArbitraries.FromTrailingWhitespaceInstruction()),
+            new("env-trailing-whitespace", "ENV", DockerfileArbitraries.EnvTrailingWhitespaceInstruction()),
+            new("copy-trailing-whitespace", "COPY", DockerfileArbitraries.CopyTrailingWhitespaceInstruction()),
+            new("run-hash-shell", "RUN", DockerfileArbitraries.RunHashInShellInstruction()),
+            new("cmd-hash-shell", "CMD", DockerfileArbitraries.CmdHashInShellInstruction()),
+            new("label-hash-value", "LABEL", DockerfileArbitraries.LabelHashInValueInstruction()),
+            new("copy-flag-continuation", "COPY", DockerfileArbitraries.CopyFlagLineContinuationInstruction()),
+            new("add-flag-continuation", "ADD", DockerfileArbitraries.AddFlagLineContinuationInstruction()),
+        };
 }

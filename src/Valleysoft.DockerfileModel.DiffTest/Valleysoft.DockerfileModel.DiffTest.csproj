@@ -18,4 +18,10 @@
     <ProjectReference Include="..\Valleysoft.DockerfileModel.TestSupport\Valleysoft.DockerfileModel.TestSupport.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="RegressionCorpus\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

@@ -87,4 +87,4 @@ jobs:
 
       - name: Run differential tests
         working-directory: src
-        run: dotnet run --project Valleysoft.DockerfileModel.DiffTest -c Release -- --compare --lean-cli ../lean/.lake/build/bin/DockerfileModelDiffTest --count 10000
+        run: dotnet run --project Valleysoft.DockerfileModel.DiffTest -c Release -- --compare --lean-cli ../lean/.lake/build/bin/DockerfileModelDiffTest --count 10000 --seed 42 --workers 4
