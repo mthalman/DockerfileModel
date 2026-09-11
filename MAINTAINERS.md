@@ -73,14 +73,37 @@ To publish a stable release:
 
 1. Review the accumulated draft on the GitHub Releases page.
 2. Confirm that its proposed version and release notes are correct.
-3. Publish the draft. GitHub creates its proposed `v*` tag on `main`, which
-   starts the release workflow and publishes the matching NuGet package.
+3. Leave the draft unpublished and push the chosen `v*` tag at the reviewed
+   commit on `main`.
+4. Approve deployment to the protected `nuget.org` environment. The workflow
+   builds, tests, and checks that the tag matches the package version before
+   requesting approval, then
+   publishes to NuGet, publishes the accumulated draft, and attaches the package.
 
-For a prerelease, create a GitHub prerelease with a tag such as
-`v1.2.3-preview.1`. Creating the tag starts the same package release workflow.
+For a prerelease, push a tag such as `v1.2.3-preview.1`. The workflow publishes
+the accumulated draft as a prerelease and does not mark it Latest.
 Publishing a prerelease starts a new draft range, so the later stable release
 notes contain only changes made after that prerelease. The prerelease remains
 the release-note record for the changes it introduced.
 
 Published GitHub Releases are the release-note system of record; this repository
 does not maintain a `CHANGELOG.md`.
+
+## Configure trusted publishing
+
+Complete this one-time setup before the first release:
+
+1. Create a protected GitHub Actions environment named `nuget.org` and
+   configure required reviewers or other deployment protection rules.
+2. Add a Trusted Publishing policy to the NuGet.org account `thalman`:
+
+   | Setting | Value |
+   | --- | --- |
+   | Repository owner | `mthalman` |
+   | Repository | `DockerfileModel` |
+   | Workflow file | `release.yml` |
+   | Environment | `nuget.org` |
+
+The environment name must match exactly. `NuGet/login` exchanges the job's OIDC
+token for a short-lived API key. Remove the old `NUGET_ORG_API_KEY` secret after
+trusted publishing is configured and a release succeeds.
