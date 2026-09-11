@@ -41,6 +41,68 @@ dotnet run --project src/Valleysoft.DockerfileModel.DiffTest/ -- \
 
 The Lean CLI (`DockerfileModelDiffTest`) reads a Dockerfile instruction from stdin and outputs the canonical JSON token tree to stdout.
 
+### Persistent workers
+
+Comparison mode starts a bounded pool of long-lived Lean processes instead of
+launching a process for every input. The default worker count is the smaller of
+the machine's processor count and 4; override it with `--workers`:
+
+```bash
+dotnet run --project src/Valleysoft.DockerfileModel.DiffTest/ -- \
+  --compare --lean-cli lean/.lake/build/bin/DockerfileModelDiffTest \
+  --count 10000 --seed 42 --workers 4
+```
+
+Each worker runs the Lean CLI with `--batch`. Requests and responses are
+tab-delimited, one per line. Request frames contain a request ID, the decimal
+escape-character code point, and base64-encoded UTF-8 input. Response frames
+contain the same request ID, `ok`, `parse-error`, or `error`, and a
+base64-encoded UTF-8 body. The `error` status is reserved for malformed
+requests and unknown instructions. This framing keeps newlines, tabs, JSON,
+and parser errors out of the protocol structure.
+
+### Replaying and minimizing failures
+
+Generated cases retain their seed, stable generator name, generator-relative
+case index, and escape character. Every failure prints those values and an
+exact replay command using the minimized input:
+
+```bash
+dotnet run --project src/Valleysoft.DockerfileModel.DiffTest -- \
+  --replay --lean-cli lean/.lake/build/bin/DockerfileModelDiffTest \
+  --instruction FROM --escape-code 92 --input-base64 RlJPTSBhbHBpbmU=
+```
+
+The minimizer tries deterministic, instruction-shaped simplifications. A
+candidate is accepted only when it preserves the original outcome category:
+JSON mismatch, one-sided parse error, or C# parser crash. Inputs both parsers
+reject are treated as agreement. Infrastructure failures such as process
+exits, malformed frames, unknown instructions, and timeouts are reported
+without being minimized.
+
+### Local regression corpus
+
+Locally authored regressions are normalized JSON fixtures in
+`src/Valleysoft.DockerfileModel.DiffTest/RegressionCorpus`. They are loaded in
+filename order and always run before generated cases. This corpus is separate
+from the pinned upstream BuildKit corpus tracked by issue #358, but both use
+the same differential execution path.
+
+Ordinary comparison and CI runs never modify the corpus. To persist minimized
+failures as idempotent, content-addressed fixtures, explicitly pass:
+
+```bash
+dotnet run --project src/Valleysoft.DockerfileModel.DiffTest/ -- \
+  --compare --lean-cli lean/.lake/build/bin/DockerfileModelDiffTest \
+  --count 10000 --seed 42 --promote-failures
+```
+
+Review and commit the resulting fixture changes together with the parser fix.
+
+Pull-request CI uses seed `42`. The scheduled workflow derives a rotating but
+reproducible daily seed as `UTC year * 1000 + UTC day-of-year` and prints it
+before running the same corpus-first comparison.
+
 ## Design Principles
 
 ### BuildKit is the Source of Truth

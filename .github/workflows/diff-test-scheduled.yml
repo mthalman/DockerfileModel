@@ -1,0 +1,46 @@
+name: Scheduled differential testing
+
+on:
+  schedule:
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diff-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Install elan
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build Lean CLI
+        working-directory: lean
+        run: lake build DockerfileModelDiffTest
+
+      - name: Build .NET DiffTest
+        working-directory: src
+        run: dotnet build Valleysoft.DockerfileModel.DiffTest -c Release
+
+      - name: Derive deterministic daily seed
+        id: seed
+        shell: bash
+        run: |
+          seed=$((10#$(date -u +%Y) * 1000 + 10#$(date -u +%j)))
+          echo "seed=$seed" >> "$GITHUB_OUTPUT"
+          echo "Differential test seed: $seed"
+
+      - name: Run differential tests
+        working-directory: src
+        run: dotnet run --project Valleysoft.DockerfileModel.DiffTest -c Release -- --compare --lean-cli ../lean/.lake/build/bin/DockerfileModelDiffTest --count 10000 --seed ${{ steps.seed.outputs.seed }} --workers 4

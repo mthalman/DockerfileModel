@@ -1,15 +1,21 @@
+using System.Text;
 using Valleysoft.DockerfileModel.DiffTest;
 
-// Parse command-line arguments
 string mode = "";
 string leanCliPath = "";
+string corpusPath = RegressionCorpus.ResolveDefaultDirectory();
+string? replayInstruction = null;
+string? replayInputBase64 = null;
 int count = 1000;
 int seed = 42;
-char escapeChar = '\\';
+int workers = Math.Min(Environment.ProcessorCount, 4);
+int escapeCode = '\\';
+bool promoteFailures = false;
 
-for (int i = 0; i < args.Length; i++)
+for (int index = 0; index < args.Length; index++)
 {
-    switch (args[i])
+    string argument = args[index];
+    switch (argument)
     {
         case "--parse":
             mode = "parse";
@@ -20,53 +26,95 @@ for (int i = 0; i < args.Length; i++)
         case "--generate":
             mode = "generate";
             break;
+        case "--replay":
+            mode = "replay";
+            break;
         case "--lean-cli":
-            if (i + 1 < args.Length) leanCliPath = args[++i];
+            leanCliPath = ReadValue(argument);
+            break;
+        case "--corpus":
+            corpusPath = ReadValue(argument);
             break;
         case "--count":
-            if (i + 1 < args.Length) count = int.Parse(args[++i]);
+            count = ReadInt(argument, minimum: 0);
             break;
         case "--seed":
-            if (i + 1 < args.Length) seed = int.Parse(args[++i]);
+            seed = ReadInt(argument);
+            break;
+        case "--workers":
+            workers = ReadInt(argument, minimum: 1);
             break;
         case "--escape":
-            if (i + 1 < args.Length && args[i + 1].Length == 1) escapeChar = args[++i][0];
+            string escape = ReadValue(argument);
+            if (escape.Length != 1)
+            {
+                throw new ArgumentException("--escape requires exactly one character.");
+            }
+
+            escapeCode = escape[0];
             break;
+        case "--escape-code":
+            escapeCode = ReadInt(argument, minimum: char.MinValue, maximum: char.MaxValue);
+            break;
+        case "--instruction":
+            replayInstruction = ReadValue(argument);
+            break;
+        case "--input-base64":
+            replayInputBase64 = ReadValue(argument);
+            break;
+        case "--promote-failures":
+            promoteFailures = true;
+            break;
+        default:
+            throw new ArgumentException($"Unknown argument '{argument}'.");
+    }
+
+    string ReadValue(string option)
+    {
+        if (index + 1 >= args.Length)
+        {
+            throw new ArgumentException($"{option} requires a value.");
+        }
+
+        return args[++index];
+    }
+
+    int ReadInt(
+        string option,
+        int minimum = int.MinValue,
+        int maximum = int.MaxValue)
+    {
+        string value = ReadValue(option);
+        if (!int.TryParse(value, out int parsed) || parsed < minimum || parsed > maximum)
+        {
+            throw new ArgumentException(
+                $"{option} requires an integer from {minimum} through {maximum}.");
+        }
+
+        return parsed;
     }
 }
 
-switch (mode)
+return mode switch
 {
-    case "parse":
-        return await RunParse();
-    case "compare":
-        return await RunCompare();
-    case "generate":
-        return RunGenerate();
-    default:
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  --parse                          Read stdin, output JSON (symmetric with Lean CLI)");
-        Console.Error.WriteLine("  --compare --lean-cli <path> --count N  Compare both parsers on N random inputs");
-        Console.Error.WriteLine("  --generate --count N             Output test inputs as TYPE\\tBASE64 lines");
-        Console.Error.WriteLine("  --escape <char>                  Set escape character (default: \\)");
-        return 1;
-}
+    "parse" => await RunParseAsync(),
+    "compare" => await RunCompareAsync(),
+    "generate" => RunGenerate(),
+    "replay" => await RunReplayAsync(),
+    _ => ShowUsage()
+};
 
-/// <summary>
-/// Parse mode: read stdin, detect instruction type, output canonical JSON.
-/// Symmetric with the Lean CLI for manual smoke testing.
-/// </summary>
-async Task<int> RunParse()
+async Task<int> RunParseAsync()
 {
     string input = await Console.In.ReadToEndAsync();
-    string trimmed = input.TrimStart();
-    int spaceIdx = trimmed.IndexOfAny(new[] { ' ', '\t', '\n', '\r' });
-    string keyword = spaceIdx > 0 ? trimmed[..spaceIdx].ToUpperInvariant() : trimmed.ToUpperInvariant();
+    string instruction = DetectInstruction(input);
 
     try
     {
-        string json = DiffTestRunner.ParseCSharp(keyword, input, escapeChar);
-        Console.WriteLine(json);
+        Console.WriteLine(DiffTestRunner.ParseCSharp(
+            instruction,
+            input,
+            (char)escapeCode));
         return 0;
     }
     catch (Exception ex)
@@ -76,85 +124,176 @@ async Task<int> RunParse()
     }
 }
 
-/// <summary>
-/// Compare mode: generate random inputs, run both parsers, report mismatches.
-/// </summary>
-async Task<int> RunCompare()
+async Task<int> RunCompareAsync()
 {
-    if (string.IsNullOrEmpty(leanCliPath))
-    {
-        Console.Error.WriteLine("Error: --lean-cli <path> is required for --compare mode");
-        return 1;
-    }
-
-    Console.WriteLine($"Generating {count} random inputs (seed={seed}, escape='{escapeChar}')...");
-    List<(string InstructionType, string Text, char EscapeChar)> inputs = InputGenerator.Generate(count, seed);
-
-    Console.WriteLine($"Running differential test against Lean CLI: {leanCliPath}");
-    Console.WriteLine();
-
+    RequireLeanCli();
+    RegressionCorpus corpus = new(corpusPath);
+    IReadOnlyList<DiffCase> regressionCases = corpus.Load();
+    List<DiffCase> generatedCases = InputGenerator.Generate(count, seed);
     DiffTestRunner runner = new(leanCliPath);
-    int mismatches = 0;
-    int errors = 0;
 
-    List<DiffResult> results = await runner.RunBatchAsync(inputs, (current, total, result) =>
+    Console.WriteLine(
+        $"Running {regressionCases.Count} regression cases with {workers} persistent Lean worker(s)...");
+    IReadOnlyList<DiffResult> regressionResults =
+        await runner.RunBatchAsync(regressionCases, workers);
+    PrintProgress(regressionResults.Count, regressionResults.Count);
+
+    Console.WriteLine(
+        $"Running {generatedCases.Count} generated cases (seed={seed})...");
+    IReadOnlyList<DiffResult> generatedResults =
+        await runner.RunBatchAsync(generatedCases, workers);
+    PrintProgress(generatedResults.Count, generatedResults.Count);
+
+    DiffResult[] failures = regressionResults
+        .Concat(generatedResults)
+        .Where(result => !result.Match)
+        .ToArray();
+    int infrastructureErrors =
+        failures.Count(result => result.Outcome == DiffOutcomeKind.InfrastructureError);
+
+    foreach (DiffResult failure in failures)
     {
-        if (!result.Match)
+        DiffResult minimized = failure;
+        if (failure.Outcome != DiffOutcomeKind.InfrastructureError)
         {
-            if (result.Error != null)
-            {
-                errors++;
-                Console.Error.WriteLine($"[{current}/{total}] ERROR: {result.Error}");
-                Console.Error.WriteLine($"  Input: {Escape(result.Input)}");
-            }
-            else
-            {
-                mismatches++;
-                Console.Error.WriteLine($"[{current}/{total}] MISMATCH ({result.InstructionType}):");
-                Console.Error.WriteLine($"  Input:  {Escape(result.Input)}");
-                Console.Error.WriteLine($"  C#:     {result.CSharpJson}");
-                Console.Error.WriteLine($"  Lean:   {result.LeanJson}");
-            }
-            Console.Error.WriteLine();
+            FailureMinimizer minimizer = new(
+                () => new LeanProcessWorker(leanCliPath));
+            minimized = await minimizer.MinimizeAsync(failure);
         }
 
-        // Progress indicator every 1000 inputs
-        if (current % 1000 == 0 || current == total)
+        PrintFailure(failure, minimized);
+        if (promoteFailures && minimized.Outcome != DiffOutcomeKind.InfrastructureError)
         {
-            Console.Write($"\r  Progress: {current}/{total}");
-            if (current == total) Console.WriteLine();
+            string promotedPath = corpus.Promote(minimized.Case);
+            Console.Error.WriteLine($"  Promoted: {promotedPath}");
         }
-    });
 
-    Console.WriteLine();
-    Console.WriteLine($"Results: {count} inputs, {mismatches} mismatches, {errors} errors");
-
-    if (mismatches > 0 || errors > 0)
-    {
-        Console.WriteLine("FAIL");
-        return 1;
+        Console.Error.WriteLine();
     }
 
-    Console.WriteLine("PASS");
-    return 0;
+    Console.WriteLine(
+        $"Results: {regressionCases.Count} regression, {generatedCases.Count} generated, " +
+        $"{failures.Length - infrastructureErrors} parser differences, " +
+        $"{infrastructureErrors} infrastructure errors");
+    Console.WriteLine(failures.Length == 0 ? "PASS" : "FAIL");
+    return failures.Length == 0 ? 0 : 1;
 }
 
-/// <summary>
-/// Generate mode: output test inputs as TYPE\tBASE64 lines for external use.
-/// </summary>
+async Task<int> RunReplayAsync()
+{
+    RequireLeanCli();
+    if (string.IsNullOrWhiteSpace(replayInstruction) ||
+        string.IsNullOrWhiteSpace(replayInputBase64))
+    {
+        throw new ArgumentException(
+            "--replay requires --instruction and --input-base64.");
+    }
+
+    string input;
+    try
+    {
+        input = Encoding.UTF8.GetString(Convert.FromBase64String(replayInputBase64));
+    }
+    catch (FormatException ex)
+    {
+        throw new ArgumentException("--input-base64 is not valid base64.", ex);
+    }
+
+    DiffCase replayCase = new(
+        "replay",
+        DiffCaseSource.Replay,
+        replayInstruction,
+        input,
+        (char)escapeCode);
+    DiffResult result = await new DiffTestRunner(leanCliPath).RunSingleAsync(replayCase);
+    PrintFailure(result, result);
+    return result.Match ? 0 : 1;
+}
+
 int RunGenerate()
 {
-    List<(string InstructionType, string Text, char EscapeChar)> inputs = InputGenerator.Generate(count, seed);
-    foreach ((string type, string text, char esc) in inputs)
+    foreach (DiffCase testCase in InputGenerator.Generate(count, seed))
     {
-        string b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text));
-        Console.WriteLine($"{type}\t{b64}\t{esc}");
+        Console.WriteLine(
+            $"{testCase.InstructionType}\t{testCase.InputBase64}\t" +
+            $"{(int)testCase.EscapeChar}\t{testCase.Generator}\t{testCase.CaseIndex}");
     }
+
     return 0;
 }
 
-/// <summary>
-/// Escape control characters for display.
-/// </summary>
-static string Escape(string s) =>
-    s.Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
+void PrintFailure(DiffResult original, DiffResult minimized)
+{
+    DiffCase testCase = original.Case;
+    Console.Error.WriteLine(
+        $"{original.Outcome.ToString().ToUpperInvariant()} " +
+        $"({testCase.Source}, {testCase.InstructionType}, id={testCase.Id})");
+    if (testCase.Generator is not null)
+    {
+        Console.Error.WriteLine(
+            $"  Seed: {testCase.Seed}, generator: {testCase.Generator}, " +
+            $"case index: {testCase.CaseIndex}, escape: {(int)testCase.EscapeChar}");
+    }
+
+    Console.Error.WriteLine($"  Input:     {Escape(testCase.Input)}");
+    if (minimized.Case.Input != testCase.Input)
+    {
+        Console.Error.WriteLine($"  Minimized: {Escape(minimized.Case.Input)}");
+    }
+
+    if (original.Outcome == DiffOutcomeKind.JsonMismatch)
+    {
+        Console.Error.WriteLine($"  C#:   {minimized.CSharpJson}");
+        Console.Error.WriteLine($"  Lean: {minimized.LeanJson}");
+    }
+    else if (minimized.Error is not null || original.Error is not null)
+    {
+        Console.Error.WriteLine($"  Error: {minimized.Error ?? original.Error}");
+        if (original.Outcome == DiffOutcomeKind.CSharpParseError)
+        {
+            Console.Error.WriteLine($"  Lean: {minimized.LeanJson}");
+        }
+        else if (original.Outcome == DiffOutcomeKind.LeanParseError)
+        {
+            Console.Error.WriteLine($"  C#:   {minimized.CSharpJson}");
+        }
+    }
+
+    Console.Error.WriteLine(
+        $"  Replay: {ReplayCommand.Create(minimized.Case, leanCliPath)}");
+}
+
+void RequireLeanCli()
+{
+    if (string.IsNullOrWhiteSpace(leanCliPath))
+    {
+        throw new ArgumentException("--lean-cli <path> is required.");
+    }
+}
+
+static string DetectInstruction(string input)
+{
+    string trimmed = input.TrimStart();
+    int end = trimmed.IndexOfAny(new[] { ' ', '\t', '\n', '\r' });
+    return (end > 0 ? trimmed[..end] : trimmed).ToUpperInvariant();
+}
+
+static void PrintProgress(int current, int total) =>
+    Console.WriteLine($"  Progress: {current}/{total}");
+
+static string Escape(string value) =>
+    value.Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
+
+static int ShowUsage()
+{
+    Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  --parse [--escape <char>]");
+    Console.Error.WriteLine(
+        "  --compare --lean-cli <path> [--count N] [--seed N] [--workers N] " +
+        "[--corpus <path>] [--promote-failures]");
+    Console.Error.WriteLine(
+        "  --replay --lean-cli <path> --instruction <type> --input-base64 <value> " +
+        "[--escape-code N]");
+    Console.Error.WriteLine("  --generate [--count N] [--seed N]");
+    return 1;
+}
