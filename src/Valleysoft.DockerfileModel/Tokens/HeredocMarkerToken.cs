@@ -1,8 +1,8 @@
 namespace Valleysoft.DockerfileModel.Tokens;
 
 /// <summary>
-/// Aggregate token representing a heredoc marker inline in the command stream: &lt;&lt;[-][QUOTE]DELIM[QUOTE].
-/// Child tokens are: SymbolToken('&lt;'), SymbolToken('&lt;'), optional SymbolToken('-'),
+/// Aggregate token representing a heredoc marker inline in the command stream: <<[-][QUOTE]DELIM[QUOTE].
+/// Child tokens are: SymbolToken('<'), SymbolToken('<'), optional SymbolToken('-'),
 /// optional SymbolToken(quoteChar), HeredocDelimiterToken(name), optional SymbolToken(quoteChar).
 /// </summary>
 public class HeredocMarkerToken : AggregateToken

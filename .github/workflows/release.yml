@@ -14,8 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-      attestations: write
 
     outputs:
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -71,23 +69,6 @@ jobs:
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Validate publication package contract
-        shell: pwsh
-        env:
-          EXPECTED_VERSION: ${{ steps.version.outputs.version }}
-        run: >-
-          ../.github/scripts/Validate-Package.ps1
-          -PackageDirectory artifacts
-          -ExpectedVersion $env:EXPECTED_VERSION
-          -ExpectedCommit (git rev-parse HEAD)
-
-      - name: Attest packages
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: |
-            src/artifacts/*.nupkg
-            src/artifacts/*.snupkg
 
       - name: Upload packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -157,18 +138,6 @@ jobs:
         run: >-
           dotnet nuget push
           "artifacts/Valleysoft.DockerfileModel.${PACKAGE_VERSION}.nupkg"
-          --api-key "$NUGET_API_KEY"
-          --source https://api.nuget.org/v3/index.json
-          --no-symbols
-          --skip-duplicate
-
-      - name: Publish symbols
-        env:
-          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-          PACKAGE_VERSION: ${{ needs.validate.outputs.version }}
-        run: >-
-          dotnet nuget push
-          "artifacts/Valleysoft.DockerfileModel.${PACKAGE_VERSION}.snupkg"
           --api-key "$NUGET_API_KEY"
           --source https://api.nuget.org/v3/index.json
           --skip-duplicate

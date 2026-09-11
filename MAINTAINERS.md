@@ -76,7 +76,8 @@ To publish a stable release:
 3. Leave the draft unpublished and push the chosen `v*` tag at the reviewed
    commit on `main`.
 4. Approve deployment to the protected `nuget.org` environment. The workflow
-   builds, tests, and validates the package before requesting approval, then
+   builds, tests, and checks that the tag matches the package version before
+   requesting approval, then
    publishes to NuGet, publishes the accumulated draft, and attaches the packages.
 
 For a prerelease, push a tag such as `v1.2.3-preview.1`. The workflow publishes
@@ -87,37 +88,6 @@ the release-note record for the changes it introduced.
 
 Published GitHub Releases are the release-note system of record; this repository
 does not maintain a `CHANGELOG.md`.
-
-### Release operating constraints and recovery
-
-This workflow follows the two-job design in
-[mthalman/DockerRegistryClient#154](https://github.com/mthalman/DockerRegistryClient/pull/154).
-The validation job packs once, runs the package-contract gate, attests the
-archives, and uploads them with one-day retention. The protected publish job
-downloads those artifacts; it does not check out source or rebuild packages.
-
-Release **one version at a time, in increasing version order**. Keep exactly
-one accumulated draft, and pause merges to `main` and manual Release Drafter
-runs from the tag push until publication completes. The workflow does not
-freeze release notes: Release Drafter can otherwise change the draft while a
-release awaits approval. Review the draft before approving publication.
-
-For a partial publication failure, use **Re-run failed jobs** within the
-one-day artifact retention window. Package and symbol pushes separately skip
-already-published versions. An existing GitHub Release for the tag is reused;
-asset uploads use `--clobber` so the original validated artifacts can replace
-incomplete uploads. This assumes ordinary mutable GitHub Releases.
-
-Do not use a full rebuild as an automatic recovery mechanism after any package
-has been published. Archive bytes are not guaranteed to be reproducible, and
-this workflow does not compare them with previously published bytes. If the
-artifacts expire or the draft changes, stop and reconcile the release manually
-using the original artifacts, or release corrected contents under a new version.
-Do not push another release tag until the pending release is resolved.
-
-Out-of-order recovery of an older draft requires manual handling: publishing a
-stable draft marks it Latest. The workflow intentionally does not implement
-version-aware Latest selection or automatic draft reconstruction.
 
 ## Configure trusted publishing
 
@@ -137,37 +107,3 @@ Complete this one-time setup before the first release:
 The environment name must match exactly. `NuGet/login` exchanges the job's OIDC
 token for a short-lived API key. Remove the old `NUGET_ORG_API_KEY` secret after
 trusted publishing is configured and a release succeeds.
-
-## Package contract and API baseline
-
-CI and releases use the reusable prerequisite gate
-`.github/scripts/Validate-Package.ps1`. It validates both archives' IDs, versions,
-file allowlists, target assemblies, production dependency groups, README, XML
-documentation, portable PDB identities and checksums, and SourceLink repository
-and commit mappings. A temporary consumer compiles for `netstandard2.0` and
-`net10.0` using a `PackageReference`, an empty package cache, and source mapping
-that restricts this package to the local publication feed. Its restored archive
-must have the same digest as the publication package.
-
-To run the gate locally from the repository root with PowerShell 7:
-
-```powershell
-dotnet build src -c Release -p:ContinuousIntegrationBuild=true
-dotnet pack src\Valleysoft.DockerfileModel -c Release --no-build -p:ContinuousIntegrationBuild=true -o src\artifacts
-.\.github\scripts\Validate-Package.ps1 -PackageDirectory src\artifacts -ExpectedCommit (git rev-parse HEAD)
-```
-
-Pass `-ExpectedVersion 1.2.3` to require that exact version. Without it, CI
-validates the Git-derived development version.
-The artifact-dependent xUnit test is deliberately skipped during ordinary
-pre-pack tests; the validation script enables it and propagates any failure.
-
-SDK package validation runs during `dotnet pack` and compares the package's
-public API with the pinned NuGet baseline `2.0.0`, including parameter names.
-It also checks compatibility between target frameworks. Do not advance
-`PackageValidationBaselineVersion` simply to silence a failure. Intentional
-breaks require a reviewed major-version decision and documented, narrow
-suppressions, or an explicit baseline update after the corresponding release
-exists. Review baseline updates together with changes to the package contract
-and consumer fixture. Missing XML comments on existing APIs are tolerated
-(`CS1591`); malformed comments and other build warnings still fail the build.
