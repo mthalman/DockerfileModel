@@ -78,7 +78,7 @@ To publish a stable release:
 4. Approve deployment to the protected `nuget.org` environment. The workflow
    builds, tests, and checks that the tag matches the package version before
    requesting approval, then
-   publishes to NuGet, publishes the accumulated draft, and attaches the packages.
+   publishes to NuGet, publishes the accumulated draft, and attaches the package.
 
 For a prerelease, push a tag such as `v1.2.3-preview.1`. The workflow publishes
 the accumulated draft as a prerelease and does not mark it Latest.
