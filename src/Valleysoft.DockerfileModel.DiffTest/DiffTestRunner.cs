@@ -95,7 +95,28 @@ public sealed class DiffTestRunner
 
             if (IsKnownCrash(testCase.InstructionType, testCase.Input))
             {
-                return new DiffResult(testCase, "", "", DiffOutcomeKind.Match);
+                try
+                {
+                    await parser.ParseAsync(
+                        testCase.Input,
+                        testCase.EscapeChar,
+                        cancellationToken);
+                    return new DiffResult(testCase, "", "", DiffOutcomeKind.Match);
+                }
+                catch (LeanParseException)
+                {
+                    return new DiffResult(testCase, "", "", DiffOutcomeKind.Match);
+                }
+                catch (Exception leanException)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new DiffResult(
+                        testCase,
+                        "",
+                        "",
+                        DiffOutcomeKind.InfrastructureError,
+                        leanException.Message);
+                }
             }
 
             if (ex is not ParseException)

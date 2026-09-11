@@ -32,6 +32,7 @@ public sealed class LeanInfrastructureException : Exception
 public sealed class LeanProcessWorker : ILeanParser
 {
     private readonly string _leanCliPath;
+    private readonly IReadOnlyList<string> _arguments;
     private readonly string? _leanLibDir;
     private readonly TimeSpan _timeout;
     private Process? _process;
@@ -39,10 +40,36 @@ public sealed class LeanProcessWorker : ILeanParser
     private long _nextRequestId;
 
     public LeanProcessWorker(string leanCliPath, TimeSpan? timeout = null)
+        : this(
+            Path.GetFullPath(leanCliPath),
+            new[] { "--batch" },
+            timeout,
+            findLeanLibDirectory: true)
     {
-        _leanCliPath = Path.GetFullPath(leanCliPath);
+    }
+
+    internal LeanProcessWorker(
+        string executablePath,
+        IReadOnlyList<string> arguments,
+        TimeSpan? timeout = null)
+        : this(
+            executablePath,
+            arguments,
+            timeout,
+            findLeanLibDirectory: false)
+    {
+    }
+
+    private LeanProcessWorker(
+        string executablePath,
+        IReadOnlyList<string> arguments,
+        TimeSpan? timeout,
+        bool findLeanLibDirectory)
+    {
+        _leanCliPath = executablePath;
+        _arguments = arguments;
         _timeout = timeout ?? TimeSpan.FromSeconds(30);
-        _leanLibDir = FindLeanLibDir();
+        _leanLibDir = findLeanLibDirectory ? FindLeanLibDir() : null;
     }
 
     public async Task<string> ParseAsync(
@@ -173,7 +200,10 @@ public sealed class LeanProcessWorker : ILeanParser
             UseShellExecute = false,
             CreateNoWindow = true
         };
-        startInfo.ArgumentList.Add("--batch");
+        foreach (string argument in _arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
 
         if (_leanLibDir is not null)
         {

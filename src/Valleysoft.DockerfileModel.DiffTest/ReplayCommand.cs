@@ -13,14 +13,14 @@ internal static class ReplayCommand
             ? ResolveProjectPath(projectSearchPaths)
             : Path.GetFullPath(projectPath);
         string invocation = resolvedProjectPath is null
-            ? $"dotnet {Quote(typeof(ReplayCommand).Assembly.Location)}"
-            : $"dotnet run --project {Quote(resolvedProjectPath)} --";
+            ? $"dotnet {QuoteArgument(typeof(ReplayCommand).Assembly.Location)}"
+            : $"dotnet run --project {QuoteArgument(resolvedProjectPath)} --";
 
         return $"{invocation} --replay " +
-            $"--lean-cli {Quote(resolvedLeanCliPath)} " +
-            $"--instruction {testCase.InstructionType} " +
+            $"--lean-cli {QuoteArgument(resolvedLeanCliPath)} " +
+            $"--instruction {QuoteArgument(testCase.InstructionType)} " +
             $"--escape-code {(int)testCase.EscapeChar} " +
-            $"--input-base64 {testCase.InputBase64}";
+            $"--input-base64 {QuoteArgument(testCase.InputBase64)}";
     }
 
     internal static string? ResolveProjectPath(
@@ -62,6 +62,11 @@ internal static class ReplayCommand
         return null;
     }
 
-    private static string Quote(string value) =>
-        "\"" + value.Replace("\"", "\\\"") + "\"";
+    private static string QuoteArgument(string value) =>
+        QuoteArgument(value, OperatingSystem.IsWindows());
+
+    internal static string QuoteArgument(string value, bool isWindows) =>
+        isWindows
+            ? "'" + value.Replace("'", "''") + "'"
+            : "'" + value.Replace("'", "'\"'\"'") + "'";
 }

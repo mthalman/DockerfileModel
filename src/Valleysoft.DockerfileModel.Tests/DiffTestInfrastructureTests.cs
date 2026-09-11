@@ -48,11 +48,15 @@ public class DiffTestInfrastructureTests
             projectPath);
 
         Assert.Contains(
-            $"--project \"{Path.GetFullPath(projectPath)}\"",
+            $"--project {ReplayCommand.QuoteArgument(
+                Path.GetFullPath(projectPath),
+                OperatingSystem.IsWindows())}",
             command,
             StringComparison.Ordinal);
         Assert.Contains(
-            $"--lean-cli \"{Path.GetFullPath(leanCliPath)}\"",
+            $"--lean-cli {ReplayCommand.QuoteArgument(
+                Path.GetFullPath(leanCliPath),
+                OperatingSystem.IsWindows())}",
             command,
             StringComparison.Ordinal);
     }
@@ -86,9 +90,22 @@ public class DiffTestInfrastructureTests
             projectSearchPaths: new[] { missingDirectory });
 
         Assert.StartsWith(
-            $"dotnet \"{typeof(DiffTestRunner).Assembly.Location}\" --replay",
+            $"dotnet {ReplayCommand.QuoteArgument(
+                typeof(DiffTestRunner).Assembly.Location,
+                OperatingSystem.IsWindows())} --replay",
             command,
             StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false, "path/with $dollar `tick` \\\\ slash ' quote", "'path/with $dollar `tick` \\\\ slash '\"'\"' quote'")]
+    [InlineData(true, "C:\\path\\with $dollar `tick` ' quote", "'C:\\path\\with $dollar `tick` '' quote'")]
+    public void ReplayCommand_QuotesArgumentsForHostShell(
+        bool isWindows,
+        string value,
+        string expected)
+    {
+        Assert.Equal(expected, ReplayCommand.QuoteArgument(value, isWindows));
     }
 
     [Fact]
@@ -169,6 +186,21 @@ public class DiffTestInfrastructureTests
     }
 
     [Fact]
+    public async Task RunSingleAsync_KnownCrashPreservesLeanInfrastructureFailure()
+    {
+        DiffCase testCase = Case("empty-volume", "VOLUME []") with
+        {
+            InstructionType = "VOLUME"
+        };
+        DiffTestRunner runner = new(() => new InfrastructureFailingParser());
+
+        DiffResult result = await runner.RunSingleAsync(testCase);
+
+        Assert.Equal(DiffOutcomeKind.InfrastructureError, result.Outcome);
+        Assert.Equal("Lean process failed.", result.Error);
+    }
+
+    [Fact]
     public async Task RunBatchAsync_CancellationStopsTheBatch()
     {
         using CancellationTokenSource cancellation = new();
@@ -228,6 +260,79 @@ public class DiffTestInfrastructureTests
         Assert.Equal(
             "Lean batch process closed stdout. Exit code: -1073741511. loader failure",
             exception.Message);
+    }
+
+    [Fact]
+    public async Task LeanProcessWorker_ParsesOkResponseFromChildProcess()
+    {
+        await using FakeLeanProcess process = FakeLeanProcess.Create("1\tok\te30=");
+        await using LeanProcessWorker worker = process.CreateWorker();
+
+        string result = await worker.ParseAsync(
+            "FROM alpine",
+            '\\',
+            CancellationToken.None);
+
+        Assert.Equal("{}", result);
+    }
+
+    [Fact]
+    public async Task LeanProcessWorker_ParsesErrorStatusesFromChildProcess()
+    {
+        await using FakeLeanProcess parseErrorProcess =
+            FakeLeanProcess.Create("1\tparse-error\tcmVqZWN0ZWQ=");
+        await using LeanProcessWorker parseErrorWorker =
+            parseErrorProcess.CreateWorker();
+        LeanParseException parseException =
+            await Assert.ThrowsAsync<LeanParseException>(
+                () => parseErrorWorker.ParseAsync(
+                    "FROM alpine",
+                    '\\',
+                    CancellationToken.None));
+        Assert.Equal("rejected", parseException.Message);
+
+        await using FakeLeanProcess errorProcess =
+            FakeLeanProcess.Create("1\terror\tYnJva2Vu");
+        await using LeanProcessWorker errorWorker = errorProcess.CreateWorker();
+        LeanInfrastructureException infrastructureException =
+            await Assert.ThrowsAsync<LeanInfrastructureException>(
+                () => errorWorker.ParseAsync(
+                    "FROM alpine",
+                    '\\',
+                    CancellationToken.None));
+        Assert.Equal("broken", infrastructureException.Message);
+    }
+
+    [Fact]
+    public async Task LeanProcessWorker_RejectsMalformedResponseAndEof()
+    {
+        await using FakeLeanProcess malformedProcess =
+            FakeLeanProcess.Create("malformed");
+        await using LeanProcessWorker malformedWorker =
+            malformedProcess.CreateWorker();
+        LeanInfrastructureException malformedException =
+            await Assert.ThrowsAsync<LeanInfrastructureException>(
+                () => malformedWorker.ParseAsync(
+                    "FROM alpine",
+                    '\\',
+                    CancellationToken.None));
+        Assert.Contains(
+            "Malformed Lean response frame",
+            malformedException.Message,
+            StringComparison.Ordinal);
+
+        await using FakeLeanProcess eofProcess = FakeLeanProcess.Create(response: null);
+        await using LeanProcessWorker eofWorker = eofProcess.CreateWorker();
+        LeanInfrastructureException eofException =
+            await Assert.ThrowsAsync<LeanInfrastructureException>(
+                () => eofWorker.ParseAsync(
+                    "FROM alpine",
+                    '\\',
+                    CancellationToken.None));
+        Assert.Contains(
+            "closed stdout",
+            eofException.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -499,6 +604,17 @@ public class DiffTestInfrastructureTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
+    private sealed class InfrastructureFailingParser : ILeanParser
+    {
+        public Task<string> ParseAsync(
+            string input,
+            char escapeChar,
+            CancellationToken cancellationToken) =>
+            throw new LeanInfrastructureException("Lean process failed.");
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     private sealed class CancelingParser : ILeanParser
     {
         public Task<string> ParseAsync(
@@ -533,5 +649,78 @@ public class DiffTestInfrastructureTests
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class FakeLeanProcess : IAsyncDisposable
+    {
+        private const string ExpectedRequest = "1\t92\tRlJPTSBhbHBpbmU=";
+
+        private FakeLeanProcess(
+            string directory,
+            string executablePath,
+            IReadOnlyList<string> arguments)
+        {
+            Directory = directory;
+            ExecutablePath = executablePath;
+            Arguments = arguments;
+        }
+
+        public string Directory { get; }
+
+        public string ExecutablePath { get; }
+
+        public IReadOnlyList<string> Arguments { get; }
+
+        public static FakeLeanProcess Create(string? response)
+        {
+            string directory = Path.Combine(
+                Path.GetTempPath(),
+                $"DockerfileModel-FakeLean-{Guid.NewGuid():N}");
+            System.IO.Directory.CreateDirectory(directory);
+
+            if (OperatingSystem.IsWindows())
+            {
+                string scriptPath = Path.Combine(directory, "fake-lean.cmd");
+                string output = response is null ? "" : $"echo({response}";
+                File.WriteAllText(
+                    scriptPath,
+                    $"@echo off{Environment.NewLine}" +
+                    $"set /p \"request=\"{Environment.NewLine}" +
+                    $"if not \"%request%\"==\"{ExpectedRequest}\" exit /b 23{Environment.NewLine}" +
+                    $"{output}{Environment.NewLine}");
+                return new FakeLeanProcess(
+                    directory,
+                    Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+                    new[] { "/D", "/Q", "/C", scriptPath });
+            }
+
+            string unixScriptPath = Path.Combine(directory, "fake-lean.sh");
+            string escapedRequest = ExpectedRequest.Replace("'", "'\"'\"'");
+            string outputLine = response is null
+                ? ""
+                : $"printf '%s\\n' '{response}'";
+            File.WriteAllText(
+                unixScriptPath,
+                $"IFS= read -r request{Environment.NewLine}" +
+                $"[ \"$request\" = '{escapedRequest}' ] || exit 23{Environment.NewLine}" +
+                $"{outputLine}{Environment.NewLine}");
+            return new FakeLeanProcess(
+                directory,
+                "/bin/sh",
+                new[] { unixScriptPath });
+        }
+
+        public LeanProcessWorker CreateWorker() =>
+            new(ExecutablePath, Arguments, TimeSpan.FromSeconds(5));
+
+        public ValueTask DisposeAsync()
+        {
+            if (System.IO.Directory.Exists(Directory))
+            {
+                System.IO.Directory.Delete(Directory, recursive: true);
+            }
+
+            return ValueTask.CompletedTask;
+        }
     }
 }
