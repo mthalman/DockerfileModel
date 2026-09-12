@@ -66,15 +66,24 @@ public class HeredocRecoveryModelTests
     [InlineData("RUN echo foo<<EOF\n")]
     [InlineData("RUN echo \"<<EOF\"\n")]
     [InlineData("RUN [\"echo\", \"<<EOF\"]\n")]
+    [InlineData("RUN <<'E<F'\n")]
+    [InlineData("RUN <<\"E<F\"\n")]
+    [InlineData("RUN <<E\\<F\n")]
+    [InlineData("RUN <<E<F\n")]
     public void FalseMarkersDoNotConsumeLaterInstructions(string instruction)
     {
         string text = instruction + "FROM scratch\n";
-        DockerfileParseResult result = Dockerfile.TryParse(text);
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            DockerfileParseResult result = Dockerfile.TryParse(text, new DockerfileParseOptions { Mode = mode });
 
-        Assert.True(result.Success, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
-        Assert.Equal(text, result.Dockerfile!.ToString());
-        Assert.IsType<FromInstruction>(result.Dockerfile.Items[1]);
-        Assert.Empty(Assert.IsType<RunInstruction>(result.Dockerfile.Items[0]).Heredocs);
+            Assert.True(result.Success, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
+            Assert.Empty(result.Diagnostics);
+            Assert.Equal(2, result.Dockerfile!.Items.Count);
+            Assert.IsType<FromInstruction>(result.Dockerfile.Items[1]);
+            Assert.Empty(Assert.IsType<RunInstruction>(result.Dockerfile.Items[0]).Heredocs);
+            SourceSpanTests.AssertPartition(text, result.Dockerfile);
+        }
     }
 
     [Fact]
