@@ -76,8 +76,24 @@ internal sealed class InstructionParseContext
                 position = heredoc.MarkerEnd - sourceStart;
             }
 
-            tokens.AddRange(ParseGap(input.Source, position, region.HeaderEnd - sourceStart - position,
+            int argumentsEnd = (region.TrailingCommentStart ?? region.HeaderEnd) - sourceStart;
+            tokens.AddRange(ParseGap(input.Source, position, argumentsEnd - position,
                 escapeChar, canContainVariables));
+            if (region.TrailingCommentStart.HasValue)
+            {
+                Parser<IEnumerable<Token>> commentParser =
+                    from marker in Symbol('#')
+                    from leading in WhitespaceWithoutNewLine()
+                    from text in Sprache.Parse.AnyChar.Except(Sprache.Parse.LineEnd.End()).Many().Text()
+                    from lineEnd in OptionalNewLine().AsEnumerable()
+                    select ConcatTokens(new Token[]
+                    {
+                        new CommentToken(ConcatTokens(ConcatTokens(marker, leading),
+                            ConcatTokens(new StringToken(text.Trim()), GetTrailingWhitespaceToken(text))))
+                    }, lineEnd);
+                tokens.AddRange(commentParser.End().Parse(input.Source.Substring(argumentsEnd,
+                    region.HeaderEnd - sourceStart - argumentsEnd)));
+            }
             foreach (ConstructReader.HeredocRegion heredoc in region.Heredocs)
             {
                 List<Token> body = new();

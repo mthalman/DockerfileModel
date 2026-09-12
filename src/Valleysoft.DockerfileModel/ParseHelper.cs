@@ -562,7 +562,7 @@ internal static class ParseHelper
     /// <summary>
     /// Parses all whitespace except a new line.
     /// </summary>
-    private static Parser<WhitespaceToken?> WhitespaceWithoutNewLine() =>
+    internal static Parser<WhitespaceToken?> WhitespaceWithoutNewLine() =>
         from whitespace in Parse.WhiteSpace.Except(Parse.LineTerminator).XMany().Text()
         select whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null;
 

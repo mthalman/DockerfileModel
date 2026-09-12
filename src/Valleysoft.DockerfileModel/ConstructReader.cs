@@ -8,18 +8,21 @@ internal static class ConstructReader
 {
     internal readonly struct Region
     {
-        public Region(int end, int? unterminatedMarker = null, int headerEnd = 0, IReadOnlyList<HeredocRegion>? heredocs = null)
+        public Region(int end, int? unterminatedMarker = null, int headerEnd = 0,
+            IReadOnlyList<HeredocRegion>? heredocs = null, int? trailingCommentStart = null)
         {
             End = end;
             UnterminatedMarker = unterminatedMarker;
             HeaderEnd = headerEnd;
             Heredocs = heredocs ?? Array.Empty<HeredocRegion>();
+            TrailingCommentStart = trailingCommentStart;
         }
 
         public int End { get; }
         public int? UnterminatedMarker { get; }
         public int HeaderEnd { get; }
         public IReadOnlyList<HeredocRegion> Heredocs { get; }
+        public int? TrailingCommentStart { get; }
     }
 
     internal sealed class HeredocRegion
@@ -97,6 +100,21 @@ internal static class ConstructReader
 
         int headerEndOffset = position;
         List<HeredocRegion> heredocs = FindHeredocs(logicalHeader, headerOffsets);
+        int? trailingCommentStart = null;
+        if (heredocs.Count > 0)
+        {
+            int lastMarkerEnd = heredocs[heredocs.Count - 1].MarkerEnd;
+            int tailStart = headerOffsets.FindIndex(offset => offset >= lastMarkerEnd);
+            if (tailStart >= 0)
+            {
+                string tail = logicalHeader.Substring(tailStart);
+                int commentOffset = DockerfileParser.StripTrailingComment(tail, escapeChar).Length;
+                if (commentOffset < tail.Length)
+                {
+                    trailingCommentStart = headerOffsets[tailStart + commentOffset];
+                }
+            }
+        }
         foreach (HeredocRegion heredoc in heredocs)
         {
             heredoc.BodyStart = position;
@@ -133,7 +151,8 @@ internal static class ConstructReader
             }
         }
 
-        return new Region(position, headerEnd: headerEndOffset, heredocs: heredocs);
+        return new Region(position, headerEnd: headerEndOffset, heredocs: heredocs,
+            trailingCommentStart: trailingCommentStart);
     }
 
     private static List<HeredocRegion> FindHeredocs(string header, List<int> offsets)

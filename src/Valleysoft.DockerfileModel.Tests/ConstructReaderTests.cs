@@ -39,4 +39,22 @@ public class ConstructReaderTests
         ConstructReader.Region result = ConstructReader.Read(text, 0, '\\');
         Assert.Equal(text.IndexOf('\n') + 1, result.End);
     }
+
+    [Theory]
+    [InlineData("COPY <<EOF /dest #tail\n")]
+    [InlineData("COPY <<EOF \\\n# header 'comment\n \"/dest #name\" #tail\r\n")]
+    [InlineData("COPY <\\\n<EOF \\\n /dest #tail\n")]
+    [InlineData("RUN <<EOF echo \"#name\" #tail\n")]
+    public void TrailingCommentOffsetRefersToOriginalSource(string header)
+    {
+        const string prefix = "FROM scratch\n";
+        string text = prefix + header + "body\nEOF\nFROM next\n";
+        ConstructReader.Region result = ConstructReader.Read(text, prefix.Length, '\\');
+
+        Assert.Equal(text.IndexOf("#tail", StringComparison.Ordinal), result.TrailingCommentStart);
+        Assert.Equal(prefix.Length + header.Length, result.HeaderEnd);
+        Assert.Equal(prefix.Length + header.Length + "body\nEOF\n".Length, result.End);
+        Assert.Equal("EOF", Assert.Single(result.Heredocs).Name);
+        Assert.Null(result.UnterminatedMarker);
+    }
 }

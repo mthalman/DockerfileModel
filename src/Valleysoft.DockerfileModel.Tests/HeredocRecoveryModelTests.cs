@@ -289,4 +289,139 @@ public class HeredocRecoveryModelTests
             SourceSpanTests.AssertPartition(text, result.Dockerfile);
         }
     }
+
+    [Theory]
+    [InlineData("COPY", " /dest")]
+    [InlineData("ADD", " /dest")]
+    [InlineData("RUN", " echo done")]
+    [InlineData("RUN", " echo \"#notcomment\"")]
+    [InlineData("ONBUILD COPY", " /dest")]
+    [InlineData("ONBUILD RUN", "")]
+    public void TrailingHeredocCommentsRemainCommentTokens(string instructionName, string arguments)
+    {
+        foreach (string newline in new[] { "\n", "\r\n" })
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            string text = $"{instructionName} <<EOF{arguments} #comment <<IGNORED '{newline}body{newline}EOF{newline}FROM scratch{newline}";
+            DockerfileParseResult result = Dockerfile.TryParse(text, new DockerfileParseOptions { Mode = mode });
+
+            Assert.True(result.Success, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
+            Assert.Empty(result.Diagnostics);
+            Instruction instruction = Assert.IsAssignableFrom<Instruction>(result.Dockerfile!.Items[0]);
+            if (instruction is OnBuildInstruction onBuild)
+            {
+                instruction = onBuild.Instruction;
+            }
+            Assert.Equal("comment <<IGNORED '", Assert.Single(instruction.Comments));
+            Assert.Single(instruction.CommentTokens);
+            Assert.Equal($"{instruction.InstructionName} <<EOF{arguments} {newline}body{newline}EOF{newline}",
+                instruction.ToString(new TokenStringOptions(excludeComments: true)));
+            Heredoc heredoc;
+            if (instruction is FileTransferInstruction transfer)
+            {
+                Assert.Equal("/dest", transfer.Destination);
+                Assert.Empty(transfer.Sources);
+                heredoc = Assert.Single(transfer.Heredocs);
+            }
+            else
+            {
+                heredoc = Assert.Single(Assert.IsType<RunInstruction>(instruction).Heredocs);
+            }
+            Assert.Equal("EOF", heredoc.Name);
+            Assert.Equal("body" + newline, heredoc.Content);
+            Assert.IsType<FromInstruction>(result.Dockerfile.Items[1]);
+            SourceSpanTests.AssertPartition(text, result.Dockerfile);
+        }
+    }
+
+    [Theory]
+    [InlineData("\"/dest #name\"", "/dest #name", '\\')]
+    [InlineData("'/dest #name'", "/dest #name", '\\')]
+    [InlineData("/dest\\#name", "/dest\\#name", '\\')]
+    [InlineData("\"/dest\\\"#name\\\"\"", "/dest\\\"#name\\\"", '\\')]
+    [InlineData("/dest\\\\", "/dest\\\\", '\\')]
+    [InlineData("/dest`#name", "/dest`#name", '`')]
+    [InlineData("/dest\\", "/dest\\", '`')]
+    public void TrailingHeredocCommentRespectsQuotedAndEscapedDestination(
+        string destinationText, string destination, char escapeChar)
+    {
+        string text = $"# escape={escapeChar}\nCOPY <<EOF {destinationText} #comment\nbody\nEOF\nFROM scratch\n";
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            DockerfileParseResult result = Dockerfile.TryParse(text, new DockerfileParseOptions { Mode = mode });
+
+            Assert.True(result.Success, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
+            Assert.Empty(result.Diagnostics);
+            CopyInstruction instruction = Assert.IsType<CopyInstruction>(result.Dockerfile!.Items[1]);
+            Assert.Equal(destination, instruction.Destination);
+            Assert.Equal("comment", Assert.Single(instruction.Comments));
+            Assert.Equal("body\n", Assert.Single(instruction.Heredocs).Content);
+            Assert.IsType<FromInstruction>(result.Dockerfile.Items[2]);
+            SourceSpanTests.AssertPartition(text, result.Dockerfile);
+        }
+    }
+
+    [Fact]
+    public void ContinuedHeaderCommentsDoNotHideTrailingHeredocComment()
+    {
+        const string text = "COPY <<EOF \\\n# header 'comment\n /dest #comment\nbody\nEOF\nFROM scratch\n";
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            DockerfileParseResult result = Dockerfile.TryParse(text, new DockerfileParseOptions { Mode = mode });
+
+            Assert.True(result.Success, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
+            CopyInstruction instruction = Assert.IsType<CopyInstruction>(result.Dockerfile!.Items[0]);
+            Assert.Equal("/dest", instruction.Destination);
+            Assert.Equal(new[] { "header 'comment", "comment" }, instruction.Comments);
+            Assert.Equal("body\n", Assert.Single(instruction.Heredocs).Content);
+            Assert.IsType<FromInstruction>(result.Dockerfile.Items[1]);
+            SourceSpanTests.AssertPartition(text, result.Dockerfile);
+        }
+    }
+
+    [Theory]
+    [InlineData("COPY <<EOF /dest\\ #literal\n", '\\')]
+    [InlineData("COPY <<EOF /dest` #literal\n", '`')]
+    [InlineData("COPY <<EOF '/dest'#literal\n", '\\')]
+    [InlineData("COPY <<EOF \"/dest #literal\"\n", '\\')]
+    [InlineData("RUN <<EOF echo \"#literal\"\n", '\\')]
+    [InlineData("RUN <<EOF echo '#literal'\n", '\\')]
+    public void LiteralHashesInHeredocHeaderDoNotBecomeComments(string header, char escapeChar)
+    {
+        string instructionText = header + "body\nEOF\n";
+        string text = $"# escape={escapeChar}\n{instructionText}FROM scratch\n";
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            DockerfileParseResult result = Dockerfile.TryParse(text, new DockerfileParseOptions { Mode = mode });
+
+            Assert.True(result.Success, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
+            Assert.Empty(result.Diagnostics);
+            Instruction instruction = Assert.IsAssignableFrom<Instruction>(result.Dockerfile!.Items[1]);
+            Assert.Empty(instruction.Comments);
+            Assert.Equal(instructionText, instruction.ToString(new TokenStringOptions(excludeComments: true)));
+            Assert.IsType<FromInstruction>(result.Dockerfile.Items[2]);
+            SourceSpanTests.AssertPartition(text, result.Dockerfile);
+        }
+    }
+
+    [Theory]
+    [InlineData("#\n", "")]
+    [InlineData("#first \\\n second\n", "first \\\n second")]
+    public void TrailingCommentRemovalPreservesHeaderNewline(string comment, string expectedText)
+    {
+        string text = $"COPY <<EOF /dest {comment}body\nEOF\nFROM scratch\n";
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            DockerfileParseResult result = Dockerfile.TryParse(text, new DockerfileParseOptions { Mode = mode });
+
+            Assert.True(result.Success, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
+            CopyInstruction instruction = Assert.IsType<CopyInstruction>(result.Dockerfile!.Items[0]);
+            Assert.Equal("/dest", instruction.Destination);
+            Assert.Equal(expectedText, Assert.Single(instruction.Comments));
+            Assert.Equal("COPY <<EOF /dest \nbody\nEOF\n",
+                instruction.ToString(new TokenStringOptions(excludeComments: true)));
+            Assert.IsType<FromInstruction>(result.Dockerfile.Items[1]);
+            SourceSpanTests.AssertPartition(text, result.Dockerfile);
+        }
+    }
 }
