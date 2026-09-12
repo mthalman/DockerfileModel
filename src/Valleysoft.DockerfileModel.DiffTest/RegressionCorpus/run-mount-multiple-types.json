@@ -1,0 +1,9 @@
+{
+  "id": "issue-375-run-mount-multiple-types",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIC0tbW91bnQ9ZnJvbT1idWlsZCx0YXJnZXQ9L3NyYyAtLW1vdW50PXRhcmdldD0vY2FjaGUsdHlwZT1jYWNoZSBlY2hvIGhlbGxv",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

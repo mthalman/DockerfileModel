@@ -161,5 +161,6 @@ public static class InputGenerator
             new("label-hash-value", "LABEL", DockerfileArbitraries.LabelHashInValueInstruction()),
             new("copy-flag-continuation", "COPY", DockerfileArbitraries.CopyFlagLineContinuationInstruction()),
             new("add-flag-continuation", "ADD", DockerfileArbitraries.AddFlagLineContinuationInstruction()),
+            new("run-mount-type-entry", "RUN", DockerfileArbitraries.RunMountTypeEntryInstruction()),
         };
 }

@@ -7,6 +7,203 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class MountTests
 {
     [Theory]
+    [InlineData("type=bind ,target=/src")]
+    [InlineData("type=bind, target=/src")]
+    [InlineData("type=bind,\ttarget=/src")]
+    [InlineData("from=build , target=/src")]
+    [InlineData("  from=build ,\ttype=bind, target=/src  ")]
+    public void Parse_StandaloneCommaWhitespaceIsPreserved(string text)
+    {
+        Mount mount = Mount.Parse(text);
+
+        Assert.Equal(text, mount.ToString());
+        Assert.Equal(text, Mount.GetParser().End().Parse(text).ToString());
+        Assert.Equal("/src", mount.Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>()
+            .Single(token => token.Key == "target").Value);
+        Assert.Equal("bind", mount.Type);
+    }
+
+    [Theory]
+    [InlineData("type=bind garbage")]
+    [InlineData("type=bind, target=/src garbage")]
+    [InlineData("type=bind ,target=/src,")]
+    public void Parse_StandaloneUnconsumedTextIsRejected(string text) =>
+        Assert.Throws<ParseException>(() => Mount.Parse(text));
+
+    [Theory]
+    [InlineData("source=,target=/src")]
+    [InlineData("source=,type=bind,target=/src")]
+    [InlineData("type=bind,source=,target=/src")]
+    [InlineData("target=/src,source=")]
+    [InlineData("source=")]
+    [InlineData("source=\\\n,target=/src")]
+    public void Parse_EmptyEntryValue(string text)
+    {
+        Mount mount = Mount.Parse(text);
+        var source = mount.Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>()
+            .Single(token => token.Key == "source");
+
+        Assert.Equal("", source.Value);
+        Assert.Equal("bind", mount.Type);
+        Assert.Equal(text, mount.ToString());
+
+        source.Value = "/build";
+        Assert.Equal(text.Replace("source=", "source=/build"), mount.ToString());
+        Assert.Equal("/build", Mount.Parse(mount.ToString()).Tokens
+            .OfType<KeyValueToken<KeywordToken, LiteralToken>>()
+            .Single(token => token.Key == "source").Value);
+    }
+
+    [Theory]
+    [InlineData("source=\"unterminated")]
+    [InlineData("readonly!invalid")]
+    [InlineData("source=,")]
+    [InlineData("source\\\n=\"unterminated")]
+    [InlineData("readonly\\\n!invalid")]
+    public void Parse_IncompleteEntryDoesNotReturnPartialMount(string text) =>
+        Assert.Throws<ParseException>(() => Mount.Parse(text));
+
+    [Theory]
+    [InlineData("type=bind,from=build,target=/src", "bind", true)]
+    [InlineData("from=build,type=bind,target=/src", "bind", true)]
+    [InlineData("from=build,target=/src", "bind", false)]
+    [InlineData("from=build,target=/src,type=cache", "cache", true)]
+    [InlineData("readonly,from=build,target=/src", "bind", false)]
+    public void Parse_TypeEntry(string text, string expectedType, bool hasType)
+    {
+        Mount mount = Mount.Parse(text);
+        Token[] originalTokens = mount.Tokens.ToArray();
+
+        for (int i = 0; i < 2; i++)
+        {
+            Assert.Equal(expectedType, mount.Type);
+            Assert.Equal(hasType, mount.TypeToken is not null);
+            if (hasType)
+            {
+                Assert.Equal("type", mount.TypeToken!.Key);
+            }
+            Assert.Equal(text, mount.ToString());
+            Assert.Equal(originalTokens, mount.Tokens);
+        }
+
+        Assert.Equal("build", mount.Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>()
+            .Single(token => token.Key == "from").Value);
+        Assert.Equal("/src", mount.Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>()
+            .Single(token => token.Key == "target").Value);
+
+        MountFlag flag = MountFlag.Parse($"--mount={text}");
+        Assert.Equal(expectedType, flag.ValueToken!.Type);
+        Assert.Equal($"--mount={text}", flag.ToString());
+    }
+
+    [Theory]
+    [InlineData("from=build,type=bind,target=/src", "from=build,type=cache,target=/src")]
+    [InlineData("type=bind,from=build,target=/src", "type=cache,from=build,target=/src")]
+    [InlineData("from=build,target=/src", "type=cache,from=build,target=/src")]
+    [InlineData("readonly,target=/src", "type=cache,readonly,target=/src")]
+    [InlineData("  from=build,target=/src", "  type=cache,from=build,target=/src")]
+    [InlineData("from=build,\\\n# comment\n  target=\"/src\"", "type=cache,from=build,\\\n# comment\n  target=\"/src\"")]
+    [InlineData("from=build,\\\n# comment\n  ty\\\npe=bind,target='/src'", "from=build,\\\n# comment\n  ty\\\npe=cache,target='/src'")]
+    public void TypeMutation(string text, string expected)
+    {
+        Mount mount = Mount.Parse(text);
+        Token[] otherEntries = mount.Tokens.Where(token =>
+            token is KeywordToken ||
+            token is KeyValueToken<KeywordToken, LiteralToken> pair && pair.Key != "type").ToArray();
+
+        mount.Type = "cache";
+
+        Assert.Equal("cache", mount.Type);
+        Assert.Equal(expected, mount.ToString());
+        Assert.Equal("cache", Mount.Parse(mount.ToString()).Type);
+        Assert.All(otherEntries, entry => Assert.Contains(entry, mount.Tokens));
+    }
+
+    [Theory]
+    [InlineData("from=build,type=bind,target=/src", "from=build,type=cache,target=/src")]
+    [InlineData("from=build,target=/src,type=bind", "from=build,target=/src,type=cache")]
+    [InlineData("from=build,target=/src", "type=cache,from=build,target=/src")]
+    public void TypeTokenMutation(string text, string expected)
+    {
+        Mount mount = Mount.Parse(text);
+        var replacement = new KeyValueToken<KeywordToken, LiteralToken>(
+            new KeywordToken("type"), new LiteralToken("cache"));
+
+        mount.TypeToken = replacement;
+
+        Assert.Same(replacement, mount.TypeToken);
+        Assert.Equal("cache", mount.Type);
+        Assert.Equal(expected, mount.ToString());
+        Assert.Equal("cache", Mount.Parse(mount.ToString()).Type);
+    }
+
+    [Fact]
+    public void TypeMutation_ExplicitBindIsInserted()
+    {
+        Mount mount = Mount.Parse("target=/src");
+        mount.Type = "bind";
+        Assert.Equal("type=bind,target=/src", mount.ToString());
+        Assert.NotNull(mount.TypeToken);
+    }
+
+    [Theory]
+    [InlineData("type=bind,target=/src")]
+    [InlineData("target=/src")]
+    public void TypeMutation_RejectsInvalidValues(string text)
+    {
+        Mount mount = Mount.Parse(text);
+        Assert.Throws<ArgumentNullException>(() => mount.Type = null!);
+        Assert.Throws<ArgumentException>(() => mount.Type = "");
+        Assert.Throws<ArgumentNullException>(() => mount.TypeToken = null!);
+        Assert.Equal(text, mount.ToString());
+    }
+
+    [Theory]
+    [InlineData('\\')]
+    [InlineData('`')]
+    public void TypeMutation_PreservesEscapeCharacter(char escapeChar)
+    {
+        Mount mount = Mount.Parse("target=/src", escapeChar);
+        mount.Type = $"ca{escapeChar}\nche";
+
+        Assert.Equal("cache", mount.Type);
+        Assert.Equal($"type=ca{escapeChar}\nche,target=/src", mount.ToString());
+        Assert.Equal("cache", Mount.Parse(mount.ToString(), escapeChar).Type);
+    }
+
+    [Theory]
+    [InlineData('\\')]
+    [InlineData('`')]
+    public void MountFlag_TypeMutationPreservesEscapeCharacter(char escapeChar)
+    {
+        MountFlag flag = MountFlag.Parse($"--mount={escapeChar}\nfrom=build,target=/src", escapeChar);
+        Mount mount = flag.ValueToken!;
+        mount.Type = $"ca{escapeChar}\nche";
+
+        Assert.Equal("cache", mount.Type);
+        Assert.Equal($"--mount={escapeChar}\ntype=ca{escapeChar}\nche,from=build,target=/src", flag.ToString());
+        Assert.Equal("cache", MountFlag.Parse(flag.ToString(), escapeChar).ValueToken!.Type);
+    }
+
+    [Theory]
+    [InlineData("from=build,\\\n# comment\n  target=/src", '\\', "bind")]
+    [InlineData("from=build,`\n# comment\n  target=/src,t`\nype=cache", '`', "cache")]
+    [InlineData("readonly,\\\n  type=bind,target=\"/src\"", '\\', "bind")]
+    [InlineData("target='/src',type=$mountType", '\\', "$mountType")]
+    [InlineData("target=/src,TYPE=cache", '\\', "cache")]
+    public void Parse_TypeEntryFormatting(string text, char escapeChar, string expectedType)
+    {
+        Mount mount = Mount.Parse(text, escapeChar);
+        Assert.Equal(expectedType, mount.Type);
+        Assert.Equal(text, mount.ToString());
+
+        mount.Type = "tmpfs";
+
+        Assert.Equal("tmpfs", mount.Type);
+        Assert.Equal("tmpfs", Mount.Parse(mount.ToString(), escapeChar).Type);
+    }
+
+    [Theory]
     [MemberData(nameof(ParseTestInput))]
     public void Parse(ParseTestScenario<Mount> scenario) =>
         TestHelper.RunParseTest(scenario, Mount.Parse);

@@ -1,0 +1,9 @@
+{
+  "id": "issue-375-run-mount-empty-value",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIC0tbW91bnQ9IHQgZQ==",
+  "escapeCharacter": "`",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

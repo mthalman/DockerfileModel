@@ -7,6 +7,22 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class OnBuildInstructionTests
 {
     [Theory]
+    [InlineData("type=bind,from=build,target=/src")]
+    [InlineData("from=build,type=bind,target=/src")]
+    [InlineData("from=build,target=/src")]
+    public void Parse_RunMountTypeEntry(string spec)
+    {
+        string text = $"ONBUILD RUN --mount={spec} echo hello";
+        OnBuildInstruction onBuild = OnBuildInstruction.Parse(text);
+        RunInstruction run = Assert.IsType<RunInstruction>(onBuild.Instruction);
+
+        Assert.Equal("bind", Assert.Single(run.Mounts).Type);
+        Assert.Equal(spec, run.Mounts[0].ToString());
+        Assert.Equal("echo hello", run.Command!.ToString());
+        Assert.Equal(text, onBuild.ToString());
+    }
+
+    [Theory]
     [MemberData(nameof(ParseTestInput))]
     public void Parse(ParseTestScenario<OnBuildInstruction> scenario) =>
         TestHelper.RunParseTest(scenario, OnBuildInstruction.Parse);

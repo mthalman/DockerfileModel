@@ -367,6 +367,7 @@ public static class DockerfileArbitraries
     /// </summary>
     private static Gen<string> MountSpec() =>
         Gen.OneOf(
+            BindMountSpec(),
             // Bind mount
             from src in PathSegment()
             from tgt in PathSegment()
@@ -374,12 +375,35 @@ public static class DockerfileArbitraries
             // Cache mount
             from tgt in PathSegment()
             select $"type=cache,target=/{tgt}",
+            from tgt in PathSegment()
+            select $"target=/{tgt},type=cache",
             // Secret mount
             from id in Identifier()
             select $"type=secret,id={id}",
             // Tmpfs mount
             from tgt in PathSegment()
             select $"type=tmpfs,target=/{tgt}");
+
+    private static Gen<string> BindMountSpec() =>
+        from source in Gen.Elements("build", "0", "alpine:3.21", "registry.example.com/team/base:latest")
+        from target in PathSegment()
+        from typePosition in Gen.Choose(0, 5)
+        select typePosition switch
+        {
+            0 => $"type=bind,from={source},target=/{target}",
+            1 => $"from={source},type=bind,target=/{target}",
+            2 => $"from={source},target=/{target},type=bind",
+            4 => $"source=,from={source},target=/{target}",
+            5 => $"from={source},target=/{target},source=",
+            _ => $"from={source},target=/{target}"
+        };
+
+    public static Gen<string> RunMountTypeEntryInstruction() =>
+        from bind in BindMountSpec()
+        from target in PathSegment()
+        from whitespace in Gen.Elements(" ", "  ", "\t")
+        from command in Gen.OneOf(ShellCommand(), ExecFormCommand())
+        select $"RUN --mount={bind} --mount=target=/{target},type=cache{whitespace}{command}";
 
     // ──────────────────────────────────────────────
     // Shell-form whitespace variation generators
@@ -713,6 +737,7 @@ public static class DockerfileArbitraries
     /// </summary>
     public static Gen<string> RunInstruction() =>
         Gen.OneOf(
+            RunMountTypeEntryInstruction(),
             // Shell form (simple)
             from cmd in ShellCommand()
             select $"RUN {cmd}",

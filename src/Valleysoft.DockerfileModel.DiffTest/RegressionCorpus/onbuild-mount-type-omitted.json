@@ -1,0 +1,9 @@
+{
+  "id": "issue-375-onbuild-mount-type-omitted",
+  "instructionType": "ONBUILD",
+  "inputBase64": "T05CVUlMRCBSVU4gLS1tb3VudD1mcm9tPWJ1aWxkLHRhcmdldD0vc3JjIGVjaG8gaGVsbG8=",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

@@ -10,6 +10,40 @@ namespace Valleysoft.DockerfileModel.Tests;
 /// </summary>
 public class TokenJsonSerializerTests
 {
+    [Theory]
+    [InlineData("type=bind,from=build,target=/src", false)]
+    [InlineData("from=build,type=bind,target=/src", false)]
+    [InlineData("from=build,target=/src", false)]
+    [InlineData("type=bind,from=build,target=/src", true)]
+    [InlineData("from=build,type=bind,target=/src", true)]
+    [InlineData("from=build,target=/src", true)]
+    public void MountTypeEntries_SerializeAsOpaqueValues(string spec, bool onBuild)
+    {
+        string prefix = onBuild ? "ONBUILD " : "";
+        string json = InstructionSerializer.ParseCSharp(
+            onBuild ? "ONBUILD" : "RUN", $"{prefix}RUN --mount={spec} echo hello", '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement instruction = document.RootElement;
+        if (onBuild)
+        {
+            instruction = instruction.GetProperty("children").EnumerateArray()
+                .Single(child => child.GetProperty("kind").GetString() == "instruction");
+        }
+
+        JsonElement mountFlag = instruction.GetProperty("children").EnumerateArray()
+            .Single(child => child.GetProperty("kind").GetString() == "keyValue");
+        JsonElement mountValue = mountFlag.GetProperty("children").EnumerateArray().Last();
+        Assert.Equal("literal", mountValue.GetProperty("kind").GetString());
+        JsonElement value = Assert.Single(mountValue.GetProperty("children").EnumerateArray());
+        Assert.Equal("string", value.GetProperty("kind").GetString());
+        Assert.Equal(spec, value.GetProperty("value").GetString());
+
+        JsonElement command = instruction.GetProperty("children").EnumerateArray()
+            .Single(child => child.GetProperty("kind").GetString() == "literal");
+        Assert.Equal("echo hello",
+            Assert.Single(command.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
     /// <summary>
     /// Shell form commands with whitespace before a line continuation must NOT
     /// split the trailing whitespace into a separate whitespace token. Instead,
