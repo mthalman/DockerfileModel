@@ -41,6 +41,37 @@ public class ConstructReaderTests
     }
 
     [Theory]
+    [InlineData('\\', 1)]
+    [InlineData('\\', 2)]
+    [InlineData('\\', 3)]
+    [InlineData('`', 1)]
+    [InlineData('`', 2)]
+    [InlineData('`', 3)]
+    public void RepeatedEscapesFollowBuildKitContinuationBoundaries(char escapeChar, int count)
+    {
+        foreach (string newline in new[] { "\n", "\r\n" })
+        {
+            string suffix = new string(escapeChar, count) + " \t" + newline;
+            string nextLine = "RUN echo next" + newline;
+            string header = "RUN echo ready " + suffix;
+            ConstructReader.Region ordinary = ConstructReader.Read(
+                header + nextLine + "FROM scratch" + newline, 0, escapeChar);
+            Assert.Equal(header.Length + (count == 1 ? nextLine.Length : 0), ordinary.End);
+            Assert.Null(ordinary.UnterminatedMarker);
+
+            header = "RUN <<EOF " + suffix;
+            string regionText = header + nextLine + "body" + newline + "EOF" + newline;
+            ConstructReader.Region region = ConstructReader.Read(
+                regionText + "FROM scratch" + newline, 0, escapeChar);
+            int expectedHeaderEnd = header.Length + (count == 1 ? nextLine.Length : 0);
+            Assert.Equal(expectedHeaderEnd, region.HeaderEnd);
+            Assert.Equal(expectedHeaderEnd, Assert.Single(region.Heredocs).BodyStart);
+            Assert.Equal(regionText.Length, region.End);
+            Assert.Null(region.UnterminatedMarker);
+        }
+    }
+
+    [Theory]
     [InlineData("COPY <<EOF /dest #tail\n")]
     [InlineData("COPY <<EOF \\\n# header 'comment\n \"/dest #name\" #tail\r\n")]
     [InlineData("COPY <\\\n<EOF \\\n /dest #tail\n")]
