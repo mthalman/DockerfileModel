@@ -9,9 +9,12 @@ This .NET library provides a structured model of the Dockerfile syntax for the p
 * Full fidelity for input and output: the model's output is identical to the Dockerfile input.
 * Resolve ARG values that are referenced throughout a Dockerfile.
 * Ability to further organize a Dockerfile model in terms of its stages.
+* Opt-in recovery with structured diagnostics, opaque unknown instructions, and original-source spans.
 
 ## Usage
 
 The library is available as a NuGet package: [Valleysoft.DockerfileModel](https://www.nuget.org/packages/Valleysoft.DockerfileModel/).
 
 For code examples, check out the [scenario tests](https://github.com/mthalman/DockerfileModel/blob/main/src/Valleysoft.DockerfileModel.Tests/ScenarioTests.cs) which demonstrate how the API can be used for various scenarios.
+
+See [Parsing, recovery, and diagnostics](docs/parsing.md) for parse options, recovery behavior, diagnostic codes, and source locations.

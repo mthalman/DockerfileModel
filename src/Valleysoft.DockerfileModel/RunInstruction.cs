@@ -165,9 +165,12 @@ public class RunInstruction : CommandInstruction
             $"RUN {GetFlagArgs(mounts, network, security, escapeChar)}{StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    internal static RunInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
+
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
         Instruction("RUN", escapeChar,
-            GetArgsParser(escapeChar));
+            GetArgsParser(escapeChar, context));
 
     private static string GetFlagArgs(IEnumerable<Mount> mounts, string? network, string? security, char escapeChar)
     {
@@ -191,11 +194,14 @@ public class RunInstruction : CommandInstruction
         return builder.ToString();
     }
 
-    private new static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, InstructionParseContext? context) =>
         from options in Options(escapeChar)
         from whitespace in Whitespace()
-        from command in HeredocTokenParser(escapeChar)
-            .Or(ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar))
+        from command in context is { HasHeredocs: true }
+            ? context.HeredocParser(escapeChar)
+            : context is null
+                ? HeredocTokenParser(escapeChar).Or(ArgTokens(GetCommandParser(escapeChar, false).AsEnumerable(), escapeChar))
+                : ArgTokens(GetCommandParser(escapeChar, true).AsEnumerable(), escapeChar)
         select ConcatTokens(options, whitespace, command);
 
     private static Parser<IEnumerable<Token>> Options(char escapeChar) =>
@@ -206,8 +212,8 @@ public class RunInstruction : CommandInstruction
             escapeChar)
             .Many().Flatten();
 
-    private new static Parser<Command> GetCommandParser(char escapeChar) =>
+    private new static Parser<Command> GetCommandParser(char escapeChar, bool diagnostic) =>
         ExecFormCommand.GetParser(escapeChar)
             .Cast<ExecFormCommand, Command>()
-            .Or(ShellFormCommand.GetParser(escapeChar));
+            .Or(diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar));
 }

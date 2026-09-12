@@ -147,7 +147,11 @@ public abstract class FileTransferInstruction : Instruction
 
     protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
         Parser<IEnumerable<Token>>? optionalFlagParser = null) =>
-        Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser));
+        GetInnerParser(escapeChar, instructionName, optionalFlagParser, null);
+
+    private protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
+        Parser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context) =>
+        Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser, context));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
         string? changeOwner, string? permissions, char escapeChar, string instructionName)
@@ -186,16 +190,23 @@ public abstract class FileTransferInstruction : Instruction
         }
     }
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser) =>
+    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar,
+        Parser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context) =>
         from flags in FlagOption(escapeChar, optionalFlagParser).Many().Flatten()
         from whitespace in Whitespace()
-        from files in HeredocTokenParser(escapeChar)
-            .Or(ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar))
+        from files in context is { HasHeredocs: true }
+            ? context.HeredocParser(escapeChar, canContainVariables: true)
+            : context is null
+                ? HeredocTokenParser(escapeChar).Or(FileArgs(escapeChar))
+                : FileArgs(escapeChar)
+        select ConcatTokens(flags, whitespace, files);
+
+    private static Parser<IEnumerable<Token>> FileArgs(char escapeChar) =>
+        ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar)
             .Or(from literals in ArgTokens(
                     LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
                     escapeChar).Many()
-                select literals.Flatten())
-        select ConcatTokens(flags, whitespace, files);
+                select literals.Flatten());
 
     private static Parser<IEnumerable<Token>> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser)
     {

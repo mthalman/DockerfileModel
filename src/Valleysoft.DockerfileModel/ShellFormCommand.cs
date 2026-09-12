@@ -22,6 +22,10 @@ public class ShellFormCommand : Command
         from tokens in GetInnerParser(escapeChar)
         select new ShellFormCommand(tokens);
 
+    internal static Parser<ShellFormCommand> GetDiagnosticParser(char escapeChar) =>
+        from tokens in ArgumentListAsLiteral(escapeChar, requireContent: true)
+        select new ShellFormCommand(tokens);
+
     public override CommandType CommandType => CommandType.ShellForm;
 
     public string Value

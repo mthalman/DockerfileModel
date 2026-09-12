@@ -5,5 +5,6 @@ public enum ConstructType
     Instruction,
     Comment,
     ParserDirective,
-    Whitespace
+    Whitespace,
+    Malformed
 }

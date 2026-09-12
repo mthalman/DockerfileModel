@@ -254,6 +254,15 @@ internal static class DockerfileParser
             }
         }
 
+        SourceMap sourceMap = new(text);
+        int offset = 0;
+        for (int i = 0; i < dockerfileConstructs.Count; i++)
+        {
+            int end = offset + constructLines[i].Length;
+            dockerfileConstructs[i].SourceSpan = sourceMap.GetSpan(offset, end);
+            offset = end;
+        }
+
         return new Dockerfile(dockerfileConstructs);
     }
 
