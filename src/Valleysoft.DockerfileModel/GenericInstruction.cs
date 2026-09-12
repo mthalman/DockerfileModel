@@ -11,7 +11,7 @@ public class GenericInstruction : Instruction
             
     }
 
-    private GenericInstruction(IEnumerable<Token> tokens)
+    protected GenericInstruction(IEnumerable<Token> tokens)
         : base(tokens)
     {
         ArgLines = new ProjectedItemList<LiteralToken, string>(

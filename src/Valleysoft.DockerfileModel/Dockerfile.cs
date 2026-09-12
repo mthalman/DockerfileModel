@@ -23,13 +23,33 @@ public class Dockerfile : IConstructContainer
     public char EscapeChar =>
         Items
             .OfType<ParserDirective>()
-            .FirstOrDefault(directive => directive.DirectiveName == ParserDirective.EscapeDirective)
+            .FirstOrDefault(directive => directive.DirectiveName.Equals(ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase))
             ?.DirectiveValue[0] ?? DefaultEscapeChar; 
 
     public static Dockerfile Parse(string text)
     {
         Guard.NotNull(text, nameof(text));
         return DockerfileParser.ParseContent(text);
+    }
+
+    /// <summary>
+    /// Reports source errors without throwing. Defaults to strict, fail-fast results;
+    /// recovery and unknown-instruction preservation must be explicitly enabled.
+    /// Null input and invalid options remain argument errors.
+    /// </summary>
+    public static DockerfileParseResult TryParse(string text, DockerfileParseOptions? options = null)
+    {
+        Guard.NotNull(text, nameof(text));
+        options ??= new DockerfileParseOptions();
+        if (options.Mode is not DockerfileParseMode.Strict and not DockerfileParseMode.Recover)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "Unknown parse mode.");
+        }
+        if (options.UnknownInstructionBehavior is not UnknownInstructionBehavior.Error and not UnknownInstructionBehavior.Preserve)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "Unknown instruction behavior.");
+        }
+        return TolerantDockerfileParser.Parse(text, options.Mode, options.UnknownInstructionBehavior);
     }
 
     public string ResolveVariables<TInstruction>(

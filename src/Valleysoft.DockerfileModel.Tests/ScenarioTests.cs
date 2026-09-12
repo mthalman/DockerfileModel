@@ -4,6 +4,41 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class ScenarioTests
 {
+    [Fact]
+    public void RecoverAndInspectOriginalSource()
+    {
+        string text = "FROM scratch\nFUTURE-COPY source target\nFROM\nRUN echo ready\n";
+        DockerfileParseResult result = Dockerfile.TryParse(text, new DockerfileParseOptions
+        {
+            Mode = DockerfileParseMode.Recover,
+            UnknownInstructionBehavior = UnknownInstructionBehavior.Preserve
+        });
+
+        Assert.False(result.Success);
+        Dockerfile model = Assert.IsType<Dockerfile>(result.Dockerfile);
+        Assert.Equal(text, model.ToString());
+        Assert.Single(model.Items.OfType<UnknownInstruction>());
+        Assert.Single(model.Items.OfType<MalformedConstruct>());
+        RunInstruction run = Assert.Single(model.Items.OfType<RunInstruction>());
+        SourceSpan span = Assert.IsType<SourceSpan>(run.SourceSpan);
+        Assert.Equal(run.ToString(), text.Substring(span.Start.Offset, span.Length));
+        Assert.Collection(result.Diagnostics,
+            warning => Assert.Equal(DiagnosticSeverity.Warning, warning.Severity),
+            error => Assert.Equal(DiagnosticSeverity.Error, error.Severity));
+    }
+
+    [Fact]
+    public void StrictTryParseReportsErrorsWithoutReturningAPartialModel()
+    {
+        DockerfileParseResult result = Dockerfile.TryParse("FROM scratch\nFROM\nRUN echo ready\n");
+
+        Assert.False(result.Success);
+        Assert.Null(result.Dockerfile);
+        DockerfileDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DockerfileDiagnosticCodes.InvalidSyntax, diagnostic.Code);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+    }
+
     /// <summary>
     /// The structure of a Dockerfile consists of instructions, whitespace, comments, and parser directives.
     /// </summary>

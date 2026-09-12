@@ -372,12 +372,17 @@ internal static class ParseHelper
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     public static Parser<IEnumerable<Token>> ArgumentListAsLiteral(char escapeChar) =>
+        ArgumentListAsLiteral(escapeChar, requireContent: false);
+
+    internal static Parser<IEnumerable<Token>> ArgumentListAsLiteral(char escapeChar, bool requireContent) =>
         from literals in
             ArgTokens(
                 from literal in LiteralToken(escapeChar, Enumerable.Empty<char>()).Optional()
                 select new Token[] { literal.GetOrDefault() },
                 escapeChar).Many()
-        select CollapseLiteralTokens(literals.Flatten(), canContainVariables: false, escapeChar);
+        let tokens = literals.Flatten().ToArray()
+        where !requireContent || tokens.Length > 0
+        select CollapseLiteralTokens(tokens, canContainVariables: false, escapeChar);
 
     /// <summary>
     /// Parses a JSON array of strings.

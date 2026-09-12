@@ -51,7 +51,10 @@ public class EntrypointInstruction : CommandInstruction
         return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static EntrypointInstruction ParseDiagnostic(string text, char escapeChar) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)));
+
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar, bool diagnostic = false) =>
         Instruction("ENTRYPOINT", escapeChar,
-            GetArgsParser(escapeChar));
+            GetArgsParser(escapeChar, diagnostic));
 }

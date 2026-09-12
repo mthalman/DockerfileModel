@@ -50,12 +50,25 @@ public class ParserDirective : DockerfileConstruct
     public static ParserDirective Parse(string text) =>
         new(GetTokens(text, GetParser()));
 
-    public static Parser<IEnumerable<Token>> GetParser() =>
+    public static Parser<IEnumerable<Token>> GetParser() => GetParser(DirectiveValueParser());
+
+    internal static Parser<ParserDirective> GetDiagnosticParser() =>
+        from tokens in GetParser(DirectiveValueParser(requireValue: true)).End()
+        select new ParserDirective(tokens);
+
+    internal static bool IsDirectiveCandidate(string text) =>
+        (from leading in Whitespace()
+         from commentChar in CommentToken.CommentCharParser()
+         from directive in TokenWithTrailingWhitespace(DirectiveNameParser())
+         from op in Symbol('=')
+         select op).TryParse(text).WasSuccessful;
+
+    private static Parser<IEnumerable<Token>> GetParser(Parser<LiteralToken> valueParser) =>
         from leading in Whitespace()
         from commentChar in CommentToken.CommentCharParser()
         from directive in TokenWithTrailingWhitespace(DirectiveNameParser())
         from op in TokenWithTrailingWhitespace(Symbol('='))
-        from value in TokenWithTrailingWhitespace(DirectiveValueParser())
+        from value in TokenWithTrailingWhitespace(valueParser)
         select ConcatTokens(
             leading,
             commentChar,
@@ -77,7 +90,7 @@ public class ParserDirective : DockerfileConstruct
         from name in Sprache.Parse.Identifier(Sprache.Parse.Letter, Sprache.Parse.LetterOrDigit)
         select new KeywordToken(name);
 
-    private static Parser<LiteralToken> DirectiveValueParser() =>
-        from val in NonWhitespace().Many().Text()
+    private static Parser<LiteralToken> DirectiveValueParser(bool requireValue = false) =>
+        from val in (requireValue ? NonWhitespace().AtLeastOnce() : NonWhitespace().Many()).Text()
         select new LiteralToken(new Token[] { new StringToken(val) }, canContainVariables: false, val[0]);
 }

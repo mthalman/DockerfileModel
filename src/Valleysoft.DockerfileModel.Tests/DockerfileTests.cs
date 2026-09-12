@@ -8,6 +8,7 @@ public class DockerfileTests
 {
     [Theory]
     [InlineData("# escape=`\nFROM scratch", '`')]
+    [InlineData("# ESCAPE=`\nFROM scratch", '`')]
     [InlineData("# escape=\\\nFROM scratch", '\\')]
     [InlineData("FROM scratch", '\\')]
     public void EscapeChar(string content, char expectedEscapeChar)
