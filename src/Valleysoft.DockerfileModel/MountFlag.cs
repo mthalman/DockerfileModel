@@ -15,22 +15,21 @@ public class MountFlag : KeyValueToken<KeywordToken, Mount>
     }
 
     public static MountFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Parse(
-            text,
-            KeywordToken.GetParser("mount", escapeChar),
-            MountParser(escapeChar),
-            tokens => new MountFlag(tokens),
-            escapeChar: escapeChar,
-            isFlag: true);
+        GetParser(escapeChar).Parse(text);
 
     public static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("mount", escapeChar),
             MountParser(escapeChar),
-            tokens => new MountFlag(tokens),
+            tokens => new MountFlag(tokens, escapeChar),
             escapeChar: escapeChar,
-            isFlag: true);
+            isFlag: true)
+        // Whitespace after '=' ends the flag word; it must not let an empty mount
+        // consume the first word of the shell command as a bare mount entry.
+        .Where(flag => !flag.Tokens
+            .After(flag.Tokens.OfType<SymbolToken>().Last())
+            .OfType<WhitespaceToken>().Any());
 
     private static Parser<Mount> MountParser(char escapeChar) =>
-        Mount.GetParser(escapeChar);
+        Mount.GetParser(escapeChar, isFlagValue: true);
 }

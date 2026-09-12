@@ -58,6 +58,28 @@ public class PropertyTests
     }
 
     [Fact]
+    public void RunMountTypeEntries_AreStructuredAndRoundTrip()
+    {
+        AssertProperty(DockerfileArbitraries.RunMountTypeEntryInstruction(), text =>
+        {
+            RunInstruction run = RunInstruction.Parse(text);
+            OnBuildInstruction onBuild = OnBuildInstruction.Parse($"ONBUILD {text}");
+            RunInstruction trigger = Assert.IsType<RunInstruction>(onBuild.Instruction);
+
+            foreach (RunInstruction instruction in new[] { run, trigger })
+            {
+                Assert.Equal(new[] { "bind", "cache" }, instruction.Mounts.Select(mount => mount.Type));
+                Assert.Equal(2, instruction.Tokens.OfType<MountFlag>().Count());
+                Assert.DoesNotContain("--mount=", instruction.Command!.ToString());
+                Assert.Contains(instruction.Mounts[0].Tokens,
+                    token => token is KeyValueToken<KeywordToken, LiteralToken> pair && pair.Key == "from");
+                Assert.Equal(text, instruction.ToString());
+            }
+            Assert.Equal($"ONBUILD {text}", onBuild.ToString());
+        });
+    }
+
+    [Fact]
     public void CmdInstruction_RoundTrips()
     {
         AssertProperty(DockerfileArbitraries.CmdInstruction(), text =>

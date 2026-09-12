@@ -6,6 +6,54 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class TokenBuilderTests
 {
+    [Theory]
+    [InlineData("type=bind ,target=/src")]
+    [InlineData("type=bind, target=/src")]
+    [InlineData("type=bind,\ttarget=/src")]
+    [InlineData("from=build , target=/src")]
+    public void MountString_PreservesCommaWhitespaceAndEntries(string text)
+    {
+        TokenBuilder builder = new();
+        builder.Mount(text);
+        Mount mount = Assert.IsType<Mount>(Assert.Single(builder.Tokens));
+
+        Assert.Equal(text, builder.ToString());
+        Assert.Equal("/src", mount.Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>()
+            .Single(token => token.Key == "target").Value);
+        mount.Type = "cache";
+        Assert.Equal("/src", Mount.Parse(builder.ToString()).Tokens
+            .OfType<KeyValueToken<KeywordToken, LiteralToken>>()
+            .Single(token => token.Key == "target").Value);
+    }
+
+    [Fact]
+    public void MountString_RejectsUnconsumedText()
+    {
+        TokenBuilder builder = new();
+        Assert.Throws<ParseException>(() => builder.Mount("type=bind garbage"));
+        Assert.Empty(builder.Tokens);
+    }
+
+    [Theory]
+    [InlineData('\\')]
+    [InlineData('`')]
+    public void MountAction_TypeInsertionPreservesEscapeCharacter(char escapeChar)
+    {
+        TokenBuilder builder = new() { EscapeChar = escapeChar };
+        builder.Mount(mount => mount.KeyValue(new KeywordToken("target"), new LiteralToken("/src")));
+        Mount result = Assert.IsType<Mount>(Assert.Single(builder.Tokens));
+
+        result.Type = $"ca{escapeChar}\nche";
+
+        Assert.Equal("cache", result.Type);
+        Assert.Equal($"type=ca{escapeChar}\nche,target=/src", builder.ToString());
+        Assert.Collection(result.TypeToken!.ValueToken!.Tokens,
+            token => ValidateString(token, "ca"),
+            token => ValidateLineContinuation(token, escapeChar, "\n"),
+            token => ValidateString(token, "che"));
+        Assert.Equal(result.Type, Mount.Parse(result.ToString(), escapeChar).Type);
+    }
+
     [Fact]
     public void BuildAllTokens()
     {

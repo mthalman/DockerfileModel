@@ -7,6 +7,27 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class DockerfileTests
 {
     [Theory]
+    [InlineData("type=bind,from=build,target=/src")]
+    [InlineData("from=build,type=bind,target=/src")]
+    [InlineData("from=build,target=/src")]
+    public void Parse_RunAndOnBuildMountTypeEntries(string spec)
+    {
+        string text = $"FROM alpine\nRUN --mount={spec} echo hello\nONBUILD RUN --mount={spec} echo hello\n";
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+        RunInstruction run = Assert.Single(dockerfile.Items.OfType<RunInstruction>());
+        RunInstruction trigger = Assert.IsType<RunInstruction>(
+            Assert.Single(dockerfile.Items.OfType<OnBuildInstruction>()).Instruction);
+
+        foreach (RunInstruction instruction in new[] { run, trigger })
+        {
+            Assert.Equal("bind", Assert.Single(instruction.Mounts).Type);
+            Assert.Equal(spec, instruction.Mounts[0].ToString());
+            Assert.Equal("echo hello", Assert.IsType<ShellFormCommand>(instruction.Command).ValueToken.Value);
+        }
+        Assert.Equal(text, dockerfile.ToString());
+    }
+
+    [Theory]
     [InlineData("# escape=`\nFROM scratch", '`')]
     [InlineData("# escape=\\\nFROM scratch", '\\')]
     [InlineData("FROM scratch", '\\')]

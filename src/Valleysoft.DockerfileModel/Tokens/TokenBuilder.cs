@@ -92,7 +92,7 @@ public class TokenBuilder
         AddToken(DockerfileModel.Mount.Parse(text, EscapeChar));
 
     public TokenBuilder Mount(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new DockerfileModel.Mount(GetTokens(configureBuilder)));
+        AddToken(new DockerfileModel.Mount(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder ShellFormCommand(string command) =>
         AddToken(new ShellFormCommand(command, EscapeChar));

@@ -1,0 +1,9 @@
+{
+  "id": "issue-375-run-mount-type-first",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIC0tbW91bnQ9dHlwZT1iaW5kLGZyb209YnVpbGQsdGFyZ2V0PS9zcmMgZWNobyBoZWxsbw==",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

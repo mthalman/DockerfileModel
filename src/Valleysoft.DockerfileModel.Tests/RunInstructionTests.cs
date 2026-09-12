@@ -7,6 +7,141 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class RunInstructionTests
 {
     [Theory]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    public void Parse_MountFlagWhitespaceBeforeCommaEndsFlag(string whitespace)
+    {
+        string text = $"RUN --mount=type=bind{whitespace},target=/src echo hello";
+        RunInstruction run = RunInstruction.Parse(text);
+
+        Assert.Equal("type=bind", Assert.Single(run.Mounts).ToString());
+        Assert.Equal(",target=/src echo hello", run.Command!.ToString());
+        Assert.Equal(text, run.ToString());
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    public void Parse_MountFlagWhitespaceAfterCommaDoesNotConsumeCommand(string whitespace)
+    {
+        string text = $"RUN --mount=type=bind,{whitespace}target=/src echo hello";
+        RunInstruction run = RunInstruction.Parse(text);
+
+        Assert.Empty(run.Mounts);
+        Assert.Equal($"--mount=type=bind,{whitespace}target=/src echo hello", run.Command!.ToString());
+        Assert.Equal(text, run.ToString());
+    }
+
+    [Theory]
+    [InlineData("source=,target=/src")]
+    [InlineData("source=,type=bind,target=/src")]
+    [InlineData("type=bind,source=,target=/src")]
+    [InlineData("target=/src,source=")]
+    [InlineData("source=")]
+    [InlineData("source=\\\n,target=/src")]
+    [InlineData("source=\\\n# comment\n,target=/src")]
+    public void Parse_EmptyMountEntryPreservesCommand(string spec)
+    {
+        string text = $"RUN --mount={spec} echo hello";
+        RunInstruction run = RunInstruction.Parse(text);
+
+        Assert.Equal(spec, Assert.Single(run.Mounts).ToString());
+        Assert.Equal("echo hello", run.Command!.ToString());
+        Assert.Equal(text, run.ToString());
+
+        run.Command = new ShellFormCommand("echo replacement");
+        Assert.Equal($"RUN --mount={spec} echo replacement", run.ToString());
+
+        OnBuildInstruction onBuild = OnBuildInstruction.Parse($"ONBUILD {text}");
+        RunInstruction trigger = Assert.IsType<RunInstruction>(onBuild.Instruction);
+        Assert.Equal(spec, Assert.Single(trigger.Mounts).ToString());
+        Assert.Equal("echo hello", trigger.Command!.ToString());
+        Assert.Equal($"ONBUILD {text}", onBuild.ToString());
+    }
+
+    [Theory]
+    [InlineData("source=\"unterminated")]
+    [InlineData("readonly!invalid")]
+    [InlineData("source=,")]
+    [InlineData("source\\\n=\"unterminated")]
+    [InlineData("readonly\\\n!invalid")]
+    public void Parse_IncompleteMountDoesNotSplitCommand(string spec)
+    {
+        string text = $"RUN --mount={spec} echo hello";
+        RunInstruction run = RunInstruction.Parse(text);
+
+        Assert.Empty(run.Mounts);
+        Assert.Equal($"--mount={spec} echo hello", run.Command!.ToString());
+        Assert.Equal(text, run.ToString());
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    public void Parse_EmptyMountDoesNotConsumeCommand(string whitespace)
+    {
+        string text = $"RUN --mount={whitespace}apt-get update";
+        RunInstruction run = RunInstruction.Parse(text);
+
+        Assert.Empty(run.Mounts);
+        Assert.Equal($"--mount={whitespace}apt-get update", run.Command!.ToString());
+        Assert.Equal(text, run.ToString());
+        Assert.Throws<ParseException>(() => MountFlag.Parse($"--mount={whitespace}apt-get"));
+    }
+
+    [Theory]
+    [InlineData("type=bind,from=build,target=/src")]
+    [InlineData("from=build,type=bind,target=/src")]
+    [InlineData("from=build,target=/src")]
+    [InlineData("from=build,target=/src,type=bind")]
+    public void Parse_MountTypeEntry(string spec)
+    {
+        string text = $"RUN --mount={spec} echo hello";
+        RunInstruction run = RunInstruction.Parse(text);
+
+        Mount mount = Assert.Single(run.Mounts);
+        Assert.Equal("bind", mount.Type);
+        Assert.Equal(spec, mount.ToString());
+        Assert.Equal("echo hello", run.Command!.ToString());
+        Assert.Equal(text, run.ToString());
+    }
+
+    [Theory]
+    [InlineData("echo hello")]
+    [InlineData("[\"echo\", \"hello\"]")]
+    public void Parse_MultipleMountTypeEntries(string command)
+    {
+        string text = $"RUN --mount=from=build,target=/src --mount=target=/cache,type=cache\t{command}";
+        RunInstruction run = RunInstruction.Parse(text);
+
+        Assert.Equal(new[] { "bind", "cache" }, run.Mounts.Select(mount => mount.Type));
+        Assert.Equal(command, run.Command!.ToString());
+        Assert.Equal("target=/cache,type=cache", run.Mounts[1].ToString());
+        Assert.Equal(text, run.ToString());
+
+        run.Mounts[0].Type = "cache";
+        run.Mounts[1].Type = "bind";
+        Assert.Equal(
+            $"RUN --mount=type=cache,from=build,target=/src --mount=target=/cache,type=bind\t{command}",
+            run.ToString());
+    }
+
+    [Theory]
+    [InlineData('\\')]
+    [InlineData('`')]
+    public void Parse_MountTypeEntryContinuations(char escapeChar)
+    {
+        string spec = $"from=build,{escapeChar}\n# comment\n  target=/src,t{escapeChar}\nype=cache";
+        string text = $"RUN --mount={spec} echo hello";
+        RunInstruction run = RunInstruction.Parse(text, escapeChar);
+
+        Assert.Equal("cache", Assert.Single(run.Mounts).Type);
+        Assert.Equal(spec, run.Mounts[0].ToString());
+        Assert.Equal("echo hello", run.Command!.ToString());
+        Assert.Equal(text, run.ToString());
+    }
+
+    [Theory]
     [MemberData(nameof(ParseTestInput))]
     public void Parse(ParseTestScenario<RunInstruction> scenario) =>
         TestHelper.RunParseTest(scenario, RunInstruction.Parse);

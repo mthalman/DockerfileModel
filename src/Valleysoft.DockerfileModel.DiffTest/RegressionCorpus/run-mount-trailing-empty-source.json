@@ -1,0 +1,9 @@
+{
+  "id": "issue-375-run-mount-trailing-empty-source",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIC0tbW91bnQ9dGFyZ2V0PS9zcmMsc291cmNlPSBlY2hvIGhlbGxv",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}
