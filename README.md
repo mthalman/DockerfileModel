@@ -10,6 +10,7 @@ This .NET library provides a structured model of the Dockerfile syntax for the p
 * Resolve ARG values that are referenced throughout a Dockerfile.
 * Ability to further organize a Dockerfile model in terms of its stages.
 * Static stage dependency analysis and an inventory of external image references.
+* Opt-in recovery with structured diagnostics, opaque unknown instructions, and original-source spans.
 
 ## Usage
 
@@ -20,3 +21,5 @@ For code examples, check out the [scenario tests](https://github.com/mthalman/Do
 Use `Dockerfile.Analyze()` to inspect stage dependencies and external image references
 without modifying the model. See [Stage dependencies and image inventory](docs/stage-analysis.md)
 for examples, API contracts, resolution rules, and limitations.
+
+See [Parsing, recovery, and diagnostics](docs/parsing.md) for parse options, recovery behavior, diagnostic codes, and source locations.

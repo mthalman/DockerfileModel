@@ -251,21 +251,25 @@ public class HealthCheckInstruction : Instruction
         return builder.ToString();
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-        Instruction("HEALTHCHECK", escapeChar,
-            GetArgsParser(escapeChar));
+    internal static HealthCheckInstruction ParseDiagnostic(string text, char escapeChar) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
+        Instruction("HEALTHCHECK", escapeChar,
+            GetArgsParser(escapeChar, diagnostic));
+
+    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, bool diagnostic) =>
         from options in Options(escapeChar)
-        from command in CmdTokens(escapeChar)
+        from command in CmdTokens(escapeChar, diagnostic)
             .Or(ArgTokens(KeywordToken.GetParser("NONE", escapeChar).AsEnumerable(), escapeChar))
         select ConcatTokens(options, command);
 
-    private static Parser<IEnumerable<Token>> CmdTokens(char escapeChar) =>
+    private static Parser<IEnumerable<Token>> CmdTokens(char escapeChar, bool diagnostic) =>
         from cmdKeyword in ArgTokens(KeywordToken.GetParser("CMD", escapeChar).AsEnumerable(), escapeChar)
         from cmd in ArgTokens(
             ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Token>()
-                .XOr(ShellFormCommand.GetParser(escapeChar).Cast<ShellFormCommand, Token>())
+                .XOr((diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar))
+                    .Cast<ShellFormCommand, Token>())
                 .AsEnumerable(), escapeChar)
         select ConcatTokens(cmdKeyword, cmd);
 

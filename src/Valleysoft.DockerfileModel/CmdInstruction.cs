@@ -31,8 +31,11 @@ public class CmdInstruction : CommandInstruction
         from tokens in GetInnerParser(escapeChar)
         select new CmdInstruction(tokens);
 
-    internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-        Instruction("CMD", escapeChar, GetArgsParser(escapeChar));
+    internal static CmdInstruction ParseDiagnostic(string text, char escapeChar) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)));
+
+    internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
+        Instruction("CMD", escapeChar, GetArgsParser(escapeChar, diagnostic));
 
     private static IEnumerable<Token> GetTokens(string commandWithArgs, char escapeChar)
     {

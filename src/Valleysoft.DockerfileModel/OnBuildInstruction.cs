@@ -46,8 +46,12 @@ public class OnBuildInstruction : Instruction
         return GetTokens($"ONBUILD {instruction}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        Instruction("ONBUILD", escapeChar, GetArgsParser(escapeChar));
+    internal static OnBuildInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, context)));
+
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar,
+        InstructionParseContext? context = null) =>
+        Instruction("ONBUILD", escapeChar, GetArgsParser(escapeChar, context));
 
     /// <summary>
     /// Parses the trigger instruction for ONBUILD by dispatching to the appropriate
@@ -59,9 +63,9 @@ public class OnBuildInstruction : Instruction
     /// at the ONBUILD level, rather than having them swallowed as raw literal text
     /// inside the inner instruction.
     /// </summary>
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, InstructionParseContext? context) =>
         ArgTokens(
-            from instruction in TriggerInstructionParser(escapeChar)
+            from instruction in TriggerInstructionParser(escapeChar, context)
             select new Token[] { instruction },
             escapeChar);
 
@@ -71,7 +75,7 @@ public class OnBuildInstruction : Instruction
     /// Scanning for the longest valid prefix preserves the existing split between the
     /// inner instruction tokens and any trailing ONBUILD-level continuation comments.
     /// </summary>
-    private static Parser<Instruction> TriggerInstructionParser(char escapeChar) =>
+    private static Parser<Instruction> TriggerInstructionParser(char escapeChar, InstructionParseContext? context) =>
         input =>
         {
             IResult<string> instructionNameResult = InstructionNameParser(escapeChar)(input);
@@ -92,7 +96,7 @@ public class OnBuildInstruction : Instruction
             for (int consumedLength = remainingText.Length; consumedLength > 0; consumedLength--)
             {
                 string instructionText = remainingText.Substring(0, consumedLength);
-                if (!TryCreateTriggerInstruction(instructionText, escapeChar, out Instruction? instruction) ||
+                if (!TryCreateTriggerInstruction(instructionText, escapeChar, context?.Slice(input.Position), out Instruction? instruction) ||
                     !ArgTrailingWhitespace(escapeChar).TryParse(remainingText.Substring(consumedLength)).WasSuccessful)
                 {
                     continue;
@@ -107,11 +111,14 @@ public class OnBuildInstruction : Instruction
                 new[] { "valid ONBUILD trigger instruction" });
         };
 
-    private static bool TryCreateTriggerInstruction(string text, char escapeChar, out Instruction? instruction)
+    private static bool TryCreateTriggerInstruction(string text, char escapeChar,
+        InstructionParseContext? context, out Instruction? instruction)
     {
         try
         {
-            instruction = Instruction.CreateInstruction(text, escapeChar);
+            instruction = context is null
+                ? Instruction.CreateInstruction(text, escapeChar)
+                : Instruction.CreateDiagnosticInstruction(InstructionNameParser(escapeChar).Parse(text), text, escapeChar, context);
             return true;
         }
         catch (ParseException)

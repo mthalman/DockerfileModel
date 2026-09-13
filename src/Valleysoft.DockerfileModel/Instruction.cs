@@ -54,6 +54,22 @@ public abstract class Instruction : DockerfileConstruct, ICommentable
         return instructionParsers[instructionName](text, escapeChar);
     }
 
+    internal static bool IsKnownInstruction(string name) => instructionParsers.ContainsKey(name);
+
+    internal static Instruction CreateDiagnosticInstruction(
+        string name, string text, char escapeChar, InstructionParseContext context) =>
+        name.ToUpperInvariant() switch
+        {
+            "RUN" => RunInstruction.ParseDiagnostic(text, escapeChar, context),
+            "CMD" => CmdInstruction.ParseDiagnostic(text, escapeChar),
+            "ENTRYPOINT" => EntrypointInstruction.ParseDiagnostic(text, escapeChar),
+            "HEALTHCHECK" => HealthCheckInstruction.ParseDiagnostic(text, escapeChar),
+            "COPY" => CopyInstruction.ParseDiagnostic(text, escapeChar, context),
+            "ADD" => AddInstruction.ParseDiagnostic(text, escapeChar, context),
+            "ONBUILD" => OnBuildInstruction.ParseDiagnostic(text, escapeChar, context),
+            _ => instructionParsers[name](text, escapeChar)
+        };
+
     protected static Parser<KeywordToken> InstructionIdentifier(char escapeChar) =>
         instructionParsers.Keys
             .Select(instructionName => KeywordToken.GetParser(instructionName, escapeChar))

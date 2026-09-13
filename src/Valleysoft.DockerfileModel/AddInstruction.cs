@@ -172,13 +172,16 @@ public class AddInstruction : FileTransferInstruction
         from tokens in GetInnerParser(escapeChar)
         select new AddInstruction(tokens, escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    internal static AddInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
+
+    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
         GetInnerParser(escapeChar, Name,
             ArgTokens(ChecksumFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)
                 .Or(ArgTokens(KeepGitDirFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
                 .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
                 .Or(ArgTokens(UnpackFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)));
+                .Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context);
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
         string? changeOwner, string? permissions, string? checksum, bool keepGitDir, bool link,

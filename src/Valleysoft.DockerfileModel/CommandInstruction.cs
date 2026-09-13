@@ -36,13 +36,19 @@ public abstract class CommandInstruction : Instruction
     }
 
     protected static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+        GetArgsParser(escapeChar, false);
+
+    private protected static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, bool diagnostic) =>
         from whitespace in Whitespace()
-        from command in ArgTokens(GetCommandParser(escapeChar).AsEnumerable(), escapeChar)
+        from command in ArgTokens(GetCommandParser(escapeChar, diagnostic).AsEnumerable(), escapeChar)
         select ConcatTokens(
             whitespace, command);
 
     protected static Parser<Command> GetCommandParser(char escapeChar) =>
+        GetCommandParser(escapeChar, false);
+
+    private protected static Parser<Command> GetCommandParser(char escapeChar, bool diagnostic) =>
         ExecFormCommand.GetParser(escapeChar)
             .Cast<ExecFormCommand, Command>()
-            .XOr(ShellFormCommand.GetParser(escapeChar));
+            .XOr(diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar));
 }
