@@ -52,6 +52,13 @@ public class Dockerfile : IConstructContainer
         return TolerantDockerfileParser.Parse(text, options.Mode, options.UnknownInstructionBehavior);
     }
 
+    /// <summary>
+    /// Analyzes static stage and image references without changing this model.
+    /// Overrides apply to ARG declarations and automatic platform ARGs, not COPY or mount source expansion.
+    /// </summary>
+    public DockerfileAnalysis Analyze(IDictionary<string, string?>? argOverrides = null) =>
+        new DockerfileAnalyzer(this, argOverrides).Analyze();
+
     public string ResolveVariables<TInstruction>(
         TInstruction instruction,
         IDictionary<string, string?>? argValues = null,
