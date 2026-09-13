@@ -4,6 +4,36 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class ScenarioTests
 {
+    [Fact]
+    public void AnalyzeDependenciesAndUpdateAnExternalCopyImage()
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "ARG BASE=alpine\n" +
+            "FROM ${BASE} AS build\n" +
+            "FROM build AS final\n" +
+            "COPY --from=busybox /bin/busybox /bin/busybox\n");
+        Dictionary<string, string?> overrides = new() { ["BASE"] = "alpine:3.22" };
+
+        DockerfileAnalysis analysis = dockerfile.Analyze(overrides);
+
+        Assert.Same(analysis.GetStage(0), analysis.GetStage("build"));
+        DockerfileReference dependency = Assert.Single(analysis.Dependencies);
+        Assert.Same(analysis.GetStage("final"), dependency.SourceStage);
+        Assert.Same(analysis.GetStage("build"), dependency.TargetStage);
+        Assert.Equal(DockerfileReferenceKind.BaseStage, dependency.Kind);
+        Assert.Equal(new[] { "alpine:3.22", "busybox" },
+            analysis.ExternalImages.Select(image => image.ResolvedValue));
+        Assert.Empty(analysis.Diagnostics);
+
+        DockerfileReference copyImage = Assert.Single(analysis.ExternalImages,
+            image => image.Kind == DockerfileReferenceKind.CopySource);
+        Assert.IsType<CopyInstruction>(copyImage.Instruction).FromStageName = "busybox:1.37";
+
+        Assert.Equal("busybox", copyImage.ResolvedValue);
+        Assert.Equal("busybox:1.37", dockerfile.Analyze(overrides).ExternalImages[1].ResolvedValue);
+        Assert.Contains("COPY --from=busybox:1.37 ", dockerfile.ToString());
+    }
+
     /// <summary>
     /// The structure of a Dockerfile consists of instructions, whitespace, comments, and parser directives.
     /// </summary>
