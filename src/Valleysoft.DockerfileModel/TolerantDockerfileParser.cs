@@ -10,17 +10,20 @@ internal static class TolerantDockerfileParser
         SourceMap sourceMap = new(text);
         List<DockerfileConstruct> constructs = new();
         List<DockerfileDiagnostic> diagnostics = new();
-        char escapeChar = Dockerfile.DefaultEscapeChar;
-        bool directivesComplete = false;
+        DirectiveHeader header = new();
         int start = 0;
 
         while (start < text.Length)
         {
-            ConstructReader.Region region = ConstructReader.Read(text, start, escapeChar);
-            string content = text.Substring(start, region.End - start);
+            bool bom = start == 0 && text[0] == '\uFEFF';
+            int contentStart = start + (bom ? 1 : 0);
+            char escapeChar = header.EscapeChar;
+            ConstructReader.Region region = ConstructReader.Read(text, contentStart, escapeChar);
+            string content = text.Substring(contentStart, region.End - contentStart);
             SourceSpan span = sourceMap.GetSpan(start, region.End);
             DockerfileConstruct? construct = null;
             DockerfileDiagnostic? diagnostic = null;
+            ParserDirective? directive = header.Read(content, out string? directiveError);
 
             if (region.UnterminatedMarker is int marker)
             {
@@ -28,37 +31,19 @@ internal static class TolerantDockerfileParser
                     DockerfileDiagnosticCodes.UnterminatedHeredoc, DiagnosticSeverity.Error,
                     "The heredoc has no closing delimiter before the end of the input.",
                     sourceMap.GetSpan(marker, region.End));
-                directivesComplete = true;
             }
-            else if (!directivesComplete && ParserDirective.IsDirectiveCandidate(content))
+            else if (directiveError is not null)
             {
-                IResult<ParserDirective> result = ParserDirective.GetDiagnosticParser().TryParse(content);
-                if (!result.WasSuccessful)
-                {
-                    diagnostic = Failure(DockerfileDiagnosticCodes.InvalidParserDirective,
-                        result.Message, result.Remainder.Position, start, content.Length, sourceMap);
-                    directivesComplete = true;
-                }
-                else if (result.Value.DirectiveName.Equals(ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase) &&
-                    result.Value.DirectiveValue is not "\\" and not "`")
-                {
-                    diagnostic = new DockerfileDiagnostic(
-                        DockerfileDiagnosticCodes.InvalidParserDirective, DiagnosticSeverity.Error,
-                        "An escape directive must specify a single backslash or backtick.", span);
-                    directivesComplete = true;
-                }
-                else
-                {
-                    construct = result.Value;
-                    if (result.Value.DirectiveName.Equals(ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase))
-                    {
-                        escapeChar = result.Value.DirectiveValue[0];
-                    }
-                }
+                diagnostic = new DockerfileDiagnostic(DockerfileDiagnosticCodes.InvalidParserDirective,
+                    DiagnosticSeverity.Error, directiveError, span);
+                construct = Comment.Parse(content);
+            }
+            else if (directive is not null)
+            {
+                construct = directive;
             }
             else
             {
-                directivesComplete = true;
                 try
                 {
                     if (Whitespace.IsWhitespace(content))
@@ -85,12 +70,12 @@ internal static class TolerantDockerfileParser
                         {
                             diagnostic = Failure(DockerfileDiagnosticCodes.InvalidSyntax,
                                 "Expected an instruction name followed by whitespace or the end of input.",
-                                nameEnd, start, content.Length, sourceMap);
+                                nameEnd, contentStart, content.Length, sourceMap);
                         }
                         else if (Instruction.IsKnownInstruction(nameResult.Value.Value))
                         {
                             construct = Instruction.CreateDiagnosticInstruction(nameResult.Value.Value, content, escapeChar,
-                                new InstructionParseContext(region, start));
+                                new InstructionParseContext(region, contentStart));
                         }
                         else
                         {
@@ -100,7 +85,7 @@ internal static class TolerantDockerfileParser
                                 preserve ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
                                 $"Unknown instruction '{nameResult.Value.Value}'." +
                                     (preserve ? " Its arguments have been preserved without validation." : ""),
-                                sourceMap.GetSpan(start + nameStart, start + nameEnd));
+                                sourceMap.GetSpan(contentStart + nameStart, contentStart + nameEnd));
                             if (preserve)
                             {
                                 construct = new UnknownInstruction(content.Substring(0, nameStart),
@@ -112,7 +97,7 @@ internal static class TolerantDockerfileParser
                 catch (ParseException exception)
                 {
                     diagnostic = Failure(DockerfileDiagnosticCodes.InvalidSyntax,
-                        exception.Message, exception.Position?.Pos ?? 0, start, content.Length, sourceMap);
+                        exception.Message, exception.Position?.Pos ?? 0, contentStart, content.Length, sourceMap);
                 }
 
                 if (construct is not null && !string.Equals(construct.ToString(), content, StringComparison.Ordinal))
@@ -132,13 +117,17 @@ internal static class TolerantDockerfileParser
                     {
                         return new DockerfileParseResult(null, diagnostics);
                     }
-                    construct = new MalformedConstruct(content);
+                    construct ??= new MalformedConstruct(content);
                 }
             }
 
             if (construct is null)
             {
                 throw new InvalidOperationException("A construct parser must produce a model or an error diagnostic.");
+            }
+            if (bom)
+            {
+                construct.TokenList.Insert(0, new StringToken("\uFEFF"));
             }
             construct.SourceSpan = span;
             constructs.Add(construct);

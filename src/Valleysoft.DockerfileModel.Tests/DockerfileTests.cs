@@ -584,7 +584,7 @@ public class DockerfileTests
                 Text = $"# escape=`\nFROM `\r\n  scratch",
                 TokenValidators = new Action<Token>[]
                 {
-                    line => ValidateAggregate<ParserDirective>(line, "# escape=`\n"),
+                    line => ValidateAggregate<EscapeDirective>(line, "# escape=`\n"),
                     line => ValidateAggregate<FromInstruction>(line, $"FROM `\r\n  scratch",
                         token => ValidateKeyword(token, "FROM"),
                         token => ValidateWhitespace(token, " "),

@@ -2,7 +2,7 @@
 
 ## Parse results
 
-`Dockerfile.Parse(text)` retains its existing throwing behavior. Use `TryParse` to
+`Dockerfile.Parse(text)` throws on syntax errors. Use `TryParse` to
 receive syntax errors as data instead:
 
 ```csharp
@@ -69,6 +69,27 @@ Unknown-instruction handling is independent of recovery:
 | Recover | Error (default) | Malformed construct and error | Malformed construct and error |
 | Recover | Preserve | Opaque instruction and warning | Malformed construct and error |
 
+## Parser directives
+
+Only `syntax`, `escape`, and `check` are recognized as directives in the initial
+header. An unknown directive-shaped line, ordinary comment, blank line, or
+instruction ends header scanning. Later directive-shaped lines are comments.
+
+Duplicate supported directives and recognized invalid escape values fail strict
+parsing. Recovery preserves the offending line as a `Comment`, reports DFP004,
+retains the preceding valid escape setting, and ends header scanning. These
+recovered comments remain distinguishable through the parse result's diagnostics.
+
+In the active header, `"#escape=\n"` is an ordinary comment that ends scanning
+without a directive diagnostic. In contrast, `"#escape= \n"` contains a space
+after `=` and is recognized as an invalid escape directive:
+`Dockerfile.Parse` throws, and `Dockerfile.TryParse` reports DFP004.
+
+Check-option errors do not cause full-file parse failure. Use
+`CheckDirective.TryGetOptions` to interpret the settings and receive an error
+reason for invalid options. Frontend metadata never gates instruction parsing
+by syntax version. See [Parser directives and frontend metadata](parser-directives.md).
+
 ## Recovery boundaries and heredocs
 
 Recovery boundaries account for line continuations, the active escape
@@ -80,8 +101,8 @@ A missing heredoc terminator retains everything through EOF as one
 malformed construct; instruction-looking lines inside its body cannot safely
 be treated as later instructions. Unlike legacy `Parse`, `TryParse` reports
 unterminated heredocs as errors. It also requires complete, lossless construct
-parsing and rejects malformed escape directives rather than applying an unsafe
-escape value. Recovery does not infer arbitrary custom frontend grammar:
+parsing. Both parsing entry points reject recognized invalid escape values
+rather than applying an unsafe escape setting. Recovery does not infer arbitrary custom frontend grammar:
 unknown instructions use standard Dockerfile continuation boundaries, not
 custom heredoc rules.
 
@@ -130,4 +151,4 @@ are stable; message wording is not a machine-readable contract.
 | DFP001 | InvalidSyntax | Invalid syntax or a construct that cannot be parsed without losing text |
 | DFP002 | UnknownInstruction | Unknown name; a warning when preserved, otherwise an error |
 | DFP003 | UnterminatedHeredoc | An opening heredoc marker has no terminator before EOF |
-| DFP004 | InvalidParserDirective | A malformed initial directive or invalid escape value |
+| DFP004 | InvalidParserDirective | A duplicate supported header directive or a recognized invalid escape value |

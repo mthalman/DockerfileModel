@@ -156,11 +156,37 @@ public class DockerfileBuilder
     public DockerfileBuilder OnBuildInstruction(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.OnBuildInstruction.Parse);
 
-    public DockerfileBuilder ParserDirective(string directive, string value) =>
-        AddConstruct(new ParserDirective(CommentSeparator + directive, value));
+    public DockerfileBuilder ParserDirective(string directive, string value)
+    {
+        Guard.NotNullOrEmpty(directive, nameof(directive));
+        Guard.NotNullOrEmpty(value, nameof(value));
+        return AddConstruct(DockerfileModel.ParserDirective.Parse($"#{CommentSeparator}{directive}={value}"));
+    }
 
     public DockerfileBuilder ParserDirective(Action<TokenBuilder> configureBuilder) =>
         ParseTokens(configureBuilder, DockerfileModel.ParserDirective.Parse);
+
+    public DockerfileBuilder SyntaxDirective(string value) =>
+        ParserDirective(DockerfileModel.ParserDirective.SyntaxDirective, value);
+
+    public DockerfileBuilder SyntaxDirective(Action<TokenBuilder> configureBuilder) =>
+        ParseTokens(configureBuilder, DockerfileModel.SyntaxDirective.Parse);
+
+    public DockerfileBuilder EscapeDirective(char escapeChar) =>
+        ParserDirective(DockerfileModel.ParserDirective.EscapeDirective,
+            new DockerfileModel.EscapeDirective(escapeChar).DirectiveValue);
+
+    public DockerfileBuilder EscapeDirective(Action<TokenBuilder> configureBuilder) =>
+        ParseTokens(configureBuilder, DockerfileModel.EscapeDirective.Parse);
+
+    public DockerfileBuilder CheckDirective(string value) =>
+        ParserDirective(DockerfileModel.ParserDirective.CheckDirective, value);
+
+    public DockerfileBuilder CheckDirective(CheckDirectiveOptions options) =>
+        CheckDirective(new DockerfileModel.CheckDirective(options).DirectiveValue);
+
+    public DockerfileBuilder CheckDirective(Action<TokenBuilder> configureBuilder) =>
+        ParseTokens(configureBuilder, DockerfileModel.CheckDirective.Parse);
 
     public DockerfileBuilder RunInstruction(string command) =>
         RunInstruction(command, Enumerable.Empty<Mount>());
@@ -248,9 +274,8 @@ public class DockerfileBuilder
         if (CanAutoAddEscapeDirective(dockerfileConstruct))
         {
             Dockerfile.Items.Add(
-                new ParserDirective(
-                    CommentSeparator + DockerfileModel.ParserDirective.EscapeDirective,
-                    EscapeChar.ToString()));
+                DockerfileModel.ParserDirective.Parse(
+                    $"#{CommentSeparator}{DockerfileModel.ParserDirective.EscapeDirective}={EscapeChar}"));
             if (!DisableAutoNewLines)
             {
                 Dockerfile.Items.Add(new Whitespace(DefaultNewLine));
@@ -291,7 +316,7 @@ public class DockerfileBuilder
             // itself an escape directive with the same escape character value. The guard
             // above already returns false when EscapeChar == DefaultEscapeChar, so that
             // sub-condition is unreachable here and has been removed.
-            if (parserDirective.DirectiveName == DockerfileModel.ParserDirective.EscapeDirective &&
+            if (parserDirective.HasName(DockerfileModel.ParserDirective.EscapeDirective) &&
                 parserDirective.DirectiveValue == EscapeChar.ToString())
             {
                 return false;
@@ -305,7 +330,7 @@ public class DockerfileBuilder
     {
         escapeDirectiveValue = null;
         bool isConflicting = construct is ParserDirective parserDirective &&
-            parserDirective.DirectiveName == DockerfileModel.ParserDirective.EscapeDirective &&
+            parserDirective.HasName(DockerfileModel.ParserDirective.EscapeDirective) &&
             (escapeDirectiveValue = parserDirective.DirectiveValue) != EscapeChar.ToString();
         return isConflicting;
     }

@@ -29,6 +29,30 @@ public class PropertyTests
         }
     }
 
+    [Fact]
+    public void DirectiveHeaders_RoundTripAndReadsDoNotMutate()
+    {
+        AssertProperty(DockerfileArbitraries.ParserDirectiveHeader(), text =>
+        {
+            foreach (Dockerfile file in new[] { Dockerfile.Parse(text), Dockerfile.TryParse(text).Dockerfile! })
+            {
+                Assert.NotNull(file);
+                SourceSpanTests.AssertPartition(text, file);
+                _ = file.Frontend;
+                _ = file.EscapeChar;
+                foreach (CheckDirective directive in file.Items.OfType<CheckDirective>())
+                {
+                    Assert.True(directive.TryGetOptions(out _, out string? error), error);
+                }
+                Assert.Equal(text, file.ToString());
+                foreach (DockerfileConstruct item in file.Items)
+                {
+                    Assert.Equal(item.ToString(), string.Concat(item.Tokens.Select(token => token.ToString())));
+                }
+            }
+        });
+    }
+
     // ──────────────────────────────────────────────
     // FROM instruction round-trip
     // ──────────────────────────────────────────────

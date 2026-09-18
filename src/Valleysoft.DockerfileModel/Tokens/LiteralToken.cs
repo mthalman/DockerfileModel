@@ -6,6 +6,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 {
     private readonly bool canContainVariables;
     private readonly char escapeChar;
+    private readonly bool preserveRawValue;
 
     public LiteralToken(string value, bool canContainVariables = false, char escapeChar = Dockerfile.DefaultEscapeChar)
             : this(GetTokens(value, canContainVariables, escapeChar), canContainVariables, escapeChar)
@@ -18,11 +19,12 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         QuoteChar = tokensInfo.QuoteChar;
     }
 
-    internal LiteralToken(IEnumerable<Token> tokens, bool canContainVariables, char escapeChar)
+    internal LiteralToken(IEnumerable<Token> tokens, bool canContainVariables, char escapeChar, bool preserveRawValue = false)
         : base(tokens)
     {
         this.canContainVariables = canContainVariables;
         this.escapeChar = escapeChar;
+        this.preserveRawValue = preserveRawValue;
     }
 
     public string Value
@@ -38,7 +40,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     public char? QuoteChar { get; set; }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
-        GetTokens(value, canContainVariables, escapeChar).Tokens;
+        preserveRawValue ? new Token[] { new StringToken(value) } : GetTokens(value, canContainVariables, escapeChar).Tokens;
 
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)
     {

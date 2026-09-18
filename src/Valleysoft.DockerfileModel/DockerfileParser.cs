@@ -129,9 +129,7 @@ internal static class DockerfileParser
 
     public static Dockerfile ParseContent(string text)
     {
-        bool parserDirectivesComplete = false;
-        char escapeChar = Dockerfile.DefaultEscapeChar;
-
+        DirectiveHeader header = new();
         List<DockerfileConstruct> dockerfileConstructs = new();
 
         List<string> constructLines = new();
@@ -139,7 +137,29 @@ internal static class DockerfileParser
         StringBuilder lineBuilder = new();
         List<HeredocDelimiterInfo> pendingDelimiters = new();
 
-        for (int i = 0; i < text.Length; i++)
+        bool bom = text.StartsWith("\uFEFF", StringComparison.Ordinal);
+        int contentStart = bom ? 1 : 0;
+        while (contentStart < text.Length)
+        {
+            int end = DirectiveHeader.LineEnd(text, contentStart);
+            string line = text.Substring(contentStart, end - contentStart);
+            ParserDirective? directive = header.Read(line, out string? error);
+            if (error is not null)
+            {
+                SourcePosition position = new SourceMap(text).GetSpan(contentStart, contentStart).Start;
+                throw new ParseException(error, new Position(contentStart, position.Line, position.Column));
+            }
+            if (directive is null)
+            {
+                break;
+            }
+            dockerfileConstructs.Add(directive);
+            constructLines.Add(line);
+            contentStart = end;
+        }
+        char escapeChar = header.EscapeChar;
+
+        for (int i = contentStart; i < text.Length; i++)
         {
             char ch = text[i];
 
@@ -148,28 +168,6 @@ internal static class DockerfileParser
             if (ch == '\n')
             {
                 string line = lineBuilder.ToString();
-                if (!parserDirectivesComplete)
-                {
-                    if (ParserDirective.IsParserDirective(line))
-                    {
-                        ParserDirective? parserDirective = ParserDirective.Parse(line);
-                        dockerfileConstructs.Add(parserDirective);
-                        constructLines.Add(line);
-
-                        if (parserDirective.DirectiveName.Equals(
-                            ParserDirective.EscapeDirective, StringComparison.OrdinalIgnoreCase))
-                        {
-                            escapeChar = parserDirective.DirectiveValue[0];
-                        }
-                        lineBuilder = new StringBuilder();
-                        continue;
-                    }
-                    else
-                    {
-                        parserDirectivesComplete = true;
-                    }
-                }
-
                 // If we have pending heredoc delimiters, check if this line closes one
                 if (pendingDelimiters.Count > 0)
                 {
@@ -201,12 +199,13 @@ internal static class DockerfileParser
                 }
 
                 bool inLineContinuation = constructBuilder.Length > 0;
+                bool isComment = Comment.IsComment(line);
 
                 constructBuilder.Append(line);
 
                 // Check for heredoc markers in the line — only for RUN, COPY, and ADD
                 // (heredoc syntax is not supported for other instructions like ENV)
-                if (!Comment.IsComment(line) && IsHeredocCapableInstruction(constructBuilder.ToString()))
+                if (!isComment && IsHeredocCapableInstruction(constructBuilder.ToString()))
                 {
                     List<HeredocDelimiterInfo> delimiters = ExtractHeredocDelimiters(line, escapeChar);
                     if (delimiters.Count > 0)
@@ -217,8 +216,9 @@ internal static class DockerfileParser
                     }
                 }
 
-                if (!EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful &&
-                    !(Comment.IsComment(line) && inLineContinuation))
+                if ((isComment && !inLineContinuation) ||
+                    (!EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful &&
+                        !(isComment && inLineContinuation)))
                 {
                     constructLines.Add(constructBuilder.ToString());
                     constructBuilder = new StringBuilder();
@@ -252,6 +252,17 @@ internal static class DockerfileParser
             {
                 dockerfileConstructs.Add(Instruction.CreateInstruction(line, escapeChar));
             }
+        }
+
+        if (bom)
+        {
+            if (dockerfileConstructs.Count == 0)
+            {
+                dockerfileConstructs.Add(new Whitespace(""));
+                constructLines.Add("");
+            }
+            dockerfileConstructs[0].TokenList.Insert(0, new StringToken("\uFEFF"));
+            constructLines[0] = "\uFEFF" + constructLines[0];
         }
 
         SourceMap sourceMap = new(text);

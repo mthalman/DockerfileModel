@@ -2719,7 +2719,22 @@ public static class DockerfileArbitraries
     private static Gen<string> ParserDirective() =>
         Gen.Elements(
             "# syntax=docker/dockerfile:1",
+            " \t# SyNtAx = docker/dockerfile:99.20-labs ",
+            "# check=skip=FutureCheck;error=true",
             "# escape=`");
+
+    public static Gen<string> ParserDirectiveHeader() =>
+        from newline in Gen.Elements("\n", "\r\n")
+        from name in RandomCaseKeyword("syntax")
+        from major in Gen.Choose(1, 200)
+        from minor in Gen.Choose(0, 200)
+        from spacing in Gen.Elements("", " ", "\t", " \t")
+        from terminator in Gen.Elements("", "#unknown=value", "# comment", " ")
+        from finalNewline in Gen.Elements("", newline)
+        select $"#{spacing}{name}{spacing}={spacing}docker/dockerfile:{major}.{minor}{spacing}{newline}" +
+            $"#check=skip=FutureCheck;experimental=all;error=true{newline}" +
+            (terminator.Length == 0 ? "" : terminator + newline) +
+            $"#escape=`{finalNewline}";
 
     private static Gen<string[]> Preamble() =>
         Gen.OneOf(

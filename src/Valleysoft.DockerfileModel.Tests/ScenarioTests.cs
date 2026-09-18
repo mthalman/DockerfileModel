@@ -95,7 +95,7 @@ public class ScenarioTests
         Assert.Equal(4, constructs.Length);
             
         Assert.Equal(ConstructType.ParserDirective, constructs[0].Type);
-        Assert.IsType<ParserDirective>(constructs[0]);
+        Assert.IsType<EscapeDirective>(constructs[0]);
 
         Assert.Equal(ConstructType.Instruction, constructs[1].Type);
         Assert.IsType<FromInstruction>(constructs[1]);
