@@ -87,8 +87,14 @@ a list of BuildKit checks.
 The option grammar follows BuildKit: option keys are case-sensitive, and Boolean
 values accept `1`, `t`, `T`, `TRUE`, `true`, `True` and their false counterparts
 `0`, `f`, `F`, `FALSE`, `false`, `False`. The raw option value remains unchanged.
-Repeated options follow BuildKit's effective-value behavior rather than the
-duplicate-*directive* rule.
+Repeated options follow BuildKit's configuration parser rather than the
+duplicate-*directive* rule. Later named lists replace earlier lists, but `all`
+sets a flag that later lists do not clear. Setting `all` also preserves any
+previously parsed list. For example, both `skip=all;skip=Foo` and
+`skip=Foo;skip=all` produce `SkipAll == true` with `SkippedChecks` containing
+only `"Foo"`.
+The same rules apply to `experimental`; repeated `error` settings use the last
+Boolean value.
 
 BuildKit extracts the portion before the first ASCII space before interpreting
 check settings. For example, `skip=Foo, Bar;error=true` retains its entire text,
@@ -124,8 +130,11 @@ or backtick. Recovery returns DFP004 and preserves the offending line as a
 Misplaced directives are comments and do not affect escape or frontend metadata.
 
 `Dockerfile.Frontend` and `EscapeChar` read the effective current header, including
-models constructed or edited programmatically. They retain the valid header
-state preceding an invalid directive; they are not validation operations. Use
+models constructed or edited programmatically. Each read scans the leading
+constructs only until header scanning ends, rather than serializing the entire
+Dockerfile. Results are not cached, so token edits take effect on the next read.
+These properties retain the valid header state preceding an invalid directive;
+they are not validation operations. Use
 `Dockerfile.TryParse(file.ToString())` to obtain structural/header diagnostics for
 an edited model.
 

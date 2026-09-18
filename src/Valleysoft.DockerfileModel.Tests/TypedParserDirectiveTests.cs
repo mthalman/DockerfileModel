@@ -109,6 +109,25 @@ public class TypedParserDirectiveTests
     }
 
     [Theory]
+    [InlineData("skip", "all", "Foo", "Foo", true)]
+    [InlineData("skip", "Foo", "all", "Foo", true)]
+    [InlineData("skip", "Foo", "Bar", "Bar", false)]
+    [InlineData("experimental", "all", "Foo", "Foo", true)]
+    [InlineData("experimental", "Foo", "all", "Foo", true)]
+    [InlineData("experimental", "Foo", "Bar", "Bar", false)]
+    public void RepeatedCheckOptionsPreserveBuildKitAllFlagsAndLastList(
+        string key, string first, string second, string expectedName, bool expectedAll)
+    {
+        string text = $"#check={key}={first};{key}={second}";
+        CheckDirective directive = CheckDirective.Parse(text);
+
+        Assert.True(directive.TryGetOptions(out CheckDirectiveOptions? options, out string? error), error);
+        Assert.Equal(expectedAll, key == "skip" ? options!.SkipAll : options!.ExperimentalAll);
+        Assert.Equal(new[] { expectedName }, key == "skip" ? options.SkippedChecks : options.ExperimentalChecks);
+        Assert.Equal(text, directive.ToString());
+    }
+
+    [Theory]
     [InlineData("error=yes")]
     [InlineData("Error=true")]
     [InlineData("error=TrUe")]

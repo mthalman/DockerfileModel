@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Valleysoft.DockerfileModel;
 
 internal sealed class DirectiveHeader
@@ -53,18 +55,47 @@ internal sealed class DirectiveHeader
         return directive;
     }
 
-    public static DirectiveHeader FromText(string text)
+    public static DirectiveHeader FromItems(IEnumerable<DockerfileConstruct> items)
     {
         DirectiveHeader header = new();
-        int start = text.StartsWith("\uFEFF", StringComparison.Ordinal) ? 1 : 0;
-        while (start < text.Length && !header.Complete)
+        StringBuilder line = new();
+        bool atStart = true;
+        foreach (DockerfileConstruct item in items)
         {
-            int end = LineEnd(text, start);
-            // Model queries retain the last valid state; full-file parsing owns the error diagnostics.
-            header.Read(text.Substring(start, end - start), out _);
-            start = end;
+            string text = item.ToString();
+            if (text.Length == 0)
+            {
+                continue;
+            }
+            int start = atStart && text[0] == '\uFEFF' ? 1 : 0;
+            atStart = false;
+            while (start < text.Length)
+            {
+                int end = LineEnd(text, start);
+                line.Append(text, start, end - start);
+                if (text[end - 1] == '\n')
+                {
+                    ReadLine();
+                    if (header.Complete)
+                    {
+                        return header;
+                    }
+                }
+                start = end;
+            }
+        }
+        if (line.Length > 0)
+        {
+            ReadLine();
         }
         return header;
+
+        void ReadLine()
+        {
+            // Model queries retain the last valid state; full-file parsing owns the error diagnostics.
+            header.Read(line.ToString(), out _);
+            line.Clear();
+        }
     }
 
     internal static int LineEnd(string text, int start)

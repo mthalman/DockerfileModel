@@ -1,3 +1,5 @@
+using Valleysoft.DockerfileModel.Tokens;
+
 namespace Valleysoft.DockerfileModel.Tests;
 
 public class DirectiveHeaderTests
@@ -109,6 +111,83 @@ public class DirectiveHeaderTests
         {
             Assert.Equal(text, file.ToString());
             Assert.True(Assert.Single(file.Items.OfType<CopyInstruction>()).Parents);
+        }
+    }
+
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("# ordinary comment\n")]
+    [InlineData("#unknown=value\n")]
+    [InlineData("#escape=x\n")]
+    [InlineData("#SYNTAX=duplicate\n")]
+    [InlineData("FROM scratch\n")]
+    public void HeaderQueriesDoNotSerializeConstructsAfterTheHeader(string terminator)
+    {
+        CountingConstruct body = new("RUN echo body\n");
+        Dockerfile file = new(new DockerfileConstruct[]
+        {
+            SyntaxDirective.Parse("#syntax=docker/dockerfile:1\n"),
+            new CountingConstruct(terminator)
+        }.Concat(Enumerable.Repeat(body, 1000)));
+
+        Assert.Equal("docker/dockerfile:1", file.Frontend.Reference);
+        Assert.Equal('\\', file.EscapeChar);
+        Assert.Equal(0, body.SerializationCount);
+    }
+
+    [Theory]
+    [InlineData("", '\\', null)]
+    [InlineData("\uFEFF", '\\', null)]
+    [InlineData("#syntax=docker/dockerfile:1", '\\', "docker/dockerfile:1")]
+    [InlineData("\uFEFF \t#syntax=docker/dockerfile:1\r\n#escape=`\r\nFROM scratch\n", '`', "docker/dockerfile:1")]
+    [InlineData("#escape=`\n#escape=\\\n#syntax=ignored", '`', null)]
+    [InlineData("#syntax=docker/dockerfile:1\n\n#escape=`", '\\', "docker/dockerfile:1")]
+    [InlineData("#syntax=docker/dockerfile:1\n\uFEFF#escape=`", '\\', "docker/dockerfile:1")]
+    [InlineData("# ordinary comment\n#syntax=ignored", '\\', null)]
+    public void HeaderQueriesPreservePhysicalLinesAcrossConstructBoundaries(
+        string text, char escapeChar, string? reference)
+    {
+        for (int split = 0; split <= text.Length; split++)
+        {
+            Dockerfile file = new(new DockerfileConstruct[]
+            {
+                new CountingConstruct(text.Substring(0, split)),
+                new CountingConstruct(text.Substring(split))
+            });
+
+            Assert.Equal(escapeChar, file.EscapeChar);
+            Assert.Equal(reference, file.Frontend.Reference);
+            Assert.Equal(text, file.ToString());
+        }
+    }
+
+    [Fact]
+    public void HeaderQueriesReflectTokenEditsWithoutChangingPreviousSnapshots()
+    {
+        SyntaxDirective syntax = SyntaxDirective.Parse("#syntax=docker/dockerfile:1\n");
+        EscapeDirective escape = EscapeDirective.Parse("#escape=`\n");
+        Dockerfile file = new(new DockerfileConstruct[] { syntax, escape });
+        DockerfileFrontendMetadata original = file.Frontend;
+        Assert.Equal('`', file.EscapeChar);
+
+        syntax.DirectiveValueToken.Value = "example.com/frontend:2";
+        escape.DirectiveValueToken.Value = "\\";
+
+        Assert.Equal("docker/dockerfile:1", original.Reference);
+        Assert.Equal("example.com/frontend:2", file.Frontend.Reference);
+        Assert.Equal('\\', file.EscapeChar);
+    }
+
+    private sealed class CountingConstruct(string text) : DockerfileConstruct(new[] { new StringToken(text) })
+    {
+        public int SerializationCount { get; private set; }
+
+        public override ConstructType Type => ConstructType.Comment;
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            SerializationCount++;
+            return base.GetUnderlyingValue(options);
         }
     }
 

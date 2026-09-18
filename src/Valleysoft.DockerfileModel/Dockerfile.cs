@@ -20,11 +20,11 @@ public class Dockerfile : IConstructContainer
 
     IEnumerable<DockerfileConstruct> IConstructContainer.Items => Items;
 
-    public char EscapeChar => DirectiveHeader.FromText(ToString()).EscapeChar;
+    public char EscapeChar => DirectiveHeader.FromItems(Items).EscapeChar;
 
     /// <summary>Identifies the current header's frontend declaration without resolving tags or checking features.</summary>
     public DockerfileFrontendMetadata Frontend =>
-        DockerfileFrontendMetadata.FromValue(DirectiveHeader.FromText(ToString()).Syntax);
+        DockerfileFrontendMetadata.FromValue(DirectiveHeader.FromItems(Items).Syntax);
 
     public static Dockerfile Parse(string text)
     {
