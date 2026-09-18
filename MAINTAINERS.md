@@ -77,6 +77,7 @@ the next version.
 
 If no semantic-version label is present, Release Drafter proposes a patch
 release. If more than one is present, the highest version change wins. Pull
+requests labeled `semver:major` appear under Breaking Changes; other pull
 requests without a category appear under Maintenance. Pull requests with
 `skip-changelog` are excluded from both the release notes and version
 resolution.
