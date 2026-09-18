@@ -12,6 +12,17 @@
   ],
   "packageRules": [
     {
+      "description": "Update shared release workflows and publication actions together",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "mthalman/release-automation",
+        "mthalman/release-automation/**"
+      ],
+      "groupName": "release automation"
+    },
+    {
       "description": "Exclude internal dependency updates from release notes",
       "matchFileNames": [
         ".github/workflows/**",

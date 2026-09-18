@@ -133,7 +133,7 @@ The Lean spec includes both machine-checked proofs (`Proofs/`) and SlimCheck pro
 
 ## Pull request labels
 
-Follow the pinned [release-automation author guide](https://github.com/mthalman/release-automation/blob/89e88a5cf239f9d08369a43e9f0e0d603b48cb4a/docs/author-guide.md).
+Follow the pinned [release-automation author guide](https://github.com/mthalman/release-automation/blob/90551757fe8b061d4dff1a4cab12f10e58f07201/docs/author-guide.md).
 The workflow callers use the toolkit defaults, with no `config-path` override.
 If configuration is added later, resolve it from the trusted PR base (or the
 selected default-branch commit when preparing a PR), not proposed PR content.
@@ -189,6 +189,8 @@ permissions or unclear release impact for maintainer review.
 See [Releasing](MAINTAINERS.md#releasing) for the review and tag-push procedure.
 Keep both reusable workflow pins, both publication Action pins, and the shared
 documentation links on the same reviewed release-automation commit.
+Pair each workflow and Action SHA with its matching published stable-tag comment.
+Renovate groups these refs; update the Markdown links manually in the same PR.
 Use stable `vMAJOR.MINOR.PATCH` tags only, created at the prepared draft's exact
 commit. Do not tag an old draft before a successful shared drafting run refreshes
 its preparation metadata.

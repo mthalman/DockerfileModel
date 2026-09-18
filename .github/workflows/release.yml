@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: Prepare release
         id: prepare
-        uses: mthalman/release-automation/actions/prepare-release@89e88a5cf239f9d08369a43e9f0e0d603b48cb4a
+        uses: mthalman/release-automation/actions/prepare-release@90551757fe8b061d4dff1a4cab12f10e58f07201 # v1.0.1
 
   validate:
     needs: prepare
@@ -139,6 +139,6 @@ jobs:
           gh release upload "$RELEASE_TAG" "${packages[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Finalize GitHub Release
-        uses: mthalman/release-automation/actions/finalize-release@89e88a5cf239f9d08369a43e9f0e0d603b48cb4a
+        uses: mthalman/release-automation/actions/finalize-release@90551757fe8b061d4dff1a4cab12f10e58f07201 # v1.0.1
         with:
           context: ${{ needs.prepare.outputs.context }}

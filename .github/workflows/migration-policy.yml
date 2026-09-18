@@ -9,4 +9,4 @@ permissions:
 
 jobs:
   migration-policy:
-    uses: mthalman/release-automation/.github/workflows/migration-policy.yml@89e88a5cf239f9d08369a43e9f0e0d603b48cb4a
+    uses: mthalman/release-automation/.github/workflows/migration-policy.yml@90551757fe8b061d4dff1a4cab12f10e58f07201 # v1.0.1

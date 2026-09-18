@@ -164,8 +164,16 @@ checks or retagging.
 
 Keep both reusable workflow refs, both publication Action refs, and the shared
 documentation links in this file, `CONTRIBUTING.md`, and `AGENTS.md` pinned to
-the same reviewed commit when upgrading. No custom Release Drafter configuration
-is loaded.
+the same reviewed commit when upgrading. Verify that the selected published
+stable tag resolves to that commit, and pair each workflow and Action SHA with
+its matching version comment, such as `# v1.0.1`.
+
+Renovate groups the four refs into one upgrade PR. Its GitHub Actions manager
+does not update Markdown links; update those links manually in the same PR
+before merging. Review the [upstream upgrade guidance][upgrading] for release
+verification and compatibility checks; its Dependabot configuration examples
+do not replace this repository's Renovate configuration. No custom Release
+Drafter configuration is loaded.
 
 ## Configure trusted publishing
 
@@ -186,6 +194,7 @@ The environment name must match exactly. `NuGet/login` exchanges the job's OIDC
 token for a short-lived API key. Remove the old `NUGET_ORG_API_KEY` secret after
 trusted publishing is configured and a release succeeds.
 
-[installation]: https://github.com/mthalman/release-automation/blob/89e88a5cf239f9d08369a43e9f0e0d603b48cb4a/docs/installation.md
-[tag-publishing]: https://github.com/mthalman/release-automation/blob/89e88a5cf239f9d08369a43e9f0e0d603b48cb4a/docs/tag-publishing.md
-[publication-credentials]: https://github.com/mthalman/release-automation/blob/89e88a5cf239f9d08369a43e9f0e0d603b48cb4a/docs/tag-publishing.md#choose-credentials-and-verify-draft-visibility
+[installation]: https://github.com/mthalman/release-automation/blob/90551757fe8b061d4dff1a4cab12f10e58f07201/docs/installation.md
+[tag-publishing]: https://github.com/mthalman/release-automation/blob/90551757fe8b061d4dff1a4cab12f10e58f07201/docs/tag-publishing.md
+[publication-credentials]: https://github.com/mthalman/release-automation/blob/90551757fe8b061d4dff1a4cab12f10e58f07201/docs/tag-publishing.md#choose-credentials-and-verify-draft-visibility
+[upgrading]: https://github.com/mthalman/release-automation/blob/90551757fe8b061d4dff1a4cab12f10e58f07201/docs/upgrading.md

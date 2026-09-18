@@ -32,5 +32,5 @@ version/category label counts remain a contributor and reviewer responsibility.
 For release setup, publishing, and recovery, see the
 [maintainer guide](MAINTAINERS.md#releasing).
 
-[author-guide]: https://github.com/mthalman/release-automation/blob/89e88a5cf239f9d08369a43e9f0e0d603b48cb4a/docs/author-guide.md
-[fragment-template]: https://github.com/mthalman/release-automation/blob/89e88a5cf239f9d08369a43e9f0e0d603b48cb4a/docs/fragment-template.md
+[author-guide]: https://github.com/mthalman/release-automation/blob/90551757fe8b061d4dff1a4cab12f10e58f07201/docs/author-guide.md
+[fragment-template]: https://github.com/mthalman/release-automation/blob/90551757fe8b061d4dff1a4cab12f10e58f07201/docs/fragment-template.md
