@@ -11,6 +11,7 @@ This .NET library provides a structured model of the Dockerfile syntax for the p
 * Ability to further organize a Dockerfile model in terms of its stages.
 * Static stage dependency analysis and an inventory of external image references.
 * Opt-in recovery with structured diagnostics, opaque unknown instructions, and original-source spans.
+* Typed parser directives and frontend image/version metadata, without inferring feature compatibility.
 
 ## Usage
 
@@ -23,3 +24,6 @@ without modifying the model. See [Stage dependencies and image inventory](docs/s
 for examples, API contracts, resolution rules, and limitations.
 
 See [Parsing, recovery, and diagnostics](docs/parsing.md) for parse options, recovery behavior, diagnostic codes, and source locations.
+
+See [Parser directives and frontend metadata](docs/parser-directives.md) for typed
+syntax, escape, and check directives, header placement rules, and lossless editing.

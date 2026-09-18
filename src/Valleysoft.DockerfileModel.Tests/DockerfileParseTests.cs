@@ -184,9 +184,9 @@ public class DockerfileParseTests
     }
 
     [Theory]
-    [InlineData("# escape=\n")]
     [InlineData("# escape= \r\n")]
-    public void EmptyDirectiveReportsDiagnosticWithoutChangingEscape(string directive)
+    [InlineData("# escape=x\n")]
+    public void InvalidEscapeReportsDiagnosticWithoutChangingEscape(string directive)
     {
         string text = directive + "FROM \\\nscratch\nRUN echo after\n";
         DockerfileParseResult strict = Dockerfile.TryParse(text);
@@ -197,7 +197,7 @@ public class DockerfileParseTests
         Assert.False(result.Success);
         Assert.Equal("DFP004", Assert.Single(result.Diagnostics).Code);
         Assert.Equal('\\', result.Dockerfile!.EscapeChar);
-        Assert.IsType<MalformedConstruct>(result.Dockerfile.Items[0]);
+        Assert.IsType<Comment>(result.Dockerfile.Items[0]);
         Assert.Single(result.Dockerfile.Items.OfType<FromInstruction>());
         Assert.Single(result.Dockerfile.Items.OfType<RunInstruction>());
         Assert.Equal(text, result.Dockerfile.ToString());
