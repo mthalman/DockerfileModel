@@ -12,7 +12,7 @@
   ],
   "packageRules": [
     {
-      "description": "Update shared release workflows and publication actions together",
+      "description": "Leave shared release automation updates to Dependabot",
       "matchManagers": [
         "github-actions"
       ],
@@ -20,7 +20,7 @@
         "mthalman/release-automation",
         "mthalman/release-automation/**"
       ],
-      "groupName": "release automation"
+      "enabled": false
     },
     {
       "description": "Exclude internal dependency updates from release notes",

@@ -40,6 +40,9 @@ release behavior.
 Renovate automatically applies `dependencies` and `semver:patch`, plus
 `skip-changelog` for internal dependency and build-tool updates. Replace its
 semantic-version label when an update has a higher public impact.
+Dependabot manages only release-automation updates and applies `dependencies`,
+`semver:patch`, and `skip-changelog`. Adjust the version label and remove
+`skip-changelog` when an update changes significant release behavior.
 
 ## Versioning
 
@@ -168,12 +171,15 @@ the same reviewed commit when upgrading. Verify that the selected published
 stable tag resolves to that commit, and pair each workflow and Action SHA with
 its matching version comment, such as `# v1.0.1`.
 
-Renovate groups the four refs into one upgrade PR. Its GitHub Actions manager
-does not update Markdown links; update those links manually in the same PR
-before merging. Review the [upstream upgrade guidance][upgrading] for release
-verification and compatibility checks; its Dependabot configuration examples
-do not replace this repository's Renovate configuration. No custom Release
-Drafter configuration is loaded.
+Dependabot checks for release-automation updates weekly and groups the four
+refs into one upgrade PR. Renovate excludes this dependency and continues to
+manage other dependencies. Grouping does not enforce four-way equality; verify
+that every ref uses the same SHA and matching tag comment before merging.
+
+Dependabot's GitHub Actions ecosystem does not update Markdown links; update
+those links manually in the same PR. Review the
+[upstream upgrade guidance][upgrading] for release verification and compatibility
+checks. No custom Release Drafter configuration is loaded.
 
 ## Configure trusted publishing
 

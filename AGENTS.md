@@ -178,6 +178,9 @@ that users or maintainers should know about.
 Renovate automatically applies `dependencies` and `semver:patch`, plus
 `skip-changelog` for internal dependency and build-tool updates. Replace its
 semantic-version label when an update has a higher public impact.
+Dependabot manages only release-automation updates and applies `dependencies`,
+`semver:patch`, and `skip-changelog`. Adjust the version label and remove
+`skip-changelog` when an update changes significant release behavior.
 
 After creating a pull request, apply the labels on GitHub and verify them before
 considering pull request creation complete. Recheck labels when scope changes,
@@ -190,7 +193,8 @@ See [Releasing](MAINTAINERS.md#releasing) for the review and tag-push procedure.
 Keep both reusable workflow pins, both publication Action pins, and the shared
 documentation links on the same reviewed release-automation commit.
 Pair each workflow and Action SHA with its matching published stable-tag comment.
-Renovate groups these refs; update the Markdown links manually in the same PR.
+Dependabot groups these refs; Renovate excludes them. Update the Markdown links
+manually in the same PR, and verify that all four refs remain synchronized.
 Use stable `vMAJOR.MINOR.PATCH` tags only, created at the prepared draft's exact
 commit. Do not tag an old draft before a successful shared drafting run refreshes
 its preparation metadata.
