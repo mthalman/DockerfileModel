@@ -7,18 +7,8 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
-
-concurrency:
-  group: release-drafter
-  cancel-in-progress: false
+  pull-requests: write
 
 jobs:
   update_release_draft:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Update release draft
-        uses: release-drafter/release-drafter@34d80673e067bdc0c24568d3af899c216adcfaa9 # v7.7.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: mthalman/release-automation/.github/workflows/release-draft.yml@90551757fe8b061d4dff1a4cab12f10e58f07201 # v1.0.1

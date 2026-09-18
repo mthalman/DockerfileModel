@@ -133,6 +133,14 @@ The Lean spec includes both machine-checked proofs (`Proofs/`) and SlimCheck pro
 
 ## Pull request labels
 
+Follow the pinned [release-automation author guide](https://github.com/mthalman/release-automation/blob/90551757fe8b061d4dff1a4cab12f10e58f07201/docs/author-guide.md).
+The workflow callers use the toolkit defaults, with no `config-path` override.
+If configuration is added later, resolve it from the trusted PR base (or the
+selected default-branch commit when preparing a PR), not proposed PR content.
+Discover the default branch from GitHub repository metadata and merge partial
+configuration overrides with the toolkit defaults before choosing labels or
+fragment paths.
+
 Every pull request must have exactly one semantic-version label, selected by the
 highest-impact public change:
 
@@ -149,9 +157,13 @@ Apply at most one canonical visible category:
 - `dependencies` for dependency updates
 - No category for maintenance, refactoring, tests, or infrastructure
 
-The existing `type:feature`, `type:bug`, and `type:docs` labels are accepted as
-aliases for `enhancement`, `bug`, and `documentation`. Apply only the canonical
-label to new pull requests.
+The legacy `type:feature`, `type:bug`, and `type:docs` labels are not category
+aliases in the shared infrastructure. Use the canonical labels above.
+
+Breaking changes also require a new `.changes/+short-kebab-slug.breaking.md`
+fragment following the pinned author guide. Editing an existing fragment does
+not satisfy this requirement. Never combine `semver:major` with `skip-changelog`.
+Retain fragments after publication; do not delete or rename them.
 
 For mixed pull requests, classify by the highest-impact public change. A
 test-heavy pull request that fixes a product bug is `bug`; a dependency pull
@@ -166,6 +178,23 @@ that users or maintainers should know about.
 Renovate automatically applies `dependencies` and `semver:patch`, plus
 `skip-changelog` for internal dependency and build-tool updates. Replace its
 semantic-version label when an update has a higher public impact.
+Dependabot manages only release-automation updates and applies `dependencies`,
+`semver:patch`, and `skip-changelog`. Adjust the version label and remove
+`skip-changelog` when an update changes significant release behavior.
 
 After creating a pull request, apply the labels on GitHub and verify them before
-considering pull request creation complete.
+considering pull request creation complete. Recheck labels when scope changes,
+removing conflicting version or category labels. Report unavailable label
+permissions or unclear release impact for maintainer review.
+
+## Release automation
+
+See [Releasing](MAINTAINERS.md#releasing) for the review and tag-push procedure.
+Keep both reusable workflow pins, both publication Action pins, and the shared
+documentation links on the same reviewed release-automation commit.
+Pair each workflow and Action SHA with its matching published stable-tag comment.
+Dependabot groups these refs; Renovate excludes them. Update the Markdown links
+manually in the same PR, and verify that all four refs remain synchronized.
+Use stable `vMAJOR.MINOR.PATCH` tags only, created at the prepared draft's exact
+commit. Do not tag an old draft before a successful shared drafting run refreshes
+its preparation metadata.

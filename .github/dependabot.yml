@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: "mthalman/release-automation"
+      - dependency-name: "mthalman/release-automation/*"
+    groups:
+      release-automation:
+        patterns:
+          - "mthalman/release-automation"
+          - "mthalman/release-automation/*"
+    labels:
+      - dependencies
+      - semver:patch
+      - skip-changelog

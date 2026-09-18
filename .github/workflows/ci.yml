@@ -5,6 +5,7 @@ on:
     branches: [ main, dev ]
   pull_request:
     branches: [ main, dev ]
+    types: [ opened, reopened, synchronize, ready_for_review ]
 
 defaults:
   run:
