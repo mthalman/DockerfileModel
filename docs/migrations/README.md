@@ -7,4 +7,4 @@ may appear here before publication.
 
 ## Releases
 
-No versioned migration guides are available yet.
+- [Upgrade to 3.0.0](3.0.0/README.md)
