@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L7-L7",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIC91c3Ivc2Jpbi9tdXJtdXJkCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile",
+  "startLine": 7,
+  "endLine": 7,
+  "inputSha256": "80745574b4491e4aaa10302c17abf0984f629fc3b09ed44a18802f63e1e22619"
+}

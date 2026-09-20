@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L15-L17",
+  "instructionType": "ENV",
+  "inputBase64": "RU5WIEcgaGVsbG8gXApcCndvcmxkCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile",
+  "startLine": 15,
+  "endLine": 17,
+  "inputSha256": "9795d4ec228518acdd1fac88c29cf75567716fc471e6d7b270aa389bb9877d07"
+}

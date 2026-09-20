@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L9-L9",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIC0tZG9pdD10cnVlIC0tIFsgImEiLCAiYiIgXQo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/flags/Dockerfile",
+  "startLine": 9,
+  "endLine": 9,
+  "inputSha256": "50f443405b267e0123d1d258398c154d73e33fb67ebd19df40b2fcb03eefc6ef"
+}

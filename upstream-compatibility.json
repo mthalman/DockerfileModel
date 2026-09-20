@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "repository": "moby/buildkit",
+  "frontendVersion": "1.27.0",
+  "sourceCommit": "dddd5621af04ea57823085c93a063383f71d3173"
+}

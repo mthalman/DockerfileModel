@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L91-L91",
+  "instructionType": "ENTRYPOINT",
+  "inputBase64": "RU5UUllQT0lOVAlbImhhY2svZGluZCJdCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+  "startLine": 91,
+  "endLine": 91,
+  "inputSha256": "2394bd65466d54401ce17c291311ec34d9ec0b7474db6be4226b3187a87e3387"
+}

@@ -10,7 +10,50 @@
     "dependencies",
     "semver:patch"
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^upstream-compatibility\\.json$/"
+      ],
+      "matchStrings": [
+        "\"frontendVersion\":\\s*\"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+      ],
+      "depNameTemplate": "Dockerfile frontend",
+      "packageNameTemplate": "moby/buildkit",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^dockerfile/(?<version>[0-9]+\\.[0-9]+\\.[0-9]+)$"
+    }
+  ],
   "packageRules": [
+    {
+      "description": "Require maintainer compatibility review for stable Dockerfile frontend updates",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "moby/buildkit"
+      ],
+      "automerge": false,
+      "groupName": null,
+      "prBodyNotes": [
+        "This is a candidate Dockerfile compatibility target, not a compatibility certification. Review all intervening upstream source, tests and release notes; implement relevant parser/model changes; resolve the source commit and regenerate the corpus; then review the documented limitations before merging. See MAINTAINERS.md#upgrade-dockerfile-compatibility. A version-only update intentionally fails the corpus consistency check."
+      ]
+    },
+    {
+      "description": "Derive the importer BuildKit dependency from the reviewed frontend commit",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchFileNames": [
+        "tools/BuildKitCorpus/go.mod"
+      ],
+      "matchPackageNames": [
+        "github.com/moby/buildkit"
+      ],
+      "enabled": false
+    },
     {
       "description": "Leave shared release automation updates to Dependabot",
       "matchManagers": [
@@ -29,7 +72,8 @@
         "global.json",
         "src/Valleysoft.DockerfileModel.DiffTest/**",
         "src/Valleysoft.DockerfileModel.TestSupport/**",
-        "src/Valleysoft.DockerfileModel.Tests/**"
+        "src/Valleysoft.DockerfileModel.Tests/**",
+        "tools/BuildKitCorpus/**"
       ],
       "addLabels": [
         "skip-changelog"

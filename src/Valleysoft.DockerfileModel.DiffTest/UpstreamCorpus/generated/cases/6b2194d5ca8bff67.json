@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L11-L11",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGNobW9kIDY0NCAvZXRjL2Nyb250YWIK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/mail/Dockerfile",
+  "startLine": 11,
+  "endLine": 11,
+  "inputSha256": "41e2eea6f2ec6ebcb8223a1a9ec94010a3ba6fda46582f2ec12ea2416fc80340"
+}

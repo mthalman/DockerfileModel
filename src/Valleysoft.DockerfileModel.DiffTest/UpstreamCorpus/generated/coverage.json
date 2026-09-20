@@ -1,0 +1,1645 @@
+{
+  "schemaVersion": 1,
+  "scope": "All parser/testfiles positive fixtures (validated against goldens), parser/testfiles-negative fixtures, and parser/testfile-line. Only the harness's 18 instruction types are executable cases. Inline tests are inventoried, not converted. No Docker build, shell execution, downstream semantic validation, or complete syntax coverage is claimed.",
+  "files": [
+    {
+      "path": "frontend/dockerfile/parser/directives_test.go",
+      "kind": "inline-test-source",
+      "sha256": "bc104a55f98ed12dee3739704a63e7bda6258e6e84abc369a6478c5637e264cd",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Functions inventoried individually under inlineTests; inline inputs are not converted."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/json_test.go",
+      "kind": "inline-test-source",
+      "sha256": "86bda00e7776cb8fcef205e718f29e1431d2e54d1760c12ea5a78f8416feca5d",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Functions inventoried individually under inlineTests; inline inputs are not converted."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/line_parsers_test.go",
+      "kind": "inline-test-source",
+      "sha256": "d11192db6f803d86083a9fd484c187d6768152e37cbd72918cabefd52bec113a",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Functions inventoried individually under inlineTests; inline inputs are not converted."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_heredoc_test.go",
+      "kind": "inline-test-source",
+      "sha256": "e0695602f19bda31decb3b420143da9c5b51751db6fcb8a49690b9617230a710",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Functions inventoried individually under inlineTests; inline inputs are not converted."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_test.go",
+      "kind": "inline-test-source",
+      "sha256": "2dd7b719d5a7842807ff58a10735ff744e2b3b381498fdea88b1c01766624722",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Functions inventoried individually under inlineTests; inline inputs are not converted."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfile-line/Dockerfile",
+      "kind": "line-metadata",
+      "sha256": "323275be20bed47c35e0ae6f23e7afae8b7b40fa457315be1aea789b5ac94b2e",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfile-line/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfile-line/Dockerfile#L11-L12",
+        "frontend/dockerfile/parser/testfile-line/Dockerfile#L17-L31"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 4,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 6,
+          "endLine": 10,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 13,
+          "endLine": 16,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 32,
+          "endLine": 35,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles-negative/empty_dockerfile/Dockerfile",
+      "kind": "negative",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Empty/comment-only Dockerfile rejection is document-level, not an instruction parser expectation."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles-negative/env_no_value/Dockerfile",
+      "kind": "negative",
+      "sha256": "fb7b5fa68ccfd894a3e708d5396c9993d4f875fc668dff2f17fef2d358a5165f",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles-negative/env_no_value/Dockerfile#L3-L3"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 2,
+          "reason": "Outside the reviewed failing instruction in a negative document; not claimed as independent positive coverage."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles-negative/only_comments/Dockerfile",
+      "kind": "negative",
+      "sha256": "4f0ba2f5502e04a4b2452cd59616655d06c710563ed1955b9f8020ed0b424973",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Empty/comment-only Dockerfile rejection is document-level, not an instruction parser expectation."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles-negative/shykes-nested-json/Dockerfile",
+      "kind": "negative",
+      "sha256": "7884a986670856acedb7f544c7ccfc55ffa3d9d6ee4c926229ee8432e46553f1",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles-negative/shykes-nested-json/Dockerfile#L1-L1"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile",
+      "kind": "positive",
+      "sha256": "700d041a7c6696d85f90acb9a41a85edb4958a06290fc29550dc9addedece290",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L9-L9",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L10-L10",
+        "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L11-L11"
+      ],
+      "exclusions": [
+        {
+          "startLine": 3,
+          "endLine": 3,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/result",
+      "kind": "positive-ast-golden",
+      "sha256": "3bbfcae9cacfed823ea013bc549c0a126c695acac8d3ed3e797347049af1fb34",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/args/Dockerfile",
+      "kind": "positive",
+      "sha256": "eec827e5a293db0901260b0b45bba910006ed49428e150e55163bfd053cd81bf",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/args/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/args/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/args/Dockerfile#L3-L3"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/args/result",
+      "kind": "positive-ast-golden",
+      "sha256": "1eee0668fda514e12a9703870827c9c764099dc8744e4d798aa505f0ccf134ee",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile",
+      "kind": "positive",
+      "sha256": "32942fbbed2d5561de8ff204e6ae05e6cddc18baaff34469621c4f01acac8d47",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L11-L11",
+        "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L14-L26"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 1,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 3,
+          "endLine": 3,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 5,
+          "endLine": 7,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 9,
+          "endLine": 10,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 12,
+          "endLine": 13,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/result",
+      "kind": "positive-ast-golden",
+      "sha256": "400d614f7cea2eeb7f82a0e51a7f5f2d77bac85a46a9bf844b1ce9b0cb9040f6",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile",
+      "kind": "positive",
+      "sha256": "b94b6646402c440d9d84f9b4c70d4429e4920ce5cc11991d1f27f8796288282c",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L9-L12",
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L14-L19",
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L21-L36",
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L38-L38",
+        "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L40-L52"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 4,
+          "endLine": 4,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 6,
+          "endLine": 6,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 8,
+          "endLine": 8,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 13,
+          "endLine": 13,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 20,
+          "endLine": 20,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 37,
+          "endLine": 37,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 39,
+          "endLine": 39,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/result",
+      "kind": "positive-ast-golden",
+      "sha256": "758d1691e6f66296fb41aa9e00f197592eed2bd43674e13c0c70d593f8a5796a",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/continue-at-eof/Dockerfile",
+      "kind": "positive",
+      "sha256": "7ee4baa6e47592e2d26fe36dfc0606cf22ae16e9c03e8894447d8aa79f16e1d0",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/continue-at-eof/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/continue-at-eof/Dockerfile#L3-L3"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/continue-at-eof/result",
+      "kind": "positive-ast-golden",
+      "sha256": "7c81d6d120fcf357bfb9c549339e301cc9964113501b2f7daf2a004748eff7e5",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile",
+      "kind": "positive",
+      "sha256": "2e457d2e38548c9a9c34a2d91ea28fb6886570e339511d815a11356a8af792e8",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L3-L8",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L9-L10",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L11-L12",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L13-L15",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L16-L17",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L18-L24",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L25-L26",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L27-L29",
+        "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L31-L36"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 30,
+          "endLine": 30,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/continueIndent/result",
+      "kind": "positive-ast-golden",
+      "sha256": "6ef35dd7ceef53aded21ac91dd4e467ddee1cf05e64ca2d8fffea32fc6b7ac2f",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile",
+      "kind": "positive",
+      "sha256": "ccd24e513af6da113b5e6e411546acc0cc946a342c9ba0d427083781407c4123",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L9-L9",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L10-L10",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L11-L11",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L13-L13",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L14-L14",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L15-L15",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L16-L16",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L18-L18",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L19-L19",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L20-L20",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L21-L21",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L23-L23",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L24-L24",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L26-L26",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L28-L28",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L30-L30",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L31-L31",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L32-L32",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L33-L33",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L35-L36",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L37-L37",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L39-L39",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L40-L40",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L41-L41",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L42-L42",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L43-L43",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L45-L45",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L47-L47",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L48-L48",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L50-L50",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L52-L52",
+        "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L54-L54"
+      ],
+      "exclusions": [
+        {
+          "startLine": 12,
+          "endLine": 12,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 17,
+          "endLine": 17,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 22,
+          "endLine": 22,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 25,
+          "endLine": 25,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 27,
+          "endLine": 27,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 29,
+          "endLine": 29,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 34,
+          "endLine": 34,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 38,
+          "endLine": 38,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 44,
+          "endLine": 44,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 46,
+          "endLine": 46,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 49,
+          "endLine": 49,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 51,
+          "endLine": 51,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 53,
+          "endLine": 53,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/result",
+      "kind": "positive-ast-golden",
+      "sha256": "d2065a8ed88c38ad05cce54ad65d862fe642f7a14faccc31b790965560985483",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+      "kind": "positive",
+      "sha256": "666706225a2fb5cb611eba2129d51bfe4cf2d3552231aab4cc2eccc2f3b74677",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L18-L18",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L19-L19",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L22-L41",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L44-L44",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L49-L49",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L53-L53",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L54-L54",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L55-L55",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L56-L56",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L59-L62",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L64-L64",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L65-L65",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L68-L68",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L71-L71",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L74-L74",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L77-L77",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L80-L80",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L83-L83",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L84-L84",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L86-L86",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L87-L87",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L88-L88",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L91-L91",
+        "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L94-L94"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 17,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 20,
+          "endLine": 21,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 42,
+          "endLine": 43,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 45,
+          "endLine": 48,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 50,
+          "endLine": 52,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 57,
+          "endLine": 58,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 63,
+          "endLine": 63,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 66,
+          "endLine": 67,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 69,
+          "endLine": 70,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 72,
+          "endLine": 73,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 75,
+          "endLine": 76,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 78,
+          "endLine": 79,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 81,
+          "endLine": 82,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 85,
+          "endLine": 85,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 89,
+          "endLine": 90,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 92,
+          "endLine": 93,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/docker/result",
+      "kind": "positive-ast-golden",
+      "sha256": "0c149ec1f7222ee589df29413b92813861c6f1ffcd156311a0e6c25baf9f18c5",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/env/Dockerfile",
+      "kind": "positive",
+      "sha256": "b77a85e129749b995a6b0b7132d248be64df7ce841efc5e58cc29f9bf33e6fd3",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L9-L9",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L10-L10",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L11-L11",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L12-L12",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L13-L13",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L14-L14",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L15-L15",
+        "frontend/dockerfile/parser/testfiles/env/Dockerfile#L18-L23"
+      ],
+      "exclusions": [
+        {
+          "startLine": 16,
+          "endLine": 17,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/env/result",
+      "kind": "positive-ast-golden",
+      "sha256": "4081c0aab182ae2493a8563dd37051f9ec9aa7878a22540bd4f70b30ade4de53",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile",
+      "kind": "positive",
+      "sha256": "05cd8ab33959d01689cb053a01398334477810e40c1b6185a163c963b1263a26",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L8-L9"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 5,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escape-after-comment/result",
+      "kind": "positive-ast-golden",
+      "sha256": "e59c0a3266f435cc47d27ed256ac7094963415b673d96099995f1720384ef34c",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile",
+      "kind": "positive",
+      "sha256": "3a8ad9242f6acd79b707ba736da97fe5826f6e5fbcb7e2f942ce7e63f637fb38",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L6-L7"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 3,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escape-nonewline/result",
+      "kind": "positive-ast-golden",
+      "sha256": "e59c0a3266f435cc47d27ed256ac7094963415b673d96099995f1720384ef34c",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escape-with-syntax/Dockerfile",
+      "kind": "positive",
+      "sha256": "c512ce550e7a68213be9478388ed477f3fda4e02c0fc065204d485a1fa97f7db",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/escape-with-syntax/Dockerfile#L4-L5"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 3,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escape-with-syntax/result",
+      "kind": "positive-ast-golden",
+      "sha256": "1e71475bc664fd3ab6ba0b92eb9d9741087534f97339327cbb0c7097e0368508",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escape/Dockerfile",
+      "kind": "positive",
+      "sha256": "f762dc3bafc3f30ee7d4bbb1d13fa45412528985532d176dc016b6467fb8d53e",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L5-L6"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escape/result",
+      "kind": "positive-ast-golden",
+      "sha256": "e59c0a3266f435cc47d27ed256ac7094963415b673d96099995f1720384ef34c",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile",
+      "kind": "positive",
+      "sha256": "525b9ac766107839dd8ad1fc40397bcfffda4e5239209c67c72d4c0a02bdb6eb",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L4-L5",
+        "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L8-L12",
+        "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L14-L14"
+      ],
+      "exclusions": [
+        {
+          "startLine": 3,
+          "endLine": 3,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 7,
+          "endLine": 7,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 13,
+          "endLine": 13,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/escapes/result",
+      "kind": "positive-ast-golden",
+      "sha256": "b39b9dffefc49fdda1b55a2f210324ad7459a8fe9227b15d8b3f5af534af32bf",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/flags/Dockerfile",
+      "kind": "positive",
+      "sha256": "08d42c0aba1521e1ac70eeecf25801be4e7d2f851f564d178050f72533d96c7f",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L9-L9",
+        "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L10-L10"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/flags/result",
+      "kind": "positive-ast-golden",
+      "sha256": "d1c598aec0af21944d02480cec7ed6f610e270ab48c97c15ab1f5149f9fa5118",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/health/Dockerfile",
+      "kind": "positive",
+      "sha256": "a5eac0c1a34c029d7d6b1e21da632a7c367ecfba37e38d937b6fe09d94b6ccbb",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L5-L6",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L9-L9",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L10-L10",
+        "frontend/dockerfile/parser/testfiles/health/Dockerfile#L11-L11"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/health/result",
+      "kind": "positive-ast-golden",
+      "sha256": "68be8a296ca8edac0786d590aa7b04ceba4a33c35bec678689398a70bc046d34",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile",
+      "kind": "positive",
+      "sha256": "ce163ab316935c6b7d11881016931c8268d82db0a151b634ce935275ccd3e126",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L10-L10",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L12-L12",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L13-L13",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L14-L14",
+        "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L15-L15"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 7,
+          "endLine": 7,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 9,
+          "endLine": 9,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 11,
+          "endLine": 11,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/influxdb/result",
+      "kind": "positive-ast-golden",
+      "sha256": "9dc7664758774b9930706a9fae2b6d9ed87e3e1775f22a315c0da19b281eb2ad",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string-double/Dockerfile",
+      "kind": "positive",
+      "sha256": "39def3f508e20ca52d9927dfeb48626fb69fb4eff0794b45b6dcb18d9b3529d3",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string-double/Dockerfile#L1-L1"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string-double/result",
+      "kind": "positive-ast-golden",
+      "sha256": "34e46a018503cc7932bfdaa49a48dcf3acc6e5982c91cf5b882ceacffbbd786a",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string/Dockerfile",
+      "kind": "positive",
+      "sha256": "6835d9a4a0a0cffda01b0b122a6c44a2a829d7efdabecea399aca725b647041f",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string/Dockerfile#L1-L1"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string/result",
+      "kind": "positive-ast-golden",
+      "sha256": "e2a9f616ef32e09d6aedeb80fdbc66daa440b0945c2ff04da517cde0d6d2a8ca",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-single-quotes/Dockerfile",
+      "kind": "positive",
+      "sha256": "c9e2f4fdce5db7bad55aa4bb4f9755d8a9bf73e198f7216b3a447e30a8ee83ef",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-single-quotes/Dockerfile#L1-L1"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-single-quotes/result",
+      "kind": "positive-ast-golden",
+      "sha256": "0d58646519927332c6f02a181b5fb9ea086cc72112288afd7dc50b76c367a8eb",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-bracket/Dockerfile",
+      "kind": "positive",
+      "sha256": "7d5ab8e482aa425c7ff1eef1d924adf4c210d1453dbed6c4a1ff0f80fbc40258",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-bracket/Dockerfile#L1-L1"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-bracket/result",
+      "kind": "positive-ast-golden",
+      "sha256": "bc2c86ecf53a4d30f74dd19d7715ff633bbd71e2e377914e5bb37884e1e5e436",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-string/Dockerfile",
+      "kind": "positive",
+      "sha256": "ae23e529393cf7111bd1de55a10a90d0769e1563c407593824525f476796f086",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-string/Dockerfile#L1-L1"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-string/result",
+      "kind": "positive-ast-golden",
+      "sha256": "0151d9f95e334644bdc670caced4d05aef2bb32d08f9434c7560ec5c254d052a",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/json/Dockerfile",
+      "kind": "positive",
+      "sha256": "ddb2dd36b2b16abc263c3a6a550ccbba52f6fe8a387e0df184cfabbff31f8b14",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/json/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/json/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/json/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/json/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/json/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/json/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/json/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/json/Dockerfile#L8-L8"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/json/result",
+      "kind": "positive-ast-golden",
+      "sha256": "469ec135653f8c28f0abf751ea91bf78bdad2ddfa17deb436c22ddd14aa6525b",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile",
+      "kind": "positive",
+      "sha256": "8fc84ce42f9f90632dd17348ecaff033b7ee21b1dca8efe0e692f5ba9d6b58bf",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L7-L7"
+      ],
+      "exclusions": []
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/result",
+      "kind": "positive-ast-golden",
+      "sha256": "689679d0b54ab95df90192385a71e41be1cb8be6e6f2f09a192fdf8098bc7851",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile",
+      "kind": "positive",
+      "sha256": "15c93ceb73fb003a3e159f3301ce9a4785dda36c2431eaea1e2b114376a70c8d",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L12-L12",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L13-L13",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L14-L14",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L15-L15",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L16-L18",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L19-L20",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L21-L21",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L24-L24",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L25-L25",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L28-L28",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L29-L29",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L30-L30",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L31-L31",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L32-L32",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L35-L35",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L36-L36",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L38-L38",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L39-L39",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L41-L41",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L42-L42",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L43-L43",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L45-L45",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L47-L47",
+        "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L48-L48"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 4,
+          "endLine": 4,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 8,
+          "endLine": 11,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 22,
+          "endLine": 23,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 26,
+          "endLine": 27,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 33,
+          "endLine": 34,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 37,
+          "endLine": 37,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 40,
+          "endLine": 40,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 44,
+          "endLine": 44,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 46,
+          "endLine": 46,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/result",
+      "kind": "positive-ast-golden",
+      "sha256": "a1bca99c468450248cef0a6e44a93a079c1b3be2b9e46121cca8119543d7f0d8",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/mail/Dockerfile",
+      "kind": "positive",
+      "sha256": "55e76739f752ca851bd6433d1558b9aa21a8992471853d31561d980352d4983b",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L9-L9",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L10-L10",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L11-L11",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L12-L12",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L13-L13",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L14-L14",
+        "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L16-L16"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 15,
+          "endLine": 15,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/mail/result",
+      "kind": "positive-ast-golden",
+      "sha256": "56fc5f319260164bfbfae52b4a929c270e57683972527f1db855843b1a634ad6",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/multiple-volumes/Dockerfile",
+      "kind": "positive",
+      "sha256": "ddd03234e048daa86c80d252ee6d8186b22ee1352a06e61685dc7d1d861dae6f",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/multiple-volumes/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/multiple-volumes/Dockerfile#L3-L3"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/multiple-volumes/result",
+      "kind": "positive-ast-golden",
+      "sha256": "278836af567b2ae8119eb8196fc6b41fb8be4d23f6eee7ef3e4fc50f29bad35c",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile",
+      "kind": "positive",
+      "sha256": "c1aefbdc3d4cba57db182674249a629f5e214df1ea49f3d523976975e6fc20f7",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L7-L7"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 4,
+          "endLine": 4,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 6,
+          "endLine": 6,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/mumble/result",
+      "kind": "positive-ast-golden",
+      "sha256": "6fea8aa724f7ced09cb193200016c4a1f842afd13321933e5eedfff2cb7a06ea",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile",
+      "kind": "positive",
+      "sha256": "07bddf49e5ef4058d858892040cf79d4fa3a97b3a096d94c451fc775aea1ff01",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L9-L9",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L11-L11",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L13-L13",
+        "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L14-L14"
+      ],
+      "exclusions": [
+        {
+          "startLine": 3,
+          "endLine": 3,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 10,
+          "endLine": 10,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 12,
+          "endLine": 12,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/nginx/result",
+      "kind": "positive-ast-golden",
+      "sha256": "c4fd412a88a0a366f5c4ac148b063140d6ef3b23a7917f65f05dbd541c6da693",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile",
+      "kind": "positive",
+      "sha256": "8e8de87b0af114e72d0c431547fd782737b35849362755b31cfeb0dca512aecf",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L9-L9",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L10-L10",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L11-L11",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L12-L12",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L13-L13",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L14-L14",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L15-L15",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L16-L16",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L17-L17",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L18-L18",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L19-L19",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L20-L20",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L21-L21",
+        "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L23-L23"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 7,
+          "endLine": 7,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 22,
+          "endLine": 22,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/tf2/result",
+      "kind": "positive-ast-golden",
+      "sha256": "c3f23182f2cb3f74ca849f6792b14206ee2a7a796d794cac49f82b034bc59ae6",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile",
+      "kind": "positive",
+      "sha256": "27ec72c00fc242eb8312d77f2e42e0be1f396e0601ef0279246f65b75de8b13a",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L8-L8",
+        "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L9-L11",
+        "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L12-L14",
+        "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L15-L17"
+      ],
+      "exclusions": [
+        {
+          "startLine": 1,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 4,
+          "endLine": 4,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/trailing-backslash/result",
+      "kind": "positive-ast-golden",
+      "sha256": "f11aa5302edf988301c0e267865c47d8500f841c679344ef136a63ddf67e9f67",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile",
+      "kind": "positive",
+      "sha256": "418c0206f9fe95a1204a2077d00d70ddbff13808e88474dc0f0128c7f9eb9083",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L3-L3",
+        "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L6-L6",
+        "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L7-L7",
+        "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L9-L9"
+      ],
+      "exclusions": [
+        {
+          "startLine": 2,
+          "endLine": 2,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 4,
+          "endLine": 4,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 8,
+          "endLine": 8,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/weechat/result",
+      "kind": "positive-ast-golden",
+      "sha256": "e579fb4b7ce119d192f0e2ae571ea3735de0fa7cf6f713759900ca355dfceb17",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/znc/Dockerfile",
+      "kind": "positive",
+      "sha256": "795049f8a338fa795afabb5315aea279cd70e47850650338112e50c8a04a1e73",
+      "caseIds": [
+        "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L1-L1",
+        "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L2-L2",
+        "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L4-L4",
+        "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L5-L5",
+        "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L7-L7"
+      ],
+      "exclusions": [
+        {
+          "startLine": 3,
+          "endLine": 3,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        },
+        {
+          "startLine": 6,
+          "endLine": 6,
+          "reason": "Document-only comments, directives, whitespace or empty continuation lines outside an instruction AST span."
+        }
+      ]
+    },
+    {
+      "path": "frontend/dockerfile/parser/testfiles/znc/result",
+      "kind": "positive-ast-golden",
+      "sha256": "3760262fc9548e970f7a424987593dd4d0108250190068c6c4296b48f07d90bd",
+      "caseIds": [],
+      "exclusions": [
+        {
+          "reason": "Validation artifact: compared exactly to AST.Dump() plus newline; not an instruction input."
+        }
+      ]
+    }
+  ],
+  "inlineTests": [
+    {
+      "path": "frontend/dockerfile/parser/directives_test.go",
+      "function": "TestDirectives",
+      "line": 9,
+      "status": "excluded",
+      "reason": "Excluded: document-level directive state, not the instruction-only adapter."
+    },
+    {
+      "path": "frontend/dockerfile/parser/directives_test.go",
+      "function": "TestDetectSyntax",
+      "line": 42,
+      "status": "excluded",
+      "reason": "Excluded: frontend-selection metadata helper API."
+    },
+    {
+      "path": "frontend/dockerfile/parser/directives_test.go",
+      "function": "TestDetectSyntaxBOM",
+      "line": 107,
+      "status": "excluded",
+      "reason": "Excluded: frontend-selection metadata and BOM detection helper API."
+    },
+    {
+      "path": "frontend/dockerfile/parser/directives_test.go",
+      "function": "TestParseDirective",
+      "line": 121,
+      "status": "excluded",
+      "reason": "Excluded: document directive helper API."
+    },
+    {
+      "path": "frontend/dockerfile/parser/json_test.go",
+      "function": "TestJSONArraysOfStrings",
+      "line": 31,
+      "status": "excluded",
+      "reason": "Excluded: inline JSON helper tests outside the file-fixture adapter."
+    },
+    {
+      "path": "frontend/dockerfile/parser/line_parsers_test.go",
+      "function": "TestParseNameValOldFormat",
+      "line": 10,
+      "status": "excluded",
+      "reason": "Excluded: inline name/value helper API tests."
+    },
+    {
+      "path": "frontend/dockerfile/parser/line_parsers_test.go",
+      "function": "TestParseNameValNewFormat",
+      "line": 27,
+      "status": "excluded",
+      "reason": "Excluded: inline name/value helper API tests."
+    },
+    {
+      "path": "frontend/dockerfile/parser/line_parsers_test.go",
+      "function": "TestParseNameValWithoutVal",
+      "line": 53,
+      "status": "excluded",
+      "reason": "Excluded: inline name/value helper API tests."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_heredoc_test.go",
+      "function": "TestParseExtractsHeredoc",
+      "line": 10,
+      "status": "excluded",
+      "reason": "Excluded: inline heredoc table outside the file-fixture adapter; no claim of importing these cases."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_heredoc_test.go",
+      "function": "TestParseJSONHeredoc",
+      "line": 326,
+      "status": "excluded",
+      "reason": "Excluded: inline heredoc table outside the file-fixture adapter."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_heredoc_test.go",
+      "function": "TestHeredocChomp",
+      "line": 344,
+      "status": "excluded",
+      "reason": "Excluded: heredoc chomp helper API."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_heredoc_test.go",
+      "function": "TestParseHeredocHelpers",
+      "line": 349,
+      "status": "excluded",
+      "reason": "Excluded: heredoc helper API."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_heredoc_test.go",
+      "function": "TestHeredocsFromLine",
+      "line": 392,
+      "status": "excluded",
+      "reason": "Excluded: heredoc extraction helper API."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_test.go",
+      "function": "TestParseErrorCases",
+      "line": 30,
+      "status": "file-fixtures-covered",
+      "reason": "Covered by negative file validation; document-only exclusions and reviewed instruction ranges are inventoried separately."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_test.go",
+      "function": "TestParseCases",
+      "line": 45,
+      "status": "file-fixtures-covered",
+      "reason": "Covered by positive file validation and exact AST.Dump plus newline golden comparison."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_test.go",
+      "function": "TestParseWords",
+      "line": 70,
+      "status": "excluded",
+      "reason": "Excluded: inline word-splitting helper API."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_test.go",
+      "function": "TestParseIncludesLineNumbers",
+      "line": 112,
+      "status": "partially-covered",
+      "reason": "Partially covered: testfile-line instructions imported; root document line metadata assertions are outside the instruction adapter."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_test.go",
+      "function": "TestParseWarnsOnEmptyContinutationLine",
+      "line": 136,
+      "status": "excluded",
+      "reason": "Excluded: inline document warning assertions outside the file-fixture adapter."
+    },
+    {
+      "path": "frontend/dockerfile/parser/parser_test.go",
+      "function": "TestParseReturnsScannerErrors",
+      "line": 172,
+      "status": "excluded",
+      "reason": "Excluded: injected reader/scanner failures, not instruction syntax."
+    }
+  ],
+  "licenseAudit": "Preserved root Apache-2.0 LICENSE. No applicable ancestor/parser-subtree license override or NOTICE file. Scanned all imported fixture and golden bytes for copyright/license/notice/permission markers; none found. Source snapshots are unmodified; instruction JSON is an extracted representation."
+}

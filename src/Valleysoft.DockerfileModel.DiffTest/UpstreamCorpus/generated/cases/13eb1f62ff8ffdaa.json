@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles-negative/shykes-nested-json/Dockerfile#L1-L1",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFsgImVjaG8iLCBbICJuZXN0ZWQganNvbiIgXSBdCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "reject",
+  "sourcePath": "frontend/dockerfile/parser/testfiles-negative/shykes-nested-json/Dockerfile",
+  "startLine": 1,
+  "endLine": 1,
+  "inputSha256": "7884a986670856acedb7f544c7ccfc55ffa3d9d6ee4c926229ee8432e46553f1"
+}

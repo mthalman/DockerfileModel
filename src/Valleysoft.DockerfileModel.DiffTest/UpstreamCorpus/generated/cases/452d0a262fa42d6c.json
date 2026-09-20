@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/json/Dockerfile#L2-L2",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFsiIl0K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/json/Dockerfile",
+  "startLine": 2,
+  "endLine": 2,
+  "inputSha256": "c264f01fe86b71b434f74f50dced28c91e29379b2c90d8da3ab6aae6a9940ec2"
+}

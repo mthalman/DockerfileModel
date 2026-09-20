@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/continue-at-eof/Dockerfile#L3-L3",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIHNvbWV0aGluZyBc",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/continue-at-eof/Dockerfile",
+  "startLine": 3,
+  "endLine": 3,
+  "inputSha256": "3f6a21b388a05fca7211f9b9e0ba0902e1addafacab10f7a92b2307a40c294ea"
+}

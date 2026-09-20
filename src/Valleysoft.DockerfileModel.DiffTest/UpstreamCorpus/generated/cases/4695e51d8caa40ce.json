@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L13-L13",
+  "instructionType": "VOLUME",
+  "inputBase64": "Vk9MVU1FIC93d3cK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile",
+  "startLine": 13,
+  "endLine": 13,
+  "inputSha256": "36a6a05ac69679ae70f7491759efdc45c6dc34e3fd240866fb1a09c6d6a2eb1b"
+}

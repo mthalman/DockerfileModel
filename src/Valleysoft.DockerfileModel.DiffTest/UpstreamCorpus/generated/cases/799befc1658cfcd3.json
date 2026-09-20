@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L12-L12",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIFsibHMiLCAiLWxhIl0K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile",
+  "startLine": 12,
+  "endLine": 12,
+  "inputSha256": "a12f8e8f87cb34e52029214b5c700c3d525e065351a06526f8a8f50127304e49"
+}

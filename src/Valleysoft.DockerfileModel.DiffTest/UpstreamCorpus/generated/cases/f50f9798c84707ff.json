@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L8-L9",
+  "instructionType": "ENV",
+  "inputBase64": "RU5WIEdPUEFUSCBcClxnbw==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile",
+  "startLine": 8,
+  "endLine": 9,
+  "inputSha256": "e449094bd033f4e5b1cd99f2bca584134c13cd3931bf204415adceada94187b3"
+}

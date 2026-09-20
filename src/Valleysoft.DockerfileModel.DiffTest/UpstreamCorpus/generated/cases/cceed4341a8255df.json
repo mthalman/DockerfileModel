@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L6-L6",
+  "instructionType": "COPY",
+  "inputBase64": "Q09QWSAtLWRvaXQ9dHJ1ZSAtLSBmb28gL3RtcC8K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/flags/Dockerfile",
+  "startLine": 6,
+  "endLine": 6,
+  "inputSha256": "09e8a041cd9d080edf2fc2dd2f4b200593966cd83a500e158612d567f10937d5"
+}

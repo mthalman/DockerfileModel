@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L11-L11",
+  "instructionType": "ENTRYPOINT",
+  "inputBase64": "RU5UUllQT0lOVCBbIi91c3IvbG9jYWwvYmluL2NvbnN1bGRvY2siXQo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile",
+  "startLine": 11,
+  "endLine": 11,
+  "inputSha256": "8c5f54af24dfc6fb666e890a1f763e5cb8121940382d62858f45e94f0af10475"
+}

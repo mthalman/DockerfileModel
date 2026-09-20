@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L20-L20",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIG1rZGlyIC1wIC9zdGVhbS90ZjIvdGYvYWRkb25zL3NvdXJjZW1vZC90cmFuc2xhdGlvbnMvZW4K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile",
+  "startLine": 20,
+  "endLine": 20,
+  "inputSha256": "17cf8885c14d311d02b80faff621b2ee333eea8c8fd69e208dec3995eea3d196"
+}

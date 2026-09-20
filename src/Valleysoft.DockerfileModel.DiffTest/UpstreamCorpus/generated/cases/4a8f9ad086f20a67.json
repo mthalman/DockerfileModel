@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L23-L23",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIGNkIC9zdGVhbS90ZjIgJiYgLi9zcmNkc19ydW4gLXBvcnQgMjcwMTUgK2lwIDAuMC4wLjAgK21hcCBjdGZfMmZvcnQgLWF1dG91cGRhdGUgLXN0ZWFtX2RpciAvc3RlYW0gLXN0ZWFtY21kX3NjcmlwdCAvc3RlYW0vc2NyaXB0ICt0Zl9ib3RfcXVvdGEgMTIgK3RmX2JvdF9xdW90YV9tb2RlIGZpbGwK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile",
+  "startLine": 23,
+  "endLine": 23,
+  "inputSha256": "2c1d905f97f97a91562e9e83b926c1a8b318bfc4dd42030935185550925e00c5"
+}

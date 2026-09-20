@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string-double/Dockerfile#L1-L1",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EICJbXCJlY2hvXCIsIFwiUGhldywgSSBqdXN0IG1hbmFnZWQgdG8gZXNjYXBlZCB0aG9zZSBkb3VibGUgcXVvdGVzXCJdIgo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string-double/Dockerfile",
+  "startLine": 1,
+  "endLine": 1,
+  "inputSha256": "39def3f508e20ca52d9927dfeb48626fb69fb4eff0794b45b6dcb18d9b3529d3"
+}

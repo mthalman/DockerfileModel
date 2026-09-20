@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L3-L3",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGFwdC1nZXQgdXBkYXRlIC1xeSAmJiBhcHQtZ2V0IGluc3RhbGwgdG11eCB6c2ggd2VlY2hhdC1jdXJzZXMgLXkK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile",
+  "startLine": 3,
+  "endLine": 3,
+  "inputSha256": "d38089b4e96f8374bd806e576714837f5ca1e8d219b559dd723bf53714f4437a"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L18-L18",
+  "instructionType": "FROM",
+  "inputBase64": "RlJPTQl1YnVudHU6MTQuMDQK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+  "startLine": 18,
+  "endLine": 18,
+  "inputSha256": "5c5891678e1cbd470b5161864578f5eec4a8783e0be3802036e836401a732c03"
+}

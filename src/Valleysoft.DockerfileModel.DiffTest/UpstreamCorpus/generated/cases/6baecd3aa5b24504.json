@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L16-L16",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIHNldHNpZCBjcm9uOyB0bXV4IC0yCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/mail/Dockerfile",
+  "startLine": 16,
+  "endLine": 16,
+  "inputSha256": "650fef94e12568a134cbb7bf934aa34159758c73870cb1792e9761884a0e9a1a"
+}

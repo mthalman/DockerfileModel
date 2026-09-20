@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L65-L65",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOCWNkIC91c3IvbG9jYWwvZ28vc3JjICYmIGJhc2ggLXhjICdmb3IgcGxhdGZvcm0gaW4gJERPQ0tFUl9DUk9TU1BMQVRGT1JNUzsgZG8gR09PUz0ke3BsYXRmb3JtJS8qfSBHT0FSQ0g9JHtwbGF0Zm9ybSMjKi99IC4vbWFrZS5iYXNoIC0tbm8tY2xlYW4gMj4mMTsgZG9uZScK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+  "startLine": 65,
+  "endLine": 65,
+  "inputSha256": "54b7fff144c0b0bb6a9ff8db0849caa9f230dc9b1c0b3aca38e34fe2192642c4"
+}
