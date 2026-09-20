@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/continue-at-eof/Dockerfile#L1-L1",
+  "instructionType": "FROM",
+  "inputBase64": "RlJPTSBhbHBpbmU6My41Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/continue-at-eof/Dockerfile",
+  "startLine": 1,
+  "endLine": 1,
+  "inputSha256": "6c4e9154fafe7bec031bf13b00210fa507abf79c129a8f06918d5d454f45bc7d"
+}

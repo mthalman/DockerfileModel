@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L4-L4",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGFwdC1nZXQgdXBkYXRlICYmIGFwdC1nZXQgaW5zdGFsbCB6bmMgLXkK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/znc/Dockerfile",
+  "startLine": 4,
+  "endLine": 4,
+  "inputSha256": "fad12e17fc9d633dbdd77a55487696339530f87078ba1353216e6362f046d23b"
+}

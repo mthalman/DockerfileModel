@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/multiple-volumes/Dockerfile#L1-L1",
+  "instructionType": "FROM",
+  "inputBase64": "RlJPTSBmb28K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/multiple-volumes/Dockerfile",
+  "startLine": 1,
+  "endLine": 1,
+  "inputSha256": "147dced5471bc9c9a149b495c0a23422ad157f4b2f759db34a9a2c744e868a02"
+}

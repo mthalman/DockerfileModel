@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L5-L5",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGFwdC1nZXQgLS1uby1pbnN0YWxsLXJlY29tbWVuZHMgaW5zdGFsbCAteSByZWRpcy1zZXJ2ZXIgcmVkaXMtdG9vbHMK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile",
+  "startLine": 5,
+  "endLine": 5,
+  "inputSha256": "a0dd1787433dad4da4158718c36058e22b3e3c701a2dc8fe3f337e47730f2b8e"
+}

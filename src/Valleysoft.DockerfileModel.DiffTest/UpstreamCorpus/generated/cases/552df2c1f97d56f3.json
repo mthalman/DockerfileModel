@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L2-L2",
+  "instructionType": "ADD",
+  "inputBase64": "QUREIGNoZWNrLnNoIG1haW4uc2ggL2FwcC8K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/health/Dockerfile",
+  "startLine": 2,
+  "endLine": 2,
+  "inputSha256": "fc3b335c8cc235dde4553fcbf4ab820165f65ba8ff11ffe794292e2ab150c609"
+}

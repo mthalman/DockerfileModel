@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L8-L12",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGZvbyBcCgpiYXIgXAoKYmF6Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile",
+  "startLine": 8,
+  "endLine": 12,
+  "inputSha256": "9547a5283ebc57852e220c7c10aab642223554864d7ae329da7cb5cffd57f2fe"
+}

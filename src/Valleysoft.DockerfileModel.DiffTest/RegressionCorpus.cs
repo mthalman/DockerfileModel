@@ -72,6 +72,12 @@ public sealed class RegressionCorpus
 
     public string Promote(DiffCase minimizedCase)
     {
+        if (minimizedCase.Source == DiffCaseSource.Upstream || minimizedCase.Upstream is not null)
+        {
+            throw new InvalidDataException(
+                "Upstream fixtures cannot be promoted or rewritten as local regressions.");
+        }
+
         if (!InstructionTypes.IsSupported(minimizedCase.InstructionType))
         {
             throw new InvalidDataException(

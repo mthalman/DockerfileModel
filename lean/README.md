@@ -6,9 +6,9 @@ This directory contains a formal specification of the Dockerfile grammar in [Lea
 
 The Lean spec provides:
 
-1. **Bug-finding oracle** — via differential testing, random Dockerfile inputs are parsed by both C# and Lean. Mismatches reveal C# bugs.
+1. **Bug-finding oracle** — via differential testing, random Dockerfile inputs are parsed by both C# and Lean. Mismatches identify differences to investigate in either implementation or canonical serialization.
 2. **Machine-checked proofs** — theorems about round-trip fidelity, token concatenation, variable resolution semantics, and mutation isolation.
-3. **Authoritative grammar** — the Lean parser is derived from [BuildKit's Go implementation](https://github.com/moby/buildkit/tree/master/frontend/dockerfile/parser), the authoritative Dockerfile parser. When C# and Lean disagree, the Lean behavior is presumed correct.
+3. **BuildKit-derived grammar** — the Lean parser aims to match BuildKit's Go implementation at the source commit in [`upstream-compatibility.json`](../upstream-compatibility.json). Lean can also contain defects. Investigate disagreements against the relevant upstream parser or typed-validation layer and the [known compatibility limitations](../docs/dockerfile-compatibility.md) before changing either implementation or normalizing its output.
 
 This follows the [AWS Cedar pattern](https://www.amazon.science/publications/cedar-a-new-language-for-expressive-fast-extensible-and-analyzable-authorization): an executable formal spec alongside production code, validated by differential testing, graduated to machine-checked proofs.
 
@@ -84,9 +84,9 @@ without being minimized.
 
 Locally authored regressions are normalized JSON fixtures in
 `src/Valleysoft.DockerfileModel.DiffTest/RegressionCorpus`. They are loaded in
-filename order and always run before generated cases. This corpus is separate
-from the pinned upstream BuildKit corpus tracked by issue #358, but both use
-the same differential execution path.
+filename order and always run before upstream and generated cases. This corpus
+is separate from the pinned upstream BuildKit corpus, but both use the same
+bounded differential execution path.
 
 Ordinary comparison and CI runs never modify the corpus. To persist minimized
 failures as idempotent, content-addressed fixtures, explicitly pass:
@@ -102,6 +102,28 @@ Review and commit the resulting fixture changes together with the parser fix.
 Pull-request CI uses seed `42`. The scheduled workflow derives a rotating but
 reproducible daily seed as `UTC year * 1000 + UTC day-of-year` and prints it
 before running the same corpus-first comparison.
+
+### Pinned upstream corpus
+
+The [upstream corpus](../src/Valleysoft.DockerfileModel.DiffTest/UpstreamCorpus/README.md)
+contains instruction slices imported from an exact BuildKit commit associated
+with the stable frontend version in
+[`upstream-compatibility.json`](../upstream-compatibility.json).
+Both parsers execute identical bytes with the same escape character.
+If BuildKit accepts an input, rejection by both local parsers is a discrepancy.
+If BuildKit rejects it, rejection by both local parsers is a pass.
+Known deviations remain executable and are reported separately; changed
+outcomes and unexpected passes require review.
+
+Use `--upstream-only` to run only these cases, `--verify-upstream` to check
+committed metadata without Lean, and `--replay-upstream <id>` to retain a case's
+upstream expectation during replay. Importing requires Go; executing the
+checked-in corpus does not require Go or network access.
+
+The corpus does not automatically discover new language features or establish
+complete frontend compatibility. Renovate proposes frontend version changes,
+and maintainers review upstream changes before updating the compatibility
+commitment. See [Dockerfile compatibility](../docs/dockerfile-compatibility.md).
 
 ## Design Principles
 

@@ -1,0 +1,3 @@
+/upstream-compatibility.json text eol=lf
+/tools/BuildKitCorpus/go.mod text eol=lf
+/tools/BuildKitCorpus/go.sum text eol=lf

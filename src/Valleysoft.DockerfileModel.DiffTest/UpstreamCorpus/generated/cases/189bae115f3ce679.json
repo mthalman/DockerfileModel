@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/multiple-volumes/Dockerfile#L3-L3",
+  "instructionType": "VOLUME",
+  "inputBase64": "Vk9MVU1FIC9vcHQvbmFnaW9zL3ZhciAvb3B0L25hZ2lvcy9ldGMgL29wdC9uYWdpb3MvbGliZXhlYyAvdmFyL2xvZy9hcGFjaGUyIC91c3Ivc2hhcmUvc25tcC9taWJzCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/multiple-volumes/Dockerfile",
+  "startLine": 3,
+  "endLine": 3,
+  "inputSha256": "8b7551d4e3b6a1bbf4e80ba23edd3c9176d0ae7b13cf3ac3d6ec78bd4fda0949"
+}

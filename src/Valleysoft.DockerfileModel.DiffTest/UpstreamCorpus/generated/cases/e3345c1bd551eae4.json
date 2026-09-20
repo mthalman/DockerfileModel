@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L4-L4",
+  "instructionType": "EXPOSE",
+  "inputBase64": "RVhQT1NFIDI3MDA1Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile",
+  "startLine": 4,
+  "endLine": 4,
+  "inputSha256": "e8ccbb5b97450eec801bbec5708f55f3da634c7e1141c1751404e418cfdb4b0a"
+}

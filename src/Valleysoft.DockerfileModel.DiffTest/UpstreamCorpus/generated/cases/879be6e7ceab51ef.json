@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L8-L8",
+  "instructionType": "HEALTHCHECK",
+  "inputBase64": "SEVBTFRIQ0hFQ0sgICBDTUQgICBhIGIK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/health/Dockerfile",
+  "startLine": 8,
+  "endLine": 8,
+  "inputSha256": "0a07a8adfd8b688e529f18adb8169c0bb19cbf95df479d1f07297845fe29d90f"
+}

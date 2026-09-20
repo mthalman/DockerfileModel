@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfile-line/Dockerfile#L17-L31",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGFwdC1nZXQgdXBkYXRlIFwKCSYmIGRwa2cgLWwgfCBhd2sgJy9eaWkvIHtwcmludCAkMn0nID4gL3RtcC9kcGtnLmNsZWFuIFwKCgogICAgJiYgYXB0LWdldCAtLW5vLWluc3RhbGwtcmVjb21tZW5kcyBpbnN0YWxsIC15IGdpdCBnb2xhbmcgY2EtY2VydGlmaWNhdGVzIFwKICAgICYmIGFwdC1nZXQgY2xlYW4gXAogICAgJiYgcm0gLXJmIC92YXIvbGliL2FwdC9saXN0cyBcCgoJJiYgZ28gZ2V0IC12IGdpdGh1Yi5jb20vYnJpbXN0b25lL2NvbnN1bGRvY2sgXAogICAgJiYgbXYgJEdPUEFUSC9iaW4vY29uc3VsZG9jayAvdXNyL2xvY2FsL2Jpbi9jb25zdWxkb2NrIFwKCgkmJiBkcGtnIC1sIHwgYXdrICcvXmlpLyB7cHJpbnQgJDJ9JyA+IC90bXAvZHBrZy5kaXJ0eSBcCgkmJiBhcHQtZ2V0IHJlbW92ZSAtLXB1cmdlIC15ICQoZGlmZiAvdG1wL2Rwa2cuY2xlYW4gL3RtcC9kcGtnLmRpcnR5IHwgYXdrICcvXj4vIHtwcmludCAkMn0nKSBcCgkmJiBybSAvdG1wL2Rwa2cuKiBcCgkmJiBybSAtcmYgJEdPUEFUSAo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfile-line/Dockerfile",
+  "startLine": 17,
+  "endLine": 31,
+  "inputSha256": "519436084ae9b9147424370dca6cb3b612c041a31c17e8d795cd9baeb22da294"
+}

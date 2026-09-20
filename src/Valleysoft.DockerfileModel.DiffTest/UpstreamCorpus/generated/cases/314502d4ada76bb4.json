@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L86-L86",
+  "instructionType": "VOLUME",
+  "inputBase64": "Vk9MVU1FCS92YXIvbGliL2RvY2tlcgo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+  "startLine": 86,
+  "endLine": 86,
+  "inputSha256": "f5a972064b532ebc3849bc9e1dc6115de7ab6e4d8cac10bd10bedb3cef40367a"
+}

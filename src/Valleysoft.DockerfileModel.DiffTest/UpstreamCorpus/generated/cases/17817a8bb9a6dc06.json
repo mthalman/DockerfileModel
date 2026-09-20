@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L14-L19",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGNkIC90bXAgXAogICAgJiYgd2dldCBodHRwczovL2RsLmJpbnRyYXkuY29tL21pdGNoZWxsaC9jb25zdWwvMC4zLjFfd2ViX3VpLnppcCBcCiAgICAgICAtTyB3ZWJfdWkuemlwIFwKICAgICYmIHVuemlwIHdlYl91aS56aXAgXAogICAgJiYgbXYgZGlzdCAvd2VidWkgXAogICAgJiYgcm0gd2ViX3VpLnppcAo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile",
+  "startLine": 14,
+  "endLine": 19,
+  "inputSha256": "206abb5ac2cfd69a8ba069f75ac331023da9c2c2201dcff217aa64febf74ae2f"
+}

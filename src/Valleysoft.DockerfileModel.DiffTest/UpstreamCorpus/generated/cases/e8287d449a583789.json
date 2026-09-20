@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L80-L80",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOCWdpdCBjb25maWcgLS1nbG9iYWwgdXNlci5lbWFpbCAnZG9ja2VyLWR1bW15QGV4YW1wbGUuY29tJwo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+  "startLine": 80,
+  "endLine": 80,
+  "inputSha256": "936c84d1b0feda654d79cef536c3341512437328194fcb1acfa2088363d93e03"
+}

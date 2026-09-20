@@ -17,7 +17,8 @@ public sealed class FailureMinimizer
         DiffResult original,
         CancellationToken cancellationToken = default)
     {
-        if (original.Match || original.Outcome == DiffOutcomeKind.InfrastructureError)
+        if (original.Match || original.Outcome == DiffOutcomeKind.InfrastructureError ||
+            original.Case.Source == DiffCaseSource.Upstream)
         {
             return original;
         }

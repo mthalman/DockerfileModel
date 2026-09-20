@@ -81,6 +81,17 @@ public sealed class DiffTestRunner
         DiffCase testCase,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (testCase.Source == DiffCaseSource.Upstream || testCase.Upstream is not null)
+        {
+            if (testCase.Source != DiffCaseSource.Upstream || testCase.Upstream is null)
+            {
+                throw new InvalidDataException("Upstream cases require provenance and an expectation.");
+            }
+
+            return await RunUpstreamAsync(parser, testCase, cancellationToken);
+        }
+
         string csharpJson;
         try
         {
@@ -198,6 +209,69 @@ public sealed class DiffTestRunner
             : DiffOutcomeKind.JsonMismatch;
 
         return new DiffResult(testCase, csharpJson, leanJson, outcome);
+    }
+
+    private static async Task<DiffResult> RunUpstreamAsync(
+        ILeanParser parser, DiffCase testCase, CancellationToken cancellationToken)
+    {
+        string csharpJson = "";
+        string leanJson = "";
+        string csharpStatus = "accepted";
+        string leanStatus = "accepted";
+        string? crashType = null;
+        List<string> errors = new();
+
+        try
+        {
+            csharpJson = ParseCSharp(testCase.InstructionType, testCase.Input, testCase.EscapeChar);
+        }
+        catch (ParseException ex)
+        {
+            csharpStatus = "rejected";
+            errors.Add($"C#: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            csharpStatus = "crashed";
+            crashType = ex.GetType().FullName;
+            errors.Add($"C#: {crashType}: {ex.Message}");
+        }
+
+        try
+        {
+            leanJson = await parser.ParseAsync(
+                testCase.Input, testCase.EscapeChar, cancellationToken);
+        }
+        catch (LeanParseException ex)
+        {
+            leanStatus = "rejected";
+            errors.Add($"Lean: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new DiffResult(testCase, csharpJson, "", DiffOutcomeKind.InfrastructureError,
+                ex.Message, csharpStatus, "infrastructure-error", crashType);
+        }
+
+        string expectedStatus = testCase.Upstream!.Accept ? "accepted" : "rejected";
+        DiffOutcomeKind outcome = csharpStatus == "crashed"
+            ? DiffOutcomeKind.CSharpParserCrash
+            : csharpStatus != expectedStatus || leanStatus != expectedStatus
+                ? DiffOutcomeKind.UpstreamExpectationMismatch
+                : csharpJson != leanJson
+                    ? DiffOutcomeKind.JsonMismatch
+                    : DiffOutcomeKind.Match;
+        if (outcome == DiffOutcomeKind.UpstreamExpectationMismatch)
+        {
+            errors.Insert(0,
+                $"BuildKit expects {expectedStatus}; C# {csharpStatus}, Lean {leanStatus}.");
+        }
+
+        return new DiffResult(testCase, csharpJson, leanJson, outcome,
+            errors.Count == 0 ? null : string.Join(Environment.NewLine, errors),
+            csharpStatus, leanStatus, crashType);
     }
 
     private static bool IsKnownCrash(string instructionType, string input)

@@ -1,0 +1,940 @@
+[
+  {
+    "id": "frontend/dockerfile/parser/testfile-line/Dockerfile#L11-L12",
+    "inputSha256": "2176870ac77374550978eda451b02d5e6cd1382db326f754905e4a7359aa4a3a",
+    "outcomeSignature": "b78eb89fe5b6990a446a0a5c943614415dec90a1da361201b0ac56ebb99594df",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfile-line/Dockerfile#L17-L31",
+    "inputSha256": "519436084ae9b9147424370dca6cb3b612c041a31c17e8d795cd9baeb22da294",
+    "outcomeSignature": "73e347377d53866188b8d97e6ddce4dc07ce3f1214502ac0fcc34f3ad05eb13d",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles-negative/shykes-nested-json/Dockerfile#L1-L1",
+    "inputSha256": "7884a986670856acedb7f544c7ccfc55ffa3d9d6ee4c926229ee8432e46553f1",
+    "outcomeSignature": "a2551c212b8c2a7dc26a2eaba37d9c37425b2b8b9d17203dd833a5890aa96cda",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
+    "reason": "Lean accepts a decoded JSON array containing a nested array, which the pinned upstream parser and C# reject; this must not use malformed-JSON shell fallback."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L2-L2",
+    "inputSha256": "33668bd31c692edf2fcaa676105a81c55e4ae5d4df74aacd9d6e7919cbd37f25",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L14-L26",
+    "inputSha256": "755b000d2320186ca0c3a56cfc7376d06ad41f7febd15ba75b0970cd7fbc6966",
+    "outcomeSignature": "a0b3a7d00adcdb1c8daca4cf4034e46317de38abcb743b5768a3ec65d78d3fbe",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L4-L4",
+    "inputSha256": "345baea22de191b13b9b429501f3c3dffaeedbfe657a01b28033afad947a756f",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L14-L19",
+    "inputSha256": "206abb5ac2cfd69a8ba069f75ac331023da9c2c2201dcff217aa64febf74ae2f",
+    "outcomeSignature": "9a591dfcf43aeac3f63053798a31a9403405ff8452e0a5eaf4e08120b0335d14",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L21-L36",
+    "inputSha256": "c788d1e96a7e0c2ccd5f960dd487db97d0f36e402ecaa246b547de6591086b6f",
+    "outcomeSignature": "6a72e997ce8f59726f220a9d0b45643eea79d25c5c4fedc06fea06b91f240ecf",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L40-L52",
+    "inputSha256": "dfdd7d7b27ca0dddc06a3902282285cf1e3aaf51d3e6269c2b75a885cfa6bfc9",
+    "outcomeSignature": "bedd7767e4e547370fc46c5c1fd5ae72acaa8ed88b484f78f91d196affee50c9",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L9-L12",
+    "inputSha256": "15c268e1f709736fe67e142b1e7a12fe0914b67c53007eecbd6bdcf630af2fd5",
+    "outcomeSignature": "9ccc5ac4cf2bad43ad82e941f46f0221a1a297550cd9ab422377d9ea956fa996",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L11-L12",
+    "inputSha256": "4a8ca600e56dd21bc482bb3b8151c94b063f23b2d0d9c2c7097b5a8a74186133",
+    "outcomeSignature": "e4ab8e5bed78a2ced08c9a7bae3438f1a38d2f0791e601cf2f7835e16849085b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L13-L15",
+    "inputSha256": "effe4a14f60f0e5a13af4d101fa73058a52fcc65b2cc53d5a8142dce3def8bec",
+    "outcomeSignature": "74368ae3b6e560ac26c54a1fa1c34dc50bf77bc0e9cec4e3209584505d9374e4",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L16-L17",
+    "inputSha256": "fc68b1bd45efafbf834207623ea61a4eef6dd0d9c1e3044a28020253c08187c0",
+    "outcomeSignature": "74fd7022f392d890b5ddfd0b61bda1771726ca053bbdc1d0c651b768dd96285c",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L18-L24",
+    "inputSha256": "d7a003b61fe6386fa0cfc4b595f7fb6f32ec21d00b4a8faae3c5c0a7ce0db1ba",
+    "outcomeSignature": "e3e0f824ae976c21810253fe5a0893e11bc7404f98f29f6a9b887f18467ee462",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L25-L26",
+    "inputSha256": "d4769f838f6b2725a805db3793a364b728e0035b4ff5b1641ee7f5e7e2177cd9",
+    "outcomeSignature": "d0d02dd4c53b3f21f7b0b366e8efc28af255e4cb3a11c335baa3cd554472a86a",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L27-L29",
+    "inputSha256": "64e83cd9acf1b7c55676162da7b6912f146dace93aec5cc693405c7e0170a98b",
+    "outcomeSignature": "b8718494c4c1c027c979800b8061134098673f2479867b650e736f6e3a49d882",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L3-L8",
+    "inputSha256": "b11be3ee5f820f91193842f44864f6d7500e2789b6ece60d83eda20fb0da8d2d",
+    "outcomeSignature": "bf9130f9da18e2c0ab9f8d85ef7d973b15923adbf887d0c6f8cb3887572a3061",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L31-L36",
+    "inputSha256": "77dfa061b0b1b54f4f2ffe5d9d29e4a682bf5535ad17c3b77d8c7dd3159d4b0b",
+    "outcomeSignature": "e0cd36cf3e378d4b8765da6e1e6683a8cf77dd7df727bad9e4cb07ac959d1cd7",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L9-L10",
+    "inputSha256": "332a1190c5cd144c1db1b17b3851671557a3b6e7ed0597789007b09c4baf5e5f",
+    "outcomeSignature": "47a504dd2ebcacb1c08ea8a183ff7fc378905caeab3ffe368e51067539b8698e",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L13-L13",
+    "inputSha256": "fcb81cd0472905ab791de9ca35af9e791a39bba07d46954d1a560e2e595c6660",
+    "outcomeSignature": "5ca177cfe00299090beea740089acc09e2546a849c93ff29f67d23464573188b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L14-L14",
+    "inputSha256": "3b7c179a019bb165b2ff766f347abce023280b2025e08e9d9f2505fba6715174",
+    "outcomeSignature": "8081d1ee9165480b41fae85fa970aad6bd3d42870e45e84621100bc9d0ee120f",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L15-L15",
+    "inputSha256": "1b1e706edbd805051d832e2da187ed82518d1583f6e8144e95ac1fab0c4f9da5",
+    "outcomeSignature": "a3dd83032d2ac152e6ebeef5f5ea73254db34d8e9880fcf7bcde7016018c2fb0",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L16-L16",
+    "inputSha256": "45013ecb51dff8e3ffca89b7bd0daafddb328a687f190b7c51f99c61bd55254f",
+    "outcomeSignature": "820ab9d53e87d18b41c07879eb6abd997ff7501c81ebe8a6ab3e5ff000e7c789",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L19-L19",
+    "inputSha256": "19085a8fa3831bdfeee7fef76fa2ad2834a69d3130b9a4a12d3e2465abf2d80a",
+    "outcomeSignature": "ceccc34b7bf122ae96e86dcd0b15f4da83bc882a076dfd08c6dad55e1d002f94",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L21-L21",
+    "inputSha256": "91b50604fc9e9981c4b9e3fb6b88c8d8e824fe6fa360ef70f81b9389909d28de",
+    "outcomeSignature": "6bb9a6521069733f156aac55fb89caeb69e8b593b7f4e2db133324c538035fbd",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L23-L23",
+    "inputSha256": "1b4b00158a6fadc8f8a8ab6e042f39d465879bca53f7359d5a386e3dd0ddddae",
+    "outcomeSignature": "183d573de07b4f264b63cfcd395cb11a85c5a8917dcaa3f3d1b095c6ba6b8d2f",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L24-L24",
+    "inputSha256": "7575329b66331cbcbc72273930c493973edec1522a0df46ecce513c6405ba1dc",
+    "outcomeSignature": "cbbff1d8f57187967c2ecf06643db37ea22fecc8c14492daa2418cdc53b6d16b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L26-L26",
+    "inputSha256": "262266e5123b5ffc6566d276aecdf4a5c2ac419878d706f860aa3763ccf95292",
+    "outcomeSignature": "ac0a5205e9021566e26fc7e3de545d4e0cdbe2adde899fb69ee90c054958bb02",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L28-L28",
+    "inputSha256": "43f9d00ecfd68c9bf6f2daeb44e864052ca558a9fa24c9d2a54f89de895a7eae",
+    "outcomeSignature": "13b26e17015aa0c82c6cc0087121fb3e328485fde716401ad18644f7e64b6b0f",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L30-L30",
+    "inputSha256": "cce18efdae2b33ced49cdfe3faca1b74591bbcb1e0c7ccc57dac1c962a11311b",
+    "outcomeSignature": "9937d4455c461d5ebd9fd9fc01673c3215fcb39e1b6897ecf6b181ccef93c8a5",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L31-L31",
+    "inputSha256": "f3fb59ae58578c271743cb524285ab3dc27c145d06254a09b809619db595d4bf",
+    "outcomeSignature": "19db20b3aee1e731b70c7d1bbf764481800c48728294c197cc68ea28a470cd94",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L32-L32",
+    "inputSha256": "0ce2db0a7ac6bf9f80194e189804048922b1368b884508acfa9b2b018edcb025",
+    "outcomeSignature": "a4e1e50319f140a1591ffc2d93d19e5068439c47da2ce0fc94a9a5d4832ff3b3",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L33-L33",
+    "inputSha256": "13656a59f503fb4c29b52c44f8d5be639839f5fbaff9f48d96905656cf7a7358",
+    "outcomeSignature": "c006e8858012929a9e7e9f2b5aa561b27511d039622a9878abd416900d314793",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L35-L36",
+    "inputSha256": "19e86f0009b9c0add42e8b7826e7dc905308a2c5f3fc03d982eea75bee59b99d",
+    "outcomeSignature": "577337cd540b2a013ca8f465dddca88982fea0d98ab5b201a207931bef5ef598",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L37-L37",
+    "inputSha256": "e7355ef16ccac81fb80aabfe406f32dcb189d2f6cf29d23b8bd9eb35b3868328",
+    "outcomeSignature": "579cd31b472a4e5851d5cd3b10ca087e98ab8cc194e2ac9efdd61d4ced964ef0",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L39-L39",
+    "inputSha256": "3209c2855ed54168ee4d28566d5df01060972db37e0eba23a9774d1673e8ac1d",
+    "outcomeSignature": "a3d9473879a1101d2a1f98feb5ea74f581f8ab084d8409240c26dc3b6d33fb5b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L19-L19",
+    "inputSha256": "ab9e149fd73f408ebecda2fb71b4f7568440b9471a33ba0fe78196ad77b34e57",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L22-L41",
+    "inputSha256": "d8983a80ec8f9334f5497bbf5ca150c2c297126e8b839098d8e9d93fdb121570",
+    "outcomeSignature": "1c4801210cad74f553a88e2dae7bf1385b53fa042e7037a46440761f4a9b7747",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L44-L44",
+    "inputSha256": "594504414d19923939d1d1499d293385327a15560e615e1e9c16de7c4691a6da",
+    "outcomeSignature": "0386b6cca97c39f24571292feec54ac37e9d707d3d067e0da5bbee661bfda905",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L49-L49",
+    "inputSha256": "b395753563f6ec0160d2f9de995b8cf6075126d7705f5be421ba31cc8bc4bc25",
+    "outcomeSignature": "99f8e94d78f264104e84981fb899e3c76d24e1896eb56bf665eea3be6481a0b8",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L53-L53",
+    "inputSha256": "4ce2aa1427c6c4b10c29a3cbb8671ffeb79b2fc1d8f7e56ce147247cad29673d",
+    "outcomeSignature": "c9f5fd6ea62c47d97e14da6506bd6a124c1d5156d252444469815a0a21f23a57",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L56-L56",
+    "inputSha256": "234351aa7a9dd3d5dfa60d727d139405056883846996d53325c759e51f51ee5f",
+    "outcomeSignature": "bbc8184fd052f5b32e993afc6bf16cbe036ff6b7503c2ce4003911f1f3fa77e1",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L59-L62",
+    "inputSha256": "cfbfd6056ff7d7e584f5b510046d5468bb7f1a13756b316e1d21c497a3462236",
+    "outcomeSignature": "78ec92e2c9d2b72183f3caf71628138a5443bcd6d5f6b2f451b2a8fbdab3684f",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L65-L65",
+    "inputSha256": "54b7fff144c0b0bb6a9ff8db0849caa9f230dc9b1c0b3aca38e34fe2192642c4",
+    "outcomeSignature": "bbd7bc7767d03085fc595757fc1b87c76715cfc1f09544aa3f938f2b86a1ffe0",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L68-L68",
+    "inputSha256": "441a38caa4e687d8a0d8192037f76e73cb311acbc203bfe5b7335fccc312585e",
+    "outcomeSignature": "e7b417dddfa03082fef58b272fcf41116b2d4fe29614b56344806e655b60c01b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L71-L71",
+    "inputSha256": "1208ca13cdc65ad00879b3e3e55ba16b57ffdf9a271f60fa5166faa0d9bcd68b",
+    "outcomeSignature": "56a40ed1c814e1351876c2aef233092754126cd35b4af7221eb8671dae03c58b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L74-L74",
+    "inputSha256": "871b6aaa2ef2806ea68cbd30874b2cea7a3de9aa9349fd818c202029e9a448b1",
+    "outcomeSignature": "216ff1333bf9dc9577a254d0fc2340712db6827b3d50ad29acf3639bea302dc1",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L77-L77",
+    "inputSha256": "8367917aa8a6ebffbbd8d8bd5b1c40a981d81e082e249d745f0acae2251a1464",
+    "outcomeSignature": "88300a58952f2f39999737b7d27af252505008be82d3ae42f8c4e272ee232298",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L80-L80",
+    "inputSha256": "936c84d1b0feda654d79cef536c3341512437328194fcb1acfa2088363d93e03",
+    "outcomeSignature": "56cd06f3ef282d2b68d7f8299bba43ac0cfe7603ebed3b3a94948e3ed34274d9",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L83-L83",
+    "inputSha256": "7bda9fb9279e1f25922f45e5cff92f80c7da637148ded9f7ab0227d7210065e6",
+    "outcomeSignature": "f44161c7f9dd67bc0d6a90046e803f07ecdaf4b326b93f08652dfe1915e8380a",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L84-L84",
+    "inputSha256": "664e842f31c025e19dc71ae5dbd6a3827abf8176a4edcb40b9c2cec6143a0bac",
+    "outcomeSignature": "7ff28982c9ef3bce0b9ba82d3040e427d63b4b27d59efb134fdfe90e1dbf30ee",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L10-L10",
+    "inputSha256": "53e07e9bbe304a0bacd81ac1593674d313bde9c5b6efc0415b2d3dec9e3cda42",
+    "outcomeSignature": "7124f0f45ea121b957b21c80fa8cc6bda4201e1642a2c8fe44d79b033ef7cd73",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "ENV values containing escaped quotes differ in quoteChar and surrounding quote characters in literal children; review canonical representation and semantic value together."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L11-L11",
+    "inputSha256": "199cbe8a0ac25fe3733fd41ddfa8e96a56328eea6836dbe39d4f588792099729",
+    "outcomeSignature": "f32cda74a5d3321a32aaa11392341a8e7482753d746366eba5616c15cb1f51e9",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "ENV values containing escaped quotes differ in quoteChar and surrounding quote characters in literal children; review canonical representation and semantic value together."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L12-L12",
+    "inputSha256": "ec2f9f652988976cdf472d5386f3b4391e4884c2a42055cb1502f550c27cfc80",
+    "outcomeSignature": "fc804459ab24c0a11b7478cc1dbfe32a6dfd19b2f50f8be5848215985aad38b0",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "ENV values containing escaped quotes differ in quoteChar and surrounding quote characters in literal children; review canonical representation and semantic value together."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L13-L13",
+    "inputSha256": "ef378292e3a66d21c9d5769387c0af99230615dc4d3745104d51308f0ced22a6",
+    "outcomeSignature": "a6e9657079a790c49f29c4b9563e5d8b737317a2ecece342d637329b46561480",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "ENV values containing escaped quotes differ in quoteChar and surrounding quote characters in literal children; review canonical representation and semantic value together."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L14-L14",
+    "inputSha256": "35d0dbc0672ed7015ff874f4e64e16fc08a808526c9c833998faf11c75c3396c",
+    "outcomeSignature": "5a393e59b62f19070aabdf9b723cb39f4abdf814cd41321b86633617a58d70b3",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "ENV values containing escaped quotes differ in quoteChar and surrounding quote characters in literal children; review canonical representation and semantic value together."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L18-L23",
+    "inputSha256": "716a586a60359798830b7289b9cb6e98e1589fd48c33f01be4a6ee65ce007d38",
+    "outcomeSignature": "0483c89ccff89705c2e9cfcca8de79b9c788d2888b458365c58235fef272c70f",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean's continued ENV value tokenization differs from C# and does not retain the complete continued assignment structure, including the multiline quoted-value case."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L7-L7",
+    "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L8-L9",
+    "inputSha256": "e449094bd033f4e5b1cd99f2bca584134c13cd3931bf204415adceada94187b3",
+    "outcomeSignature": "79a5ad68ee35b3e34e4b580bf6e3016dc717c273a5fcd79d8eabd4cdd749d3f8",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L5-L5",
+    "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L6-L7",
+    "inputSha256": "c1d2ddcfae73c651c5b3dd29d021a6fb48385cf1c35f0d590be5e98869ded311",
+    "outcomeSignature": "cdcb8e4cabc8ef24527432bd3de37f86723a14c316055b8a6b41086f4f47ecae",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L4-L4",
+    "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L5-L6",
+    "inputSha256": "9a2a5cf2083e33146dd13d5f7589811b9585ba07b58d7a91f81e5ee85a4f83e2",
+    "outcomeSignature": "638231533880443bed20475f6f17f560a4a3000950702e5ebe1b6c17befa5760",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L2-L2",
+    "inputSha256": "f0e39840d24dd0e562414984966d5f03dcd676f500a42e14acaaaae942fc65f1",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L4-L5",
+    "inputSha256": "45897209149bcab9c61ac08375b1e8fb2dbabc20d7e045b1df509e03bd22b4f6",
+    "outcomeSignature": "4fe39f64077f3bc48f5045c7884367e33762e162bef9f975339d6fa3879c6420",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L8-L12",
+    "inputSha256": "9547a5283ebc57852e220c7c10aab642223554864d7ae329da7cb5cffd57f2fe",
+    "outcomeSignature": "b8428d81b090741be0cd9dc43fd111afb652e40574b43cb547cd5a397ddc368b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L10-L10",
+    "inputSha256": "5939a32c89da6c799ab294c6a48eeb373c1c1afeee7d45c94c89aa1bae7d8f98",
+    "outcomeSignature": "9c4ec1ede4e26443a5e347667facd90c5fbad84c11501ae78f93df2ece302476",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L3-L3",
+    "inputSha256": "1fc66be236658883385242fbee59ce2b210d32a1e77a289c128bd0ef89d48f8c",
+    "outcomeSignature": "633493321c001ec4b768460d7bd5808e75610cc4ecdbfbc71389f7bb64080890",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "C# canonicalizes opaque COPY flags as keyValue nodes while Lean uses literal nodes. Low-level upstream acceptance does not imply these unknown options pass typed instruction validation."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L4-L4",
+    "inputSha256": "6e44eebf7fb3f417b33863b5768bbea82315a02232ac254572df6344f1ad56a5",
+    "outcomeSignature": "037546f91a58e8c6f399f958e73c04bb44b05c42d60cf093818927ff63475543",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "C# canonicalizes opaque COPY flags as keyValue nodes while Lean uses literal nodes. Low-level upstream acceptance does not imply these unknown options pass typed instruction validation."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L5-L5",
+    "inputSha256": "d74930c139e94109a543347223bb19eab5e3103d4373566b89bc427ca14c08c7",
+    "outcomeSignature": "33a100451a08611540feb49bff473761a3e63e0b42cad0ca7be1829e2c005dda",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "C# canonicalizes opaque COPY flags as keyValue nodes while Lean uses literal nodes. Low-level upstream acceptance does not imply these unknown options pass typed instruction validation."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L6-L6",
+    "inputSha256": "09e8a041cd9d080edf2fc2dd2f4b200593966cd83a500e158612d567f10937d5",
+    "outcomeSignature": "d274e23dc1e2a5724a5cea682d303e83e77749836d85789bcaeb0999cbcb4e40",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "C# canonicalizes opaque COPY flags as keyValue nodes while Lean uses literal nodes. Low-level upstream acceptance does not imply these unknown options pass typed instruction validation."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L8-L8",
+    "inputSha256": "976560a2aeabcd6d70ea4b1256b5b27f68cf97200f139ddb1e3f4686e6e69e92",
+    "outcomeSignature": "1fc8a7c43e234151b9ad7348201158fcd5593b8cd933a5092d353e639401051c",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L9-L9",
+    "inputSha256": "50f443405b267e0123d1d258398c154d73e33fb67ebd19df40b2fcb03eefc6ef",
+    "outcomeSignature": "4e24f98cffa07d15a25dcdbe224f4afbc6878d4a7810927b98a5a98c31c209ae",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L10-L10",
+    "inputSha256": "84ed0e741b8cf76ca22446ab36aae6fe8f8cf02e7d5c9fc9c6dffb664001820d",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
+    "reason": "Intentional typed-validation boundary: both adapters reject this HEALTHCHECK, as does upstream's typed instruction layer, while upstream's low-level AST parser accepts it."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L3-L3",
+    "inputSha256": "dfbb2bb661400fb112ff308a3c7251d75518fe5505b8076f09d3b830279e5dd6",
+    "outcomeSignature": "5a25c858dc5208b1de85fc80476f2adff8ab94ba81d270dd5a8f240bcce63c92",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L4-L4",
+    "inputSha256": "41e1005432876ca7362edbc03b2b93562927b6e42a084e2717d158ffa4440391",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
+    "reason": "Intentional typed-validation boundary: both adapters reject this HEALTHCHECK, as does upstream's typed instruction layer, while upstream's low-level AST parser accepts it."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L5-L6",
+    "inputSha256": "e02f84f1766707d6992c1577cb56c7787bc3cbf40bb198d77e32510bd25c9e71",
+    "outcomeSignature": "b5dcb8469cfa5521ec5910adace6a6008bff98096a6ded27ac30002a3ed40de7",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L7-L7",
+    "inputSha256": "dbf82270036f22708bc81b35a2c6644ac0c911414414de5cdee3a17fc9d59b18",
+    "outcomeSignature": "fad8d972647c557952bd58d6ec468bfa6ddb32597d795e7139d08a4e7116e0c9",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
+    "reason": "Empty HEALTHCHECK CMD crashes C# rather than rejecting normally. Lean and upstream typed instructions reject it, although the upstream low-level parser accepts it."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L8-L8",
+    "inputSha256": "0a07a8adfd8b688e529f18adb8169c0bb19cbf95df479d1f07297845fe29d90f",
+    "outcomeSignature": "ea3c5ff3b51c661e3f3bf7cd4e9132d5db8206381b8dcf13264dc6e196af8a0e",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L10-L10",
+    "inputSha256": "9cbeeafced4c21edc46330de5f02b58c8dc82bd7f58baae26dcdd820818a33a0",
+    "outcomeSignature": "9bcf1f03d6e6fb09106942c49244bff8d384945b1cc05a7be45f0650f753f7dd",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L3-L3",
+    "inputSha256": "c3d52102d24a65962c73a555484eeebeb9b8ddd3d004a5e5c44c095c0ce24b19",
+    "outcomeSignature": "502d722ea7e190e0e71d831f56967e3018368c1f1fb1af2ec12001dee019130c",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L4-L4",
+    "inputSha256": "098ed4ec40950bd05ae3077e25f1c199a523016bfa72e2e2c72418bad42379ef",
+    "outcomeSignature": "04c7fad9a214897e485e65f0be176d277dfbc072ff5f6486a07ef2bff71a56eb",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L5-L5",
+    "inputSha256": "a5d8605eb231edf6216e9cb689f0fa7165a0160f7bf9b78a24a656e2caaf8eb0",
+    "outcomeSignature": "3e4ab410313789f2a9c68924c8c4495c5d9b7d4856a27b40a087c8fba57f2ac6",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L6-L6",
+    "inputSha256": "76e53d2d020c39be6e6ee3fb28729c532608223ea4a8ccb0f061ff42469af9d7",
+    "outcomeSignature": "69e97315660e7708fdd84cbd088cce801e96c3a9258e718ec440ed436076f3f0",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string-double/Dockerfile#L1-L1",
+    "inputSha256": "39def3f508e20ca52d9927dfeb48626fb69fb4eff0794b45b6dcb18d9b3529d3",
+    "outcomeSignature": "87aa57c4c892c52ecfe11c86754d8ca507dc94aa3a714190681d8b501a366d67",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-json-inside-string/Dockerfile#L1-L1",
+    "inputSha256": "6835d9a4a0a0cffda01b0b122a6c44a2a829d7efdabecea399aca725b647041f",
+    "outcomeSignature": "f098b20e87834893ddd6a41170a16ca8842ffb666e300590bcc5b325b4258e62",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-single-quotes/Dockerfile#L1-L1",
+    "inputSha256": "c9e2f4fdce5db7bad55aa4bb4f9755d8a9bf73e198f7216b3a447e30a8ee83ef",
+    "outcomeSignature": "929a4cb5a4254667200b77594a4942a4ea2cc89b2754de766abf5b2d9f4e51dd",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
+    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-bracket/Dockerfile#L1-L1",
+    "inputSha256": "7d5ab8e482aa425c7ff1eef1d924adf4c210d1453dbed6c4a1ff0f80fbc40258",
+    "outcomeSignature": "50c81f264676a8d915d273972e88f00d14e3847810468a0e7b7672f4a01e75ae",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
+    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-string/Dockerfile#L1-L1",
+    "inputSha256": "ae23e529393cf7111bd1de55a10a90d0769e1563c407593824525f476796f086",
+    "outcomeSignature": "4790711c4493a6cd27f5204e748266f4600468b1fff00938793cfd042ca22db6",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
+    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L2-L2",
+    "inputSha256": "e9eeb3495124ef559eccf7b7591ff0fd239e6680a3834e03a188482e64de50b1",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L4-L4",
+    "inputSha256": "4583c6f7b656d3a0dda97025881886caf396f9dc2f6bc18d2a0aedd98200f66e",
+    "outcomeSignature": "c4e9b8bba4465153094ba98edc01c38ed8a6cd9b21a69bf5fe8befc73f3976cd",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L5-L5",
+    "inputSha256": "a0dd1787433dad4da4158718c36058e22b3e3c701a2dc8fe3f337e47730f2b8e",
+    "outcomeSignature": "ce1f465f55a490a13d3990439943b4a5c199cc8551de3e8c4bcba73de60bb563",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L14-L14",
+    "inputSha256": "4713c768620696836a3a000c8ac2e2eb832c74e451ab4419a0c7bf71732ff744",
+    "outcomeSignature": "f000f151f7ccbfeb0a5d835607cbf39a08534fea48a1e596ef56dc2a394cf718",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L15-L15",
+    "inputSha256": "48c97747975b615d8c1f05fc5e98e1e604fc0c3fadec2403a79c8ff49de8cc15",
+    "outcomeSignature": "2dcab1f0b69cbffef6f43f4295f83d09fa82ef54b104b8b3eb6e90acf614d1cb",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L16-L18",
+    "inputSha256": "dae7c124e6973a7ec1f7c75b1f6ac11d255f6aabb237f24f263e14978c5b09ce",
+    "outcomeSignature": "142759d81e20a4999170966a8b10148b83b1e9db3cc92f6fc024cb125adad808",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L19-L20",
+    "inputSha256": "0dce6240453a20b4716982d0ca821dd93895aa6491953e8c9db6c48e8e99fa24",
+    "outcomeSignature": "553f95460a58bd9a3d8de0e3956056f701d69567e8e3e0ae62feda686d7ec5d4",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L21-L21",
+    "inputSha256": "5c76fefd62889a8830cb16ca4804425cb58bfea9612e50aeb9cd1dbb23b32a0e",
+    "outcomeSignature": "9217c234da2ee010c942a6cd89b2c77ce81e6a1579b6f5aa9509037ade4a174a",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L29-L29",
+    "inputSha256": "a6fba4e86743893c7e6d24b956634c88055258c609ad055777477ec9e22885d5",
+    "outcomeSignature": "226bfe9aee4e37391f603bd6e1db2fa5154afecb4084000ec8fc1d922645d7fe",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L3-L3",
+    "inputSha256": "6e7781e576ae3f30c48550401848b31f0e294c115604b769215e90ed1fd7ac05",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L30-L30",
+    "inputSha256": "270c788704e51a5e2f9b8fb8aae21af3eea73f3968d6efa7992cc671c67db451",
+    "outcomeSignature": "12f6d424228391861297b77ead131f35707a0a4d91cfb3eac3a5aa60f72a4278",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L31-L31",
+    "inputSha256": "66e00bda211cf8ba17ac9ac5ac3101124d83642dd374a830fe8544ef7d97083d",
+    "outcomeSignature": "54967c589c86f0a261b4951a45a6bc28ff217c17c2bf204661998287adba87ff",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L32-L32",
+    "inputSha256": "fb91bb5830cb7be9dfda7e7b9efe1077cfcc4e88903dfaebea4decaa087da16b",
+    "outcomeSignature": "1435cef306986088e1b8e2a10e562c515c1d3cabed4a662ab3d68fb37fa61f15",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L6-L6",
+    "inputSha256": "dca231a88ffeea3e8744c1a9d8f2e903b16a092ec0b543fde1898e2a307a352d",
+    "outcomeSignature": "8a3f605d38c122fcfcd38b50e65d7d265b187d530f985c846dbec9d28f72ab6b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L11-L11",
+    "inputSha256": "41e2eea6f2ec6ebcb8223a1a9ec94010a3ba6fda46582f2ec12ea2416fc80340",
+    "outcomeSignature": "8853a345e9ebd6c50b8f84bb48d2e4b7f9876f5effee5dbbb8f0b02b57c80b49",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L12-L12",
+    "inputSha256": "cf95b60210adbcd5ee38034296dfdbd2a9282d84474431bd1e9fc13ae0609d66",
+    "outcomeSignature": "8f62f8b86c7bf5698772c6d85a6a7933d15abc3b3ea62618f170b85564b74f69",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L13-L13",
+    "inputSha256": "6004a89b89e896864e5512f5b1b6f6bcf403452fd7fbf239e8061d96af6a8eee",
+    "outcomeSignature": "87956c0156a3a0d2620454061e0a53f1233ba2683370b9fce7623f23242fb115",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L14-L14",
+    "inputSha256": "458394434b94252f22d89efdc8bcf365a5f959d75bdae473e02d08171cc2e264",
+    "outcomeSignature": "429232cc8eddf7d1cd772d0fbe1253620295308d8767a767e8f70751be4350b1",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L16-L16",
+    "inputSha256": "650fef94e12568a134cbb7bf934aa34159758c73870cb1792e9761884a0e9a1a",
+    "outcomeSignature": "89f9e404b1b3ba18547db45efcffb1a3e47c01dd470f8c5919050998b982af5c",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L3-L3",
+    "inputSha256": "d40d5bb94d342603b46f5b3769dae186b680734d4ae972a0c93dc0780540528f",
+    "outcomeSignature": "68bcbc27894ae0ca1b04a1a7d51ce7cd363a016fb879e6d3e60e8e373e47d55a",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L3-L3",
+    "inputSha256": "c1c2d351cdcdd6a18a3441bd945f8b4d25f875103b8aee7c1cde1916ea3f4387",
+    "outcomeSignature": "569d55b213cc4e5c4dabda318fa39787a8c843c671be116053941577d7023c7a",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L7-L7",
+    "inputSha256": "80745574b4491e4aaa10302c17abf0984f629fc3b09ed44a18802f63e1e22619",
+    "outcomeSignature": "5f5b2c90f6bc8d8565c4d81efc9eb087cb72028f70d6c1dd7e114cb6fe4a9048",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L2-L2",
+    "inputSha256": "5618d98d3d266dd6f5746eb1589695b4666492f489ddd2f022d54af94c3b1469",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L4-L4",
+    "inputSha256": "ac59c177912c345df97c0fbb6980ebe30f8b997a670bb1e8d02a435c135399e1",
+    "outcomeSignature": "9c452fd70da5ee54f2195782f23553e154563519cdc7b6834343cec1ccaecb3a",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L5-L5",
+    "inputSha256": "d7f3d92e96463a36d5e2d19692fc7cf6cd44e06162d63616509dfba2f63fdea0",
+    "outcomeSignature": "6e0274e4dc2bf8408b988c8f3cecc29f5b69d9f5af7e0b9fdbf2eb71b15bedbf",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L7-L7",
+    "inputSha256": "0a1a1b8f626f9a3383a0fdc1fc31edfe77d5e9bcb44b9c59a91839ae90ba83d1",
+    "outcomeSignature": "dc28957822d495d14ca5b4c241446a9e2dc44af2b140d976a7ff293552abd2f0",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L8-L8",
+    "inputSha256": "ba5a42335cb1759f89f1f831c202bdf27506eed0fd9b18204d425f5e73c7d859",
+    "outcomeSignature": "289aa98d40bddbdbd67e2b99847fc1d961ad62e7f6358a55fcd26e5d0908872e",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L9-L9",
+    "inputSha256": "e0b639858a1f0ab2a788c3902e9c71786b9a848e9c14e10c21f6b39b54a4bc08",
+    "outcomeSignature": "a30478de5ba00a0c346c55c0b26c370da576d9e613ec7c6f506e345963e2520a",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L10-L10",
+    "inputSha256": "a03aa5de98002b128de884e71a18d8421b694b8344df08de61eda17e7e23642c",
+    "outcomeSignature": "d945bdab3cba25d217b7bbb6f085e4f27bc87f70294112c45fa9c54930f15c4b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L12-L12",
+    "inputSha256": "37c81633243cac37eb556da3effb9a4b929a4f274084c42583ef83de67014960",
+    "outcomeSignature": "8087027dc168ceabc7365fc52340bb581cc77a30e7005b3e9813ec62e6a5f3cf",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L13-L13",
+    "inputSha256": "eb37554dfab26a9bcb7b2bc88f0893a51800b8be8a7a7fcc0e77459833b18fa3",
+    "outcomeSignature": "779908b2aef46d690468e5d995f2c9fbca821c57140ed83f07101036da6f941b",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L14-L14",
+    "inputSha256": "0208d73e0d09249f16cea6c63cdc046e47b1d33fee53d69a3ebe873ec44c4db1",
+    "outcomeSignature": "49574a6488d10f1b3e29b7656cfd95ccf40caed95ba2f09ab6ec3aba8e958578",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L18-L18",
+    "inputSha256": "f24dd00afcbcb02482ac2391fda007d665b2ff74b7868735eb2822d56fb28752",
+    "outcomeSignature": "a300ce292350fb06ff9aba6e896489d260e84661a7b5b41b40f6e52af5b9878d",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L20-L20",
+    "inputSha256": "17cf8885c14d311d02b80faff621b2ee333eea8c8fd69e208dec3995eea3d196",
+    "outcomeSignature": "1696d69dfeb2989f0e6f036a77bc6d4508ca019a21f83d73f9157f13fadcdf7e",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L21-L21",
+    "inputSha256": "32874093df2d8f99fd518c4c6e2e1f5fa99cec2448c35ab94fa3c9f18818b7cc",
+    "outcomeSignature": "f0c6518e3693150a1e7fd487c33865c2fc472d03130ff10505267e1ed4b14054",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L23-L23",
+    "inputSha256": "2c1d905f97f97a91562e9e83b926c1a8b318bfc4dd42030935185550925e00c5",
+    "outcomeSignature": "b967ba8defe2523f491be65d7056faa6ac9832b9068166d540a751a0c8fd8fa1",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L8-L8",
+    "inputSha256": "e1ba71ed0b0093d1db34a05fe261f49b7836f35f9163aadda86f616001453b00",
+    "outcomeSignature": "c23278eff431a4bf19036c730fa0595a3b9eebe4a63f9e30f72e75d192980b43",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L9-L9",
+    "inputSha256": "348b6bca3ef3545a42275abe7bfe2d648715980b4a48497e83bade0ab3758567",
+    "outcomeSignature": "20402e9a00a1a9b3b3aec786e5bbf9122b8442a781b17c895264e2ef01af026d",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L12-L14",
+    "inputSha256": "16a78c2b5d3fde0de0c8fbe7eba80e01fff15a104acef1332613e36909d99290",
+    "outcomeSignature": "d8e15cc437c7f52c3590394b5b0d7e74c48969e0b3b79624a274c43e181fdf39",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean's continued ENV value tokenization differs from C# and does not retain the complete continued assignment structure, including the multiline quoted-value case."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L15-L17",
+    "inputSha256": "9795d4ec228518acdd1fac88c29cf75567716fc471e6d7b270aa389bb9877d07",
+    "outcomeSignature": "49b953747f90b9f788c0134038a8fe043b15ba8ab28f4fbd4280ac43912c1880",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
+    "reason": "Lean's continued ENV value tokenization differs from C# and does not retain the complete continued assignment structure, including the multiline quoted-value case."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L3-L3",
+    "inputSha256": "d38089b4e96f8374bd806e576714837f5ca1e8d219b559dd723bf53714f4437a",
+    "outcomeSignature": "81cf1558bb675e501130eb69ccbe860cf24ab9eea6b856af90c08017f45b2133",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L7-L7",
+    "inputSha256": "458394434b94252f22d89efdc8bcf365a5f959d75bdae473e02d08171cc2e264",
+    "outcomeSignature": "429232cc8eddf7d1cd772d0fbe1253620295308d8767a767e8f70751be4350b1",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L9-L9",
+    "inputSha256": "74ac5467a1620fa61787b3647de174da688b7fd1df16e299d5ed47ffca142d4a",
+    "outcomeSignature": "5a61e7732737d2f540b7276198e6b00eef6c7c397b4984a9bb8ec6480d4a43ae",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L2-L2",
+    "inputSha256": "5618d98d3d266dd6f5746eb1589695b4666492f489ddd2f022d54af94c3b1469",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
+    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
+  },
+  {
+    "id": "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L4-L4",
+    "inputSha256": "fad12e17fc9d633dbdd77a55487696339530f87078ba1353216e6362f046d23b",
+    "outcomeSignature": "3dd5e0054ea8f7b8b824267a3d7a6b8b65eec1a78109d7445dcdbbb5eade799d",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
+  }
+]

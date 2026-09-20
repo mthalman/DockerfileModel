@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L39-L39",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIG1rZGlyIC1wIC9ldGMvc3YvbmFnaW9zICYmIG1rZGlyIC1wIC9ldGMvc3YvYXBhY2hlICYmIHJtIC1yZiAvZXRjL3N2L2dldHR5LTUgJiYgbWtkaXIgLXAgL2V0Yy9zdi9wb3N0Zml4Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile",
+  "startLine": 39,
+  "endLine": 39,
+  "inputSha256": "3209c2855ed54168ee4d28566d5df01060972db37e0eba23a9774d1673e8ac1d"
+}

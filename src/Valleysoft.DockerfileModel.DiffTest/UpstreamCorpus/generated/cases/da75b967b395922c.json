@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L8-L8",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIC0tZG9pdCBbICJhIiwgImIiIF0K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/flags/Dockerfile",
+  "startLine": 8,
+  "endLine": 8,
+  "inputSha256": "976560a2aeabcd6d70ea4b1256b5b27f68cf97200f139ddb1e3f4686e6e69e92"
+}

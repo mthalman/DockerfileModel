@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/mail/Dockerfile#L7-L7",
+  "instructionType": "ADD",
+  "inputBase64": "QUREIG11dHQgLy5tdXR0Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/mail/Dockerfile",
+  "startLine": 7,
+  "endLine": 7,
+  "inputSha256": "5569686f213169efcc10575313ef9d29bba830f55f9a700c529c95b28a2b9d4d"
+}

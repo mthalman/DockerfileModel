@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L5-L5",
+  "instructionType": "ENTRYPOINT",
+  "inputBase64": "RU5UUllQT0lOVCBbIi91c3IvYmluL2NvbnN1bCIsICJhZ2VudCIsICItc2VydmVyIiwgIi1kYXRhLWRpcj0vY29uc3VsIiwgIi1jbGllbnQ9MC4wLjAuMCIsICItdWktZGlyPS93ZWJ1aSJdCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile",
+  "startLine": 5,
+  "endLine": 5,
+  "inputSha256": "46b1150d59c40a7d0416babce0da47a30c788115a7e7fb736d299144d1238731"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L12-L12",
+  "instructionType": "EXPOSE",
+  "inputBase64": "RVhQT1NFIDgwODMK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile",
+  "startLine": 12,
+  "endLine": 12,
+  "inputSha256": "9b3d9f66d593b153493a4896c8e5c6074abacbae2ca2365c188a0f434741f49e"
+}

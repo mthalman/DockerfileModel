@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L6-L6",
+  "instructionType": "FROM",
+  "inputBase64": "RlJPTSBpbWFnZQo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile",
+  "startLine": 6,
+  "endLine": 6,
+  "inputSha256": "edb8e0004dbea86e0f5917a7796a1acb90431c2f759e15cb8be474fec22689a3"
+}

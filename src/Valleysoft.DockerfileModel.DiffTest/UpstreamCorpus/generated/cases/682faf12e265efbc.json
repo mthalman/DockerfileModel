@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L2-L2",
+  "instructionType": "LABEL",
+  "inputBase64": "TEFCRUwJbWFpbnRhaW5lcglTZW9uZ3llb2wgTGltIDxzZW9uZ3llb2wzN0BnbWFpbC5jb20+Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile",
+  "startLine": 2,
+  "endLine": 2,
+  "inputSha256": "33668bd31c692edf2fcaa676105a81c55e4ae5d4df74aacd9d6e7919cbd37f25"
+}

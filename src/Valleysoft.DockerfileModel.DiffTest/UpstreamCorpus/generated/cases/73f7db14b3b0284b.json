@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L11-L11",
+  "instructionType": "HEALTHCHECK",
+  "inputBase64": "SEVBTFRIQ0hFQ0sgLS1zdGFydC1wZXJpb2Q9MHMgLS1zdGFydC1pbnRlcnZhbD0wcyAtLWludGVydmFsPTVzIC0tdGltZW91dD0wcyAtLXJldHJpZXM9MCBDTUQgWyJmb28iXQo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/health/Dockerfile",
+  "startLine": 11,
+  "endLine": 11,
+  "inputSha256": "97ea12a2ad302a76a31ea055ed73165658e63037b8367b6d0b3b828980417777"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L14-L14",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFsgIlwvdXNyXFxcIi9iaW4vem5jIiwgIi1mIiwgIi1yIiBdCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile",
+  "startLine": 14,
+  "endLine": 14,
+  "inputSha256": "9c8c5961d93261c402ca426cd593b3114c6c9932a034fc4d4b7dd469d9283a3d"
+}

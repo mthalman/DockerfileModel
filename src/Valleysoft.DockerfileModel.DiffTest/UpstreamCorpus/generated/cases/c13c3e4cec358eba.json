@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L3-L3",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGFwdC1nZXQgdXBkYXRlICYmIGFwdC1nZXQgaW5zdGFsbCBsaWJjYXAyLWJpbiBtdW1ibGUtc2VydmVyIC15Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile",
+  "startLine": 3,
+  "endLine": 3,
+  "inputSha256": "c1c2d351cdcdd6a18a3441bd945f8b4d25f875103b8aee7c1cde1916ea3f4387"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L19-L19",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGNkIC90bXAgJiYgdGFyIC16eHZmIG5hZ2lvcy50YXIuZ3ogJiYgY2QgbmFnaW9zICAmJiAuL2NvbmZpZ3VyZSAtLXByZWZpeD0ke05BR0lPU19IT01FfSAtLWV4ZWMtcHJlZml4PSR7TkFHSU9TX0hPTUV9IC0tZW5hYmxlLWV2ZW50LWJyb2tlciAtLXdpdGgtbmFnaW9zLWNvbW1hbmQtdXNlcj0ke05BR0lPU19DTURVU0VSfSAtLXdpdGgtY29tbWFuZC1ncm91cD0ke05BR0lPU19DTURHUk9VUH0gLS13aXRoLW5hZ2lvcy11c2VyPSR7TkFHSU9TX1VTRVJ9IC0td2l0aC1uYWdpb3MtZ3JvdXA9JHtOQUdJT1NfR1JPVVB9ICYmIG1ha2UgYWxsICYmIG1ha2UgaW5zdGFsbCAmJiBtYWtlIGluc3RhbGwtY29uZmlnICYmIG1ha2UgaW5zdGFsbC1jb21tYW5kbW9kZSAmJiBjcCBzYW1wbGUtY29uZmlnL2h0dHBkLmNvbmYgL2V0Yy9hcGFjaGUyL2NvbmYuZC9uYWdpb3MuY29uZgo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile",
+  "startLine": 19,
+  "endLine": 19,
+  "inputSha256": "19085a8fa3831bdfeee7fef76fa2ad2834a69d3130b9a4a12d3e2465abf2d80a"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L4-L4",
+  "instructionType": "LABEL",
+  "inputBase64": "TEFCRUwgbWFpbnRhaW5lciBmb29AYmFyLmNvbQo=",
+  "escapeCharacter": "`",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/escape/Dockerfile",
+  "startLine": 4,
+  "endLine": 4,
+  "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0"
+}

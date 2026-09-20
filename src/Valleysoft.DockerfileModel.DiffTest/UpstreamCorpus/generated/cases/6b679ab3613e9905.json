@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L30-L30",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIGVjaG8gInRlc3QiCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile",
+  "startLine": 30,
+  "endLine": 30,
+  "inputSha256": "270c788704e51a5e2f9b8fb8aae21af3eea73f3968d6efa7992cc671c67db451"
+}
