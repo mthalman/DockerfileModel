@@ -32,6 +32,14 @@ internal static class VariableParsers
         };
 
     /// <summary>
+    /// Parses a literal without treating a leading quote as a wrapper. This handles syntax where quotes are part of a larger raw value.
+    /// </summary>
+    internal static Parser<LiteralToken> UnquotedLiteralWithVariables(
+        char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed) =>
+        from tokens in UnquotedLiteralWithVariablesTokens(escapeChar, excludedChars, whitespaceMode)
+        select new LiteralToken(tokens, canContainVariables: true, escapeChar);
+
+    /// <summary>
     /// Parses an aggregate containing literals. This handles any variable references.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
@@ -61,19 +69,31 @@ internal static class VariableParsers
                     .Flatten()
                 select tokens,
             (char escapeChar, IEnumerable<char> excludedChars) =>
-                from tokens in ValueOrVariableRef(
-                    escapeChar,
-                    (char escapeChar, IEnumerable<char> additionalExcludedChars) =>
-                        whitespaceMode == WhitespaceMode.Allowed ?
-                            StringParsers.LiteralString(escapeChar, excludedChars.Union(additionalExcludedChars)).Or(BasicParsers.Whitespace().Or(BasicParsers.LineContinuations(escapeChar))).Many().Flatten() :
-                            StringParsers.LiteralString(escapeChar, excludedChars.Union(additionalExcludedChars)),
-                    excludedChars)
-                    .Many()
-                    .Flatten()
-                where tokens.Any()
-                select TokenHelper.CollapseStringTokens(tokens),
+                UnquotedLiteralWithVariablesTokens(escapeChar, excludedChars, whitespaceMode),
             escapeChar,
             excludedChars);
+    }
+
+    private static Parser<IEnumerable<Token>> UnquotedLiteralWithVariablesTokens(
+        char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed)
+    {
+        if (excludedChars is null)
+        {
+            excludedChars = Enumerable.Empty<char>();
+        }
+
+        return
+            from tokens in ValueOrVariableRef(
+                escapeChar,
+                (char escapeChar, IEnumerable<char> additionalExcludedChars) =>
+                    whitespaceMode == WhitespaceMode.Allowed ?
+                        StringParsers.LiteralString(escapeChar, excludedChars.Union(additionalExcludedChars)).Or(BasicParsers.Whitespace().Or(BasicParsers.LineContinuations(escapeChar))).Many().Flatten() :
+                        StringParsers.LiteralString(escapeChar, excludedChars.Union(additionalExcludedChars)),
+                excludedChars)
+                .Many()
+                .Flatten()
+            where tokens.Any()
+            select TokenHelper.CollapseStringTokens(tokens);
     }
 
     /// <summary>
