@@ -222,6 +222,16 @@ public class EnvInstructionTests
     }
 
     [Fact]
+    public void EnvVarWithEscapedQuoteAndVariableModifierLiteralBrace_ResolvesVariable()
+    {
+        EnvInstruction result = EnvInstruction.Parse("ENV foo=\"a\\\" ${VAR:-a{b}\"");
+        LiteralToken valueToken = Assert.IsAssignableFrom<LiteralToken>(result.VariableTokens[0].ValueToken);
+
+        Assert.Contains(valueToken.Tokens, token => token is VariableRefToken variableRef && variableRef.VariableName == "VAR");
+        Assert.Equal("ENV foo=\"a\\\" ok\"", result.ResolveVariables('\\', new Dictionary<string, string?> { ["VAR"] = "ok" }));
+    }
+
+    [Fact]
     public void EnvVarWithEscapedQuoteAndPostQuoteSuffix_RoundTrips()
     {
         string text = "ENV foo=\"a\\\"b\"suffix";

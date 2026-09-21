@@ -251,7 +251,6 @@ public class EnvInstruction : Instruction
 
         if (value[start + 1] == '{')
         {
-            int depth = 1;
             for (int end = start + 2; end < value.Length; end++)
             {
                 if (value[end] == escapeChar && end + 1 < value.Length)
@@ -260,23 +259,13 @@ public class EnvInstruction : Instruction
                     continue;
                 }
 
-                if (value[end] == '{')
+                if (value[end] == '}')
                 {
-                    depth++;
-                }
-                else if (value[end] == '}')
-                {
-                    depth--;
-                    if (depth == 0)
+                    string candidate = value.Substring(start, end - start + 1);
+                    if (TryParseVariableRef(candidate, escapeChar, out variableRef))
                     {
-                        string candidate = value.Substring(start, end - start + 1);
-                        if (TryParseVariableRef(candidate, escapeChar, out variableRef))
-                        {
-                            consumed = candidate.Length;
-                            return true;
-                        }
-
-                        return false;
+                        consumed = candidate.Length;
+                        return true;
                     }
                 }
             }
