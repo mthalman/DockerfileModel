@@ -2178,6 +2178,17 @@ def testLabelLegacyMultiWordValue : IO Unit := do
   | none =>
     throw (IO.Error.userError "Parse failed: LABEL legacy multi-word value should parse")
 
+open DockerfileModel.Parser.Instructions.Label in
+/-- Test: LABEL key "foo" bar — legacy value keeps quoted and unquoted remainder -/
+def testLabelLegacyMixedQuotedValue : IO Unit := do
+  IO.println "Label: legacy mixed quoted value"
+  match parseLabel "LABEL key \"foo\" bar" with
+  | some inst =>
+    assertEqual (Token.toString inst.token) "LABEL key \"foo\" bar"
+      "label legacy mixed quoted round-trip"
+  | none =>
+    throw (IO.Error.userError "Parse failed: LABEL legacy mixed quoted value should parse")
+
 -- ============================================================================
 -- RUN Instruction Tests
 -- ============================================================================
@@ -3217,6 +3228,7 @@ def runParserTests_PhaseC_Group2 : IO Unit := do
   testLabelHyphenatedKey
   testLabelVariable
   testLabelLegacyMultiWordValue
+  testLabelLegacyMixedQuotedValue
   testLabelEmptyValue
   testLabelLowercase
   IO.println ""

@@ -84,7 +84,7 @@ def labelLegacyKeyValuePairParser (escapeChar : Char) : Parser Token := do
   let key ← labelKeyParser escapeChar
   let ws ← whitespace
   if ws.isEmpty then Parser.fail "expected whitespace before legacy LABEL value"
-  let value ← literalWithVariables escapeChar [] (whitespaceMode := .allowed)
+  let value ← literalWithVariablesUnquoted escapeChar [] (whitespaceMode := .allowed)
   Parser.pure (Token.mkKeyValue (concatTokens [[key], ws, [value]]))
 
 /-- Parse legacy LABEL format: one or more Key Value pairs. -/
