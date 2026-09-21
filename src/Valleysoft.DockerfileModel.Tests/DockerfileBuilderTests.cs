@@ -31,6 +31,7 @@ public class DockerfileBuilderTests
     public void Constructor()
     {
         DockerfileBuilder builder = new();
+        Assert.Equal(Environment.NewLine, builder.DefaultNewLine);
         Assert.Equal(String.Empty, builder.Dockerfile.ToString());
         Assert.Equal(String.Empty, builder.ToString());
     }
@@ -419,12 +420,15 @@ public class DockerfileBuilderTests
         Assert.Equal(expectedResult, result);
     }
 
-    [Fact]
-    public void DefaultNewLine()
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void DefaultNewLine(string newline)
     {
         DockerfileBuilder builder = new()
         {
-            DefaultNewLine = "\n"
+            DefaultNewLine = newline,
+            EscapeChar = '`'
         };
 
         string result = builder
@@ -433,39 +437,93 @@ public class DockerfileBuilderTests
             .ToString();
 
         string expectedResult =
-            "FROM scratch" + "\n" +
-            "\n";
+            $"# escape=`{newline}FROM scratch{newline}{newline}";
 
         Assert.Equal(expectedResult, result);
-
-        builder = new DockerfileBuilder
-        {
-            DefaultNewLine = "\r\n"
-        };
-
-        result = builder
-            .FromInstruction("scratch")
-            .NewLine()
-            .ToString();
-
-        expectedResult =
-            "FROM scratch" + "\r\n" +
-            "\r\n";
-
-        Assert.Equal(expectedResult, result);
+        Assert.Equal(expectedResult, Dockerfile.Parse(result).ToString());
     }
 
-    [Fact]
-    public void DisableAutoNewLines()
+    [Theory]
+    [InlineData("\n", '\\')]
+    [InlineData("\r\n", '\\')]
+    [InlineData("\n", '`')]
+    [InlineData("\r\n", '`')]
+    public void CallbacksInheritDefaultNewLine(string newline, char escapeChar)
     {
         DockerfileBuilder builder = new()
         {
-                DisableAutoNewLines = true
+            DefaultNewLine = newline,
+            EscapeChar = escapeChar
+        };
+
+        string result = builder
+            .Comment(tokens =>
+            {
+                Assert.Equal(newline, tokens.DefaultNewLine);
+                tokens.Symbol('#').String(" comment").NewLine();
+            })
+            .FromInstruction(tokens =>
+            {
+                Assert.Equal(newline, tokens.DefaultNewLine);
+                tokens.Keyword("FROM").Whitespace(" ").LineContinuation()
+                    .Whitespace("  ").ImageName("scratch");
+            })
+            .ToString();
+
+        string directive = escapeChar == '`' ? $"# escape=`{newline}" : "";
+        string expected = directive + $"# comment{newline}{newline}FROM {escapeChar}{newline}  scratch{newline}";
+        Assert.Equal(expected, result);
+        Dockerfile parsed = Dockerfile.Parse(result);
+        Assert.Equal(expected, parsed.ToString());
+        Assert.Equal("scratch", Assert.Single(parsed.Items.OfType<FromInstruction>()).ImageName);
+    }
+
+    [Theory]
+    [InlineData("\n", "\r\n")]
+    [InlineData("\r\n", "\n")]
+    public void AppendingUsesConfiguredNewLineWithoutChangingExistingText(string existingNewline, string newline)
+    {
+        string original = $"FROM scratch{existingNewline}# retained{existingNewline}";
+        DockerfileBuilder builder = new(Dockerfile.Parse(original)) { DefaultNewLine = newline };
+
+        builder.RunInstruction("echo added");
+
+        string expected = original + $"RUN echo added{newline}";
+        Assert.Equal(expected, builder.ToString());
+        Assert.Equal(expected, Dockerfile.Parse(builder.ToString()).ToString());
+    }
+
+    [Fact]
+    public void WrappingDocumentDefaultsToHostNewLine()
+    {
+        string existingNewline = Environment.NewLine == "\n" ? "\r\n" : "\n";
+        string original = $"FROM scratch{existingNewline}";
+        DockerfileBuilder builder = new(Dockerfile.Parse(original));
+
+        Assert.Equal(Environment.NewLine, builder.DefaultNewLine);
+        builder.NewLine().RunInstruction("echo added");
+
+        string expected = original + Environment.NewLine + "RUN echo added" + Environment.NewLine;
+        Assert.Equal(expected, builder.ToString());
+        Assert.Equal(expected, Dockerfile.Parse(builder.ToString()).ToString());
+    }
+
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void DisableAutoNewLines(string newline)
+    {
+        DockerfileBuilder builder = new()
+        {
+            DefaultNewLine = newline,
+            DisableAutoNewLines = true
         };
 
         string result = builder.FromInstruction("scratch").ToString();
         string expectedResult = "FROM scratch";
         Assert.Equal(expectedResult, result);
+        builder.NewLine().RunInstruction("echo added");
+        Assert.Equal($"FROM scratch{newline}RUN echo added", builder.ToString());
     }
 
     [Fact]

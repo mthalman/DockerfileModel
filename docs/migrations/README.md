@@ -8,8 +8,3 @@ may appear here before publication.
 ## Releases
 
 - [Upgrade to 3.0.0](3.0.0/README.md)
-
-## Upcoming topics
-
-- [Collection editing](../structural-editing-migration.md): recompile for editable collection
-  getter types and migrate collection-mutation workarounds to validated operations.

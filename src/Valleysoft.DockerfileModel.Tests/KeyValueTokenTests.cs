@@ -1,4 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+﻿using Valleysoft.DockerfileModel.Parsing;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -16,7 +17,7 @@ public class KeyValueTokenTests
             KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.Parse(
                 scenario.Text,
                 KeywordToken.GetParser(scenario.Key, scenario.EscapeChar),
-                ParseHelper.LiteralWithVariables(scenario.EscapeChar),
+                VariableParsers.LiteralWithVariables(scenario.EscapeChar),
                 separator: KeyValueToken<KeywordToken, LiteralToken>.DefaultSeparator,
                 escapeChar: scenario.EscapeChar);
             Assert.Equal(scenario.Text, result.ToString());
@@ -78,7 +79,7 @@ public class KeyValueTokenTests
         KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.Parse(
             "--key=val",
             KeywordToken.GetParser("key"),
-            ParseHelper.LiteralWithVariables(Dockerfile.DefaultEscapeChar),
+            VariableParsers.LiteralWithVariables(Dockerfile.DefaultEscapeChar),
             separator: KeyValueToken<KeywordToken, LiteralToken>.DefaultSeparator,
             escapeChar: Dockerfile.DefaultEscapeChar,
             excludeLeadingWhitespaceInValue: false,
@@ -100,7 +101,7 @@ public class KeyValueTokenTests
     {
         KeyValueToken<KeywordToken, LiteralToken> result = KeyValueToken<KeywordToken, LiteralToken>.GetParser(
             KeywordToken.GetParser("key"),
-            ParseHelper.LiteralWithVariables(Dockerfile.DefaultEscapeChar),
+            VariableParsers.LiteralWithVariables(Dockerfile.DefaultEscapeChar),
             separator: KeyValueToken<KeywordToken, LiteralToken>.DefaultSeparator,
             escapeChar: Dockerfile.DefaultEscapeChar,
             excludeLeadingWhitespaceInValue: false,

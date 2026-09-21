@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-using static Valleysoft.DockerfileModel.ParseHelper;
+using static Valleysoft.DockerfileModel.Parsing.StringParsers;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 

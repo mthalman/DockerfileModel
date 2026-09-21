@@ -73,7 +73,14 @@ Key supporting classes:
 - **DockerfileBuilder** — fluent API for constructing Dockerfiles programmatically.
 - **StagesView / Stage** — organizes a Dockerfile by multi-stage build stages (global ARGs + per-stage groupings).
 - **ImageName** — parses image references into registry, repository, tag, and digest components.
-- **ParseHelper** (`ParseHelper.cs`) — large internal helper containing Sprache parser definitions for all instruction formats.
+- **Parser modules** (`Parsing/`) — internal Sprache helpers grouped by grammar:
+  `BasicParsers` for trivia and primitives, `StringParsers` for quoting and
+  literals, `VariableParsers` for variable-aware literals, `InstructionParsers`
+  for argument framing, `CommandParsers` for shell/JSON forms, and
+  `HeredocParsers` for legacy heredoc scanning. `TokenSequences` handles shared
+  token composition. Instruction-specific grammar and flag/modifier parsing
+  remain in their instruction/token classes. Diagnostic heredocs remain in
+  `InstructionParseContext` and `ConstructReader`.
 
 Variable resolution: `Dockerfile.ResolveVariables()` resolves ARG references either globally or for a specific instruction. Non-mutating by default; pass `UpdateInline = true` to modify the model in place.
 
@@ -83,7 +90,10 @@ The Lean spec mirrors the C# token hierarchy and parser combinators. See [`lean/
 
 Key components:
 - **Token model** (`Token.lean`) — inductive type mirroring the C# `Token`/`AggregateToken`/`PrimitiveToken` hierarchy.
-- **Parser combinators** (`Parser/`) — monadic parsers translating `ParseHelper.cs` into Lean `do` notation. Per-instruction parsers in `Parser/Instructions/`.
+- **Parser combinators** (`Parser/`) — monadic parsers corresponding to the C#
+  `Parsing/` modules, with BuildKit-derived behavior. Per-instruction parsers
+  are in `Parser/Instructions/`. See the
+  [grammar correspondence table](lean/README.md#c-parser-module-correspondence).
 - **JSON serialization** (`Json.lean`) — canonical JSON output format shared with the C# differential test harness.
 - **Proofs** (`Proofs/`) — machine-checked theorems for token concatenation, round-trip fidelity, variable resolution semantics, and mutation isolation.
 - **Differential test CLI** (`Main.lean`) — reads Dockerfile text from stdin, outputs canonical JSON token tree.

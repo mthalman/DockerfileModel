@@ -362,6 +362,30 @@ constructing new options and a `CheckDirective`, then replacing the item.
 Unknown or malformed syntax is opaque: move, replace, or remove the whole
 construct rather than editing guessed operands.
 
+## Choose line endings for new content
+
+Parsing preserves LF (`"\n"`), CRLF (`"\r\n"`), mixed line endings, and the
+absence of a final newline. Edits preserve existing text outside the edited
+region. When document collection edits need a new separator, they infer its
+style from nearby structural boundaries, not raw heredoc payloads. With no
+existing boundary to infer from, they use LF.
+
+`DockerfileBuilder.DefaultNewLine` sets the default for automatic newlines,
+explicit `NewLine()` calls, and `TokenBuilder` instances created for callbacks,
+including nested callbacks. Set it to `"\n"` or `"\r\n"` to generate the same
+line endings on every host:
+
+```csharp
+DockerfileBuilder builder = new() { DefaultNewLine = "\r\n" };
+builder.FromInstruction("alpine").RunInstruction("echo hello");
+```
+
+Without configuration, both `DockerfileBuilder` and `TokenBuilder` use
+`Environment.NewLine`: CRLF on Windows and LF on Linux. Wrapping an existing
+document in a builder does not infer a new default from that document.
+Changing `DefaultNewLine` affects subsequently generated separators; it does
+not normalize existing text, supplied command strings, or heredoc payloads.
+
 ## Resume a builder after collection edits
 
 `DockerfileBuilder` shares its document and remains a raw construction API.

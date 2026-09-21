@@ -159,30 +159,86 @@ public class DocumentStructuralEditingTests
     /// <summary>
     /// Ensures inserted separators follow the edited region instead of the document's first newline.
     /// </summary>
-    /// <param name="firstNewline">The different newline style at the start of the document.</param>
+    /// <param name="firstNewline">The newline style at the start of the document.</param>
     /// <param name="localNewline">The newline style surrounding the insertion.</param>
+    /// <param name="finalNewline">Whether the original document has a final newline.</param>
     [Theory]
-    [InlineData("\n", "\r\n")]
-    [InlineData("\r\n", "\n")]
-    public void InsertionUsesNearbyDocumentNewlines(string firstNewline, string localNewline)
+    [InlineData("\n", "\n", false)]
+    [InlineData("\n", "\n", true)]
+    [InlineData("\r\n", "\r\n", false)]
+    [InlineData("\r\n", "\r\n", true)]
+    [InlineData("\n", "\r\n", false)]
+    [InlineData("\n", "\r\n", true)]
+    [InlineData("\r\n", "\n", false)]
+    [InlineData("\r\n", "\n", true)]
+    public void InsertionUsesNearbyDocumentNewlines(string firstNewline, string localNewline, bool finalNewline)
     {
+        string ending = finalNewline ? localNewline : "";
         Dockerfile file = Dockerfile.Parse(
-            $"FROM alpine{firstNewline}RUN first{localNewline}RUN second{localNewline}");
-        file.Items.Insert(2, new WorkdirInstruction("/app"));
-        Assert.Equal(
-            $"FROM alpine{firstNewline}RUN first{localNewline}WORKDIR /app{localNewline}RUN second{localNewline}",
-            file.ToString());
+            $"FROM alpine{firstNewline}RUN first{localNewline}RUN second{ending}");
+        DockerfileConstruct[] original = file.Items.ToArray();
+        var inserted = new WorkdirInstruction("/app");
+
+        file.Items.Insert(2, inserted);
+
+        string expected = $"FROM alpine{firstNewline}RUN first{localNewline}WORKDIR /app{localNewline}RUN second{ending}";
+        Assert.Equal(expected, file.ToString());
+        Assert.Equal(new[] { original[0], original[1], inserted, original[2] }, file.Items);
+        Dockerfile reparsed = Dockerfile.Parse(file.ToString());
+        Assert.Equal(expected, reparsed.ToString());
+        Assert.Collection(reparsed.Items,
+            item => Assert.IsType<FromInstruction>(item),
+            item => Assert.IsType<RunInstruction>(item),
+            item => Assert.IsType<WorkdirInstruction>(item),
+            item => Assert.IsType<RunInstruction>(item));
     }
 
     /// <summary>
     /// Keeps heredoc payload newlines from determining formatting for a new document boundary.
     /// </summary>
-    [Fact]
-    public void AppendingInfersHeaderBoundaryRatherThanRawHeredocBodyNewlines()
+    [Theory]
+    [InlineData("\n", "\r\n")]
+    [InlineData("\r\n", "\n")]
+    public void AppendingInfersHeaderBoundaryRatherThanRawHeredocBodyNewlines(string headerNewline, string bodyNewline)
     {
-        Dockerfile file = Dockerfile.Parse("FROM alpine\nRUN <<EOF\r\nraw\nEOF");
+        string original = $"FROM alpine{bodyNewline}RUN <<EOF{headerNewline}raw{bodyNewline}EOF";
+        Dockerfile file = Dockerfile.Parse(original);
+        RunInstruction run = Assert.Single(file.Items.OfType<RunInstruction>());
+
         file.Items.Add(new WorkdirInstruction("/app"));
-        Assert.Equal("FROM alpine\nRUN <<EOF\r\nraw\nEOF\r\nWORKDIR /app", file.ToString());
+
+        string expected = original + $"{headerNewline}WORKDIR /app";
+        Assert.Equal(expected, file.ToString());
+        Assert.Same(run, file.Items[1]);
+        Assert.Equal($"raw{bodyNewline}", Assert.Single(run.HeredocBodyTokens).Content);
+        Dockerfile reparsed = Dockerfile.Parse(file.ToString());
+        Assert.Equal(expected, reparsed.ToString());
+        Assert.Collection(reparsed.Items,
+            item => Assert.IsType<FromInstruction>(item),
+            item => Assert.IsType<RunInstruction>(item),
+            item => Assert.IsType<WorkdirInstruction>(item));
+    }
+
+    [Theory]
+    [InlineData("\n", false)]
+    [InlineData("\n", true)]
+    [InlineData("\r\n", false)]
+    [InlineData("\r\n", true)]
+    public void AppendRepairsOnlyMissingFinalBoundary(string newline, bool finalNewline)
+    {
+        string original = $"FROM alpine{newline}RUN echo old" + (finalNewline ? newline : "");
+        Dockerfile file = Dockerfile.Parse(original);
+        var inserted = new WorkdirInstruction("/app");
+
+        file.Items.Add(inserted);
+
+        string expected = $"FROM alpine{newline}RUN echo old{newline}WORKDIR /app";
+        Assert.Equal(expected, file.ToString());
+        Assert.Same(inserted, file.Items.Last());
+        Dockerfile reparsed = Dockerfile.Parse(file.ToString());
+        Assert.Equal(expected, reparsed.ToString());
+        Assert.Equal(3, reparsed.Items.Count);
+        Assert.IsType<WorkdirInstruction>(reparsed.Items.Last());
     }
 
     /// <summary>

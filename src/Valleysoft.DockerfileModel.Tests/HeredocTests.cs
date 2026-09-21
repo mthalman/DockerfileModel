@@ -1317,25 +1317,66 @@ public class HeredocTests
     }
 
     // ================================================================
-    // SECTION: CRLF line ending tests
+    // SECTION: Line ending tests
     // ================================================================
 
-    [Fact]
-    public void Run_HeredocWithCRLF_RoundTrips()
+    [Theory]
+    [InlineData("\n", false)]
+    [InlineData("\n", true)]
+    [InlineData("\r\n", false)]
+    [InlineData("\r\n", true)]
+    public void Run_HeredocLineEndings_RoundTrip(string newline, bool finalNewline)
     {
-        string text = "RUN <<EOF\r\necho hello\r\nEOF\r\n";
+        string text = $"RUN <<EOF{newline}echo hello{newline}EOF" + (finalNewline ? newline : "");
         RunInstruction result = RunInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
         Assert.Single(result.HeredocTokens);
+        Assert.Equal($"echo hello{newline}", Assert.Single(result.HeredocBodyTokens).Content);
     }
 
-    [Fact]
-    public void Copy_HeredocWithCRLF_RoundTrips()
+    [Theory]
+    [InlineData("\n", false)]
+    [InlineData("\n", true)]
+    [InlineData("\r\n", false)]
+    [InlineData("\r\n", true)]
+    public void Copy_HeredocLineEndings_RoundTrip(string newline, bool finalNewline)
     {
-        string text = "COPY <<EOF /app/file.txt\r\ncontent\r\nEOF\r\n";
+        string text = $"COPY <<EOF /app/file.txt{newline}content{newline}EOF" + (finalNewline ? newline : "");
         CopyInstruction result = CopyInstruction.Parse(text);
         Assert.Equal(text, result.ToString());
         Assert.Single(result.HeredocTokens);
+        Assert.Equal($"content{newline}", Assert.Single(result.HeredocBodyTokens).Content);
+    }
+
+    [Theory]
+    [InlineData("\n", "\n")]
+    [InlineData("\r\n", "\r\n")]
+    [InlineData("\n", "\r\n")]
+    [InlineData("\r\n", "\n")]
+    public void Dockerfile_HeredocBoundariesPreserveIndependentLineEndings(string newline, string bodyNewline)
+    {
+        string runText = $"RUN <<RUN_END{newline}echo hello{bodyNewline}RUN_END{newline}";
+        string copyText = $"COPY <<COPY_END /app/file.txt{newline}content{bodyNewline}COPY_END{newline}";
+        string text = $"FROM alpine{newline}" + runText + copyText + $"WORKDIR /app{newline}";
+
+        Dockerfile result = Dockerfile.Parse(text);
+
+        Assert.Equal(text, result.ToString());
+        Assert.Collection(result.Items,
+            item => Assert.IsType<FromInstruction>(item),
+            item =>
+            {
+                RunInstruction run = Assert.IsType<RunInstruction>(item);
+                Assert.Equal(runText, run.ToString());
+                Assert.Equal($"echo hello{bodyNewline}", Assert.Single(run.HeredocBodyTokens).Content);
+            },
+            item =>
+            {
+                CopyInstruction copy = Assert.IsType<CopyInstruction>(item);
+                Assert.Equal(copyText, copy.ToString());
+                Assert.Equal($"content{bodyNewline}", Assert.Single(copy.HeredocBodyTokens).Content);
+            },
+            item => Assert.IsType<WorkdirInstruction>(item));
     }
 
     // ================================================================

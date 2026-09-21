@@ -1,8 +1,8 @@
 /-
-  Parser/Combinators.lean -- Higher-level combinators matching ParseHelper.cs patterns.
+  Parser/Combinators.lean -- Higher-level combinators matching C# Parsing/ patterns.
 
   These combinators build on the core Parser monad from Basic.lean and provide
-  the higher-level patterns used throughout ParseHelper.cs:
+  the higher-level patterns used throughout the C# Parsing/ modules:
     - sepBy / sepBy1 — parse with separators
     - between — parse between delimiters
     - manyTill — parse until terminator

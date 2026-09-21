@@ -1,5 +1,6 @@
 ﻿using System.Text;
-using static Valleysoft.DockerfileModel.ParseHelper;
+
+using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 /// <summary>A syntax element composed of ordered child tokens.</summary>

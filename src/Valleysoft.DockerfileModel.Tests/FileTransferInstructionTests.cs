@@ -1,4 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+﻿using Valleysoft.DockerfileModel.Parsing;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -89,7 +90,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
         Assert.Equal("/app/", instruction.Destination);
 
         LiteralToken sourceToken = instruction.SourceTokens.Single();
-        Assert.Equal(ParseHelper.DoubleQuote, sourceToken.QuoteChar);
+        Assert.Equal(StringParsers.DoubleQuote, sourceToken.QuoteChar);
         Assert.Equal("my file.txt", sourceToken.Value);
     }
 
@@ -115,7 +116,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
         Assert.Equal("/my dst/", instruction.Destination);
 
         LiteralToken destToken = instruction.DestinationToken!;
-        Assert.Equal(ParseHelper.DoubleQuote, destToken.QuoteChar);
+        Assert.Equal(StringParsers.DoubleQuote, destToken.QuoteChar);
         Assert.Equal("/my dst/", destToken.Value);
     }
 
@@ -482,12 +483,12 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", ParseHelper.DoubleQuote,
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", StringParsers.DoubleQuote,
                         token => ValidateAggregate<VariableRefToken>(token, "$src",
                             token => ValidateString(token, "src"))),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "dst", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "dst", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 }
             },
@@ -499,11 +500,11 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", ParseHelper.DoubleQuote,
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", StringParsers.DoubleQuote,
                         token => ValidateAggregate<VariableRefToken>(token, "$src",
                             token => ValidateString(token, "src"))),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "dst", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "dst", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 }
             },
@@ -515,12 +516,12 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", ParseHelper.DoubleQuote,
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", StringParsers.DoubleQuote,
                         token => ValidateAggregate<VariableRefToken>(token, "$src",
                             token => ValidateString(token, "src"))),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "dst", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "dst", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']'),
                     token => ValidateNewLine(token, "\n")
                 }
@@ -533,12 +534,12 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", ParseHelper.DoubleQuote,
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", StringParsers.DoubleQuote,
                         token => ValidateAggregate<VariableRefToken>(token, "$src",
                             token => ValidateString(token, "src"))),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "dst loc", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "dst loc", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']'),
                     token => ValidateNewLine(token, "\r\n")
                 }
@@ -590,13 +591,13 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "source 1.txt", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "source 1.txt", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "path/to/source 2.txt", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "path/to/source 2.txt", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "/my dst/", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/my dst/", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 },
                 Validate = result =>
@@ -614,7 +615,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 {
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "my file.txt", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "my file.txt", StringParsers.DoubleQuote),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "/app/")
                 },
@@ -654,7 +655,7 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "src"),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "/my dst/", ParseHelper.DoubleQuote)
+                    token => ValidateLiteral(token, "/my dst/", StringParsers.DoubleQuote)
                 },
                 Validate = result =>
                 {
@@ -671,9 +672,9 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 {
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "my file.txt", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "my file.txt", StringParsers.DoubleQuote),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "/my dst/", ParseHelper.DoubleQuote)
+                    token => ValidateLiteral(token, "/my dst/", StringParsers.DoubleQuote)
                 },
                 Validate = result =>
                 {
@@ -724,13 +725,13 @@ public abstract class FileTransferInstructionTests<TInstruction>
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "src 1.txt", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "src 1.txt", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "my path/to/src2", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "my path/to/src2", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "dst", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "dst", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 }
             },

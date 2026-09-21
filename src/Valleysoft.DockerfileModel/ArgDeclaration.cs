@@ -1,6 +1,10 @@
 ﻿using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
+
+using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
+using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
+using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
+using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 

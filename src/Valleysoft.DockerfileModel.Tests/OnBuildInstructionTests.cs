@@ -1,3 +1,4 @@
+using Valleysoft.DockerfileModel.Parsing;
 using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
@@ -250,10 +251,10 @@ public class OnBuildInstructionTests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateAggregate<ExecFormCommand>(token, "[\"echo\", \"hello\"]",
                             token => ValidateSymbol(token, '['),
-                            token => ValidateLiteral(token, "echo", ParseHelper.DoubleQuote),
+                            token => ValidateLiteral(token, "echo", StringParsers.DoubleQuote),
                             token => ValidateSymbol(token, ','),
                             token => ValidateWhitespace(token, " "),
-                            token => ValidateLiteral(token, "hello", ParseHelper.DoubleQuote),
+                            token => ValidateLiteral(token, "hello", StringParsers.DoubleQuote),
                             token => ValidateSymbol(token, ']')))
                 },
                 Validate = result =>
