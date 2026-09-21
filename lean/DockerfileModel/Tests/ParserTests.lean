@@ -1758,6 +1758,16 @@ def testCmdContinuedJsonArrayWithNonStringElementRejects : IO Unit := do
     pure ()
 
 open DockerfileModel.Parser.Instructions.Cmd in
+/-- Test: continued trailing comment after JSON array with a non-string element is rejected. -/
+def testCmdJsonArrayWithNonStringElementAndContinuationCommentRejects : IO Unit := do
+  IO.println "Cmd: JSON array with non-string element and continuation comment rejects"
+  match parseCmd "CMD [\"echo\", 1] \\\n# comment\n" with
+  | some inst =>
+    throw (IO.Error.userError s!"Parse unexpectedly succeeded: {Token.toString inst.token}")
+  | none =>
+    pure ()
+
+open DockerfileModel.Parser.Instructions.Cmd in
 /-- Test: cmd lowercase keyword -/
 def testCmdLowercase : IO Unit := do
   IO.println "Cmd: lowercase keyword"
@@ -3165,6 +3175,7 @@ def runParserTests_PhaseC_Group1 : IO Unit := do
   testCmdShellVariable
   testCmdExecSingle
   testCmdContinuedJsonArrayWithNonStringElementRejects
+  testCmdJsonArrayWithNonStringElementAndContinuationCommentRejects
   testCmdLowercase
   testCmdLineContinuation
   IO.println ""

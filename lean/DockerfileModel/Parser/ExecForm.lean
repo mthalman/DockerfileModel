@@ -157,15 +157,29 @@ def parseJsonArray (input : String) (escapeChar : Char := '\\') : Option (List T
 -- Command-form JSON fallback classification
 -- ============================================================
 
+/-- Parse one JSON whitespace character. -/
+def jsonWhitespaceChar : Parser Unit := do
+  let _ ← satisfy (fun c => c == ' ' || c == '\t' || c == '\r' || c == '\n') "JSON whitespace"
+  Parser.pure ()
+
 /-- Parse JSON whitespace plus Dockerfile line continuations accepted between exec-form elements. -/
 def jsonWhitespace (escapeChar : Char) : Parser Unit := do
   let _ ← many (or'
-    (do
-      let _ ← satisfy (fun c => c == ' ' || c == '\t' || c == '\r' || c == '\n') "JSON whitespace"
-      Parser.pure ())
+    jsonWhitespaceChar
     (do
       let _ ← lineContinuationParser escapeChar
       Parser.pure ()))
+  Parser.pure ()
+
+/-- Parse trailing whitespace and continuation comments after a complete command JSON value. -/
+def jsonTrailingTrivia (escapeChar : Char) : Parser Unit := do
+  let _ ← many jsonWhitespaceChar
+  let _ ← many (do
+    let _ ← lineContinuationParser escapeChar
+    let _ ← many commentText
+    let _ ← many jsonWhitespaceChar
+    Parser.pure ())
+  let _ ← eof
   Parser.pure ()
 
 /-- Parse a JSON string for syntax validation only. -/
@@ -285,8 +299,7 @@ partial def jsonArrayContainsNonStringElement (escapeChar : Char) : Parser Bool 
       Parser.pure (!(isString && rest.all id))
   jsonWhitespace escapeChar
   let _ ← char ']'
-  jsonWhitespace escapeChar
-  let _ ← eof
+  jsonTrailingTrivia escapeChar
   Parser.pure containsNonString
 
 /-- Parse command form. Malformed JSON falls back to shell form, but a valid JSON

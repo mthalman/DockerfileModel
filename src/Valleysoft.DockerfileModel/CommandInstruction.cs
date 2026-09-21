@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 using Valleysoft.DockerfileModel.Tokens;
@@ -92,7 +93,15 @@ public abstract class CommandInstruction : Instruction
     {
         try
         {
-            using JsonDocument document = JsonDocument.Parse(RemoveLineContinuations(text, escapeChar));
+            string jsonText = NormalizeLineContinuations(text, escapeChar);
+            byte[] utf8Json = Encoding.UTF8.GetBytes(jsonText);
+            var reader = new Utf8JsonReader(utf8Json);
+            using JsonDocument document = JsonDocument.ParseValue(ref reader);
+            if (!IsAllowedTrailingTrivia(jsonText, utf8Json, reader.BytesConsumed))
+            {
+                return true;
+            }
+
             JsonElement root = document.RootElement;
 
             return root.ValueKind != JsonValueKind.Array ||
@@ -104,7 +113,7 @@ public abstract class CommandInstruction : Instruction
         }
     }
 
-    private static string RemoveLineContinuations(string text, char escapeChar)
+    private static string NormalizeLineContinuations(string text, char escapeChar)
     {
         int continuationIndex = text.IndexOf(escapeChar);
         if (continuationIndex < 0)
@@ -132,12 +141,14 @@ public abstract class CommandInstruction : Instruction
                 int lineFeed = lookahead + 1;
                 if (lineFeed < text.Length && text[lineFeed] == '\n')
                 {
+                    builder.Append('\n');
                     index = lineFeed;
                     continue;
                 }
             }
             else if (lookahead < text.Length && text[lookahead] == '\n')
             {
+                builder.Append('\n');
                 index = lookahead;
                 continue;
             }
@@ -146,5 +157,52 @@ public abstract class CommandInstruction : Instruction
         }
 
         return builder.ToString();
+    }
+
+    private static bool IsAllowedTrailingTrivia(string text, byte[] utf8Text, long bytesConsumed)
+    {
+        int index = Encoding.UTF8.GetCharCount(utf8Text, 0, checked((int)bytesConsumed));
+        bool atLineStart = false;
+
+        while (index < text.Length)
+        {
+            char ch = text[index];
+            if (ch == ' ' || ch == '\t')
+            {
+                index++;
+                continue;
+            }
+
+            if (ch == '\r')
+            {
+                index++;
+                if (index < text.Length && text[index] == '\n')
+                {
+                    index++;
+                }
+                atLineStart = true;
+                continue;
+            }
+
+            if (ch == '\n')
+            {
+                index++;
+                atLineStart = true;
+                continue;
+            }
+
+            if (ch == '#' && atLineStart)
+            {
+                while (index < text.Length && text[index] != '\r' && text[index] != '\n')
+                {
+                    index++;
+                }
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 }
