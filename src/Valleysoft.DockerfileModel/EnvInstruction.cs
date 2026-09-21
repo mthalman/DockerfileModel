@@ -171,6 +171,14 @@ public class EnvInstruction : Instruction
 
         for (int i = 0; i < value.Length;)
         {
+            if (TryReadLineContinuation(value, i, escapeChar, out LineContinuationToken? lineContinuation, out int lineContinuationLength))
+            {
+                FlushLiteral();
+                tokens.Add(lineContinuation);
+                i += lineContinuationLength;
+                continue;
+            }
+
             if (value[i] == escapeChar && i + 1 < value.Length)
             {
                 literal.Append(value[i]);
@@ -193,6 +201,42 @@ public class EnvInstruction : Instruction
 
         FlushLiteral();
         return tokens;
+    }
+
+    private static bool TryReadLineContinuation(
+        string value, int start, char escapeChar, out LineContinuationToken lineContinuation, out int consumed)
+    {
+        lineContinuation = null!;
+        consumed = 0;
+        if (value[start] != escapeChar)
+        {
+            return false;
+        }
+
+        int end = start + 1;
+        while (end < value.Length && value[end] is ' ' or '\t')
+        {
+            end++;
+        }
+
+        if (end < value.Length && value[end] == '\r')
+        {
+            int lineFeed = end + 1;
+            if (lineFeed < value.Length && value[lineFeed] == '\n')
+            {
+                consumed = lineFeed - start + 1;
+                lineContinuation = LineContinuationToken.Parse(value.Substring(start, consumed), escapeChar);
+                return true;
+            }
+        }
+        else if (end < value.Length && value[end] == '\n')
+        {
+            consumed = end - start + 1;
+            lineContinuation = LineContinuationToken.Parse(value.Substring(start, consumed), escapeChar);
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryReadVariableRef(

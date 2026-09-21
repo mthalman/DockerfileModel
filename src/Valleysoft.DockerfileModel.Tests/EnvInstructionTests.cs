@@ -201,6 +201,17 @@ public class EnvInstructionTests
     }
 
     [Fact]
+    public void EnvVarWithEscapedQuoteAndLineContinuation_PreservesLineContinuationToken()
+    {
+        string text = "ENV foo=\"a\\\nb\\\"c\"";
+        EnvInstruction result = EnvInstruction.Parse(text);
+        LiteralToken valueToken = Assert.IsAssignableFrom<LiteralToken>(result.VariableTokens[0].ValueToken);
+
+        Assert.Contains(valueToken.Tokens, token => token is LineContinuationToken);
+        Assert.Equal(text, result.ToString());
+    }
+
+    [Fact]
     public void EnvVarWithEscapedQuoteAndVariableModifierEscapedBrace_ResolvesVariable()
     {
         EnvInstruction result = EnvInstruction.Parse("ENV foo=\"a\\\" ${VAR:-x\\}y}\"");
