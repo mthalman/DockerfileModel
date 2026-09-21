@@ -1,4 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+﻿using Valleysoft.DockerfileModel.Parsing;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -41,9 +42,9 @@ public class ExecFormCommandTests
 
         Assert.Collection(result.ValueTokens, new Action<LiteralToken>[]
         {
-            token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
-            token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
-            token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+            token => ValidateLiteral(token, "/bin/bash", StringParsers.DoubleQuote),
+            token => ValidateLiteral(token, "-c", StringParsers.DoubleQuote),
+            token => ValidateLiteral(token, "echo hello", StringParsers.DoubleQuote),
         });
 
         result.Values[2] = "echo bye";
@@ -58,9 +59,9 @@ public class ExecFormCommandTests
 
         Assert.Collection(result.ValueTokens, new Action<LiteralToken>[]
         {
-            token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
-            token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
-            token => ValidateLiteral(token, "echo bye", ParseHelper.DoubleQuote),
+            token => ValidateLiteral(token, "/bin/bash", StringParsers.DoubleQuote),
+            token => ValidateLiteral(token, "-c", StringParsers.DoubleQuote),
+            token => ValidateLiteral(token, "echo bye", StringParsers.DoubleQuote),
         });
 
         result.ValueTokens.Last().Value = "echo hola";
@@ -75,9 +76,9 @@ public class ExecFormCommandTests
 
         Assert.Collection(result.ValueTokens, new Action<LiteralToken>[]
         {
-            token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
-            token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
-            token => ValidateLiteral(token, "echo hola", ParseHelper.DoubleQuote),
+            token => ValidateLiteral(token, "/bin/bash", StringParsers.DoubleQuote),
+            token => ValidateLiteral(token, "-c", StringParsers.DoubleQuote),
+            token => ValidateLiteral(token, "echo hola", StringParsers.DoubleQuote),
         });
 
     }
@@ -111,13 +112,13 @@ public class ExecFormCommandTests
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/bin/bash", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "-c", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "echo hello", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']'),
                     token => ValidateNewLine(token, "\n")
                 },
@@ -141,11 +142,11 @@ public class ExecFormCommandTests
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/bin/bash", StringParsers.DoubleQuote),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "-c", StringParsers.DoubleQuote),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "echo hello", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']'),
                     token => ValidateNewLine(token, "\n")
                 },
@@ -171,7 +172,7 @@ public class ExecFormCommandTests
                 {
                     token => ValidateSymbol(token, '['),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateQuotableAggregate<LiteralToken>(token, "/bi`\nn/bash", ParseHelper.DoubleQuote,
+                    token => ValidateQuotableAggregate<LiteralToken>(token, "/bi`\nn/bash", StringParsers.DoubleQuote,
                         token => ValidateString(token, "/bi"),
                         token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                             token => ValidateSymbol(token, '`'),
@@ -183,11 +184,11 @@ public class ExecFormCommandTests
                         token => ValidateSymbol(token, '`'),
                         token => ValidateNewLine(token, "\n")),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "-c", StringParsers.DoubleQuote),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "echo he`\"llo", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "echo he`\"llo", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 },
                 Validate = result =>
@@ -277,13 +278,13 @@ public class ExecFormCommandTests
                 TokenValidators = new Action<Token>[]
                 {
                     token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "/bin/bash", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/bin/bash", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "-c", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "-c", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "echo hello", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "echo hello", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 }
             }

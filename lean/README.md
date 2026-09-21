@@ -146,4 +146,45 @@ The `toString` function satisfies the same concatenation property as C#: for any
 
 ### Parser Combinators
 
-The parser is built from monadic combinators (`Parser/Basic.lean`, `Parser/Combinators.lean`) that mirror the Sprache combinators used in the C# `ParseHelper.cs`. The translation from C#'s `from...in...select` LINQ syntax maps directly to Lean's `do` notation.
+The parser is built from monadic combinators (`Parser/Basic.lean`, `Parser/Combinators.lean`) that mirror the Sprache combinators used in the C# `Parsing/` modules. The translation from C#'s `from...in...select` LINQ syntax maps directly to Lean's `do` notation.
+
+### C# Parser Module Correspondence
+
+The internal C# helpers live in
+[`src/Valleysoft.DockerfileModel/Parsing`](../src/Valleysoft.DockerfileModel/Parsing).
+Parser modules group helpers by grammar area; `TokenSequences` supplies shared
+token composition. Instruction and token classes retain their public parser
+entry points. The table maps related responsibilities, not identical acceptance
+rules or token representations.
+
+Lean paths below are relative to `DockerfileModel/`. BuildKit paths are
+relative to `frontend/dockerfile/` at the source commit in
+[`upstream-compatibility.json`](../upstream-compatibility.json).
+
+| C# module | Lean counterpart | BuildKit counterpart |
+|---|---|---|
+| `TokenSequences` | `Parser/DockerfileParsers.lean`: `concatTokens`, `concatOptTokens`; `Proofs/TokenConcat.lean` | No direct equivalent: BuildKit's AST is not this library's fidelity-preserving token tree. |
+| `BasicParsers` | `Parser/Basic.lean`, `Parser/Combinators.lean`, and whitespace/comment/continuation definitions in `Parser/DockerfileParsers.lean` | `parser/parser.go`: `processLine`, `trimContinuationCharacter`, `scanLines` |
+| `StringParsers` | Literal, identifier, quoting, and escape definitions in `Parser/DockerfileParsers.lean` | `parser/line_parsers.go`: `parseWords`; `shell/lex.go`: `processSingleQuote`, `processDoubleQuote` |
+| `VariableParsers` | `Parser/DockerfileParsers.lean`: `variableIdentifier`, `valueOrVariableRef`, `literalWithVariables` and its quoted/unquoted helpers | `shell/lex.go`: `processDollar`, `processName`; expansion is distinct from the low-level Dockerfile parser. |
+| `InstructionParsers` | `Parser/DockerfileParsers.lean`: `argTokens`, `instructionNameWithTrailingContent`, `instructionParser` | `parser/parser.go`: `newNodeFromLine`, `processLine` |
+| `CommandParsers` | `Parser/ExecForm.lean`: `jsonArrayParser`; `Parser/DockerfileParsers.lean`: `shellFormCommand` | `parser/line_parsers.go`: `parseJSON`, `parseMaybeJSON`, `parseMaybeJSONToList`, `parseString` |
+| `HeredocParsers` | `Parser/Heredoc.lean`: marker/body parsers, `heredocInstructionArg`, `heredocWithDestination` | `parser/parser.go`: `ParseHeredoc`, `heredocsFromLine`, body collection in `Parse`; `shell/lex.go`: `processPossibleHeredoc` |
+
+`VariableRefToken` still owns variable-reference and modifier grammar;
+`VariableParsers` composes that parser with literal parsers. Existing flag
+classes still own flag grammar, corresponding to `Parser/Flags.lean` and the flag
+helpers in `Parser/DockerfileParsers.lean`. BuildKit's parser exposes opaque flag
+strings; typed validation belongs to `instructions/`.
+
+`HeredocParsers` owns legacy heredoc parsing, including input
+advancement and memo propagation. The diagnostic path remains separate in
+`InstructionParseContext` and `ConstructReader`, where source regions drive
+heredoc token construction and recovery.
+
+When changing a module, preserve parser alternative order, `Or`/`XOr`
+backtracking, whitespace ownership, and token shapes. The Lean oracle and
+canonical JSON comparison complement, rather than replace, C# token and
+source-position assertions. See the
+[known compatibility limitations](../docs/dockerfile-compatibility.md) before
+interpreting a difference as a new regression.

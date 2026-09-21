@@ -1,4 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+﻿using Valleysoft.DockerfileModel.Parsing;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -90,10 +91,10 @@ public class TokenBuilderTests
                 token => ValidateString(token, "comment")),
             token => ValidateAggregate<ExecFormCommand>(token, "[\"cmd1\", \"cmd2\"]",
                 token => ValidateSymbol(token, '['),
-                token => ValidateLiteral(token, "cmd1", ParseHelper.DoubleQuote),
+                token => ValidateLiteral(token, "cmd1", StringParsers.DoubleQuote),
                 token => ValidateSymbol(token, ','),
                 token => ValidateWhitespace(token, " "),
-                token => ValidateLiteral(token, "cmd2", ParseHelper.DoubleQuote),
+                token => ValidateLiteral(token, "cmd2", StringParsers.DoubleQuote),
                 token => ValidateSymbol(token, ']')),
             token => ValidateAggregate<FromFlag>(token, $"--from=stage",
                 token => ValidateSymbol(token, '-'),

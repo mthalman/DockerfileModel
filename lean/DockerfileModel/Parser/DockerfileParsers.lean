@@ -1,7 +1,8 @@
 /-
-  Parser/DockerfileParsers.lean -- Dockerfile-specific combinators from ParseHelper.cs.
+  Parser/DockerfileParsers.lean -- Dockerfile-specific combinators corresponding to C# Parsing/.
 
-  This file translates the C# ParseHelper.cs central grammar hub into Lean 4.
+  This file corresponds to the C# token, basic, string, variable, and instruction
+  parser modules. See README.md for their BuildKit grammar counterparts.
   Every parser here produces Token trees (from Token.lean) rather than raw strings,
   because round-trip fidelity requires preserving the full token structure.
 
@@ -28,11 +29,11 @@ open DockerfileModel
 open Parser
 
 -- ============================================================
--- Helper: concat tokens (equivalent to ParseHelper.ConcatTokens)
+-- Helper: concat tokens (equivalent to TokenSequences.ConcatTokens)
 -- ============================================================
 
 /-- Concatenate multiple token lists, filtering out none values.
-    Corresponds to ParseHelper.ConcatTokens(params IEnumerable<Token>[]) -/
+    Corresponds to TokenSequences.ConcatTokens(params IEnumerable<Token>[]) -/
 def concatTokens (tokenLists : List (List Token)) : List Token :=
   tokenLists.flatten
 
@@ -46,7 +47,7 @@ def concatOptTokens (tokens : List (Option Token)) : List Token :=
 
 /-- Parse whitespace characters (spaces, tabs) but NOT newlines.
     Returns a WhitespaceToken if any whitespace was found, or none.
-    Corresponds to ParseHelper.WhitespaceWithoutNewLine() -/
+    Corresponds to BasicParsers.WhitespaceWithoutNewLine() -/
 def whitespaceWithoutNewLine : Parser (Option Token) := do
   let chars ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace (not newline)")
   if chars.isEmpty then
@@ -56,7 +57,7 @@ def whitespaceWithoutNewLine : Parser (Option Token) := do
 
 /-- Parse an optional newline.
     Returns a NewLineToken if found, or none.
-    Corresponds to ParseHelper.OptionalNewLine() -/
+    Corresponds to BasicParsers.OptionalNewLine() -/
 def optionalNewLine : Parser (Option Token) := do
   let result ← optional lineEnd
   match result with
@@ -64,14 +65,14 @@ def optionalNewLine : Parser (Option Token) := do
   | none => Parser.pure none
 
 /-- Parse a required newline.
-    Corresponds to ParseHelper.NewLine() -/
+    Corresponds to BasicParsers.NewLine() -/
 def newLine : Parser Token := do
   let nl ← lineEnd
   Parser.pure (Token.mkNewLine nl)
 
 /-- Parse whitespace: optional non-newline whitespace followed by optional newline.
     Returns a list of tokens (0-2 tokens).
-    Corresponds to ParseHelper.Whitespace() -/
+    Corresponds to BasicParsers.Whitespace() -/
 def whitespace : Parser (List Token) := do
   let ws ← whitespaceWithoutNewLine
   let nl ← optionalNewLine
@@ -96,12 +97,12 @@ def lineContinuationParser (escapeChar : Char) : Parser Token := do
   Parser.pure (Token.mkLineContinuation children)
 
 /-- Parse zero or more line continuations.
-    Corresponds to ParseHelper.LineContinuations(escapeChar) -/
+    Corresponds to BasicParsers.LineContinuations(escapeChar) -/
 def lineContinuations (escapeChar : Char) : Parser (List Token) :=
   many (lineContinuationParser escapeChar)
 
 /-- Optionally parse whitespace or line continuations.
-    Corresponds to ParseHelper.OptionalWhitespaceOrLineContinuation(escapeChar) -/
+    Corresponds to BasicParsers.OptionalWhitespaceOrLineContinuation(escapeChar) -/
 def optionalWhitespaceOrLineContinuation (escapeChar : Char) : Parser (List Token) := do
   let leading ← optional whitespace
   let lc ← optional (lineContinuations escapeChar)
@@ -124,7 +125,7 @@ def commentTokenParser : Parser Token := do
   Parser.pure (Token.mkComment [Token.mkSymbol hash, Token.mkString text])
 
 /-- Parse comment text with leading whitespace.
-    Corresponds to ParseHelper.CommentText() -/
+    Corresponds to BasicParsers.CommentText() -/
 def commentText : Parser (List Token) := do
   let leading ← whitespace
   let comment ← commentTokenParser
@@ -157,7 +158,7 @@ def collapseStringTokens (tokens : List Token) : List Token :=
   loop [] "" tokens
 
 /-- Parse a single character and wrap it as a StringToken.
-    Corresponds to the `ToStringTokens` pattern in ParseHelper. -/
+    Corresponds to BasicParsers.ToStringTokens. -/
 def toStringToken (p : Parser Char) : Parser Token := do
   let c ← p
   Parser.pure (Token.mkString (String.ofList [c]))
@@ -168,7 +169,7 @@ def toStringToken (p : Parser Char) : Parser Token := do
 
 /-- Parse a case-insensitive string, allowing line continuations between characters.
     Produces a KeywordToken.
-    Corresponds to ParseHelper.StringToken(value, escapeChar) and
+    Corresponds to StringParsers.StringToken(value, escapeChar) and
     KeywordToken.GetParser(keyword, escapeChar).
 
     The first character is parsed directly; subsequent characters allow optional
@@ -204,7 +205,7 @@ def keywordParser (keyword : String) (escapeChar : Char) : Parser Token :=
 -- ============================================================
 
 /-- Parse an escaped character: escape char followed by any non-newline character.
-    Corresponds to ParseHelper.EscapedChar(escapeChar) -/
+    Corresponds to StringParsers.EscapedChar(escapeChar) -/
 def escapedChar (escapeChar : Char) : Parser Token := do
   let esc ← char escapeChar
   let c ← satisfy (fun ch => !isLineTerminator ch) "non-newline character"
@@ -215,7 +216,7 @@ def escapedChar (escapeChar : Char) : Parser Token := do
 -- ============================================================
 
 /-- Parse a variable identifier: one or more alphanumeric or underscore characters.
-    Corresponds to ParseHelper.VariableIdentifier() -/
+    Corresponds to VariableParsers.VariableIdentifier() -/
 def variableIdentifier : Parser String :=
   many1Chars (satisfy (fun c => c.isAlpha || c.isDigit || c == '_') "alphanumeric or underscore")
 
@@ -291,7 +292,7 @@ def variableRefParser (escapeChar : Char) : Parser Token :=
 
 /-- Check if a character is a literal character (non-whitespace, non-escape, non-variable-start,
     and not in the excluded set).
-    Corresponds to ParseHelper.LiteralChar() -/
+    Corresponds to StringParsers.LiteralChar() -/
 def isLiteralChar (escapeChar : Char) (excludedChars : List Char)
     (excludeVariableRefChars : Bool) (isWhitespaceAllowed : Bool) (c : Char) : Bool :=
   let basic := if isWhitespaceAllowed then
@@ -304,7 +305,7 @@ def isLiteralChar (escapeChar : Char) (excludedChars : List Char)
   (!excludeVariableRefChars || !isVariableRefStart c)
 
 /-- Parse a literal character.
-    Corresponds to ParseHelper.LiteralChar() -/
+    Corresponds to StringParsers.LiteralChar() -/
 def literalChar (escapeChar : Char) (excludedChars : List Char)
     (excludeVariableRefChars : Bool := true)
     (isWhitespaceAllowed : Bool := false) : Parser Char :=
@@ -330,7 +331,7 @@ def literalChar (escapeChar : Char) (excludedChars : List Char)
         .ok c pos.next
 
 /-- Parse a literal string (no spaces, no quotes).
-    Corresponds to ParseHelper.LiteralStringWithoutSpaces() -/
+    Corresponds to StringParsers.LiteralStringWithoutSpaces() -/
 def literalStringWithoutSpaces (escapeChar : Char) (excludedChars : List Char)
     (excludeVariableRefChars : Bool := true) : Parser (List Token) := do
   let firstTok ← or'
@@ -343,7 +344,7 @@ def literalStringWithoutSpaces (escapeChar : Char) (excludedChars : List Char)
   Parser.pure (collapseStringTokens (firstTok :: restToks.flatten))
 
 /-- Parse a literal string (may include escaped chars).
-    Corresponds to ParseHelper.LiteralString() -/
+    Corresponds to StringParsers.LiteralString() -/
 def literalString (escapeChar : Char) (excludedChars : List Char)
     (excludeVariableRefChars : Bool := true) : Parser (List Token) :=
   or' (literalStringWithoutSpaces escapeChar excludedChars excludeVariableRefChars)
@@ -354,7 +355,7 @@ def literalString (escapeChar : Char) (excludedChars : List Char)
 -- ============================================================
 
 /-- Parse either a variable reference or a literal value.
-    Corresponds to ParseHelper.ValueOrVariableRef() -/
+    Corresponds to VariableParsers.ValueOrVariableRef() -/
 def valueOrVariableRef (escapeChar : Char)
     (valueParsers : Parser (List Token)) : Parser (List Token) :=
   or' (do let v ← variableRefParser escapeChar; Parser.pure [v])
@@ -372,7 +373,7 @@ inductive WhitespaceMode where
   deriving BEq
 
 /-- Parse a literal with variable references (unquoted).
-    Corresponds to the non-wrapped branch of ParseHelper.LiteralWithVariablesTokens() -/
+    Corresponds to the non-wrapped branch of VariableParsers.LiteralWithVariablesTokens() -/
 partial def literalWithVariablesUnquoted (escapeChar : Char) (excludedChars : List Char)
     (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token := do
   let tokenLists ← many1 (valueOrVariableRef escapeChar
@@ -389,7 +390,7 @@ partial def literalWithVariablesUnquoted (escapeChar : Char) (excludedChars : Li
 
 /-- Parse a literal with variables, wrapped in quotes.
     Returns (tokens, quoteChar).
-    Corresponds to the wrapped branch of ParseHelper.LiteralWithVariablesTokens() -/
+    Corresponds to the wrapped branch of VariableParsers.LiteralWithVariablesTokens() -/
 def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
     (quoteChar : Char) (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token := do
   let _ ← char quoteChar
@@ -421,7 +422,7 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
 
 /-- Parse a literal with variables, optionally wrapped in quotes.
     Returns a LiteralToken.
-    Corresponds to ParseHelper.LiteralWithVariables() -/
+    Corresponds to VariableParsers.LiteralWithVariables() -/
 def literalWithVariables (escapeChar : Char) (excludedChars : List Char := [])
     (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token :=
   or' (literalWithVariablesQuoted escapeChar excludedChars '\'' whitespaceMode)
@@ -433,7 +434,7 @@ def literalWithVariables (escapeChar : Char) (excludedChars : List Char := [])
 -- ============================================================
 
 /-- Parse an identifier string: first char (letter usually) followed by tail chars.
-    Corresponds to ParseHelper.IdentifierString() -/
+    Corresponds to StringParsers.IdentifierString() -/
 def identifierString (escapeChar : Char)
     (firstCharPred : Char → Bool) (tailCharPred : Char → Bool) : Parser (List Token) := do
   let firstChar ← satisfy firstCharPred "identifier first character"
@@ -447,7 +448,7 @@ def identifierString (escapeChar : Char)
     (Token.mkString (String.ofList [firstChar]) :: restParts.flatten))
 
 /-- Parse an identifier token with optional quotes.
-    Corresponds to ParseHelper.IdentifierTokens() -/
+    Corresponds to StringParsers.IdentifierTokens() -/
 def identifierToken (escapeChar : Char)
     (firstCharPred : Char → Bool) (tailCharPred : Char → Bool) : Parser Token :=
   let parseQuoted (q : Char) : Parser Token := do
@@ -467,7 +468,7 @@ def identifierToken (escapeChar : Char)
 -- ============================================================
 
 /-- Parse a symbol character and return a SymbolToken.
-    Corresponds to ParseHelper.Symbol(char) -/
+    Corresponds to BasicParsers.Symbol(char) -/
 def symbolParser (c : Char) : Parser Token := do
   let _ ← char c
   Parser.pure (Token.mkSymbol c)
@@ -478,7 +479,7 @@ def symbolParser (c : Char) : Parser Token := do
 
 /-- Parse an instruction argument with optional leading whitespace, trailing whitespace,
     and line continuations.
-    Corresponds to ParseHelper.ArgTokens() -/
+    Corresponds to InstructionParsers.ArgTokens() -/
 def argTokens (tokenParser : Parser (List Token)) (escapeChar : Char)
     (excludeTrailingWhitespace : Bool := false)
     (excludeLeadingWhitespace : Bool := false) : Parser (List Token) :=
@@ -521,7 +522,7 @@ def argTokens (tokenParser : Parser (List Token)) (escapeChar : Char)
 -- ============================================================
 
 /-- Parse a token followed by whitespace.
-    Corresponds to ParseHelper.TokenWithTrailingWhitespace() -/
+    Corresponds to BasicParsers.TokenWithTrailingWhitespace() -/
 def tokenWithTrailingWhitespace (parser : Parser Token) : Parser (List Token) := do
   let tok ← parser
   let ws ← whitespace
@@ -532,7 +533,7 @@ def tokenWithTrailingWhitespace (parser : Parser Token) : Parser (List Token) :=
 -- ============================================================
 
 /-- Parse instruction name with trailing whitespace and optional line continuations.
-    Corresponds to ParseHelper.InstructionNameWithTrailingContent() -/
+    Corresponds to InstructionParsers.InstructionNameWithTrailingContent() -/
 def instructionNameWithTrailingContent (instructionName : String) (escapeChar : Char) : Parser (List Token) := do
   -- WithTrailingComments(leading + keyword + ws + optional lineContinuations)
   let leading ← whitespace
@@ -542,7 +543,7 @@ def instructionNameWithTrailingContent (instructionName : String) (escapeChar : 
   Parser.pure (concatTokens [leading, kwTokens, lc.getD [], commentSets.flatten])
 
 /-- Parse a complete instruction: keyword + args.
-    Corresponds to ParseHelper.Instruction() -/
+    Corresponds to InstructionParsers.Instruction() -/
 def instructionParser (instructionName : String) (escapeChar : Char)
     (argsParser : Parser (List Token)) : Parser (List Token) := do
   let nameTokens ← instructionNameWithTrailingContent instructionName escapeChar

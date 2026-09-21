@@ -1,6 +1,7 @@
 ﻿using System.Text.RegularExpressions;
 using Valleysoft.DockerfileModel.Tokens;
-using static Valleysoft.DockerfileModel.ParseHelper;
+
+using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
 
 namespace Valleysoft.DockerfileModel;
 

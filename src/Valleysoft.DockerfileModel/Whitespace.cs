@@ -1,4 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+﻿using Valleysoft.DockerfileModel.Parsing;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -68,5 +69,5 @@ public class Whitespace : DockerfileConstruct
         GetParser().TryParse(value).WasSuccessful;
 
     public static Parser<IEnumerable<Token>> GetParser() =>
-        ParseHelper.Whitespace().End();
+        BasicParsers.Whitespace().End();
 }
