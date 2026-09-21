@@ -247,6 +247,20 @@ public class HealthCheckInstructionTests
             () => instruction.RetriesToken, token => instruction.RetriesToken = token, val => instruction.Retries = val, "var", canContainVariables: true);
     }
 
+    [Theory]
+    [InlineData("HEALTHCHECK")]
+    [InlineData("HEALTHCHECK CONNECT TCP 7000")]
+    [InlineData("HEALTHCHECK CMD")]
+    public void MalformedInstructionsRejectInsteadOfCrashing(string text)
+    {
+        Assert.Throws<ParseException>(() => HealthCheckInstruction.Parse(text));
+
+        DockerfileParseResult result = Dockerfile.TryParse(text + "\n");
+        Assert.False(result.Success);
+        Assert.Null(result.Dockerfile);
+        Assert.Equal(DockerfileDiagnosticCodes.InvalidSyntax, Assert.Single(result.Diagnostics).Code);
+    }
+
     [Fact]
     public void CommandProperty()
     {

@@ -221,10 +221,10 @@ public class HealthCheckInstruction : Instruction
 
     /// <summary>Parses a standalone HEALTHCHECK instruction, preserving its form, formatting, and escape context.</summary>
     public static HealthCheckInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
     public static Parser<HealthCheckInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        from tokens in GetInnerParser(escapeChar)
+        from tokens in GetInnerParser(escapeChar, diagnostic: true)
         select new HealthCheckInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string commandBody, string? interval, string? timeout,
