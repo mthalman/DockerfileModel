@@ -7,7 +7,7 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class EnvInstructionTests
 {
     [Fact]
-    public void Parse_ContinuesLegacyValueAcrossBlankLineGap()
+    public void Parse_ContinuesLegacyValueAcrossLineContinuation()
     {
         string text = "ENV GOPATH \\\n/go\n";
         EnvInstruction env = EnvInstruction.Parse(text);
