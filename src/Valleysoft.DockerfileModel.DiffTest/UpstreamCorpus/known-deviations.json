@@ -1,12 +1,5 @@
 [
   {
-    "id": "frontend/dockerfile/parser/testfiles-negative/shykes-nested-json/Dockerfile#L1-L1",
-    "inputSha256": "7884a986670856acedb7f544c7ccfc55ffa3d9d6ee4c926229ee8432e46553f1",
-    "outcomeSignature": "a2551c212b8c2a7dc26a2eaba37d9c37425b2b8b9d17203dd833a5890aa96cda",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
-    "reason": "Lean accepts a decoded JSON array containing a nested array, which the pinned upstream parser and C# reject; this must not use malformed-JSON shell fallback."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L3-L3",
     "inputSha256": "1fc66be236658883385242fbee59ce2b210d32a1e77a289c128bd0ef89d48f8c",
     "outcomeSignature": "633493321c001ec4b768460d7bd5808e75610cc4ecdbfbc71389f7bb64080890",
@@ -58,22 +51,22 @@
   {
     "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-single-quotes/Dockerfile#L1-L1",
     "inputSha256": "c9e2f4fdce5db7bad55aa4bb4f9755d8a9bf73e198f7216b3a447e30a8ee83ef",
-    "outcomeSignature": "929a4cb5a4254667200b77594a4942a4ea2cc89b2754de766abf5b2d9f4e51dd",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
-    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
+    "outcomeSignature": "9ec6e824711f646358ff06afb9b84fe42f55620fa8ff4f84e0011548241911bc",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-bracket/Dockerfile#L1-L1",
     "inputSha256": "7d5ab8e482aa425c7ff1eef1d924adf4c210d1453dbed6c4a1ff0f80fbc40258",
-    "outcomeSignature": "50c81f264676a8d915d273972e88f00d14e3847810468a0e7b7672f4a01e75ae",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
-    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
+    "outcomeSignature": "42eb1f326f267783d6793cf9a224f191aba876d67f73427264c07fa8458c60fb",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-string/Dockerfile#L1-L1",
     "inputSha256": "ae23e529393cf7111bd1de55a10a90d0769e1563c407593824525f476796f086",
-    "outcomeSignature": "4790711c4493a6cd27f5204e748266f4600468b1fff00938793cfd042ca22db6",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
-    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
+    "outcomeSignature": "82bedfa01daaa3bf950495a8a837a73b6c724350f2f4ab80baf85edbea30b233",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
+    "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
   }
 ]

@@ -75,7 +75,7 @@ partial def runArgsParser (escapeChar : Char) : Parser (List Token) := do
   -- Then parse command: heredoc, exec form, or shell form
   let command ← argTokens
     (or' heredocInstructionArg
-      (or' (jsonArrayParser escapeChar) (shellFormCommand escapeChar)))
+      (commandFormParser escapeChar))
     escapeChar
   Parser.pure (concatTokens [flags.flatten, command])
 

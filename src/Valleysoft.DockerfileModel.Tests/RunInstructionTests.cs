@@ -7,6 +7,12 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class RunInstructionTests
 {
+    [Fact]
+    public void Parse_JsonArrayWithLineContinuationAndNonStringElementRejects()
+    {
+        Assert.Throws<ParseException>(() => RunInstruction.Parse("RUN [\"echo\", \\\n 1]"));
+    }
+
     [Theory]
     [InlineData(" ")]
     [InlineData("\t")]
