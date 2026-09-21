@@ -9,7 +9,7 @@ namespace Valleysoft.DockerfileModel;
 public sealed class UnknownInstruction : GenericInstruction
 {
     internal UnknownInstruction(string leading, KeywordToken name, string arguments, char escapeChar)
-        : base(CreateTokens(leading, name, arguments, escapeChar))
+        : base(CreateTokens(leading, name, arguments, escapeChar), escapeChar)
     {
     }
 

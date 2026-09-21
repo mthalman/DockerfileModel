@@ -15,11 +15,11 @@ public class OnBuildInstruction : Instruction
     };
 
     public OnBuildInstruction(Instruction instruction, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(instruction, escapeChar))
+        : this(GetTokens(instruction, escapeChar), escapeChar)
     {
     }
 
-    private OnBuildInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private OnBuildInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
     }
 
@@ -34,11 +34,11 @@ public class OnBuildInstruction : Instruction
     }
 
     public static OnBuildInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<OnBuildInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new OnBuildInstruction(tokens);
+        select new OnBuildInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(Instruction instruction, char escapeChar)
     {
@@ -47,7 +47,7 @@ public class OnBuildInstruction : Instruction
     }
 
     internal static OnBuildInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
-        new(GetTokens(text, GetInnerParser(escapeChar, context)));
+        new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar,
         InstructionParseContext? context = null) =>

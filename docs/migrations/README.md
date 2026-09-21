@@ -8,3 +8,8 @@ may appear here before publication.
 ## Releases
 
 No versioned migration guides are available yet.
+
+## Upcoming topics
+
+- [Collection editing](structural-editing.md): recompile for editable collection
+  getter types and migrate collection-mutation workarounds to validated operations.

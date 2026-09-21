@@ -6,11 +6,11 @@ namespace Valleysoft.DockerfileModel;
 public class WorkdirInstruction : Instruction
 {
     public WorkdirInstruction(string path, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(path, escapeChar))
+        : this(GetTokens(path, escapeChar), escapeChar)
     {
     }
 
-    private WorkdirInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private WorkdirInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
     }
 
@@ -35,11 +35,11 @@ public class WorkdirInstruction : Instruction
     }
 
     public static WorkdirInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<WorkdirInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new WorkdirInstruction(tokens);
+        select new WorkdirInstruction(tokens, escapeChar);
 
     internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         Instruction("WORKDIR", escapeChar, GetArgsParser(escapeChar));

@@ -27,11 +27,8 @@ public class AddInstruction : FileTransferInstruction
 
     private void InitExcludes()
     {
-        ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
-        Excludes = new ProjectedItemList<ExcludeFlag, string>(
-            ExcludeFlagTokens,
-            flag => flag.Value,
-            (flag, value) => flag.Value = value);
+        ExcludeFlagTokens = new TokenList<ExcludeFlag>(this);
+        Excludes = InstructionCollectionEditing.Excludes(ExcludeFlagTokens, this);
     }
 
     public string? Checksum
@@ -161,9 +158,9 @@ public class AddInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(UnpackFlagInternal, value);
     }
 
-    public IList<string> Excludes { get; private set; } = null!;
+    public EditableList<string> Excludes { get; private set; } = null!;
 
-    public IList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
+    public EditableList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
 
     public static AddInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);

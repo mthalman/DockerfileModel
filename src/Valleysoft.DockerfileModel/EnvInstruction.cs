@@ -6,34 +6,26 @@ namespace Valleysoft.DockerfileModel;
 public class EnvInstruction : Instruction
 {
     public EnvInstruction(IDictionary<string, string> variables, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(variables, escapeChar))
+        : this(GetTokens(variables, escapeChar), escapeChar)
     {
     }
 
-    private EnvInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private EnvInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        VariableTokens = new TokenList<KeyValueToken<Variable, LiteralToken>>(TokenList);
-        Variables = new ProjectedItemList<KeyValueToken<Variable, LiteralToken>, IKeyValuePair>(
-            VariableTokens,
-            token => token,
-            (token, keyValuePair) =>
-            {
-                Guard.NotNull(keyValuePair, "value");
-                token.Key = keyValuePair.Key;
-                token.Value = keyValuePair.Value!;
-            });
+        VariableTokens = new TokenList<KeyValueToken<Variable, LiteralToken>>(this);
+        Variables = InstructionCollectionEditing.Pairs(VariableTokens, this);
     }
 
-    public IList<IKeyValuePair> Variables { get; }
+    public EditableList<IKeyValuePair> Variables { get; }
 
-    public IList<KeyValueToken<Variable, LiteralToken>> VariableTokens { get; }
+    public EditableList<KeyValueToken<Variable, LiteralToken>> VariableTokens { get; }
 
     public static EnvInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<EnvInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new EnvInstruction(tokens);
+        select new EnvInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(IDictionary<string, string> variables, char escapeChar)
     {

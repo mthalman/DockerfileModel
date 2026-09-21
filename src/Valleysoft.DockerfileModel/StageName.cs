@@ -10,6 +10,7 @@ public class StageName : IdentifierToken
     internal StageName(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
     {
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
     }
 
     public StageName(string value, char escapeChar = Dockerfile.DefaultEscapeChar)

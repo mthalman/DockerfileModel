@@ -202,10 +202,14 @@ public class TypedParserDirectiveTests
         Assert.Equal(valid.ToString(), reparsed.ToString());
         Assert.Equal(valid.Dockerfile.Frontend.Reference, reparsed.Frontend.Reference);
         Assert.Equal('`', valid.Dockerfile.EscapeChar);
-        valid.Dockerfile.Items.Insert(0, new Comment("header"));
-        valid.Dockerfile.Items.Insert(1, new Whitespace("\n"));
-        Assert.Equal('\\', valid.Dockerfile.EscapeChar);
-        Assert.Equal(DockerfileFrontendKind.Bundled, valid.Dockerfile.Frontend.Kind);
+        string before = valid.ToString();
+        Assert.Throws<InvalidOperationException>(() => valid.Dockerfile.Items.Insert(0, new Comment("header")));
+        Assert.Equal(before, valid.ToString());
+        Assert.Equal('`', valid.Dockerfile.EscapeChar);
+
+        Dockerfile demoted = Dockerfile.Parse("# header\n" + before);
+        Assert.Equal('\\', demoted.EscapeChar);
+        Assert.Equal(DockerfileFrontendKind.Bundled, demoted.Frontend.Kind);
     }
 
     [Fact]

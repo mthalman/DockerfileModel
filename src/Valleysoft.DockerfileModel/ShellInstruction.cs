@@ -11,20 +11,20 @@ public class ShellInstruction : CommandInstruction
     }
 
     public ShellInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(command, args, escapeChar))
+        : this(GetTokens(command, args, escapeChar), escapeChar)
     {
     }
 
-    private ShellInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private ShellInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
     }
 
     public static ShellInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<ShellInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new ShellInstruction(tokens);
+        select new ShellInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)
     {

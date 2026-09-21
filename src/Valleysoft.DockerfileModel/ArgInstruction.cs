@@ -18,34 +18,26 @@ public class ArgInstruction : Instruction
     }
 
     public ArgInstruction(IDictionary<string, string?> args, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(args, escapeChar))
+        : this(GetTokens(args, escapeChar), escapeChar)
     {
     }
 
-    private ArgInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private ArgInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        ArgTokens = new TokenList<ArgDeclaration>(TokenList);
-        Args = new ProjectedItemList<ArgDeclaration, IKeyValuePair>(
-            ArgTokens,
-            token => token,
-            (token, keyValuePair) =>
-            {
-                Guard.NotNull(keyValuePair, "value");
-                token.Name = keyValuePair.Key;
-                token.Value = keyValuePair.Value;
-            });
+        ArgTokens = new TokenList<ArgDeclaration>(this);
+        Args = InstructionCollectionEditing.Pairs(ArgTokens, this);
     }
 
-    public IList<IKeyValuePair> Args { get; }
+    public EditableList<IKeyValuePair> Args { get; }
 
-    public IList<ArgDeclaration> ArgTokens { get; }
+    public EditableList<ArgDeclaration> ArgTokens { get; }
 
     public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new ArgInstruction(tokens);
+        select new ArgInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(IDictionary<string, string?> args, char escapeChar)
     {

@@ -6,11 +6,11 @@ namespace Valleysoft.DockerfileModel;
 public class StopSignalInstruction : Instruction
 {
     public StopSignalInstruction(string signal, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(signal, escapeChar))
+        : this(GetTokens(signal, escapeChar), escapeChar)
     {
     }
 
-    private StopSignalInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private StopSignalInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
     }
 
@@ -35,11 +35,11 @@ public class StopSignalInstruction : Instruction
     }
    
     public static StopSignalInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<StopSignalInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new StopSignalInstruction(tokens);
+        select new StopSignalInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string signal, char escapeChar)
     {

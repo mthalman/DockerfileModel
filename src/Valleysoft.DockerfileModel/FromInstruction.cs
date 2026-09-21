@@ -15,7 +15,7 @@ public class FromInstruction : Instruction
     {
     }
 
-    private FromInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
+    private FromInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
         PlatformFlag? platform = this.PlatformFlag;
         int startIndex = 0;

@@ -273,12 +273,12 @@ public class DockerfileBuilder
     {
         if (CanAutoAddEscapeDirective(dockerfileConstruct))
         {
-            Dockerfile.Items.Add(
+            Dockerfile.AddRaw(
                 DockerfileModel.ParserDirective.Parse(
                     $"#{CommentSeparator}{DockerfileModel.ParserDirective.EscapeDirective}={EscapeChar}"));
             if (!DisableAutoNewLines)
             {
-                Dockerfile.Items.Add(new Whitespace(DefaultNewLine));
+                Dockerfile.AddRaw(new Whitespace(DefaultNewLine));
             }
         }
 
@@ -288,11 +288,11 @@ public class DockerfileBuilder
                 $"The escape directive being added, '{escapeDirectiveValue}', conflicts with the escape character set on {nameof(DockerfileBuilder)}: '{EscapeChar}'");
         }
 
-        Dockerfile.Items.Add(dockerfileConstruct);
+        Dockerfile.AddRaw(dockerfileConstruct);
 
         if (!DisableAutoNewLines && !(dockerfileConstruct is Whitespace whitespace && whitespace.NewLineToken is not null))
         {
-            Dockerfile.Items.Add(new Whitespace(DefaultNewLine));
+            Dockerfile.AddRaw(new Whitespace(DefaultNewLine));
         }
 
         return this;

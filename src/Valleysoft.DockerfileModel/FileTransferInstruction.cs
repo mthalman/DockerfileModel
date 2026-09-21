@@ -4,7 +4,7 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public abstract class FileTransferInstruction : Instruction
+public abstract partial class FileTransferInstruction : Instruction
 {
     protected FileTransferInstruction(IEnumerable<string> sources, string destination,
         string? changeOwner, string? permissions, char escapeChar, string instructionName)
@@ -12,22 +12,32 @@ public abstract class FileTransferInstruction : Instruction
     {
     }
 
-    protected FileTransferInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
+    protected FileTransferInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        SourceTokens = new TokenList<LiteralToken>(TokenList,
+        SourceTokens = new TokenList<LiteralToken>(this,
             literals => literals.Take(literals.Count() - 1));
-        Sources = new ProjectedItemList<LiteralToken, string>(
-            SourceTokens,
-            token => token.Value,
-            (token, value) => token.Value = value);
+        Sources = InstructionCollectionEditing.Strings(SourceTokens, this);
         EscapeChar = escapeChar;
     }
 
     protected char EscapeChar { get; }
 
-    public IList<string> Sources { get; }
+    /// <summary>Gets the live editable source value view, excluding the destination and heredoc definitions.</summary>
+    /// <remarks>
+    /// New strings supply semantic values. In JSON form, values containing double quotes,
+    /// backslashes, or U+0000–U+001F are rejected because this view does not implement JSON escaping.
+    /// Use <see cref="SourceTokens"/> for valid encoded syntax within the existing operand grammar.
+    /// </remarks>
+    public EditableList<string> Sources { get; }
 
-    public IList<LiteralToken> SourceTokens { get; }
+    /// <summary>Gets the live editable source token view, excluding the destination and heredoc definitions.</summary>
+    /// <remarks>
+    /// In JSON form, inserted and non-self replacement tokens must form one JSON string when
+    /// double-quoted and normalized for Dockerfile continuations and physical comments.
+    /// Valid encoded syntax is preserved; rejection leaves incoming tokens unchanged.
+    /// Existing operand grammar checks still apply.
+    /// </remarks>
+    public EditableList<LiteralToken> SourceTokens { get; }
 
     /// <summary>
     /// Gets or sets the destination path. For heredoc instructions, the destination is
@@ -81,26 +91,6 @@ public abstract class FileTransferInstruction : Instruction
     /// Gets the heredoc body tokens in this instruction.
     /// </summary>
     public IEnumerable<HeredocBodyToken> HeredocBodyTokens => Tokens.OfType<HeredocBodyToken>();
-
-    /// <summary>
-    /// Gets the paired heredoc marker+body objects in this instruction.
-    /// Association is positional: first marker pairs with first body, etc.
-    /// </summary>
-    public IReadOnlyList<Heredoc> Heredocs
-    {
-        get
-        {
-            var markerList = HeredocMarkerTokens.ToList();
-            var bodyList = HeredocBodyTokens.ToList();
-            int count = Math.Min(markerList.Count, bodyList.Count);
-            List<Heredoc> result = new(count);
-            for (int i = 0; i < count; i++)
-            {
-                result.Add(new Heredoc(markerList[i], bodyList[i]));
-            }
-            return result;
-        }
-    }
 
     /// <summary>
     /// Gets the heredoc tokens in this instruction (marker tokens, for backward compatibility checks).

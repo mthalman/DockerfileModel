@@ -10,7 +10,11 @@ namespace Valleysoft.DockerfileModel;
 /// </summary>
 public abstract class CommandInstruction : Instruction
 {
-    protected CommandInstruction(IEnumerable<Token> tokens) : base(tokens)
+    protected CommandInstruction(IEnumerable<Token> tokens) : this(tokens, Dockerfile.DefaultEscapeChar)
+    {
+    }
+
+    protected CommandInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
     }
 

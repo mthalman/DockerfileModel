@@ -46,5 +46,7 @@ public class CommentToken : AggregateToken
         select ConcatTokens(commentChar, text);
 
     internal static Parser<IEnumerable<Token>> CommentCharParser() =>
-        TokenWithTrailingWhitespace(Symbol('#'));
+        from commentChar in Symbol('#')
+        from whitespace in WhitespaceWithoutNewLine()
+        select ConcatTokens(commentChar, whitespace);
 }

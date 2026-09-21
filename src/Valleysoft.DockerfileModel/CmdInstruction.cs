@@ -6,33 +6,33 @@ namespace Valleysoft.DockerfileModel;
 public class CmdInstruction : CommandInstruction
 {
     public CmdInstruction(string commandWithArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(commandWithArgs, escapeChar))
+        : this(GetTokens(commandWithArgs, escapeChar), escapeChar)
     {
     }
 
     public CmdInstruction(IEnumerable<string> defaultArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(defaultArgs, escapeChar))
+        : this(GetTokens(defaultArgs, escapeChar), escapeChar)
     {
     }
 
     public CmdInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(command, args, escapeChar))
+        : this(GetTokens(command, args, escapeChar), escapeChar)
     {
     }
 
-    private CmdInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private CmdInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
     }
 
     public static CmdInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<CmdInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new CmdInstruction(tokens);
+        select new CmdInstruction(tokens, escapeChar);
 
     internal static CmdInstruction ParseDiagnostic(string text, char escapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)));
+        new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
     internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
         Instruction("CMD", escapeChar, GetArgsParser(escapeChar, diagnostic));

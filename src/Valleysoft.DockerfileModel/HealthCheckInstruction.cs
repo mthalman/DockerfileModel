@@ -37,7 +37,7 @@ public class HealthCheckInstruction : Instruction
     {
     }
 
-    private HealthCheckInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
+    private HealthCheckInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
         this.escapeChar = escapeChar;
     }

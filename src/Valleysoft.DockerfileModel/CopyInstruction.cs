@@ -120,17 +120,14 @@ public class CopyInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(ParentsFlagInternal, value);
     }
 
-    public IList<string> Excludes { get; private set; } = null!;
+    public EditableList<string> Excludes { get; private set; } = null!;
 
-    public IList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
+    public EditableList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
 
     private void InitializeLists()
     {
-        ExcludeFlagTokens = new TokenList<ExcludeFlag>(TokenList);
-        Excludes = new ProjectedItemList<ExcludeFlag, string>(
-            ExcludeFlagTokens,
-            flag => flag.Value,
-            (flag, value) => flag.Value = value);
+        ExcludeFlagTokens = new TokenList<ExcludeFlag>(this);
+        Excludes = InstructionCollectionEditing.Excludes(ExcludeFlagTokens, this);
     }
 
     public static CopyInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>

@@ -11,13 +11,14 @@ namespace Valleysoft.DockerfileModel;
 /// Key/value entries may have an empty value.
 /// The type entry may appear anywhere; an omitted type defaults to bind without adding text.
 /// </summary>
-public class Mount : AggregateToken
+public partial class Mount : AggregateToken
 {
     private readonly char escapeChar;
 
     internal Mount(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar) : base(tokens)
     {
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
     }
 
     /// <summary>

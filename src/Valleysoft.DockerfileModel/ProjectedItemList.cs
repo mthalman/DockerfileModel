@@ -1,80 +1,66 @@
-﻿using System.Collections;
-
 namespace Valleysoft.DockerfileModel;
 
-internal class ProjectedItemList<TSource, TProjection> : IList<TProjection>
+internal class ProjectedItemList<TSource, TProjection> : EditableList<TProjection>
 {
-    private readonly IEnumerable<TSource> wrappedItems;
+    public ProjectedItemList(EditableList<TSource> source, Func<TSource, TProjection> getValue,
+        Func<TProjection, TSource> create, IEqualityComparer<TProjection>? comparer = null,
+        Action<int, TProjection, TriviaDisposition>? replace = null)
+        : base(new ProjectionAdapter<TSource, TProjection>(source, getValue, create, comparer, replace))
+    {
+    }
+}
+
+internal sealed class ProjectionAdapter<TSource, TProjection> : IEditableListAdapter<TProjection>
+{
+    private readonly EditableList<TSource> source;
     private readonly Func<TSource, TProjection> getValue;
-    private readonly Action<TSource, TProjection> setValue;
+    private readonly Func<TProjection, TSource> create;
+    private readonly Action<int, TProjection, TriviaDisposition>? replace;
 
-    public ProjectedItemList(
-        IEnumerable<TSource> wrappedItems,
-        Func<TSource, TProjection> getValue,
-        Action<TSource, TProjection> setValue)
+    internal ProjectionAdapter(EditableList<TSource> source, Func<TSource, TProjection> getValue,
+        Func<TProjection, TSource> create, IEqualityComparer<TProjection>? comparer,
+        Action<int, TProjection, TriviaDisposition>? replace)
     {
-        this.wrappedItems = wrappedItems;
+        this.source = source;
         this.getValue = getValue;
-        this.setValue = setValue;
+        this.create = create;
+        this.replace = replace;
+        Comparer = comparer ?? EqualityComparer<TProjection>.Default;
     }
 
-    public TProjection this[int index]
+    public void ValidateWrite() => source.ValidateWrite();
+    public IReadOnlyList<TProjection> Snapshot() => source.Select(getValue).ToArray();
+    public IEqualityComparer<TProjection> Comparer { get; }
+    public void Insert(int index, TProjection item) => source.Insert(index, create(item));
+
+    public void Replace(int index, TProjection item, TriviaDisposition trivia)
     {
-        get => getValue(wrappedItems.ElementAt(index));
-        set => setValue(wrappedItems.ElementAt(index), value);
+        if (replace is not null)
+        {
+            replace(index, item, trivia);
+        }
+        else
+        {
+            TSource current = source[index];
+            source.Replace(index, ReferenceEquals(getValue(current), item) ? current : create(item), trivia);
+        }
     }
 
-    public int Count => wrappedItems.Count();
-
-    public bool IsReadOnly => false;
-
-    public void Add(TProjection item)
+    public void Remove(IReadOnlyList<int> indices, TriviaDisposition trivia)
     {
-        ThrowAddRemoveNotSupported();
+        if (indices.Count == source.Count)
+        {
+            source.Clear(trivia);
+        }
+        else if (indices.Count == 1)
+        {
+            source.RemoveAt(indices[0], trivia);
+        }
+        else
+        {
+            throw new InvalidOperationException("Only one item or the complete collection may be removed.");
+        }
     }
 
-    public void Clear()
-    {
-        ThrowAddRemoveNotSupported();
-    }
-
-    public bool Contains(TProjection item) => GetItems().Contains(item);
-
-    public void CopyTo(TProjection[] array, int arrayIndex)
-    {
-        GetItems()
-            .ToList()
-            .CopyTo(array, arrayIndex);
-    }
-
-    public IEnumerator<TProjection> GetEnumerator() => GetItems().GetEnumerator();
-
-    public int IndexOf(TProjection item) => GetItems().ToList().IndexOf(item);
-
-    public void Insert(int index, TProjection item)
-    {
-        ThrowAddRemoveNotSupported();
-    }
-
-    public bool Remove(TProjection item)
-    {
-        ThrowAddRemoveNotSupported();
-        return false;
-    }
-
-    public void RemoveAt(int index)
-    {
-        ThrowAddRemoveNotSupported();
-    }
-
-    IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
-
-    private IEnumerable<TProjection> GetItems() =>
-        wrappedItems
-            .Select(wrappedItem => getValue(wrappedItem));
-
-    private void ThrowAddRemoveNotSupported()
-    {
-        throw new NotSupportedException("Items may not be added or removed from the list.");
-    }
+    public void Move(int oldIndex, int newIndex) => source.Move(oldIndex, newIndex);
 }

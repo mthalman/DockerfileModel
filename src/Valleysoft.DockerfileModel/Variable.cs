@@ -22,6 +22,7 @@ public class Variable : IdentifierToken
         : base(tokens)
     {
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
     }
 
     public static Parser<Variable> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>

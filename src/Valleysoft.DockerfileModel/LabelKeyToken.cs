@@ -22,6 +22,7 @@ public class LabelKeyToken : IdentifierToken
         : base(tokens)
     {
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
     }
 
     public static Parser<LabelKeyToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>

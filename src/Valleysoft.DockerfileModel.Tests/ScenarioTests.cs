@@ -4,6 +4,64 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class ScenarioTests
 {
+    /// <summary>
+    /// Updates application inputs, cache options, and exposed ports through list edits while preserving surrounding text.
+    /// </summary>
+    [Fact]
+    public void EditApplicationDockerfileListsWithoutRebuildingInstructions()
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "# syntax=docker/dockerfile:1\n" +
+            "FROM alpine:3.22\n" +
+            "# Application setup\n" +
+            "COPY src/ obsolete/ /app/\n" +
+            "RUN --mount=type=cache,target=/var/cache/apk apk add --no-cache curl\n" +
+            "EXPOSE 80\n" +
+            "CMD [\"sh\"]\n");
+        CopyInstruction copy = Assert.Single(dockerfile.Items.OfType<CopyInstruction>());
+        RunInstruction run = Assert.Single(dockerfile.Items.OfType<RunInstruction>());
+        ExposeInstruction expose = Assert.Single(dockerfile.Items.OfType<ExposeInstruction>());
+        FromInstruction from = Assert.Single(dockerfile.Items.OfType<FromInstruction>());
+        CmdInstruction cmd = Assert.Single(dockerfile.Items.OfType<CmdInstruction>());
+        LiteralToken source = copy.SourceTokens[0];
+        LiteralToken destination = copy.DestinationToken!;
+        Command command = run.Command!;
+        Mount cache = Assert.Single(run.Mounts);
+
+        copy.Sources.Remove("obsolete/");
+        copy.Sources.Add("generated/");
+        copy.Sources.Insert(copy.Sources.IndexOf("generated/"), "LICENSE");
+        copy.Sources.Move(copy.Sources.IndexOf("LICENSE"), copy.Sources.Count - 1);
+        cache.Entries.Add(new MountEntry("sharing", "locked"));
+        expose.Ports[0] = "8080";
+        expose.Ports.Add("9090");
+        var workdir = new WorkdirInstruction("/app");
+        dockerfile.Items.Insert(dockerfile.Items.IndexOf(copy), workdir);
+
+        const string expected =
+            "# syntax=docker/dockerfile:1\n" +
+            "FROM alpine:3.22\n" +
+            "# Application setup\n" +
+            "WORKDIR /app\n" +
+            "COPY src/ generated/ LICENSE /app/\n" +
+            "RUN --mount=type=cache,target=/var/cache/apk,sharing=locked apk add --no-cache curl\n" +
+            "EXPOSE 8080 9090\n" +
+            "CMD [\"sh\"]\n";
+        Assert.Equal(expected, dockerfile.ToString());
+        Assert.Equal(new[] { "src/", "generated/", "LICENSE" }, copy.Sources);
+        Assert.Equal(new[] { "8080", "9090" }, expose.Ports);
+        Assert.Same(source, copy.SourceTokens[0]);
+        Assert.Same(destination, copy.DestinationToken);
+        Assert.Same(command, run.Command);
+        Assert.Same(cache, Assert.Single(run.Mounts));
+        Assert.Same(workdir, dockerfile.Items[dockerfile.Items.IndexOf(copy) - 1]);
+        Assert.Same(from, Assert.Single(dockerfile.Items.OfType<FromInstruction>()));
+        Assert.Same(cmd, Assert.Single(dockerfile.Items.OfType<CmdInstruction>()));
+        DockerfileParseResult reparsed = Dockerfile.TryParse(dockerfile.ToString());
+        Assert.True(reparsed.Success);
+        Assert.Equal(expected, reparsed.Dockerfile!.ToString());
+    }
+
     [Fact]
     public void AnalyzeDependenciesAndUpdateAnExternalCopyImage()
     {

@@ -6,11 +6,11 @@ namespace Valleysoft.DockerfileModel;
 public class UserInstruction : Instruction
 {
     public UserInstruction(string user, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(user, escapeChar))
+        : this(GetTokens(user, escapeChar), escapeChar)
     {
     }
 
-    private UserInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private UserInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
     }
 
@@ -35,11 +35,11 @@ public class UserInstruction : Instruction
     }
 
     public static UserInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<UserInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new UserInstruction(tokens);
+        select new UserInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string user, char escapeChar)
     {

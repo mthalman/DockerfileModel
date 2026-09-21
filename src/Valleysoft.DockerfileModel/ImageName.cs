@@ -22,6 +22,7 @@ public class ImageName : AggregateToken
     internal ImageName(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
     {
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
         registryToken = Tokens.OfType<InnerTokens.Registry>().FirstOrDefault();
         repositoryToken = Tokens.OfType<InnerTokens.Repository>().First();
         tagToken = Tokens.OfType<InnerTokens.Tag>().FirstOrDefault();
