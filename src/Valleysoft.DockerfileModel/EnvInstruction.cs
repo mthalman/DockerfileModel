@@ -210,6 +210,12 @@ public class EnvInstruction : Instruction
             int depth = 1;
             for (int end = start + 2; end < value.Length; end++)
             {
+                if (value[end] == escapeChar && end + 1 < value.Length)
+                {
+                    end++;
+                    continue;
+                }
+
                 if (value[end] == '{')
                 {
                     depth++;
