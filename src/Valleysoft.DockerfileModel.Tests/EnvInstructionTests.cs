@@ -165,6 +165,39 @@ public class EnvInstructionTests
             () => Assert.IsType<LiteralToken>(result.VariableTokens[0].ValueToken), "var", canContainVariables: true);
     }
 
+    [Fact]
+    public void EnvVarWithEscapedQuoteAndVariableReference()
+    {
+        EnvInstruction result = EnvInstruction.Parse("ENV foo=\"a\\\" $BAR\"");
+        LiteralToken valueToken = Assert.IsAssignableFrom<LiteralToken>(result.VariableTokens[0].ValueToken);
+
+        Assert.Contains(valueToken.Tokens, token => token is VariableRefToken variableRef && variableRef.VariableName == "BAR");
+        Assert.Equal("a\\\" $BAR", result.Variables[0].Value);
+        Assert.Equal("ENV foo=\"a\\\" x\"", result.ResolveVariables('\\', new Dictionary<string, string?> { ["BAR"] = "x" }));
+        Assert.Equal("ENV foo=\"a\\\" $BAR\"", result.ToString());
+    }
+
+    [Fact]
+    public void EnvVarWithEscapedQuoteAndEscapedVariableReference()
+    {
+        EnvInstruction result = EnvInstruction.Parse("ENV foo=\"a\\\" \\$BAR\"");
+        LiteralToken valueToken = Assert.IsAssignableFrom<LiteralToken>(result.VariableTokens[0].ValueToken);
+
+        Assert.DoesNotContain(valueToken.Tokens, token => token is VariableRefToken);
+        Assert.Equal("a\\\" \\$BAR", result.Variables[0].Value);
+        Assert.Equal("ENV foo=\"a\\\" \\$BAR\"", result.ResolveVariables('\\', new Dictionary<string, string?> { ["BAR"] = "x" }));
+        Assert.Equal("ENV foo=\"a\\\" \\$BAR\"", result.ToString());
+    }
+
+    [Fact]
+    public void EnvVarWithEscapedQuoteAndPostQuoteSuffix_RoundTrips()
+    {
+        string text = "ENV foo=\"a\\\"b\"suffix";
+        EnvInstruction result = EnvInstruction.Parse(text);
+
+        Assert.Equal(text, result.ToString());
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<EnvInstruction>[] testInputs = new ParseTestScenario<EnvInstruction>[]

@@ -27,6 +27,10 @@ namespace Valleysoft.DockerfileModel.TestSupport;
 ///   GitHub issue tracking the underlying C# fix.
 ///
 /// Known differences with workarounds:
+///   - https://github.com/mthalman/DockerfileModel/issues/387 (shell-form final newline ownership): C# keeps the newline in the shell
+///     literal to preserve the public round-trip token model. Canonical JSON moves
+///     trailing newline tokens out to instruction level to match Lean's BuildKit-derived
+///     representation without changing the parsed model.
 ///   - COPY/ADD unrecognized flags (issues #238, #239, #240, #241): C# does not recognize
 ///     --parents, --exclude (COPY), --unpack, --exclude (ADD) as named flags, so it treats
 ///     them as opaque literal file-path tokens. Lean recognizes them and emits keyValue tokens.
@@ -108,6 +112,12 @@ public static class TokenJsonSerializer
         if (token is CopyInstruction || token is AddInstruction)
         {
             SerializeCopyOrAddInstruction(sb, (Instruction)token);
+            return;
+        }
+
+        if (token is EnvInstruction envInstruction)
+        {
+            SerializeEnvInstruction(sb, envInstruction);
             return;
         }
 
@@ -204,6 +214,11 @@ public static class TokenJsonSerializer
 
     private static void SerializeAggregate(StringBuilder sb, string kind, Token token)
     {
+        SerializeAggregate(sb, kind, token, ((AggregateToken)token).Tokens);
+    }
+
+    private static void SerializeAggregate(StringBuilder sb, string kind, Token token, IEnumerable<Token> children)
+    {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"");
         sb.Append(kind);
         sb.Append("\",\"quoteChar\":");
@@ -222,9 +237,8 @@ public static class TokenJsonSerializer
 
         sb.Append(",\"children\":[");
 
-        AggregateToken aggregate = (AggregateToken)token;
         bool first = true;
-        foreach (Token child in aggregate.Tokens)
+        foreach (Token child in children)
         {
             EmitChild(sb, child, ref first);
         }
@@ -255,6 +269,104 @@ public static class TokenJsonSerializer
         }
     }
 
+    private static void SerializeEnvInstruction(StringBuilder sb, EnvInstruction instruction)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        foreach (Token child in instruction.Tokens)
+        {
+            if (child is KeyValueToken<Variable, LiteralToken> keyValue)
+            {
+                if (!first) sb.Append(',');
+                SerializeEnvKeyValue(sb, keyValue);
+                first = false;
+                continue;
+            }
+
+            if (!first) sb.Append(',');
+            SerializeToken(sb, child);
+            first = false;
+        }
+
+        sb.Append("]}");
+    }
+
+    private static void SerializeEnvKeyValue(StringBuilder sb, KeyValueToken<Variable, LiteralToken> keyValue)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        foreach (Token child in keyValue.Tokens)
+        {
+            if (child is LiteralToken literal && IsEnvEscapedQuoteLiteral(literal))
+            {
+                if (!first) sb.Append(',');
+                SerializeEnvEscapedQuoteLiteral(sb, literal);
+                first = false;
+                continue;
+            }
+
+            if (!first) sb.Append(',');
+            SerializeToken(sb, child);
+            first = false;
+        }
+
+        sb.Append("]}");
+    }
+
+    private static bool IsEnvEscapedQuoteLiteral(LiteralToken literal)
+    {
+        return literal is EnvEscapedQuoteLiteralToken && literal.QuoteChar.HasValue;
+    }
+
+    private static void SerializeEnvEscapedQuoteLiteral(StringBuilder sb, LiteralToken literal)
+    {
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
+
+        bool first = true;
+        foreach (Token child in CollapseStringTokens(ConcatTokens(
+            new Token[] { new StringToken(literal.QuoteChar!.Value.ToString()) },
+            literal.Tokens,
+            new Token[] { new StringToken(literal.QuoteChar.Value.ToString()) })))
+        {
+            if (!first) sb.Append(',');
+            SerializeToken(sb, child);
+            first = false;
+        }
+
+        sb.Append("]}");
+    }
+
+    private static IEnumerable<Token> CollapseStringTokens(IEnumerable<Token> tokens)
+    {
+        StringBuilder builder = new();
+        foreach (Token token in tokens)
+        {
+            if (token is StringToken stringToken)
+            {
+                builder.Append(stringToken.Value);
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                yield return new StringToken(builder.ToString());
+                builder.Clear();
+            }
+
+            yield return token;
+        }
+
+        if (builder.Length > 0)
+        {
+            yield return new StringToken(builder.ToString());
+        }
+    }
+
+    private static IEnumerable<Token> ConcatTokens(params IEnumerable<Token>[] tokenSets) =>
+        tokenSets.SelectMany(tokens => tokens);
+
     // ===================================================================
     // Shell form literal serialization
     // Shell form commands are parsed as opaque text without variable
@@ -265,14 +377,14 @@ public static class TokenJsonSerializer
     // ===================================================================
 
     /// <summary>
-    /// Serialize a shell form LiteralToken. Shell form commands should never
-    /// contain VariableRefToken children; encountering one is a fail-fast error.
+    /// Serialize a shell form LiteralToken. Shell form commands should never contain
+    /// VariableRefToken children, and their trailing final newline tokens are serialized
+    /// as instruction-level siblings to match Lean's canonical BuildKit-derived shape.
     /// </summary>
-    private static void SerializeShellFormLiteral(StringBuilder sb, LiteralToken literal)
+    private static void SerializeShellFormLiteral(StringBuilder sb, LiteralToken literal, ref bool first)
     {
-        // Fail fast if a VariableRefToken is encountered — shell form commands
-        // are parsed as opaque text and should never produce variable ref nodes.
-        foreach (Token child in literal.Tokens)
+        List<Token> literalChildren = literal.Tokens.ToList();
+        foreach (Token child in literalChildren)
         {
             if (child is VariableRefToken)
             {
@@ -282,7 +394,22 @@ public static class TokenJsonSerializer
             }
         }
 
-        SerializeAggregate(sb, "literal", literal);
+        int contentEnd = literalChildren.Count;
+        while (contentEnd > 0 && literalChildren[contentEnd - 1] is NewLineToken)
+        {
+            contentEnd--;
+        }
+
+        if (!first) sb.Append(',');
+        SerializeAggregate(sb, "literal", literal, literalChildren.Take(contentEnd));
+        first = false;
+
+        for (int i = contentEnd; i < literalChildren.Count; i++)
+        {
+            if (!first) sb.Append(',');
+            SerializeToken(sb, literalChildren[i]);
+            first = false;
+        }
     }
 
     // ===================================================================
@@ -305,16 +432,16 @@ public static class TokenJsonSerializer
             {
                 foreach (Token cmdChild in cmd.Tokens)
                 {
-                    if (!first) sb.Append(',');
-                    first = false;
                     // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
-                        SerializeShellFormLiteral(sb, lit);
+                        SerializeShellFormLiteral(sb, lit, ref first);
                     }
                     else
                     {
+                        if (!first) sb.Append(',');
                         SerializeToken(sb, cmdChild);
+                        first = false;
                     }
                 }
             }
@@ -338,8 +465,8 @@ public static class TokenJsonSerializer
     // Issue #241: ADD --exclude=... — C# treats it as literal["--exclude=..."]; Lean: keyValue
     // Strategy:
     //   1. Scan instruction tokens with a look-ahead of 1.
-    //   2. A literal whose StringToken value starts with "--" is an unrecognized flag literal:
-    //      parse "flagname" (and optional "=flagvalue") from the text and emit as keyValue.
+    //   2. A literal whose StringToken value starts with a Lean-recognized file-transfer
+    //      flag is emitted as keyValue; unrelated unknown flags remain opaque literals.
     // ===================================================================
 
     private static void SerializeCopyOrAddInstruction(StringBuilder sb, Instruction instruction)
@@ -353,13 +480,13 @@ public static class TokenJsonSerializer
         {
             Token child = tokens[i];
 
-            // Workaround #238/#239/#240/#241: LiteralToken whose value starts with "--" is
-            // an unrecognized flag. Emit as keyValue[-, -, keyword["name"], optionally =, literal["value"]].
-            if (child is LiteralToken flagLit && IsUnrecognizedFlagLiteral(flagLit, out string? flagName, out string? flagValue))
+            // Workaround #238/#239/#240/#241: Lean-recognized flags that C# treats as
+            // source literals are emitted as keyValue[-, -, keyword["name"], optionally =, literal["value"]].
+            if (child is LiteralToken flagLit && IsLeanRecognizedFileTransferFlagLiteral(instruction, flagLit, out string? flagName, out IReadOnlyList<Token>? flagValueTokens))
             {
                 if (!first) sb.Append(',');
                 first = false;
-                SerializeUnrecognizedFlagAsKeyValue(sb, flagName!, flagValue);
+                SerializeUnrecognizedFlagAsKeyValue(sb, flagName!, flagValueTokens);
                 continue;
             }
 
@@ -372,27 +499,18 @@ public static class TokenJsonSerializer
     }
 
     /// <summary>
-    /// Returns the concatenated string value of all StringToken children of a LiteralToken.
+    /// Returns the serialized text of a LiteralToken.
     /// </summary>
-    private static string GetLiteralText(LiteralToken literal)
-    {
-        var sb = new StringBuilder();
-        foreach (Token child in literal.Tokens)
-        {
-            if (child is StringToken str)
-                sb.Append(str.Value);
-        }
-        return sb.ToString();
-    }
+    private static string GetLiteralText(LiteralToken literal) => literal.ToString();
 
     /// <summary>
-    /// Returns true if the literal token holds an unrecognized flag text starting with "--".
-    /// Parses the flag name and optional value from the literal text.
-    /// For example: "--parents" → flagName="parents", flagValue=null
-    ///              "--exclude=*.txt" → flagName="exclude", flagValue="*.txt"
+    /// Returns true if the literal token holds a file-transfer flag text that Lean recognizes
+    /// but the C# parser kept as an operand literal. Parses the flag name and optional value tokens.
     /// </summary>
-    private static bool IsUnrecognizedFlagLiteral(LiteralToken literal, out string? flagName, out string? flagValue)
+    private static bool IsLeanRecognizedFileTransferFlagLiteral(
+        Instruction instruction, LiteralToken literal, out string? flagName, out IReadOnlyList<Token>? flagValueTokens)
     {
+        flagValueTokens = null;
         string text = GetLiteralText(literal);
         if (text.StartsWith("--") && text.Length > 2)
         {
@@ -401,18 +519,97 @@ public static class TokenJsonSerializer
             if (eqIdx >= 0)
             {
                 flagName = nameAndValue.Substring(0, eqIdx);
-                flagValue = nameAndValue.Substring(eqIdx + 1);
             }
             else
             {
                 flagName = nameAndValue;
-                flagValue = null;
+                flagValueTokens = null;
             }
-            return true;
+
+            if (eqIdx >= 0)
+            {
+                flagValueTokens = SliceTokenText(literal.Tokens, 2 + flagName.Length + 1).ToArray();
+            }
+
+            return instruction switch
+            {
+                CopyInstruction => TryNormalizeCopyFileTransferFlag(flagName, ref flagValueTokens),
+                AddInstruction => TryNormalizeAddFileTransferFlag(flagName, ref flagValueTokens),
+                _ => false
+            };
         }
         flagName = null;
-        flagValue = null;
+        flagValueTokens = null;
         return false;
+    }
+
+    private static bool TryNormalizeCopyFileTransferFlag(string flagName, ref IReadOnlyList<Token>? flagValueTokens) =>
+        flagName switch
+        {
+            _ when IsFlagName(flagName, "parents") => TryNormalizeBooleanFlagValue(ref flagValueTokens),
+            _ when IsFlagName(flagName, "exclude") => IsValueFlagValue(flagValueTokens),
+            _ => false
+        };
+
+    private static bool TryNormalizeAddFileTransferFlag(string flagName, ref IReadOnlyList<Token>? flagValueTokens) =>
+        flagName switch
+        {
+            _ when IsFlagName(flagName, "unpack") => TryNormalizeBooleanFlagValue(ref flagValueTokens),
+            _ when IsFlagName(flagName, "exclude") => IsValueFlagValue(flagValueTokens),
+            _ => false
+        };
+
+    private static bool IsFlagName(string actual, string expected) =>
+        actual.Equals(expected, StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryNormalizeBooleanFlagValue(ref IReadOnlyList<Token>? valueTokens)
+    {
+        if (valueTokens is null)
+        {
+            return true;
+        }
+
+        string value = string.Concat(valueTokens.Select(token => token.ToString()));
+        if (value.Equals("true", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("false", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsValueFlagValue(IReadOnlyList<Token>? valueTokens) =>
+        valueTokens is not null && valueTokens.Count > 0;
+
+    private static IEnumerable<Token> SliceTokenText(IEnumerable<Token> tokens, int startOffset)
+    {
+        int offset = 0;
+        foreach (Token token in tokens)
+        {
+            string text = token.ToString();
+            int nextOffset = offset + text.Length;
+            if (nextOffset <= startOffset)
+            {
+                offset = nextOffset;
+                continue;
+            }
+
+            if (offset < startOffset)
+            {
+                if (token is StringToken)
+                {
+                    yield return new StringToken(text.Substring(startOffset - offset));
+                    offset = nextOffset;
+                    continue;
+                }
+
+                throw new InvalidOperationException("Cannot split non-string token while serializing file-transfer flag value.");
+            }
+
+            yield return token;
+            offset = nextOffset;
+        }
     }
 
     /// <summary>
@@ -421,7 +618,7 @@ public static class TokenJsonSerializer
     /// Without value: keyValue[symbol[-], symbol[-], keyword["flagname"]]
     /// With value:    keyValue[symbol[-], symbol[-], keyword["flagname"], symbol[=], literal[string["value"]]]
     /// </summary>
-    private static void SerializeUnrecognizedFlagAsKeyValue(StringBuilder sb, string flagName, string? flagValue)
+    private static void SerializeUnrecognizedFlagAsKeyValue(StringBuilder sb, string flagName, IReadOnlyList<Token>? flagValueTokens)
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
 
@@ -436,16 +633,13 @@ public static class TokenJsonSerializer
         SerializePrimitive(sb, "string", flagName);
         sb.Append("]}");
 
-        if (flagValue is not null)
+        if (flagValueTokens is not null)
         {
             // symbol["="]
             sb.Append(',');
             SerializePrimitive(sb, "symbol", "=");
             sb.Append(',');
-            // literal[string["value"]]
-            sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-            SerializePrimitive(sb, "string", flagValue);
-            sb.Append("]}");
+            SerializeAggregate(sb, "literal", new LiteralToken(flagValueTokens, canContainVariables: true, Dockerfile.DefaultEscapeChar), flagValueTokens);
         }
 
         sb.Append("]}");
@@ -482,16 +676,16 @@ public static class TokenJsonSerializer
             {
                 foreach (Token cmdChild in cmd.Tokens)
                 {
-                    if (!first) sb.Append(',');
-                    first = false;
                     // Validate shell form LiteralTokens (fail-fast on VariableRefToken)
                     if (cmdChild is LiteralToken lit)
                     {
-                        SerializeShellFormLiteral(sb, lit);
+                        SerializeShellFormLiteral(sb, lit, ref first);
                     }
                     else
                     {
+                        if (!first) sb.Append(',');
                         SerializeToken(sb, cmdChild);
+                        first = false;
                     }
                 }
             }
