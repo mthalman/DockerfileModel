@@ -1748,6 +1748,36 @@ def testCmdExecSingle : IO Unit := do
     throw (IO.Error.userError "Parse failed: CMD exec form single should parse")
 
 open DockerfileModel.Parser.Instructions.Cmd in
+/-- Test: continued JSON array with a non-string element is rejected. -/
+def testCmdContinuedJsonArrayWithNonStringElementRejects : IO Unit := do
+  IO.println "Cmd: continued JSON array with non-string element rejects"
+  match parseCmd "CMD [\"echo\", \\\n 1]" with
+  | some inst =>
+    throw (IO.Error.userError s!"Parse unexpectedly succeeded: {Token.toString inst.token}")
+  | none =>
+    pure ()
+
+open DockerfileModel.Parser.Instructions.Cmd in
+/-- Test: continued trailing comment after JSON array with a non-string element is rejected. -/
+def testCmdJsonArrayWithNonStringElementAndContinuationCommentRejects : IO Unit := do
+  IO.println "Cmd: JSON array with non-string element and continuation comment rejects"
+  match parseCmd "CMD [\"echo\", 1] \\\n# comment\n" with
+  | some inst =>
+    throw (IO.Error.userError s!"Parse unexpectedly succeeded: {Token.toString inst.token}")
+  | none =>
+    pure ()
+
+open DockerfileModel.Parser.Instructions.Cmd in
+/-- Test: separate comment after JSON array with a non-string element is rejected. -/
+def testCmdJsonArrayWithNonStringElementAndSeparateCommentRejects : IO Unit := do
+  IO.println "Cmd: JSON array with non-string element and separate comment rejects"
+  match parseCmd "CMD [\"echo\", 1]\n# comment\n" with
+  | some inst =>
+    throw (IO.Error.userError s!"Parse unexpectedly succeeded: {Token.toString inst.token}")
+  | none =>
+    pure ()
+
+open DockerfileModel.Parser.Instructions.Cmd in
 /-- Test: cmd lowercase keyword -/
 def testCmdLowercase : IO Unit := do
   IO.println "Cmd: lowercase keyword"
@@ -3154,6 +3184,9 @@ def runParserTests_PhaseC_Group1 : IO Unit := do
   testCmdShellForm
   testCmdShellVariable
   testCmdExecSingle
+  testCmdContinuedJsonArrayWithNonStringElementRejects
+  testCmdJsonArrayWithNonStringElementAndContinuationCommentRejects
+  testCmdJsonArrayWithNonStringElementAndSeparateCommentRejects
   testCmdLowercase
   testCmdLineContinuation
   IO.println ""
