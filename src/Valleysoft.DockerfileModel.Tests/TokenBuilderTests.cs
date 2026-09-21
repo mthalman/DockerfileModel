@@ -172,12 +172,14 @@ public class TokenBuilderTests
         Assert.Equal(expectedResult, builder.ToString());
     }
 
-    [Fact]
-    public void DefaultNewLine()
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void DefaultNewLine(string newline)
     {
         TokenBuilder builder = new()
         {
-            DefaultNewLine = "\n"
+            DefaultNewLine = newline
         };
 
         string result = builder
@@ -185,8 +187,48 @@ public class TokenBuilderTests
             .LineContinuation()
             .ToString();
 
-        string expectedResult = "\n\\\n";
+        string expectedResult = $"{newline}\\{newline}";
         Assert.Equal(expectedResult, result);
+    }
+
+    [Fact]
+    public void DefaultNewLineUsesHost()
+    {
+        TokenBuilder builder = new();
+
+        Assert.Equal(Environment.NewLine, builder.DefaultNewLine);
+        Assert.Equal(Environment.NewLine + "\\" + Environment.NewLine,
+            builder.NewLine().LineContinuation().ToString());
+    }
+
+    [Theory]
+    [InlineData("\n", '\\')]
+    [InlineData("\r\n", '\\')]
+    [InlineData("\n", '`')]
+    [InlineData("\r\n", '`')]
+    public void NestedCallbacksInheritDefaultNewLine(string newline, char escapeChar)
+    {
+        TokenBuilder builder = new() { DefaultNewLine = newline, EscapeChar = escapeChar };
+
+        builder.ShellFormCommand(command =>
+        {
+            Assert.Equal(newline, command.DefaultNewLine);
+            command.Literal(literal =>
+            {
+                Assert.Equal(newline, literal.DefaultNewLine);
+                literal.String("echo ").LineContinuation().String("  hello").NewLine();
+            });
+        });
+
+        string expected = $"echo {escapeChar}{newline}  hello{newline}";
+        Assert.Equal(expected, builder.ToString());
+        ShellFormCommand command = Assert.IsType<ShellFormCommand>(Assert.Single(builder.Tokens));
+        LiteralToken literal = Assert.IsType<LiteralToken>(Assert.Single(command.Tokens));
+        Assert.Collection(literal.Tokens,
+            token => ValidateString(token, "echo "),
+            token => ValidateLineContinuation(token, escapeChar, newline),
+            token => ValidateString(token, "  hello"),
+            token => ValidateNewLine(token, newline));
     }
 
     [Fact]

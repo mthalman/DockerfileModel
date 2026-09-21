@@ -22,33 +22,48 @@ public class LineContinuationTokenTests
             token => ValidateSymbol(token, '`'),
             token => ValidateNewLine(token, Environment.NewLine)
         });
+    }
 
-        token = new LineContinuationToken("\n", '`');
+    [Theory]
+    [InlineData("\n", '\\')]
+    [InlineData("\r\n", '\\')]
+    [InlineData("\n", '`')]
+    [InlineData("\r\n", '`')]
+    public void CreateWithExplicitNewLine(string newline, char escapeChar)
+    {
+        LineContinuationToken token = new(newline, escapeChar);
+        Assert.Equal($"{escapeChar}{newline}", token.ToString());
         Assert.Collection(token.Tokens, new Action<Token>[]
         {
-            token => ValidateSymbol(token, '`'),
-            token => ValidateNewLine(token, "\n")
+            token => ValidateSymbol(token, escapeChar),
+            token => ValidateNewLine(token, newline)
         });
     }
 
-    [Fact]
-    public void Parse()
+    [Theory]
+    [InlineData("\n", '\\')]
+    [InlineData("\r\n", '\\')]
+    [InlineData("\n", '`')]
+    [InlineData("\r\n", '`')]
+    public void Parse(string newline, char escapeChar)
     {
-        LineContinuationToken token = LineContinuationToken.Parse("\\\n");
-        Assert.Equal("\\\n", token.ToString());
+        string text = $"{escapeChar}{newline}";
+        LineContinuationToken token = LineContinuationToken.Parse(text, escapeChar);
+        Assert.Equal(text, token.ToString());
         Assert.Collection(token.Tokens, new Action<Token>[]
         {
-            token => ValidateSymbol(token, '\\'),
-            token => ValidateNewLine(token, "\n")
+            token => ValidateSymbol(token, escapeChar),
+            token => ValidateNewLine(token, newline)
         });
 
-        token = LineContinuationToken.Parse("`  \n", '`');
-        Assert.Equal("`  \n", token.ToString());
+        text = $"{escapeChar}  {newline}";
+        token = LineContinuationToken.Parse(text, escapeChar);
+        Assert.Equal(text, token.ToString());
         Assert.Collection(token.Tokens, new Action<Token>[]
         {
-            token => ValidateSymbol(token, '`'),
+            token => ValidateSymbol(token, escapeChar),
             token => ValidateWhitespace(token, "  "),
-            token => ValidateNewLine(token, "\n")
+            token => ValidateNewLine(token, newline)
         });
     }
 }
