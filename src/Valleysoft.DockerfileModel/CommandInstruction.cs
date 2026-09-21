@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
@@ -62,8 +64,43 @@ public abstract class CommandInstruction : Instruction
     protected static Parser<Command> GetCommandParser(char escapeChar) =>
         GetCommandParser(escapeChar, false);
 
-    private protected static Parser<Command> GetCommandParser(char escapeChar, bool diagnostic) =>
-        ExecFormCommand.GetParser(escapeChar)
-            .Cast<ExecFormCommand, Command>()
-            .XOr(diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar));
+    internal static Parser<Command> GetCommandParser(char escapeChar, bool diagnostic)
+    {
+        Parser<Command> execFormParser = ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Command>();
+        Parser<Command> shellFormParser = (diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar))
+            .Cast<ShellFormCommand, Command>();
+
+        return input =>
+        {
+            IResult<Command> execResult = execFormParser(input);
+            if (execResult.WasSuccessful)
+            {
+                return execResult;
+            }
+
+            string remainingText = input.Source.Substring(input.Position);
+            if (ShouldFallbackToShell(remainingText))
+            {
+                return shellFormParser(input);
+            }
+
+            return Result.Failure<Command>(input, "Expected a valid JSON exec-form command or shell-form command.", new[] { "command" });
+        };
+    }
+
+    private static bool ShouldFallbackToShell(string text)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(text);
+            JsonElement root = document.RootElement;
+
+            return root.ValueKind != JsonValueKind.Array ||
+                root.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String);
+        }
+        catch (JsonException)
+        {
+            return true;
+        }
+    }
 }

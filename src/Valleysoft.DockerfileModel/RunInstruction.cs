@@ -215,7 +215,5 @@ public partial class RunInstruction : CommandInstruction
             .Many().Flatten();
 
     private new static Parser<Command> GetCommandParser(char escapeChar, bool diagnostic) =>
-        ExecFormCommand.GetParser(escapeChar)
-            .Cast<ExecFormCommand, Command>()
-            .Or(diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar));
+        CommandInstruction.GetCommandParser(escapeChar, diagnostic);
 }

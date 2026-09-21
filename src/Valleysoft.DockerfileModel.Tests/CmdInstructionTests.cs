@@ -31,6 +31,66 @@ public class CmdInstructionTests
         scenario.Validate?.Invoke(result);
     }
 
+    [Fact]
+    public void Parse_MalformedJsonFallsBackToShellForm()
+    {
+        CmdInstruction result = CmdInstruction.Parse("CMD [\"echo\"");
+
+        Assert.Equal("CMD [\"echo\"", result.ToString());
+        Assert.Equal(CommandType.ShellForm, result.Command!.CommandType);
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal("[\"echo\"", ((ShellFormCommand)result.Command).Value);
+    }
+
+    [Fact]
+    public void Parse_SingleQuotedJsonArrayFallsBackToShellForm()
+    {
+        CmdInstruction result = CmdInstruction.Parse("CMD ['echo']");
+
+        Assert.Equal("CMD ['echo']", result.ToString());
+        Assert.Equal(CommandType.ShellForm, result.Command!.CommandType);
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal("['echo']", ((ShellFormCommand)result.Command).Value);
+    }
+
+    [Fact]
+    public void Parse_BareBracketShellLiteralFallsBackToShellForm()
+    {
+        CmdInstruction result = CmdInstruction.Parse("CMD [foo]");
+
+        Assert.Equal("CMD [foo]", result.ToString());
+        Assert.Equal(CommandType.ShellForm, result.Command!.CommandType);
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal("[foo]", ((ShellFormCommand)result.Command).Value);
+    }
+
+    [Fact]
+    public void Parse_InvalidJsonColonArrayFallsBackToShellForm()
+    {
+        CmdInstruction result = CmdInstruction.Parse("CMD [\"echo\" : \"x\"]");
+
+        Assert.Equal("CMD [\"echo\" : \"x\"]", result.ToString());
+        Assert.Equal(CommandType.ShellForm, result.Command!.CommandType);
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal("[\"echo\" : \"x\"]", ((ShellFormCommand)result.Command).Value);
+    }
+
+    [Fact]
+    public void Parse_NestedJsonArrayRejectsNonStringElements()
+    {
+        Assert.Throws<ParseException>(() => CmdInstruction.Parse("CMD [\"echo\", [\"nested json\"]]"));
+    }
+
+    [Theory]
+    [InlineData("CMD [\"echo\", 1]")]
+    [InlineData("CMD [\"echo\", true]")]
+    [InlineData("CMD [\"echo\", null]")]
+    [InlineData("CMD [\"echo\", {\"arg\":\"value\"}]")]
+    public void Parse_ValidJsonArrayWithNonStringElementRejects(string text)
+    {
+        Assert.Throws<ParseException>(() => CmdInstruction.Parse(text));
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<CmdInstruction>[] testInputs = new ParseTestScenario<CmdInstruction>[]
