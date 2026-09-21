@@ -177,6 +177,23 @@ public class TokenJsonSerializerTests
         Assert.Equal(expectedQuoteChar, value.GetProperty("quoteChar").GetString());
     }
 
+    [Fact]
+    public void Env_EscapedQuoteValueMutatedAfterParse_SerializesAsCurrentLiteralShape()
+    {
+        EnvInstruction instruction = EnvInstruction.Parse("ENV name=\"a\\\"b\"");
+        instruction.Variables[0].Value = "plain";
+
+        string json = TokenJsonSerializer.Serialize(instruction);
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement keyValue = document.RootElement.GetProperty("children").EnumerateArray()
+            .Single(child => child.GetProperty("kind").GetString() == "keyValue");
+        JsonElement value = keyValue.GetProperty("children").EnumerateArray().Last();
+
+        Assert.Equal("\"", value.GetProperty("quoteChar").GetString());
+        Assert.Equal("plain", Assert.Single(value.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
     [Theory]
     [InlineData("type=bind,from=build,target=/src", false)]
     [InlineData("from=build,type=bind,target=/src", false)]

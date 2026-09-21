@@ -317,7 +317,8 @@ public static class TokenJsonSerializer
 
     private static bool IsEnvEscapedQuoteLiteral(LiteralToken literal)
     {
-        return literal is EnvEscapedQuoteLiteralToken && literal.QuoteChar.HasValue;
+        return literal is EnvEscapedQuoteLiteralToken { HasOriginalEscapedQuoteSyntax: true }
+            && literal.QuoteChar.HasValue;
     }
 
     private static void SerializeEnvEscapedQuoteLiteral(StringBuilder sb, LiteralToken literal)

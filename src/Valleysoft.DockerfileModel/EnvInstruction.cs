@@ -128,10 +128,7 @@ public class EnvInstruction : Instruction
             if (closingQuoteEnd == end)
             {
                 string rawInnerValue = source.Substring(start + 1, closingQuoteEnd - start - 2);
-                literal = new EnvEscapedQuoteLiteralToken(TokenizeRawEnvValue(rawInnerValue, escapeChar), escapeChar)
-                {
-                    QuoteChar = quote
-                };
+                literal = new EnvEscapedQuoteLiteralToken(TokenizeRawEnvValue(rawInnerValue, escapeChar), escapeChar, quote);
             }
             else
             {
