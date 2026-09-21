@@ -736,21 +736,39 @@ public class DockerfileTests
         Assert.Equal(text, df.ToString());
     }
 
-    [Fact]
-    public void Dockerfile_CRLF_RoundTrips()
+    [Theory]
+    [InlineData("\n", "\n", false)]
+    [InlineData("\n", "\n", true)]
+    [InlineData("\r\n", "\r\n", false)]
+    [InlineData("\r\n", "\r\n", true)]
+    [InlineData("\n", "\r\n", false)]
+    [InlineData("\n", "\r\n", true)]
+    [InlineData("\r\n", "\n", false)]
+    [InlineData("\r\n", "\n", true)]
+    public void Dockerfile_NewlinesRoundTripAndSurviveScalarEdit(
+        string firstNewline, string secondNewline, bool finalNewline)
     {
-        string text = "FROM alpine\r\nRUN echo hello\r\n";
+        string prefix = $"# retained{firstNewline}{secondNewline}FROM ";
+        string suffix = $"{firstNewline}RUN echo \\{secondNewline}  hello" +
+            (finalNewline ? secondNewline : "");
+        string text = prefix + "alpine" + suffix;
         Dockerfile df = Dockerfile.Parse(text);
-        Assert.Equal(text, df.ToString());
-    }
 
-    [Fact]
-    public void Dockerfile_MixedLineEndings_RoundTrips()
-    {
-        // Mix of \n and \r\n in the same file
-        string text = "FROM alpine\nRUN echo hello\r\n";
-        Dockerfile df = Dockerfile.Parse(text);
         Assert.Equal(text, df.ToString());
+        FromInstruction from = Assert.Single(df.Items.OfType<FromInstruction>());
+        RunInstruction run = Assert.Single(df.Items.OfType<RunInstruction>());
+        string originalRun = run.ToString();
+
+        from.ImageName = "busybox";
+
+        string expected = prefix + "busybox" + suffix;
+        Assert.Equal(expected, df.ToString());
+        Assert.Same(run, Assert.Single(df.Items.OfType<RunInstruction>()));
+        Assert.Equal(originalRun, run.ToString());
+        Dockerfile reparsed = Dockerfile.Parse(df.ToString());
+        Assert.Equal(expected, reparsed.ToString());
+        Assert.Equal("busybox", Assert.Single(reparsed.Items.OfType<FromInstruction>()).ImageName);
+        Assert.Equal(originalRun, Assert.Single(reparsed.Items.OfType<RunInstruction>()).ToString());
     }
 
     [Fact]
