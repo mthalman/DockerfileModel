@@ -90,7 +90,7 @@ public class EnvInstruction : Instruction
             end++;
             while (end < source.Length)
             {
-                if (source[end] == escapeChar && end + 1 < source.Length && source[end + 1] is '\'' or '"')
+                if (IsEscapedQuoteStart(source, end, escapeChar))
                 {
                     containsEscapedQuote = true;
                     end += 2;
@@ -138,6 +138,22 @@ public class EnvInstruction : Instruction
 
             return Result.Success(literal, remainder);
         };
+
+    private static bool IsEscapedQuoteStart(string source, int index, char escapeChar)
+    {
+        if (source[index] != escapeChar || index + 1 >= source.Length || source[index + 1] is not ('\'' or '"'))
+        {
+            return false;
+        }
+
+        int escapeRunLength = 0;
+        for (int i = index; i >= 0 && source[i] == escapeChar; i--)
+        {
+            escapeRunLength++;
+        }
+
+        return escapeRunLength % 2 == 1;
+    }
 
     private static IEnumerable<Token> TokenizeRawEnvValue(string value, char escapeChar)
     {

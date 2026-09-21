@@ -198,6 +198,18 @@ public class EnvInstructionTests
         Assert.Equal(text, result.ToString());
     }
 
+    [Fact]
+    public void EnvVarWithEvenEscapesBeforeQuote_ClosesQuote()
+    {
+        string text = "ENV foo=\"a\\\\\" second=\"ok\"";
+        EnvInstruction result = EnvInstruction.Parse(text);
+
+        Assert.Equal(2, result.Variables.Count);
+        Assert.Equal(text, result.ToString());
+        Assert.Equal("a\\\\", result.Variables[0].Value);
+        Assert.Equal("ok", result.Variables[1].Value);
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<EnvInstruction>[] testInputs = new ParseTestScenario<EnvInstruction>[]
