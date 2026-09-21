@@ -84,7 +84,7 @@ public abstract class CommandInstruction : Instruction
                 return shellFormParser(input);
             }
 
-            return Result.Failure<Command>(input, "Expected a valid JSON exec-form command or shell-form command.", new[] { "command" });
+            return execResult;
         };
     }
 

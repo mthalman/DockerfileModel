@@ -81,6 +81,16 @@ public class CmdInstructionTests
         Assert.Throws<ParseException>(() => CmdInstruction.Parse("CMD [\"echo\", [\"nested json\"]]"));
     }
 
+    [Fact]
+    public void Parse_NestedJsonArrayPreservesExecFormErrorPosition()
+    {
+        ParseException exception = Assert.Throws<ParseException>(
+            () => CmdInstruction.Parse("CMD [\"echo\", [\"nested json\"]]"));
+
+        Assert.Equal(1, exception.Position.Line);
+        Assert.Equal(12, exception.Position.Column);
+    }
+
     [Theory]
     [InlineData("CMD [\"echo\", \\\n 1]")]
     [InlineData("CMD [\"echo\", \\\n [\"nested json\"]]")]
