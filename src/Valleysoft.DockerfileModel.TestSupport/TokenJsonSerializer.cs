@@ -462,11 +462,22 @@ public static class TokenJsonSerializer
 
             // Workaround #238/#239/#240/#241: Lean-recognized flags that C# treats as
             // source literals are emitted as keyValue[-, -, keyword["name"], optionally =, literal["value"]].
-            if (child is LiteralToken flagLit && IsLeanRecognizedFileTransferFlagLiteral(instruction, flagLit, out string? flagName, out IReadOnlyList<Token>? flagValueTokens))
+            if (child is LiteralToken flagLit && IsLeanRecognizedFileTransferFlagLiteral(
+                instruction, flagLit, out string? flagName, out IReadOnlyList<Token>? flagValueTokens, out IReadOnlyList<Token>? trailingLiteralTokens))
             {
                 if (!first) sb.Append(',');
                 first = false;
                 SerializeUnrecognizedFlagAsKeyValue(sb, flagName!, flagValueTokens);
+                if (trailingLiteralTokens is not null)
+                {
+                    sb.Append(',');
+                    SerializeAggregate(
+                        sb,
+                        "literal",
+                        new LiteralToken(trailingLiteralTokens, canContainVariables: true, Dockerfile.DefaultEscapeChar),
+                        trailingLiteralTokens);
+                }
+
                 continue;
             }
 
@@ -488,9 +499,14 @@ public static class TokenJsonSerializer
     /// but the C# parser kept as an operand literal. Parses the flag name and optional value tokens.
     /// </summary>
     private static bool IsLeanRecognizedFileTransferFlagLiteral(
-        Instruction instruction, LiteralToken literal, out string? flagName, out IReadOnlyList<Token>? flagValueTokens)
+        Instruction instruction,
+        LiteralToken literal,
+        out string? flagName,
+        out IReadOnlyList<Token>? flagValueTokens,
+        out IReadOnlyList<Token>? trailingLiteralTokens)
     {
         flagValueTokens = null;
+        trailingLiteralTokens = null;
         string text = GetLiteralText(literal);
         if (text.StartsWith("--") && text.Length > 2)
         {
@@ -513,37 +529,53 @@ public static class TokenJsonSerializer
 
             return instruction switch
             {
-                CopyInstruction => TryNormalizeCopyFileTransferFlag(flagName, ref flagValueTokens),
-                AddInstruction => TryNormalizeAddFileTransferFlag(flagName, ref flagValueTokens),
+                CopyInstruction => TryNormalizeCopyFileTransferFlag(flagName, ref flagValueTokens, out trailingLiteralTokens),
+                AddInstruction => TryNormalizeAddFileTransferFlag(flagName, ref flagValueTokens, out trailingLiteralTokens),
                 _ => false
             };
         }
         flagName = null;
         flagValueTokens = null;
+        trailingLiteralTokens = null;
         return false;
     }
 
-    private static bool TryNormalizeCopyFileTransferFlag(string flagName, ref IReadOnlyList<Token>? flagValueTokens) =>
-        flagName switch
+    private static bool TryNormalizeCopyFileTransferFlag(
+        string flagName,
+        ref IReadOnlyList<Token>? flagValueTokens,
+        out IReadOnlyList<Token>? trailingLiteralTokens)
+    {
+        trailingLiteralTokens = null;
+        return flagName switch
         {
-            _ when IsFlagName(flagName, "parents") => TryNormalizeBooleanFlagValue(ref flagValueTokens),
+            _ when IsFlagName(flagName, "parents") => TryNormalizeBooleanFlagValue(ref flagValueTokens, out trailingLiteralTokens),
             _ when IsFlagName(flagName, "exclude") => IsValueFlagValue(flagValueTokens),
             _ => false
         };
+    }
 
-    private static bool TryNormalizeAddFileTransferFlag(string flagName, ref IReadOnlyList<Token>? flagValueTokens) =>
-        flagName switch
+    private static bool TryNormalizeAddFileTransferFlag(
+        string flagName,
+        ref IReadOnlyList<Token>? flagValueTokens,
+        out IReadOnlyList<Token>? trailingLiteralTokens)
+    {
+        trailingLiteralTokens = null;
+        return flagName switch
         {
-            _ when IsFlagName(flagName, "unpack") => TryNormalizeBooleanFlagValue(ref flagValueTokens),
+            _ when IsFlagName(flagName, "unpack") => TryNormalizeBooleanFlagValue(ref flagValueTokens, out trailingLiteralTokens),
             _ when IsFlagName(flagName, "exclude") => IsValueFlagValue(flagValueTokens),
             _ => false
         };
+    }
 
     private static bool IsFlagName(string actual, string expected) =>
         actual.Equals(expected, StringComparison.OrdinalIgnoreCase);
 
-    private static bool TryNormalizeBooleanFlagValue(ref IReadOnlyList<Token>? valueTokens)
+    private static bool TryNormalizeBooleanFlagValue(
+        ref IReadOnlyList<Token>? valueTokens,
+        out IReadOnlyList<Token>? trailingLiteralTokens)
     {
+        trailingLiteralTokens = null;
         if (valueTokens is null)
         {
             return true;
@@ -556,7 +588,9 @@ public static class TokenJsonSerializer
             return true;
         }
 
-        return false;
+        trailingLiteralTokens = new Token[] { new StringToken("=") }.Concat(valueTokens).ToArray();
+        valueTokens = null;
+        return true;
     }
 
     private static bool IsValueFlagValue(IReadOnlyList<Token>? valueTokens) =>

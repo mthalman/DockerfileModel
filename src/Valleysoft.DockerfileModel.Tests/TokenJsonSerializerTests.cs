@@ -117,20 +117,28 @@ public class TokenJsonSerializerTests
     }
 
     [Theory]
-    [InlineData("COPY", "COPY --parents=unexpected foo /tmp/\n", "--parents=unexpected")]
-    [InlineData("COPY", "COPY --parents= foo /tmp/\n", "--parents=")]
-    [InlineData("ADD", "ADD --unpack=unexpected src.tar /tmp/\n", "--unpack=unexpected")]
-    [InlineData("ADD", "ADD --unpack= src.tar /tmp/\n", "--unpack=")]
-    public void FileTransfer_InvalidBooleanFlagValues_SerializeAsOpaqueLiteral(
-        string instruction, string input, string expectedValue)
+    [InlineData("COPY", "COPY --parents=unexpected foo /tmp/\n", "parents", "=unexpected")]
+    [InlineData("COPY", "COPY --parents= foo /tmp/\n", "parents", "=")]
+    [InlineData("ADD", "ADD --unpack=unexpected src.tar /tmp/\n", "unpack", "=unexpected")]
+    [InlineData("ADD", "ADD --unpack= src.tar /tmp/\n", "unpack", "=")]
+    public void FileTransfer_InvalidBooleanFlagValues_SerializeAsBareFlagAndSuffixLiteral(
+        string instruction, string input, string expectedName, string expectedSuffix)
     {
         string json = InstructionSerializer.ParseCSharp(instruction, input, '\\');
         using JsonDocument document = JsonDocument.Parse(json);
 
-        JsonElement flag = document.RootElement.GetProperty("children").EnumerateArray()
-            .First(child => child.GetProperty("kind").GetString() is "literal");
+        JsonElement[] children = document.RootElement.GetProperty("children").EnumerateArray().ToArray();
+        int flagIndex = Array.FindIndex(children, child => child.GetProperty("kind").GetString() is "keyValue");
+        Assert.True(flagIndex >= 0);
 
-        Assert.Equal(expectedValue, Assert.Single(flag.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+        JsonElement flag = children[flagIndex];
+        JsonElement keyword = flag.GetProperty("children").EnumerateArray()
+            .Single(child => child.ValueKind == JsonValueKind.Object && child.GetProperty("kind").GetString() == "keyword");
+        Assert.Equal(expectedName, Assert.Single(keyword.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+
+        JsonElement suffix = children[flagIndex + 1];
+        Assert.Equal("literal", suffix.GetProperty("kind").GetString());
+        Assert.Equal(expectedSuffix, string.Concat(suffix.GetProperty("children").EnumerateArray().Select(child => child.GetProperty("value").GetString())));
     }
 
     [Fact]
