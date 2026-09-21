@@ -8,9 +8,9 @@ Import-Module (Join-Path $PSScriptRoot 'Documentation.psm1') -Force
 
 $repoRoot = Split-Path (Split-Path $PSScriptRoot)
 $readmePath = Join-Path $repoRoot 'README.md'
-$sampleDirectory = Join-Path $repoRoot 'src\Valleysoft.DockerfileModel.Samples'
+$sampleDirectory = Join-Path $repoRoot 'src' 'Valleysoft.DockerfileModel.Samples'
 $sampleProject = Join-Path $sampleDirectory 'Valleysoft.DockerfileModel.Samples.csproj'
-$libraryProject = Join-Path $repoRoot 'src\Valleysoft.DockerfileModel\Valleysoft.DockerfileModel.csproj'
+$libraryProject = Join-Path $repoRoot 'src' 'Valleysoft.DockerfileModel' 'Valleysoft.DockerfileModel.csproj'
 # MSBuild's assembly resolution can reject package paths over MAX_PATH on Windows.
 $workDirectory = Join-Path ([IO.Path]::GetTempPath()) "dfm-docs-$([Guid]::NewGuid().ToString('N'))"
 $packageDirectory = Join-Path $workDirectory 'feed'
@@ -62,9 +62,9 @@ try {
     $properties = @("-p:DocumentationPackageVersion=$version", '-p:TreatWarningsAsErrors=true')
     Invoke-Dotnet (@('restore', $consumerProject, '--configfile', $configPath,
         '--packages', $packageCache, '--no-http-cache') + $properties)
-    Test-ConsumerAssets (Join-Path $consumerDirectory 'obj\project.assets.json') $version $packageCache
+    Test-ConsumerAssets (Join-Path $consumerDirectory 'obj' 'project.assets.json') $version $packageCache
     Invoke-Dotnet (@('test', $consumerProject, '-c', 'Release', '--no-restore', '-v', 'minimal',
-        '--logger', 'trx', '--results-directory', (Join-Path $repoRoot 'src\test-results\package-samples')) + $properties)
+        '--logger', 'trx', '--results-directory', (Join-Path $repoRoot 'src' 'test-results' 'package-samples')) + $properties)
     Write-Host 'Packaged README/XML and package-backed examples verified for both target scenarios.'
 }
 finally {
