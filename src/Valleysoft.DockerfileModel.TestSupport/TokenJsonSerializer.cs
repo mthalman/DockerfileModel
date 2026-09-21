@@ -27,10 +27,6 @@ namespace Valleysoft.DockerfileModel.TestSupport;
 ///   GitHub issue tracking the underlying C# fix.
 ///
 /// Known differences with workarounds:
-///   - https://github.com/mthalman/DockerfileModel/issues/387 (shell-form final newline ownership): C# keeps the newline in the shell
-///     literal to preserve the public round-trip token model. Canonical JSON moves
-///     trailing newline tokens out to instruction level to match Lean's BuildKit-derived
-///     representation without changing the parsed model.
 ///   - COPY/ADD unrecognized flags (issues #238, #239, #240, #241): C# does not recognize
 ///     --parents, --exclude (COPY), --unpack, --exclude (ADD) as named flags, so it treats
 ///     them as opaque literal file-path tokens. Lean recognizes them and emits keyValue tokens.
@@ -142,6 +138,12 @@ public static class TokenJsonSerializer
         if (token is VariableRefToken)
         {
             SerializeAggregate(sb, "variableRef", token);
+            return;
+        }
+
+        if (token is EnvEscapedQuoteLiteralToken envEscapedQuoteLiteral
+            && TrySerializeEnvEscapedQuoteLiteral(sb, envEscapedQuoteLiteral))
+        {
             return;
         }
 
@@ -273,100 +275,91 @@ public static class TokenJsonSerializer
     {
         sb.Append("{\"type\":\"aggregate\",\"kind\":\"instruction\",\"quoteChar\":null,\"children\":[");
 
+        List<Token> tokens = instruction.Tokens.ToList();
         bool first = true;
-        foreach (Token child in instruction.Tokens)
+        bool skipNextNewLine = false;
+        foreach (Token child in tokens)
         {
-            if (child is KeyValueToken<Variable, LiteralToken> keyValue)
+            if (skipNextNewLine && child is NewLineToken)
             {
-                if (!first) sb.Append(',');
-                SerializeEnvKeyValue(sb, keyValue);
-                first = false;
+                skipNextNewLine = false;
                 continue;
             }
 
             if (!first) sb.Append(',');
             SerializeToken(sb, child);
             first = false;
+
+            skipNextNewLine = child is KeyValueToken<Variable, LiteralToken> keyValue
+                && ContainsRawEnvEscapedQuoteLiteral(keyValue);
         }
 
         sb.Append("]}");
     }
 
-    private static void SerializeEnvKeyValue(StringBuilder sb, KeyValueToken<Variable, LiteralToken> keyValue)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"keyValue\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in keyValue.Tokens)
+    private static bool ContainsRawEnvEscapedQuoteLiteral(KeyValueToken<Variable, LiteralToken> keyValue) =>
+        keyValue.Tokens.Any(token => token is EnvEscapedQuoteLiteralToken
         {
-            if (child is LiteralToken literal && IsEnvEscapedQuoteLiteral(literal))
-            {
-                if (!first) sb.Append(',');
-                SerializeEnvEscapedQuoteLiteral(sb, literal);
-                first = false;
-                continue;
-            }
+            HasOriginalEscapedQuoteSyntax: true,
+            QuoteChar: null
+        });
 
-            if (!first) sb.Append(',');
-            SerializeToken(sb, child);
-            first = false;
+    private static bool TrySerializeEnvEscapedQuoteLiteral(StringBuilder sb, EnvEscapedQuoteLiteralToken literal)
+    {
+        if (!literal.HasOriginalEscapedQuoteSyntax || literal.QuoteChar.HasValue)
+        {
+            return false;
         }
 
+        string rawValue = literal.ToString();
+        if (rawValue.Length < 2 || rawValue[0] is not ('\'' or '"'))
+        {
+            return false;
+        }
+
+        char quote = rawValue[0];
+        int closingQuoteIndex = FindClosingQuote(rawValue, quote, Dockerfile.DefaultEscapeChar);
+        if (closingQuoteIndex < 0)
+        {
+            closingQuoteIndex = FindClosingQuote(rawValue, quote, '`');
+        }
+
+        if (closingQuoteIndex < 0)
+        {
+            return false;
+        }
+
+        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":\"");
+        JsonEscapeString(sb, quote.ToString());
+        sb.Append("\",\"children\":[");
+        SerializePrimitive(sb, "string", rawValue.Substring(1, closingQuoteIndex - 1));
         sb.Append("]}");
+        return true;
     }
 
-    private static bool IsEnvEscapedQuoteLiteral(LiteralToken literal)
+    private static int FindClosingQuote(string value, char quote, char escapeChar)
     {
-        return literal is EnvEscapedQuoteLiteralToken { HasOriginalEscapedQuoteSyntax: true }
-            && literal.QuoteChar.HasValue;
-    }
-
-    private static void SerializeEnvEscapedQuoteLiteral(StringBuilder sb, LiteralToken literal)
-    {
-        sb.Append("{\"type\":\"aggregate\",\"kind\":\"literal\",\"quoteChar\":null,\"children\":[");
-
-        bool first = true;
-        foreach (Token child in CollapseStringTokens(ConcatTokens(
-            new Token[] { new StringToken(literal.QuoteChar!.Value.ToString()) },
-            literal.Tokens,
-            new Token[] { new StringToken(literal.QuoteChar.Value.ToString()) })))
+        for (int i = 1; i < value.Length; i++)
         {
-            if (!first) sb.Append(',');
-            SerializeToken(sb, child);
-            first = false;
-        }
-
-        sb.Append("]}");
-    }
-
-    private static IEnumerable<Token> CollapseStringTokens(IEnumerable<Token> tokens)
-    {
-        StringBuilder builder = new();
-        foreach (Token token in tokens)
-        {
-            if (token is StringToken stringToken)
+            if (value[i] == quote && !IsEscaped(value, i, escapeChar))
             {
-                builder.Append(stringToken.Value);
-                continue;
+                return i;
             }
-
-            if (builder.Length > 0)
-            {
-                yield return new StringToken(builder.ToString());
-                builder.Clear();
-            }
-
-            yield return token;
         }
 
-        if (builder.Length > 0)
-        {
-            yield return new StringToken(builder.ToString());
-        }
+        return -1;
     }
 
-    private static IEnumerable<Token> ConcatTokens(params IEnumerable<Token>[] tokenSets) =>
-        tokenSets.SelectMany(tokens => tokens);
+    private static bool IsEscaped(string value, int index, char escapeChar)
+    {
+        int escapeCount = 0;
+        for (int i = index - 1; i >= 0 && value[i] == escapeChar; i--)
+        {
+            escapeCount++;
+        }
+
+        return escapeCount % 2 == 1;
+    }
 
     // ===================================================================
     // Shell form literal serialization
@@ -379,8 +372,7 @@ public static class TokenJsonSerializer
 
     /// <summary>
     /// Serialize a shell form LiteralToken. Shell form commands should never contain
-    /// VariableRefToken children, and their trailing final newline tokens are serialized
-    /// as instruction-level siblings to match Lean's canonical BuildKit-derived shape.
+    /// VariableRefToken children.
     /// </summary>
     private static void SerializeShellFormLiteral(StringBuilder sb, LiteralToken literal, ref bool first)
     {
@@ -395,22 +387,9 @@ public static class TokenJsonSerializer
             }
         }
 
-        int contentEnd = literalChildren.Count;
-        while (contentEnd > 0 && literalChildren[contentEnd - 1] is NewLineToken)
-        {
-            contentEnd--;
-        }
-
         if (!first) sb.Append(',');
-        SerializeAggregate(sb, "literal", literal, literalChildren.Take(contentEnd));
+        SerializeAggregate(sb, "literal", literal, literalChildren);
         first = false;
-
-        for (int i = contentEnd; i < literalChildren.Count; i++)
-        {
-            if (!first) sb.Append(',');
-            SerializeToken(sb, literalChildren[i]);
-            first = false;
-        }
     }
 
     // ===================================================================

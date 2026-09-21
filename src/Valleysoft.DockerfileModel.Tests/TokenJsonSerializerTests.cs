@@ -11,25 +11,24 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class TokenJsonSerializerTests
 {
     [Fact]
-    public void ShellForm_FinalNewline_SerializesAtInstructionLevel()
+    public void ShellForm_FinalNewline_RemainsInLiteral()
     {
         string json = InstructionSerializer.ParseCSharp("RUN", "RUN echo hello\n", '\\');
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement[] children = document.RootElement.GetProperty("children").EnumerateArray().ToArray();
         JsonElement literal = children.Single(child => child.GetProperty("kind").GetString() == "literal");
 
-        Assert.DoesNotContain(
-            literal.GetProperty("children").EnumerateArray(),
-            child => child.GetProperty("kind").GetString() == "newLine");
-        Assert.Equal("newLine", children.Last().GetProperty("kind").GetString());
+        JsonElement[] literalChildren = literal.GetProperty("children").EnumerateArray().ToArray();
+        Assert.Equal("newLine", literalChildren.Last().GetProperty("kind").GetString());
+        Assert.NotEqual("newLine", children.Last().GetProperty("kind").GetString());
     }
 
     [Theory]
-    [InlineData("ENV name=\"a\\\"b\"\n", "\"a\\\"b\"")]
-    [InlineData("ENV name=\"a\\'b\"\n", "\"a\\'b\"")]
-    [InlineData("ENV name='a\\\"b'\n", "'a\\\"b'")]
-    [InlineData("ENV name='a\\'b''\n", "'a\\'b''")]
-    public void Env_EscapedQuoteValue_SerializesAsRawLiteral(string input, string expectedValue)
+    [InlineData("ENV name=\"a\\\"b\"\n", "\"", "a\\\"b", true)]
+    [InlineData("ENV name=\"a\\'b\"\n", "\"", "a\\'b", true)]
+    [InlineData("ENV name='a\\\"b'\n", "'", "a\\\"b", true)]
+    [InlineData("ENV name='a\\'b''\n", "'", "a\\'b", false)]
+    public void Env_EscapedQuoteValue_SerializesAsQuotedLiteral(string input, string expectedQuoteChar, string expectedValue, bool expectTrailingNewline)
     {
         string json = InstructionSerializer.ParseCSharp("ENV", input, '\\');
         using JsonDocument document = JsonDocument.Parse(json);
@@ -39,15 +38,17 @@ public class TokenJsonSerializerTests
         JsonElement value = keyValue.GetProperty("children").EnumerateArray().Last();
         JsonElement stringToken = Assert.Single(value.GetProperty("children").EnumerateArray());
 
-        Assert.Equal(JsonValueKind.Null, value.GetProperty("quoteChar").ValueKind);
+        Assert.Equal(expectedQuoteChar, value.GetProperty("quoteChar").GetString());
         Assert.Equal(expectedValue, stringToken.GetProperty("value").GetString());
-        Assert.Equal("newLine", document.RootElement.GetProperty("children").EnumerateArray().Last().GetProperty("kind").GetString());
+        Assert.Equal(
+            expectTrailingNewline ? "newLine" : "keyValue",
+            document.RootElement.GetProperty("children").EnumerateArray().Last().GetProperty("kind").GetString());
     }
 
     [Theory]
-    [InlineData("ENV first=\"a\\\" b\" second=baz\n", "\"a\\\" b\"")]
-    [InlineData("ENV first='a\\' b' second=baz\n", "'a\\' b'")]
-    public void Env_EscapedQuoteValueWithSpace_PreservesFollowingAssignments(string input, string expectedValue)
+    [InlineData("ENV first=\"a\\\" b\" second=baz\n", "\"", "a\\\" b")]
+    [InlineData("ENV first='a\\' b' second=baz\n", "'", "a\\' b")]
+    public void Env_EscapedQuoteValueWithSpace_PreservesFollowingAssignments(string input, string expectedQuoteChar, string expectedValue)
     {
         string json = InstructionSerializer.ParseCSharp("ENV", input, '\\');
         using JsonDocument document = JsonDocument.Parse(json);
@@ -60,6 +61,7 @@ public class TokenJsonSerializerTests
         JsonElement firstValue = keyValues[0].GetProperty("children").EnumerateArray().Last();
         JsonElement secondValue = keyValues[1].GetProperty("children").EnumerateArray().Last();
 
+        Assert.Equal(expectedQuoteChar, firstValue.GetProperty("quoteChar").GetString());
         Assert.Equal(expectedValue, Assert.Single(firstValue.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
         Assert.Equal("baz", Assert.Single(secondValue.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
     }

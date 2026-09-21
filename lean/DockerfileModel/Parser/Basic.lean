@@ -112,11 +112,24 @@ instance : Monad Parser where
 -- ============================================================
 
 /-- Try the first parser; if it fails (regardless of consumption), try the second.
-    This corresponds to Sprache's `.Or()` which always tries the alternative. -/
+    This corresponds to Sprache's `.Or()`, which also handles a *zero-length*
+    successful application of the first parser specially: if `p1` succeeds
+    without consuming any input, `p2` is also attempted at the same position,
+    and `p2`'s result is preferred whenever `p2` succeeds (falling back to
+    `p1`'s zero-length result only if `p2` fails). Without this, a nilable
+    parser (e.g. optional whitespace) placed before a non-nilable alternative
+    in an `or'` chain would always shadow it, even when the non-nilable
+    alternative could make real progress. -/
 def or' {α : Type} (p1 : Parser α) (p2 : Parser α) : Parser α :=
   fun pos =>
     match p1 pos with
-    | .ok value pos' => ParseResult.ok value pos'
+    | .ok value pos' =>
+      if pos'.offset == pos.offset then
+        match p2 pos with
+        | .ok value2 pos2' => ParseResult.ok value2 pos2'
+        | .error _ _ => ParseResult.ok value pos'
+      else
+        ParseResult.ok value pos'
     | .error _ _ => p2 pos
 
 /-- Exclusive or: try the first parser; if it fails without consuming input, try the second.

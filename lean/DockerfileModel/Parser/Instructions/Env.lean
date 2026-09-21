@@ -93,13 +93,20 @@ def envModernParser (escapeChar : Char) : Parser (List Token) := do
 -- Legacy format: Key WS Value
 -- ============================================================
 
-/-- Parse legacy ENV format: key followed by whitespace then rest-of-line as value. -/
+/-- Parse legacy ENV format: key followed by whitespace then rest-of-line as value.
+    Mirrors C#'s KeyValueToken.GetInnerParser: the key is wrapped in its own
+    argTokens so any whitespace and line continuation immediately following the
+    key (even with no space before it) is captured as siblings in the
+    KeyValueToken's children, before the value parser ever runs. -/
 def envLegacyParser (escapeChar : Char) : Parser (List Token) :=
   argTokens (do
-    let key ← envKeyParser escapeChar
-    let ws ← whitespace
-    let value ← literalWithVariables escapeChar [] (whitespaceMode := .allowed)
-    Parser.pure [Token.mkKeyValue (concatTokens [[key], ws, [value]])]
+    let keyTokens ← argTokens (do
+      let key ← envKeyParser escapeChar
+      Parser.pure [key]) escapeChar (excludeLeadingWhitespace := true)
+    let valueTokens ← argTokens (do
+      let value ← literalWithVariables escapeChar [] (whitespaceMode := .allowed)
+      Parser.pure [value]) escapeChar (excludeTrailingWhitespace := true)
+    Parser.pure [Token.mkKeyValue (concatTokens [keyTokens, valueTokens])]
   ) escapeChar
 
 -- ============================================================
