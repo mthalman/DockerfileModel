@@ -9,6 +9,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     private readonly bool canContainVariables;
     private readonly char escapeChar;
     private readonly bool preserveRawValue;
+    private char? quoteChar;
 
     /// <summary>Parses literal syntax using the supplied escape character and variable-recognition policy.</summary>
     /// <remarks>The escape context and variable policy are retained for later value updates.</remarks>
@@ -49,7 +50,11 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     }
 
     /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
-    public char? QuoteChar { get; set; }
+    public virtual char? QuoteChar
+    {
+        get => quoteChar;
+        set => quoteChar = value;
+    }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
         preserveRawValue ? new Token[] { new StringToken(value) } : GetTokens(value, canContainVariables, escapeChar).Tokens;

@@ -1,33 +1,5 @@
 [
   {
-    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L3-L3",
-    "inputSha256": "1fc66be236658883385242fbee59ce2b210d32a1e77a289c128bd0ef89d48f8c",
-    "outcomeSignature": "633493321c001ec4b768460d7bd5808e75610cc4ecdbfbc71389f7bb64080890",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
-    "reason": "C# canonicalizes opaque COPY flags as keyValue nodes while Lean uses literal nodes. Low-level upstream acceptance does not imply these unknown options pass typed instruction validation."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L4-L4",
-    "inputSha256": "6e44eebf7fb3f417b33863b5768bbea82315a02232ac254572df6344f1ad56a5",
-    "outcomeSignature": "037546f91a58e8c6f399f958e73c04bb44b05c42d60cf093818927ff63475543",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
-    "reason": "C# canonicalizes opaque COPY flags as keyValue nodes while Lean uses literal nodes. Low-level upstream acceptance does not imply these unknown options pass typed instruction validation."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L5-L5",
-    "inputSha256": "d74930c139e94109a543347223bb19eab5e3103d4373566b89bc427ca14c08c7",
-    "outcomeSignature": "33a100451a08611540feb49bff473761a3e63e0b42cad0ca7be1829e2c005dda",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
-    "reason": "C# canonicalizes opaque COPY flags as keyValue nodes while Lean uses literal nodes. Low-level upstream acceptance does not imply these unknown options pass typed instruction validation."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L6-L6",
-    "inputSha256": "09e8a041cd9d080edf2fc2dd2f4b200593966cd83a500e158612d567f10937d5",
-    "outcomeSignature": "d274e23dc1e2a5724a5cea682d303e83e77749836d85789bcaeb0999cbcb4e40",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
-    "reason": "C# canonicalizes opaque COPY flags as keyValue nodes while Lean uses literal nodes. Low-level upstream acceptance does not imply these unknown options pass typed instruction validation."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L10-L10",
     "inputSha256": "84ed0e741b8cf76ca22446ab36aae6fe8f8cf02e7d5c9fc9c6dffb664001820d",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",

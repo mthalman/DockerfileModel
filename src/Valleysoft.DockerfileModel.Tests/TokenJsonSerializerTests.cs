@@ -10,6 +10,200 @@ namespace Valleysoft.DockerfileModel.Tests;
 /// </summary>
 public class TokenJsonSerializerTests
 {
+    [Fact]
+    public void ShellForm_FinalNewline_RemainsInLiteral()
+    {
+        string json = InstructionSerializer.ParseCSharp("RUN", "RUN echo hello\n", '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement[] children = document.RootElement.GetProperty("children").EnumerateArray().ToArray();
+        JsonElement literal = children.Single(child => child.GetProperty("kind").GetString() == "literal");
+
+        JsonElement[] literalChildren = literal.GetProperty("children").EnumerateArray().ToArray();
+        Assert.Equal("newLine", literalChildren.Last().GetProperty("kind").GetString());
+        Assert.NotEqual("newLine", children.Last().GetProperty("kind").GetString());
+    }
+
+    [Theory]
+    [InlineData("ENV name=\"a\\\"b\"\n", "\"", "a\\\"b", true)]
+    [InlineData("ENV name=\"a\\'b\"\n", "\"", "a\\'b", true)]
+    [InlineData("ENV name='a\\\"b'\n", "'", "a\\\"b", true)]
+    [InlineData("ENV name='a\\'b''\n", "'", "a\\'b", false)]
+    public void Env_EscapedQuoteValue_SerializesAsQuotedLiteral(string input, string expectedQuoteChar, string expectedValue, bool expectTrailingNewline)
+    {
+        string json = InstructionSerializer.ParseCSharp("ENV", input, '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement keyValue = document.RootElement.GetProperty("children").EnumerateArray()
+            .Single(child => child.GetProperty("kind").GetString() == "keyValue");
+        JsonElement value = keyValue.GetProperty("children").EnumerateArray().Last();
+        JsonElement stringToken = Assert.Single(value.GetProperty("children").EnumerateArray());
+
+        Assert.Equal(expectedQuoteChar, value.GetProperty("quoteChar").GetString());
+        Assert.Equal(expectedValue, stringToken.GetProperty("value").GetString());
+        Assert.Equal(
+            expectTrailingNewline ? "newLine" : "keyValue",
+            document.RootElement.GetProperty("children").EnumerateArray().Last().GetProperty("kind").GetString());
+    }
+
+    [Theory]
+    [InlineData("ENV first=\"a\\\" b\" second=baz\n", "\"", "a\\\" b")]
+    [InlineData("ENV first='a\\' b' second=baz\n", "'", "a\\' b")]
+    public void Env_EscapedQuoteValueWithSpace_PreservesFollowingAssignments(string input, string expectedQuoteChar, string expectedValue)
+    {
+        string json = InstructionSerializer.ParseCSharp("ENV", input, '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement[] keyValues = document.RootElement.GetProperty("children").EnumerateArray()
+            .Where(child => child.GetProperty("kind").GetString() == "keyValue")
+            .ToArray();
+
+        Assert.Equal(2, keyValues.Length);
+        JsonElement firstValue = keyValues[0].GetProperty("children").EnumerateArray().Last();
+        JsonElement secondValue = keyValues[1].GetProperty("children").EnumerateArray().Last();
+
+        Assert.Equal(expectedQuoteChar, firstValue.GetProperty("quoteChar").GetString());
+        Assert.Equal(expectedValue, Assert.Single(firstValue.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+        Assert.Equal("baz", Assert.Single(secondValue.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
+    [Fact]
+    public void Copy_UnknownFlag_SerializesAsOpaqueLiteral()
+    {
+        string json = InstructionSerializer.ParseCSharp("COPY", "COPY --doit=true foo /tmp/\n", '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement flag = document.RootElement.GetProperty("children").EnumerateArray()
+            .First(child => child.GetProperty("kind").GetString() is "literal");
+
+        Assert.Equal("--doit=true", Assert.Single(flag.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
+    [Fact]
+    public void Copy_LeanRecognizedUnsupportedFlag_StillSerializesAsKeyValue()
+    {
+        string json = InstructionSerializer.ParseCSharp("COPY", "COPY --parents foo /tmp/\n", '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement flag = document.RootElement.GetProperty("children").EnumerateArray()
+            .First(child => child.GetProperty("kind").GetString() is "keyValue");
+
+        JsonElement keyword = flag.GetProperty("children").EnumerateArray()
+            .Single(child => child.ValueKind == JsonValueKind.Object && child.GetProperty("kind").GetString() == "keyword");
+        Assert.Equal("parents", Assert.Single(keyword.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
+    [Theory]
+    [InlineData("COPY", "COPY --parents=true foo /tmp/\n", "parents", "true")]
+    [InlineData("COPY", "COPY --parents=FALSE foo /tmp/\n", "parents", "FALSE")]
+    [InlineData("COPY", "COPY --PARENTS=FALSE foo /tmp/\n", "PARENTS", "FALSE")]
+    [InlineData("ADD", "ADD --unpack=true src.tar /tmp/\n", "unpack", "true")]
+    [InlineData("ADD", "ADD --unpack=FALSE src.tar /tmp/\n", "unpack", "FALSE")]
+    [InlineData("ADD", "ADD --UNPACK=FALSE src.tar /tmp/\n", "UNPACK", "FALSE")]
+    public void FileTransfer_LeanRecognizedBooleanFlagValues_SerializeAsKeyValue(
+        string instruction, string input, string expectedName, string expectedValue)
+    {
+        string json = InstructionSerializer.ParseCSharp(instruction, input, '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement flag = document.RootElement.GetProperty("children").EnumerateArray()
+            .First(child => child.GetProperty("kind").GetString() is "keyValue");
+
+        JsonElement[] children = flag.GetProperty("children").EnumerateArray().ToArray();
+        JsonElement keyword = children.Single(child => child.ValueKind == JsonValueKind.Object && child.GetProperty("kind").GetString() == "keyword");
+        JsonElement value = children.Last();
+
+        Assert.Equal(expectedName, Assert.Single(keyword.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+        Assert.Equal(expectedValue, Assert.Single(value.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
+    [Theory]
+    [InlineData("COPY", "COPY --parents=unexpected foo /tmp/\n", "parents", "=unexpected")]
+    [InlineData("COPY", "COPY --parents= foo /tmp/\n", "parents", "=")]
+    [InlineData("ADD", "ADD --unpack=unexpected src.tar /tmp/\n", "unpack", "=unexpected")]
+    [InlineData("ADD", "ADD --unpack= src.tar /tmp/\n", "unpack", "=")]
+    public void FileTransfer_InvalidBooleanFlagValues_SerializeAsBareFlagAndSuffixLiteral(
+        string instruction, string input, string expectedName, string expectedSuffix)
+    {
+        string json = InstructionSerializer.ParseCSharp(instruction, input, '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement[] children = document.RootElement.GetProperty("children").EnumerateArray().ToArray();
+        int flagIndex = Array.FindIndex(children, child => child.GetProperty("kind").GetString() is "keyValue");
+        Assert.True(flagIndex >= 0);
+
+        JsonElement flag = children[flagIndex];
+        JsonElement keyword = flag.GetProperty("children").EnumerateArray()
+            .Single(child => child.ValueKind == JsonValueKind.Object && child.GetProperty("kind").GetString() == "keyword");
+        Assert.Equal(expectedName, Assert.Single(keyword.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+
+        JsonElement suffix = children[flagIndex + 1];
+        Assert.Equal("literal", suffix.GetProperty("kind").GetString());
+        Assert.Equal(expectedSuffix, string.Concat(suffix.GetProperty("children").EnumerateArray().Select(child => child.GetProperty("value").GetString())));
+    }
+
+    [Fact]
+    public void Copy_LeanRecognizedValueFlagWithVariable_SerializesAsKeyValue()
+    {
+        string json = InstructionSerializer.ParseCSharp("COPY", "COPY --exclude=$PATTERN foo /tmp/\n", '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement flag = document.RootElement.GetProperty("children").EnumerateArray()
+            .First(child => child.GetProperty("kind").GetString() is "keyValue");
+
+        JsonElement value = flag.GetProperty("children").EnumerateArray().Last();
+        JsonElement variableRef = Assert.Single(value.GetProperty("children").EnumerateArray());
+
+        Assert.Equal("variableRef", variableRef.GetProperty("kind").GetString());
+        Assert.Equal("PATTERN", Assert.Single(variableRef.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
+    [Fact]
+    public void Add_LeanRecognizedValueFlagNameWithDifferentCasing_SerializesAsKeyValue()
+    {
+        string json = InstructionSerializer.ParseCSharp("ADD", "ADD --EXCLUDE=*.txt foo /tmp/\n", '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement flag = document.RootElement.GetProperty("children").EnumerateArray()
+            .First(child => child.GetProperty("kind").GetString() is "keyValue");
+
+        JsonElement keyword = flag.GetProperty("children").EnumerateArray()
+            .Single(child => child.ValueKind == JsonValueKind.Object && child.GetProperty("kind").GetString() == "keyword");
+
+        Assert.Equal("EXCLUDE", Assert.Single(keyword.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
+    [Theory]
+    [InlineData("ENV name=\"a\\\\b\"\n", "\"")]
+    [InlineData("ENV name=\"a\\$VALUE\"\n", "\"")]
+    public void Env_OrdinaryQuotedValues_DoNotSerializeAsRawLiteral(string input, string expectedQuoteChar)
+    {
+        string json = InstructionSerializer.ParseCSharp("ENV", input, '\\');
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement keyValue = document.RootElement.GetProperty("children").EnumerateArray()
+            .Single(child => child.GetProperty("kind").GetString() == "keyValue");
+        JsonElement value = keyValue.GetProperty("children").EnumerateArray().Last();
+
+        Assert.Equal(expectedQuoteChar, value.GetProperty("quoteChar").GetString());
+    }
+
+    [Fact]
+    public void Env_EscapedQuoteValueMutatedAfterParse_SerializesAsCurrentLiteralShape()
+    {
+        EnvInstruction instruction = EnvInstruction.Parse("ENV name=\"a\\\"b\"");
+        instruction.Variables[0].Value = "plain";
+
+        string json = TokenJsonSerializer.Serialize(instruction);
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement keyValue = document.RootElement.GetProperty("children").EnumerateArray()
+            .Single(child => child.GetProperty("kind").GetString() == "keyValue");
+        JsonElement value = keyValue.GetProperty("children").EnumerateArray().Last();
+
+        Assert.Equal("\"", value.GetProperty("quoteChar").GetString());
+        Assert.Equal("plain", Assert.Single(value.GetProperty("children").EnumerateArray()).GetProperty("value").GetString());
+    }
+
     [Theory]
     [InlineData("type=bind,from=build,target=/src", false)]
     [InlineData("from=build,type=bind,target=/src", false)]
