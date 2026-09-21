@@ -189,6 +189,32 @@ public class LabelInstructionTests
             },
             new ParseTestScenario<LabelInstruction>
             {
+                Text = "LABEL maintainer foo@bar.com",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "LABEL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "maintainer foo@bar.com",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "maintainer"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateLiteral(token, "foo@bar.com"))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("LABEL", result.InstructionName);
+                    Assert.Collection(result.Labels, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("maintainer", pair.Key);
+                            Assert.Equal("foo@bar.com", pair.Value);
+                        }
+                    });
+                }
+            },
+            new ParseTestScenario<LabelInstruction>
+            {
                 Text = "LABEL MY_NAME=\"John Doe\"",
                 TokenValidators = new Action<Token>[]
                 {

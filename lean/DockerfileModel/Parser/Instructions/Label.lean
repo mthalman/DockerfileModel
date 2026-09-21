@@ -62,12 +62,11 @@ def labelKeyValuePairParser (escapeChar : Char) : Parser Token := do
   Parser.pure (Token.mkKeyValue children)
 
 -- ============================================================
--- LABEL args parser
+-- Modern format: Key=Value pairs
 -- ============================================================
 
-/-- Parse the arguments of a LABEL instruction: one or more Key=Value pairs.
-    Corresponds to LabelInstruction.GetArgsParser() -/
-def labelArgsParser (escapeChar : Char) : Parser (List Token) := do
+/-- Parse modern LABEL format: one or more Key=Value pairs. -/
+def labelModernArgsParser (escapeChar : Char) : Parser (List Token) := do
   let firstPairTokens ← argTokens (do
     let pair ← labelKeyValuePairParser escapeChar
     Parser.pure [pair]) escapeChar
@@ -75,6 +74,37 @@ def labelArgsParser (escapeChar : Char) : Parser (List Token) := do
     let pair ← labelKeyValuePairParser escapeChar
     Parser.pure [pair]) escapeChar)
   Parser.pure (concatTokens (firstPairTokens :: restPairTokens))
+
+-- ============================================================
+-- Legacy format: Key Value
+-- ============================================================
+
+/-- Parse legacy LABEL format: key followed by whitespace then value. -/
+def labelLegacyKeyValuePairParser (escapeChar : Char) : Parser Token := do
+  let key ← labelKeyParser escapeChar
+  let ws ← whitespace
+  if ws.isEmpty then Parser.fail "expected whitespace before legacy LABEL value"
+  let value ← literalWithVariables escapeChar [] .allowedInQuotes
+  Parser.pure (Token.mkKeyValue (concatTokens [[key], ws, [value]]))
+
+/-- Parse legacy LABEL format: one or more Key Value pairs. -/
+def labelLegacyArgsParser (escapeChar : Char) : Parser (List Token) := do
+  let firstPairTokens ← argTokens (do
+    let pair ← labelLegacyKeyValuePairParser escapeChar
+    Parser.pure [pair]) escapeChar
+  let restPairTokens ← many (argTokens (do
+    let pair ← labelLegacyKeyValuePairParser escapeChar
+    Parser.pure [pair]) escapeChar)
+  Parser.pure (concatTokens (firstPairTokens :: restPairTokens))
+
+-- ============================================================
+-- LABEL args parser
+-- ============================================================
+
+/-- Parse the arguments of a LABEL instruction: modern or legacy format.
+    Corresponds to LabelInstruction.GetArgsParser() -/
+def labelArgsParser (escapeChar : Char) : Parser (List Token) :=
+  or' (labelModernArgsParser escapeChar) (labelLegacyArgsParser escapeChar)
 
 -- ============================================================
 -- LABEL instruction parser

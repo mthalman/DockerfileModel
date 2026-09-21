@@ -50,6 +50,10 @@ public class LabelInstruction : Instruction
         Instruction("LABEL", escapeChar, GetArgsParser(escapeChar));
 
     private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+        LegacyKeyValueFormat(escapeChar)
+            .Or(StandardKeyValueFormat(escapeChar));
+
+    private static Parser<IEnumerable<Token>> StandardKeyValueFormat(char escapeChar) =>
         ArgTokens(
             from whitespace in Whitespace().Optional()
             from variable in KeyValueToken<LabelKeyToken, LiteralToken>.GetParser(
@@ -57,6 +61,17 @@ public class LabelInstruction : Instruction
                 LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes),
                 escapeChar: escapeChar,
                 optionalValue: true).AsEnumerable()
+            select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
+        ).AtLeastOnce().Flatten();
+
+    private static Parser<IEnumerable<Token>> LegacyKeyValueFormat(char escapeChar) =>
+        ArgTokens(
+            from whitespace in Whitespace().Optional()
+            from variable in (
+                from key in LabelKeyToken.GetParser(escapeChar)
+                from valueWhitespace in Whitespace().Where(ws => ws.Any())
+                from value in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes)
+                select new Token[] { new KeyValueToken<LabelKeyToken, LiteralToken>(ConcatTokens(new Token[] { key }, valueWhitespace, new Token[] { value }), escapeChar) })
             select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
         ).AtLeastOnce().Flatten();
 }
