@@ -1,5 +1,6 @@
 ﻿using System.Text;
-using static Valleysoft.DockerfileModel.ParseHelper;
+
+using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 public abstract class AggregateToken : Token

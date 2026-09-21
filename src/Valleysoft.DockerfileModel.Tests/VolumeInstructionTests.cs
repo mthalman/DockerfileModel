@@ -1,4 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+﻿using Valleysoft.DockerfileModel.Parsing;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -186,7 +187,7 @@ public class VolumeInstructionTests
                     token => ValidateKeyword(token, "VOLUME"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "/var/log", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/var/log", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 },
                 Validate = result =>
@@ -207,10 +208,10 @@ public class VolumeInstructionTests
                     token => ValidateKeyword(token, "VOLUME"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "/var/log", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/var/log", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "/var/db", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/var/db", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 },
                 Validate = result =>
@@ -342,10 +343,10 @@ public class VolumeInstructionTests
                     token => ValidateKeyword(token, "VOLUME"),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateSymbol(token, '['),
-                    token => ValidateLiteral(token, "/var/log", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/var/log", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ','),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateLiteral(token, "/var/db", ParseHelper.DoubleQuote),
+                    token => ValidateLiteral(token, "/var/db", StringParsers.DoubleQuote),
                     token => ValidateSymbol(token, ']')
                 },
                 Validate = result =>
