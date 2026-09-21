@@ -9,6 +9,12 @@ using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>Shared operand and flag model for ADD and COPY instructions.</summary>
+/// <remarks>
+/// Source collections are live syntax-aware views; the destination is a separate required operand.
+/// Constructors choose JSON form when any supplied source or destination contains a space, otherwise
+/// space-separated form. They retain the supplied escape context for later edits.
+/// </remarks>
 public abstract partial class FileTransferInstruction : Instruction
 {
     protected FileTransferInstruction(IEnumerable<string> sources, string destination,
@@ -32,6 +38,7 @@ public abstract partial class FileTransferInstruction : Instruction
     /// New strings supply semantic values. In JSON form, values containing double quotes,
     /// backslashes, or U+0000–U+001F are rejected because this view does not implement JSON escaping.
     /// Use <see cref="SourceTokens"/> for valid encoded syntax within the existing operand grammar.
+    /// Removing the last required source is rejected; heredoc definitions are edited separately.
     /// </remarks>
     public EditableList<string> Sources { get; }
 
@@ -48,6 +55,7 @@ public abstract partial class FileTransferInstruction : Instruction
     /// Gets or sets the destination path. For heredoc instructions, the destination is
     /// properly tokenized as a separate LiteralToken after the marker.
     /// </summary>
+    /// <remarks>The getter can return null for a missing operand, but the setter rejects null and empty values and cannot insert a missing destination.</remarks>
     public string? Destination
     {
         get

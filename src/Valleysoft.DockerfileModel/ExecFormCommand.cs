@@ -5,8 +5,11 @@ using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A JSON-array command whose elements are not split into shell words.</summary>
 public class ExecFormCommand : Command
 {
+    /// <summary>Wraps supplied elements in JSON string syntax and parses the resulting command.</summary>
+    /// <remarks>This constructor does not JSON-escape embedded quotes, backslashes, or control characters; supply valid element syntax.</remarks>
     public ExecFormCommand(IEnumerable<string> values, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(values, escapeChar), escapeChar)
     {
@@ -29,6 +32,7 @@ public class ExecFormCommand : Command
         return GetTokens(StringHelper.FormatAsJson(values), GetInnerParser(escapeChar));
     }
 
+    /// <summary>Parses JSON command syntax without an instruction keyword, preserving its formatting.</summary>
     public static ExecFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 

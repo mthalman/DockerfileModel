@@ -4,13 +4,16 @@ using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A SHELL instruction, whose command uses JSON exec form only.</summary>
 public class ShellInstruction : CommandInstruction
 {
+    /// <summary>Creates a one-element JSON array containing the command, without splitting shell words.</summary>
     public ShellInstruction(string command, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(command, Enumerable.Empty<string>(), escapeChar)
     {
     }
 
+    /// <summary>Creates a JSON array containing the command followed by the supplied arguments.</summary>
     public ShellInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(command, args, escapeChar), escapeChar)
     {
@@ -20,6 +23,7 @@ public class ShellInstruction : CommandInstruction
     {
     }
 
+    /// <summary>Parses a standalone SHELL instruction in JSON form, preserving formatting and escape context.</summary>
     public static ShellInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 

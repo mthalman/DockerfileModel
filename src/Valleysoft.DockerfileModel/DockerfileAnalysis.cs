@@ -40,6 +40,8 @@ public sealed class DockerfileAnalysis
     public IReadOnlyList<DockerfileReference> UnresolvedReferences { get; }
     public IReadOnlyList<AnalysisDiagnostic> Diagnostics { get; }
 
+    /// <summary>Gets the captured stage at a zero-based source-order index.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The index does not identify a captured stage.</exception>
     public AnalyzedStage GetStage(int index)
     {
         if (index < 0 || index >= Stages.Count)
@@ -64,6 +66,8 @@ public sealed class DockerfileAnalysis
         };
     }
 
+    /// <summary>Gets all captured stages with a case-insensitive matching name, or an empty list if none match.</summary>
+    /// <remarks>Duplicate declarations are returned rather than resolved to a single binding.</remarks>
     public IReadOnlyList<AnalyzedStage> FindStages(string name)
     {
         Guard.NotNull(name, nameof(name));

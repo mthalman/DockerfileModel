@@ -4,10 +4,13 @@ using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A COPY instruction with source operands, destination, and optional transfer flags.</summary>
+/// <remarks>Modeling flags does not assert that the selected Dockerfile frontend supports them.</remarks>
 public class CopyInstruction : FileTransferInstruction
 {
     private const string Name = "COPY";
 
+    /// <summary>Creates COPY syntax, selecting JSON form when any source or destination contains a space.</summary>
     public CopyInstruction(IEnumerable<string> sources, string destination,
         string? fromStageName = null, string? changeOwner = null, string? permissions = null,
         bool link = false, bool parents = false, IEnumerable<string>? excludes = null,
@@ -17,6 +20,7 @@ public class CopyInstruction : FileTransferInstruction
         InitializeLists();
     }
 
+    /// <summary>Creates COPY syntax with the specified flags and escape context, without parents or exclusion flags.</summary>
     public CopyInstruction(IEnumerable<string> sources, string destination,
         string? fromStageName, string? changeOwner, string? permissions,
         bool link, char escapeChar)
@@ -29,6 +33,8 @@ public class CopyInstruction : FileTransferInstruction
         InitializeLists();
     }
 
+    /// <summary>Gets or sets the --from operand; null or empty removes the flag.</summary>
+    /// <remarks>Despite its name, this can denote a stage index, stage name, image, or named context; use document analysis for classification.</remarks>
     public string? FromStageName
     {
         get => FromStageNameToken?.Value;
@@ -121,8 +127,10 @@ public class CopyInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(ParentsFlagInternal, value);
     }
 
+    /// <summary>Gets the live editable pattern view backed by repeated --exclude flags.</summary>
     public EditableList<string> Excludes { get; private set; } = null!;
 
+    /// <summary>Gets the live --exclude token view, preserving flag identity and formatting.</summary>
     public EditableList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
 
     private void InitializeLists()
@@ -131,6 +139,7 @@ public class CopyInstruction : FileTransferInstruction
         Excludes = InstructionCollectionEditing.Excludes(ExcludeFlagTokens, this);
     }
 
+    /// <summary>Parses a standalone COPY instruction, preserving its operand form, formatting, and escape context.</summary>
     public static CopyInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 

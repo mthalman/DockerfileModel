@@ -4,11 +4,14 @@ using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>An ADD instruction with source operands, destination, and optional transfer flags.</summary>
+/// <remarks>Modeling flags does not assert that the selected Dockerfile frontend supports them.</remarks>
 public class AddInstruction : FileTransferInstruction
 {
     private const string Name = "ADD";
     private readonly char escapeChar;
 
+    /// <summary>Creates ADD syntax, selecting JSON form when any source or destination contains a space.</summary>
     public AddInstruction(IEnumerable<string> sources, string destination,
         string? changeOwner = null, string? permissions = null,
         string? checksum = null, bool keepGitDir = false, bool link = false,
@@ -159,10 +162,13 @@ public class AddInstruction : FileTransferInstruction
         set => SetOptionalFlagToken(UnpackFlagInternal, value);
     }
 
+    /// <summary>Gets the live editable pattern view backed by repeated --exclude flags.</summary>
     public EditableList<string> Excludes { get; private set; } = null!;
 
+    /// <summary>Gets the live --exclude token view, preserving flag identity and formatting.</summary>
     public EditableList<ExcludeFlag> ExcludeFlagTokens { get; private set; } = null!;
 
+    /// <summary>Parses a standalone ADD instruction, preserving its operand form, formatting, and escape context.</summary>
     public static AddInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 

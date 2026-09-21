@@ -2,6 +2,8 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+Do not use C# region directives.
+
 ## Project Overview
 
 Valleysoft.DockerfileModel is a .NET library for parsing and generating Dockerfiles with full fidelity — parsed content round-trips character-for-character, including whitespace. Published as NuGet package `Valleysoft.DockerfileModel`.
@@ -124,7 +126,7 @@ Key BuildKit behaviors the Lean parser follows:
 
 ### Unit Tests
 
-Tests use **xUnit** with `[Theory]`/`[InlineData]` for data-driven tests and `[Fact]` for simple cases. Each instruction type has a corresponding test file (e.g., `FromInstructionTests.cs`). `ScenarioTests.cs` contains integration-level examples demonstrating API usage. `TestHelper.cs` provides shared utilities like `ConcatLines()`.
+Tests use **xUnit** with `[Theory]`/`[InlineData]` for data-driven tests and `[Fact]` for simple cases. Each instruction type has a corresponding test file (e.g., `FromInstructionTests.cs`). The `Valleysoft.DockerfileModel.Samples` test project contains usage examples in `UsageExamples.cs` and additional consumer scenarios in `AdvancedExamples.cs`; these run against both project references and the locally packed library. `TestHelper.cs` provides shared utilities like `ConcatLines()`.
 
 ### Property-Based Tests (FsCheck)
 
@@ -143,6 +145,7 @@ The Lean spec includes both machine-checked proofs (`Proofs/`) and SlimCheck pro
 
 - `src/Valleysoft.DockerfileModel/` — library targeting `netstandard2.0` and `net10.0` (C# 13, nullable enabled)
 - `src/Valleysoft.DockerfileModel.Tests/` — test project targeting `net10.0` (unit and property tests)
+- `src/Valleysoft.DockerfileModel.Samples/` — xUnit consumer examples targeting `net8.0` and `net10.0`, exercised with project and package references
 - `src/Valleysoft.DockerfileModel.TestSupport/` — shared non-production generators and canonical serialization support targeting `net8.0`
 - `src/Valleysoft.DockerfileModel.DiffTest/` — differential test CLI targeting `net8.0` (compares C# vs Lean parser output)
 - `lean/` — Lean 4 formal specification (token model, parser combinators, proofs, differential test CLI)

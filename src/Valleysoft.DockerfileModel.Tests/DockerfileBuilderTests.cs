@@ -3,6 +3,31 @@
 public class DockerfileBuilderTests
 {
     [Fact]
+    public void BuildWithDefaultNewlines()
+    {
+        // Comment already gets a trailing newline; NewLine adds the intentional blank line.
+        DockerfileBuilder builder = new();
+        builder
+            .Comment("Made from scratch Dockerfile")
+            .NewLine()
+            .ArgInstruction("TAG", "latest")
+            .FromInstruction("alpine:$TAG")
+            .ArgInstruction("MESSAGE")
+            .RunInstruction("echo $MESSAGE");
+
+        string expected = """
+            # Made from scratch Dockerfile
+
+            ARG TAG=latest
+            FROM alpine:$TAG
+            ARG MESSAGE
+            RUN echo $MESSAGE
+
+            """.ReplaceLineEndings(Environment.NewLine);
+        Assert.Equal(expected, builder.Dockerfile.ToString());
+    }
+
+    [Fact]
     public void Constructor()
     {
         DockerfileBuilder builder = new();

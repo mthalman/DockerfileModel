@@ -8,11 +8,18 @@ using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A FROM instruction containing an image operand, optional platform, and optional stage alias.</summary>
+/// <remarks>The image operand is literal syntax, not a registry lookup or a validated image identity.</remarks>
 public class FromInstruction : Instruction
 {
     private LiteralToken imageName;
     private readonly char escapeChar;
 
+    /// <summary>Creates FROM syntax without a trailing newline, retaining the supplied escape context for later edits.</summary>
+    /// <param name="imageName">The image or stage-reference operand; may contain ARG references.</param>
+    /// <param name="stageName">An optional AS alias.</param>
+    /// <param name="platform">An optional --platform value.</param>
+    /// <param name="escapeChar">The Dockerfile escape character; standalone construction defaults to backslash.</param>
     public FromInstruction(string imageName, string? stageName = null, string? platform = null,
         char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(imageName, stageName, platform, escapeChar), escapeChar)
@@ -35,6 +42,12 @@ public class FromInstruction : Instruction
         this.escapeChar = escapeChar;
     }
 
+    /// <summary>Gets or sets the image operand's value, excluding formatting trivia.</summary>
+    /// <remarks>
+    /// Setting reparses the existing literal's contents using its stored escape context, preserving the surrounding instruction.
+    /// To edit components, parse this value with <c>ImageName.Parse</c>, edit that separate model,
+    /// then assign its serialized text back here.
+    /// </remarks>
     public string ImageName
     {
         get => this.imageName.Value;
@@ -45,6 +58,7 @@ public class FromInstruction : Instruction
         }
     }
 
+    /// <summary>Gets or replaces the entire image literal token, including its formatting and variable-reference structure.</summary>
     public LiteralToken ImageNameToken
     {
         get => this.imageName;
@@ -56,6 +70,7 @@ public class FromInstruction : Instruction
         }
     }
 
+    /// <summary>Gets or sets the platform operand; null or empty removes the flag.</summary>
     public string? Platform
     {
         get => this.PlatformFlag?.Value;
@@ -75,6 +90,7 @@ public class FromInstruction : Instruction
         set => SetOptionalFlagToken(PlatformFlag, value);
     }
 
+    /// <summary>Gets or sets the stage alias; null or empty removes the AS clause.</summary>
     public string? StageName
     {
         get => StageNameToken?.Value;
@@ -106,6 +122,10 @@ public class FromInstruction : Instruction
         }
     }
 
+    /// <summary>Parses a complete standalone FROM instruction, preserving its formatting and escape context.</summary>
+    /// <param name="text">Instruction text including the FROM keyword.</param>
+    /// <param name="escapeChar">The enclosing document's effective escape character, or backslash by default.</param>
+    /// <returns>A new instruction, not connected to any document.</returns>
     public static FromInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 

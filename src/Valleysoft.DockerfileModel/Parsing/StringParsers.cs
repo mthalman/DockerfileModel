@@ -10,6 +10,7 @@ internal static class StringParsers
     /// <summary>
     /// Parses identifiers, delimited by a character.
     /// </summary>
+    /// <param name="escapeChar">The escape character used for line continuations.</param>
     /// <param name="firstCharParser">Parser for the first character of the identifier.</param>
     /// <param name="tailCharParser">Parser for the rest of the characters of the identifier.</param>
     /// <param name="delimiter">Character which delimits segments of the string.</param>
@@ -181,6 +182,8 @@ internal static class StringParsers
     /// Collapses any sequential string or whitespace tokens and wraps them in a literal token.
     /// </summary>
     /// <param name="tokens">Set of tokens to process.</param>
+    /// <param name="canContainVariables">Whether later literal value updates recognize variable references.</param>
+    /// <param name="escapeChar">The escape context retained by the resulting literal.</param>
     /// <param name="quoteChar">The quote character associated with the literal.</param>
     internal static IEnumerable<Token> CollapseLiteralTokens(IEnumerable<Token> tokens,
         bool canContainVariables, char escapeChar, char? quoteChar = null)
@@ -452,7 +455,6 @@ internal static class StringParsers
     /// <summary>
     /// Delegate for creating a parser of a token that is wrapped by a set of characters.
     /// </summary>
-    /// <typeparam name="TToken">Type of the token.</typeparam>
     /// <param name="escapeChar">The escape character.</param>
     /// <param name="excludedChars">Characters to be excluded from parsing.</param>
     /// <param name="tokenWrapper">Description of characters are wrapping the token.</param>

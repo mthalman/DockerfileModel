@@ -1,5 +1,6 @@
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>An immutable parse diagnostic referring to a region of the original input.</summary>
 public sealed class DockerfileDiagnostic
 {
     public DockerfileDiagnostic(string code, DiagnosticSeverity severity, string message, SourceSpan sourceSpan)
@@ -20,6 +21,7 @@ public sealed class DockerfileDiagnostic
     public string Code { get; }
     public DiagnosticSeverity Severity { get; }
     public string Message { get; }
+    /// <summary>Gets original-input provenance; editing the resulting model does not relocate this span.</summary>
     public SourceSpan SourceSpan { get; }
 }
 

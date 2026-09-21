@@ -5,6 +5,9 @@
     <LangVersion>13.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Document behavior-sensitive APIs incrementally without hiding malformed XML or invalid references. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -12,7 +15,12 @@
     <PackageDescription>Structured model for parsing and generating Dockerfiles.</PackageDescription>
     <PackageTags>docker dockerfile</PackageTags>
     <MinVerTagPrefix>v</MinVerTagPrefix>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="MinVer" Version="8.0.0" PrivateAssets="All" />

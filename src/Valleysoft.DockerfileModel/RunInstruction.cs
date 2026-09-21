@@ -8,26 +8,32 @@ using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A RUN instruction containing a shell command, JSON exec command, or heredoc content.</summary>
 public partial class RunInstruction : CommandInstruction
 {
     private readonly char escapeChar;
 
+    /// <summary>Parses raw command text after RUN; ordinary text uses shell form, while JSON-array text selects exec form.</summary>
     public RunInstruction(string commandWithArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(commandWithArgs, Enumerable.Empty<Mount>(), null, null, escapeChar)
     {
     }
 
+    /// <summary>Creates RUN from raw command text with mount and optional network/security flags.</summary>
+    /// <remarks>The command text is parsed, not JSON-encoded; use the command-and-arguments overload for explicit exec form.</remarks>
     public RunInstruction(string commandWithArgs, IEnumerable<Mount> mounts,
         string? network = null, string? security = null, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(commandWithArgs, mounts, network, security, escapeChar), escapeChar)
     {
     }
 
+    /// <summary>Creates JSON exec-form RUN with the command followed by its arguments.</summary>
     public RunInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(command, args, Enumerable.Empty<Mount>(), null, null, escapeChar)
     {
     }
 
+    /// <summary>Creates JSON exec-form RUN with arguments and mount, network, and security flags.</summary>
     public RunInstruction(string command, IEnumerable<string> args, IEnumerable<Mount> mounts,
         string? network = null, string? security = null, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(command, args, mounts, network, security, escapeChar), escapeChar)
@@ -76,6 +82,8 @@ public partial class RunInstruction : CommandInstruction
         }
     }
 
+    /// <summary>Gets the live syntax-aware mount view backed by --mount flags.</summary>
+    /// <remarks>Inserted mounts must use this instruction's retained escape context. Removing a mount removes its flag.</remarks>
     public EditableList<Mount> Mounts { get; }
 
     /// <summary>
@@ -131,6 +139,7 @@ public partial class RunInstruction : CommandInstruction
         set => SetOptionalFlagToken(SecurityFlag, value);
     }
 
+    /// <summary>Parses a standalone RUN instruction, preserving its command form, formatting, and escape context.</summary>
     public static RunInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 

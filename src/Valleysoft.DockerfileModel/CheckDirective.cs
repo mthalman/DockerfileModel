@@ -2,6 +2,7 @@ using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A check directive whose options can be inspected without executing build checks.</summary>
 public sealed class CheckDirective : ParserDirective
 {
     public CheckDirective(string value) : base(ParserDirective.CheckDirective, value)

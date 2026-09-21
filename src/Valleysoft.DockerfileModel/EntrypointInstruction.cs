@@ -4,18 +4,22 @@ using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>An ENTRYPOINT instruction in shell or JSON exec form.</summary>
 public class EntrypointInstruction : CommandInstruction
 {
+    /// <summary>Parses raw command text after ENTRYPOINT; ordinary text uses shell form, while JSON-array text selects exec form.</summary>
     public EntrypointInstruction(string commandWithArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(commandWithArgs, escapeChar), escapeChar)
     {
     }
 
+    /// <summary>Creates JSON exec-form ENTRYPOINT using the supplied elements without shell splitting.</summary>
     public EntrypointInstruction(IEnumerable<string> execArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(execArgs, escapeChar), escapeChar)
     {
     }
 
+    /// <summary>Creates JSON exec-form ENTRYPOINT with the command followed by its arguments.</summary>
     public EntrypointInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(command, args, escapeChar), escapeChar)
     {
@@ -25,6 +29,7 @@ public class EntrypointInstruction : CommandInstruction
     {
     }
 
+    /// <summary>Parses a standalone ENTRYPOINT instruction, preserving its form, formatting, and escape context.</summary>
     public static EntrypointInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 

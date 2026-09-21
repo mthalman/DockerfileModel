@@ -12,8 +12,6 @@ namespace Valleysoft.DockerfileModel.Tests;
 /// </summary>
 public class QuotesInsideQuotesTests
 {
-    #region LABEL instruction tests
-
     /// <summary>
     /// Core bug case from issue #125: single quote inside double-quoted LABEL value.
     /// </summary>
@@ -122,10 +120,6 @@ public class QuotesInsideQuotesTests
         Assert.Equal("say \"hello\"", result.Labels[1].Value);
     }
 
-    #endregion
-
-    #region ENV instruction tests
-
     /// <summary>
     /// ENV with single quote inside double-quoted value.
     /// </summary>
@@ -179,10 +173,6 @@ public class QuotesInsideQuotesTests
         Assert.Equal("MY_VAR", result.Variables[0].Key);
         Assert.Equal("say \"hello\"", result.Variables[0].Value);
     }
-
-    #endregion
-
-    #region ARG instruction tests
 
     /// <summary>
     /// ARG with single quote inside double-quoted default value.
@@ -238,10 +228,6 @@ public class QuotesInsideQuotesTests
         Assert.Equal("say \"hello\"", result.Args[0].Value);
     }
 
-    #endregion
-
-    #region Dockerfile-level round-trip tests
-
     /// <summary>
     /// Full Dockerfile round-trip with LABEL containing quotes-inside-quotes, verifying
     /// that Dockerfile.Parse() followed by ToString() preserves the exact input.
@@ -288,10 +274,6 @@ public class QuotesInsideQuotesTests
         // Round-trip fidelity at Dockerfile level
         Assert.Equal(dockerfileContent, dockerfile.ToString());
     }
-
-    #endregion
-
-    #region Edge cases
 
     /// <summary>
     /// Single quote inside double-quoted key (keys can be quoted too).
@@ -346,6 +328,4 @@ public class QuotesInsideQuotesTests
         Assert.Equal("msg", result.Labels[0].Key);
         Assert.Equal("he said \"hi\" then \"bye\"", result.Labels[0].Value);
     }
-
-    #endregion
 }

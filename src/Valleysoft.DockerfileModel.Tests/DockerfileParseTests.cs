@@ -1,7 +1,86 @@
+using Valleysoft.DockerfileModel.Tokens;
+
 namespace Valleysoft.DockerfileModel.Tests;
 
 public class DockerfileParseTests
 {
+    [Fact]
+    public void StrictTryParseReportsErrorsWithoutReturningAPartialModel()
+    {
+        string text = """
+            FROM scratch
+            FROM
+            RUN echo ready
+
+            """.ReplaceLineEndings("\n");
+        DockerfileParseResult result = Dockerfile.TryParse(text);
+
+        Assert.False(result.Success);
+        Assert.Null(result.Dockerfile);
+        DockerfileDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DockerfileDiagnosticCodes.InvalidSyntax, diagnostic.Code);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+    }
+
+    [Fact]
+    public void DockerfileStructureAndConstructTypes()
+    {
+        // Quoted lines make the whitespace-only line visible and protect its four spaces.
+        string text = string.Join("\n",
+            "# escape=`",
+            "FROM scratch",
+            "    ",
+            "# TODO");
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+
+        Assert.Equal('`', dockerfile.EscapeChar);
+        DockerfileConstruct[] constructs = dockerfile.Items.ToArray();
+        Assert.Equal(4, constructs.Length);
+        Assert.Equal(ConstructType.ParserDirective, constructs[0].Type);
+        Assert.IsType<EscapeDirective>(constructs[0]);
+        Assert.Equal(ConstructType.Instruction, constructs[1].Type);
+        Assert.IsType<FromInstruction>(constructs[1]);
+        Assert.Equal(ConstructType.Whitespace, constructs[2].Type);
+        Assert.IsType<Whitespace>(constructs[2]);
+        Assert.Equal(ConstructType.Comment, constructs[3].Type);
+        Assert.IsType<Comment>(constructs[3]);
+    }
+
+    [Fact]
+    public void ContinuedInstructionPreservesNestedTokenLayout()
+    {
+        string text = """
+            ARG TAG=latest
+            FROM alpine:$TAG \
+              AS build
+            """.ReplaceLineEndings("\n");
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+        DockerfileConstruct[] constructs = dockerfile.Items.ToArray();
+
+        Token[] argTokens = constructs[0].Tokens.ToArray();
+        Assert.Equal(4, argTokens.Length);
+        Assert.IsType<KeywordToken>(argTokens[0]);
+        Assert.IsType<WhitespaceToken>(argTokens[1]);
+        Assert.IsType<ArgDeclaration>(argTokens[2]);
+        Assert.IsType<NewLineToken>(argTokens[3]);
+
+        Token[] fromTokens = constructs[1].Tokens.ToArray();
+        Assert.Equal(9, fromTokens.Length);
+        Assert.IsType<KeywordToken>(fromTokens[0]);
+        Assert.IsType<WhitespaceToken>(fromTokens[1]);
+        Assert.IsType<LiteralToken>(fromTokens[2]);
+        Assert.IsType<WhitespaceToken>(fromTokens[3]);
+        LineContinuationToken continuation = Assert.IsType<LineContinuationToken>(fromTokens[4]);
+        Token[] continuationTokens = continuation.Tokens.ToArray();
+        Assert.Equal(2, continuationTokens.Length);
+        Assert.IsType<SymbolToken>(continuationTokens[0]);
+        Assert.IsType<NewLineToken>(continuationTokens[1]);
+        Assert.IsType<WhitespaceToken>(fromTokens[5]);
+        Assert.IsType<KeywordToken>(fromTokens[6]);
+        Assert.IsType<WhitespaceToken>(fromTokens[7]);
+        Assert.IsType<StageName>(fromTokens[8]);
+    }
+
     [Fact]
     public void DefaultsAreStrictAndRejectUnknownInstructions()
     {

@@ -3,12 +3,15 @@ using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
+/// <summary>A literal with optional quote syntax, continuations, and recognized variable-reference children.</summary>
 public class LiteralToken : AggregateToken, IQuotableValueToken
 {
     private readonly bool canContainVariables;
     private readonly char escapeChar;
     private readonly bool preserveRawValue;
 
+    /// <summary>Parses literal syntax using the supplied escape character and variable-recognition policy.</summary>
+    /// <remarks>The escape context and variable policy are retained for later value updates.</remarks>
     public LiteralToken(string value, bool canContainVariables = false, char escapeChar = Dockerfile.DefaultEscapeChar)
             : this(GetTokens(value, canContainVariables, escapeChar), canContainVariables, escapeChar)
     {
@@ -29,6 +32,12 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         this.preserveRawValue = preserveRawValue;
     }
 
+    /// <summary>Gets text without quote wrappers, continuations, comments, or newlines; sets the literal's inner contents.</summary>
+    /// <remarks>
+    /// Setting preserves the existing <see cref="QuoteChar"/> and, except for raw-value literals,
+    /// reparses the contents with the retained context.
+    /// The value is not a general JSON-unescaped or shell-expanded string. Use <c>ToString()</c> for complete syntax.
+    /// </remarks>
     public string Value
     {
         get => this.ToString(TokenStringOptions.CreateOptionsForValueString());
@@ -39,6 +48,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         }
     }
 
+    /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
     public char? QuoteChar { get; set; }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>

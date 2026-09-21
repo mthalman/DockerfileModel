@@ -1,11 +1,21 @@
 ﻿namespace Valleysoft.DockerfileModel.Tokens;
 
+/// <summary>Builds explicit token syntax without automatically inserting separators or trailing newlines.</summary>
+/// <remarks>
+/// Supply keywords, whitespace, quotes, and line continuations as needed. Nested callbacks use fresh
+/// builders with inherited escape and newline settings. A Dockerfile builder callback parses this
+/// serialized syntax before appending the resulting construct.
+/// </remarks>
 public class TokenBuilder
 {
+    /// <summary>Gets or sets the escape character used by newly constructed tokens; defaults to backslash.</summary>
     public char EscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
 
+    /// <summary>Gets or sets generated newline text; defaults to <see cref="Environment.NewLine"/>.</summary>
     public string DefaultNewLine { get; set; } = Environment.NewLine;
 
+    /// <summary>Gets the mutable token list used for concatenation.</summary>
+    /// <remarks>This is an ordinary list, not a syntax-aware editable view; callers are responsible for valid ordering and separators.</remarks>
     public IList<Token> Tokens { get; } = new List<Token>();
 
     public TokenBuilder Comment(string comment) =>
@@ -55,12 +65,14 @@ public class TokenBuilder
     public TokenBuilder Keyword(Action<TokenBuilder> configureBuilder) =>
         AddToken(new KeywordToken(GetTokens(configureBuilder), EscapeChar));
 
+    /// <summary>Appends the configured escape character and newline as a continuation.</summary>
     public TokenBuilder LineContinuation() =>
         AddToken(new LineContinuationToken(DefaultNewLine, EscapeChar));
 
     public TokenBuilder LineContinuation(Action<TokenBuilder> configureBuilder) =>
         AddToken(new LineContinuationToken(GetTokens(configureBuilder)));
 
+    /// <summary>Appends a literal parsed using the configured escape character and optional variable-reference recognition.</summary>
     public TokenBuilder Literal(string value, bool canContainVariables = false) =>
         AddToken(new LiteralToken(value, canContainVariables, EscapeChar));
 
@@ -148,6 +160,7 @@ public class TokenBuilder
     public TokenBuilder Whitespace(string value) =>
         AddToken(new WhitespaceToken(value));
 
+    /// <summary>Concatenates the current tokens without validation or additional formatting.</summary>
     public override string ToString() =>
         string.Concat(Tokens.Select(token => token.ToString()));
 

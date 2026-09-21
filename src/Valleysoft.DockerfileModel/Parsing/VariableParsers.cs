@@ -21,6 +21,7 @@ internal static class VariableParsers
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="excludedChars">Characters to exclude from parsing.</param>
+    /// <param name="whitespaceMode">Where whitespace may occur within the literal.</param>
     /// <returns>A parsed aggregate token.</returns>
     internal static Parser<LiteralToken> LiteralWithVariables(
         char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed) =>
@@ -35,6 +36,7 @@ internal static class VariableParsers
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="excludedChars">Characters to exclude from parsing.</param>
+    /// <param name="whitespaceMode">Where whitespace may occur within the literal.</param>
     /// <returns>A parsed aggregate token.</returns>
     internal static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> LiteralWithVariablesTokens(
         char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed)

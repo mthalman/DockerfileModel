@@ -2,6 +2,7 @@ using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A syntax directive declaring a frontend image reference, not a frontend capability profile.</summary>
 public sealed class SyntaxDirective : ParserDirective
 {
     public SyntaxDirective(string value) : base(ParserDirective.SyntaxDirective, value)

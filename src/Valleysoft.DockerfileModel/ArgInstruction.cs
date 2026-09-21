@@ -7,8 +7,11 @@ using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>An ordered set of ARG declarations with optional defaults.</summary>
+/// <remarks>Declaration order matters when later defaults reference earlier declarations.</remarks>
 public class ArgInstruction : Instruction
 {
+    /// <summary>Creates an ARG declaration; null omits the default while an empty string emits an empty assignment.</summary>
     public ArgInstruction(string argName, string? argValue = null,
         char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(
@@ -20,6 +23,7 @@ public class ArgInstruction : Instruction
     {
     }
 
+    /// <summary>Creates ARG declarations in dictionary enumeration order, retaining the supplied escape context.</summary>
     public ArgInstruction(IDictionary<string, string?> args, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(args, escapeChar), escapeChar)
     {
@@ -31,10 +35,14 @@ public class ArgInstruction : Instruction
         Args = InstructionCollectionEditing.Pairs(ArgTokens, this);
     }
 
+    /// <summary>Gets the live syntax-aware declaration view; its pair objects remain connected to the instruction.</summary>
+    /// <remarks>Null values mean no default, distinct from empty defaults. At least one declaration must remain.</remarks>
     public EditableList<IKeyValuePair> Args { get; }
 
+    /// <summary>Gets the live declaration token view for edits that need explicit syntax or token identity.</summary>
     public EditableList<ArgDeclaration> ArgTokens { get; }
 
+    /// <summary>Parses a standalone ARG instruction, preserving declaration order, formatting, and escape context.</summary>
     public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
