@@ -153,4 +153,170 @@ partial def jsonArrayParser (escapeChar : Char) : Parser (List Token) := do
 def parseJsonArray (input : String) (escapeChar : Char := '\\') : Option (List Token) :=
   (jsonArrayParser escapeChar).tryParse input
 
+-- ============================================================
+-- Command-form JSON fallback classification
+-- ============================================================
+
+/-- Parse one JSON whitespace character. -/
+def jsonWhitespaceChar : Parser Unit := do
+  let _ ← satisfy (fun c => c == ' ' || c == '\t' || c == '\r' || c == '\n') "JSON whitespace"
+  Parser.pure ()
+
+/-- Parse horizontal JSON whitespace that does not advance to the next physical instruction line. -/
+def jsonHorizontalWhitespace : Parser Unit := do
+  let _ ← satisfy (fun c => c == ' ' || c == '\t') "horizontal JSON whitespace"
+  Parser.pure ()
+
+/-- Parse JSON whitespace plus Dockerfile line continuations accepted between exec-form elements. -/
+def jsonWhitespace (escapeChar : Char) : Parser Unit := do
+  let _ ← many (or'
+    jsonWhitespaceChar
+    (do
+      let _ ← lineContinuationParser escapeChar
+      Parser.pure ()))
+  Parser.pure ()
+
+/-- Parse trailing whitespace and continuation comments after a complete command JSON value. -/
+def jsonTrailingTrivia (escapeChar : Char) : Parser Unit := do
+  let _ ← many jsonHorizontalWhitespace
+  let _ ← many (do
+    let _ ← lineContinuationParser escapeChar
+    let _ ← many commentText
+    let _ ← many jsonHorizontalWhitespace
+    Parser.pure ())
+  or'
+    (do let _ ← eof; Parser.pure ())
+    (do let _ ← lineEnd; Parser.pure ())
+
+/-- Parse a JSON string for syntax validation only. -/
+def jsonSyntaxString : Parser Unit := do
+  let _ ← char '"'
+  let _ ← jsonStringContent
+  let _ ← char '"'
+  Parser.pure ()
+
+/-- Parse a JSON number for syntax validation only. -/
+def jsonSyntaxNumber : Parser Unit := do
+  let _ ← optional (char '-')
+  let first ← digit
+  if first == '0' then
+    let nextDigit ← optional digit
+    match nextDigit with
+    | some _ => Parser.fail "unexpected digit after leading zero"
+    | none => Parser.pure ()
+  else
+    let _ ← many digit
+    Parser.pure ()
+  let fraction ← optional (do
+    let _ ← char '.'
+    let _ ← many1 digit
+    Parser.pure ())
+  let exponent ← optional (do
+    let _ ← satisfy (fun c => c == 'e' || c == 'E') "exponent"
+    let _ ← optional (satisfy (fun c => c == '+' || c == '-') "exponent sign")
+    let _ ← many1 digit
+    Parser.pure ())
+  let _ := fraction
+  let _ := exponent
+  Parser.pure ()
+
+mutual
+  /-- Parse a JSON value for syntax validation and return whether it is a string. -/
+  partial def jsonSyntaxValueIsString (escapeChar : Char) : Parser Bool := do
+    jsonWhitespace escapeChar
+    or'
+      (do jsonSyntaxString; Parser.pure true)
+      (or'
+        (do jsonSyntaxArray escapeChar; Parser.pure false)
+        (or'
+          (do jsonSyntaxObject escapeChar; Parser.pure false)
+          (or'
+            (do jsonSyntaxNumber; Parser.pure false)
+            (or'
+              (do let _ ← string "true"; Parser.pure false)
+              (or'
+                (do let _ ← string "false"; Parser.pure false)
+                (do let _ ← string "null"; Parser.pure false))))))
+
+  /-- Parse a JSON array for syntax validation only. -/
+  partial def jsonSyntaxArray (escapeChar : Char) : Parser Unit := do
+    let _ ← char '['
+    jsonWhitespace escapeChar
+    let first ← optional (jsonSyntaxValueIsString escapeChar)
+    match first with
+    | none =>
+      jsonWhitespace escapeChar
+      let _ ← char ']'
+      Parser.pure ()
+    | some _ =>
+      let _ ← many (do
+        jsonWhitespace escapeChar
+        let _ ← char ','
+        let _ ← jsonSyntaxValueIsString escapeChar
+        Parser.pure ())
+      jsonWhitespace escapeChar
+      let _ ← char ']'
+      Parser.pure ()
+
+  /-- Parse a JSON object for syntax validation only. -/
+  partial def jsonSyntaxObject (escapeChar : Char) : Parser Unit := do
+    let _ ← char '{'
+    jsonWhitespace escapeChar
+    let first ← optional (do
+      jsonSyntaxString
+      jsonWhitespace escapeChar
+      let _ ← char ':'
+      let _ ← jsonSyntaxValueIsString escapeChar
+      Parser.pure ())
+    match first with
+    | none =>
+      jsonWhitespace escapeChar
+      let _ ← char '}'
+      Parser.pure ()
+    | some _ =>
+      let _ ← many (do
+        jsonWhitespace escapeChar
+        let _ ← char ','
+        jsonWhitespace escapeChar
+        jsonSyntaxString
+        jsonWhitespace escapeChar
+        let _ ← char ':'
+        let _ ← jsonSyntaxValueIsString escapeChar
+        Parser.pure ())
+      jsonWhitespace escapeChar
+      let _ ← char '}'
+      Parser.pure ()
+end
+
+/-- Parse a complete JSON array and return true when any top-level element is not a string. -/
+partial def jsonArrayContainsNonStringElement (escapeChar : Char) : Parser Bool := do
+  jsonWhitespace escapeChar
+  let _ ← char '['
+  jsonWhitespace escapeChar
+  let first ← optional (jsonSyntaxValueIsString escapeChar)
+  let containsNonString ← match first with
+    | none => Parser.pure false
+    | some isString => do
+      let rest ← many (do
+        jsonWhitespace escapeChar
+        let _ ← char ','
+        let isString ← jsonSyntaxValueIsString escapeChar
+        Parser.pure isString)
+      Parser.pure (!(isString && rest.all id))
+  jsonWhitespace escapeChar
+  let _ ← char ']'
+  jsonTrailingTrivia escapeChar
+  Parser.pure containsNonString
+
+/-- Parse command form. Malformed JSON falls back to shell form, but a valid JSON
+    array with non-string elements is rejected to match BuildKit. -/
+partial def commandFormParser (escapeChar : Char) : Parser (List Token) :=
+  fun pos =>
+    match (jsonArrayParser escapeChar) pos with
+    | .ok tokens pos' => ParseResult.ok tokens pos'
+    | .error _ _ =>
+      match jsonArrayContainsNonStringElement escapeChar pos with
+      | .ok true _ => ParseResult.error "expected JSON array of strings" pos
+      | _ => (shellFormCommand escapeChar) pos
+
 end DockerfileModel.Parser.ExecForm

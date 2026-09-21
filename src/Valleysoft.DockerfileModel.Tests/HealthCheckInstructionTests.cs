@@ -1,4 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+﻿using Valleysoft.DockerfileModel.Parsing;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
 
@@ -6,6 +7,12 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class HealthCheckInstructionTests
 {
+    [Fact]
+    public void Parse_JsonArrayWithLineContinuationAndNonStringElementRejects()
+    {
+        Assert.Throws<ParseException>(() => HealthCheckInstruction.Parse("HEALTHCHECK CMD [\"echo\", \\\n 1]"));
+    }
+
     [Theory]
     [MemberData(nameof(ParseTestInput))]
     public void Parse(ParseTestScenario<HealthCheckInstruction> scenario) =>

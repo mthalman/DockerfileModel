@@ -1,5 +1,4 @@
-﻿using Sprache;
-using Valleysoft.DockerfileModel.Parsing;
+﻿using Valleysoft.DockerfileModel.Parsing;
 using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
@@ -32,21 +31,85 @@ public class CmdInstructionTests
         scenario.Validate?.Invoke(result);
     }
 
-    [Theory]
-    [InlineData("CMD [\"echo\", \"Please, close the brackets when you're done\"\n")]
-    [InlineData("CMD [\"echo\", \"look ma, no quote!]\n")]
-    [InlineData("CMD ['echo','single quotes are invalid JSON']\n")]
-    public void MalformedJsonFallsBackToShellForm(string text)
+    [Fact]
+    public void Parse_MalformedJsonFallsBackToShellForm()
     {
-        CmdInstruction result = CmdInstruction.Parse(text);
+        CmdInstruction result = CmdInstruction.Parse("CMD [\"echo\"");
 
+        Assert.Equal("CMD [\"echo\"", result.ToString());
+        Assert.Equal(CommandType.ShellForm, result.Command!.CommandType);
         Assert.IsType<ShellFormCommand>(result.Command);
-        Assert.Equal(text, result.ToString());
+        Assert.Equal("[\"echo\"", ((ShellFormCommand)result.Command).Value);
     }
 
     [Fact]
-    public void NestedJsonArrayDoesNotFallBackToShellForm() =>
-        Assert.Throws<ParseException>(() => CmdInstruction.Parse("CMD [ \"echo\", [ \"nested json\" ] ]\n"));
+    public void Parse_SingleQuotedJsonArrayFallsBackToShellForm()
+    {
+        CmdInstruction result = CmdInstruction.Parse("CMD ['echo']");
+
+        Assert.Equal("CMD ['echo']", result.ToString());
+        Assert.Equal(CommandType.ShellForm, result.Command!.CommandType);
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal("['echo']", ((ShellFormCommand)result.Command).Value);
+    }
+
+    [Fact]
+    public void Parse_BareBracketShellLiteralFallsBackToShellForm()
+    {
+        CmdInstruction result = CmdInstruction.Parse("CMD [foo]");
+
+        Assert.Equal("CMD [foo]", result.ToString());
+        Assert.Equal(CommandType.ShellForm, result.Command!.CommandType);
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal("[foo]", ((ShellFormCommand)result.Command).Value);
+    }
+
+    [Fact]
+    public void Parse_InvalidJsonColonArrayFallsBackToShellForm()
+    {
+        CmdInstruction result = CmdInstruction.Parse("CMD [\"echo\" : \"x\"]");
+
+        Assert.Equal("CMD [\"echo\" : \"x\"]", result.ToString());
+        Assert.Equal(CommandType.ShellForm, result.Command!.CommandType);
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal("[\"echo\" : \"x\"]", ((ShellFormCommand)result.Command).Value);
+    }
+
+    [Fact]
+    public void Parse_NestedJsonArrayRejectsNonStringElements()
+    {
+        Assert.Throws<ParseException>(() => CmdInstruction.Parse("CMD [\"echo\", [\"nested json\"]]"));
+    }
+
+    [Fact]
+    public void Parse_NestedJsonArrayPreservesExecFormErrorPosition()
+    {
+        ParseException exception = Assert.Throws<ParseException>(
+            () => CmdInstruction.Parse("CMD [\"echo\", [\"nested json\"]]"));
+
+        Assert.Equal(1, exception.Position.Line);
+        Assert.Equal(12, exception.Position.Column);
+    }
+
+    [Theory]
+    [InlineData("CMD [\"echo\", \\\n 1]")]
+    [InlineData("CMD [\"echo\", \\\n [\"nested json\"]]")]
+    [InlineData("CMD [\"echo\", 1] \\\n# comment\n")]
+    [InlineData("CMD [\"echo\", 1]\n# comment\n")]
+    public void Parse_JsonArrayWithNonStringElementAndTrailingTriviaRejects(string text)
+    {
+        Assert.Throws<ParseException>(() => CmdInstruction.Parse(text));
+    }
+
+    [Theory]
+    [InlineData("CMD [\"echo\", 1]")]
+    [InlineData("CMD [\"echo\", true]")]
+    [InlineData("CMD [\"echo\", null]")]
+    [InlineData("CMD [\"echo\", {\"arg\":\"value\"}]")]
+    public void Parse_ValidJsonArrayWithNonStringElementRejects(string text)
+    {
+        Assert.Throws<ParseException>(() => CmdInstruction.Parse(text));
+    }
 
     public static IEnumerable<object[]> ParseTestInput()
     {

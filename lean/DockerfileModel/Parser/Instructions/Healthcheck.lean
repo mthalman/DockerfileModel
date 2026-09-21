@@ -92,7 +92,7 @@ private partial def healthcheckCmdParser (escapeChar : Char) : Parser (List Toke
     let kw ← keywordParser "CMD" escapeChar
     Parser.pure [kw]) escapeChar
   -- Parse command: exec form or shell form
-  let command ← argTokens (or' (jsonArrayParser escapeChar) (shellFormCommand escapeChar)) escapeChar
+  let command ← argTokens (commandFormParser escapeChar) escapeChar
   Parser.pure (concatTokens [flags.flatten, cmdKw, command])
 
 -- ============================================================

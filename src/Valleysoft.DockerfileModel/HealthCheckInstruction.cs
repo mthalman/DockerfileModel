@@ -278,9 +278,8 @@ public class HealthCheckInstruction : Instruction
     private static Parser<IEnumerable<Token>> CmdTokens(char escapeChar, bool diagnostic) =>
         from cmdKeyword in ArgTokens(KeywordToken.GetParser("CMD", escapeChar).AsEnumerable(), escapeChar)
         from cmd in ArgTokens(
-            ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Token>()
-                .Or(ShellFormCommand.GetExecFormFallbackParser(escapeChar, diagnostic)
-                    .Cast<ShellFormCommand, Token>())
+            CommandInstruction.GetCommandParser(escapeChar, diagnostic)
+                .Cast<Command, Token>()
                 .AsEnumerable(), escapeChar)
         select ConcatTokens(cmdKeyword, cmd);
 
