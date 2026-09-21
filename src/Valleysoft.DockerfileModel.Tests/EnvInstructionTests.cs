@@ -6,6 +6,17 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class EnvInstructionTests
 {
+    [Fact]
+    public void Parse_ContinuesLegacyValueAcrossBlankLineGap()
+    {
+        string text = "ENV GOPATH \\\n/go\n";
+        EnvInstruction env = EnvInstruction.Parse(text);
+
+        Assert.Equal("GOPATH", env.Variables[0].Key);
+        Assert.Equal("/go", env.Variables[0].Value);
+        Assert.Equal(text, env.ToString());
+    }
+
     [Theory]
     [MemberData(nameof(ParseTestInput))]
     public void Parse(ParseTestScenario<EnvInstruction> scenario) =>

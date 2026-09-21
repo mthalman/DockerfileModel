@@ -142,6 +142,16 @@ public class RunInstructionTests
         Assert.Equal(text, run.ToString());
     }
 
+    [Fact]
+    public void Parse_ContinuedShellCommandAcrossBlankLines()
+    {
+        string text = "RUN foo \\\n\nbar \\\n\nbaz\n";
+        RunInstruction run = RunInstruction.Parse(text);
+
+        Assert.Equal("foo \\\n\nbar \\\n\nbaz\n", run.Command!.ToString());
+        Assert.Equal(text, run.ToString());
+    }
+
     [Theory]
     [MemberData(nameof(ParseTestInput))]
     public void Parse(ParseTestScenario<RunInstruction> scenario) =>

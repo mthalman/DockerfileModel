@@ -1,19 +1,5 @@
 [
   {
-    "id": "frontend/dockerfile/parser/testfile-line/Dockerfile#L11-L12",
-    "inputSha256": "2176870ac77374550978eda451b02d5e6cd1382db326f754905e4a7359aa4a3a",
-    "outcomeSignature": "b78eb89fe5b6990a446a0a5c943614415dec90a1da361201b0ac56ebb99594df",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfile-line/Dockerfile#L17-L31",
-    "inputSha256": "519436084ae9b9147424370dca6cb3b612c041a31c17e8d795cd9baeb22da294",
-    "outcomeSignature": "73e347377d53866188b8d97e6ddce4dc07ce3f1214502ac0fcc34f3ad05eb13d",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles-negative/shykes-nested-json/Dockerfile#L1-L1",
     "inputSha256": "7884a986670856acedb7f544c7ccfc55ffa3d9d6ee4c926229ee8432e46553f1",
     "outcomeSignature": "a2551c212b8c2a7dc26a2eaba37d9c37425b2b8b9d17203dd833a5890aa96cda",
@@ -28,13 +14,6 @@
     "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L14-L26",
-    "inputSha256": "755b000d2320186ca0c3a56cfc7376d06ad41f7febd15ba75b0970cd7fbc6966",
-    "outcomeSignature": "a0b3a7d00adcdb1c8daca4cf4034e46317de38abcb743b5768a3ec65d78d3fbe",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L4-L4",
     "inputSha256": "345baea22de191b13b9b429501f3c3dffaeedbfe657a01b28033afad947a756f",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
@@ -47,20 +26,6 @@
     "outcomeSignature": "9a591dfcf43aeac3f63053798a31a9403405ff8452e0a5eaf4e08120b0335d14",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L21-L36",
-    "inputSha256": "c788d1e96a7e0c2ccd5f960dd487db97d0f36e402ecaa246b547de6591086b6f",
-    "outcomeSignature": "6a72e997ce8f59726f220a9d0b45643eea79d25c5c4fedc06fea06b91f240ecf",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L40-L52",
-    "inputSha256": "dfdd7d7b27ca0dddc06a3902282285cf1e3aaf51d3e6269c2b75a885cfa6bfc9",
-    "outcomeSignature": "bedd7767e4e547370fc46c5c1fd5ae72acaa8ed88b484f78f91d196affee50c9",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L9-L12",
@@ -117,13 +82,6 @@
     "outcomeSignature": "bf9130f9da18e2c0ab9f8d85ef7d973b15923adbf887d0c6f8cb3887572a3061",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L31-L36",
-    "inputSha256": "77dfa061b0b1b54f4f2ffe5d9d29e4a682bf5535ad17c3b77d8c7dd3159d4b0b",
-    "outcomeSignature": "e0cd36cf3e378d4b8765da6e1e6683a8cf77dd7df727bad9e4cb07ac959d1cd7",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L9-L10",
@@ -294,13 +252,6 @@
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L59-L62",
-    "inputSha256": "cfbfd6056ff7d7e584f5b510046d5468bb7f1a13756b316e1d21c497a3462236",
-    "outcomeSignature": "78ec92e2c9d2b72183f3caf71628138a5443bcd6d5f6b2f451b2a8fbdab3684f",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L65-L65",
     "inputSha256": "54b7fff144c0b0bb6a9ff8db0849caa9f230dc9b1c0b3aca38e34fe2192642c4",
     "outcomeSignature": "bbd7bc7767d03085fc595757fc1b87c76715cfc1f09544aa3f938f2b86a1ffe0",
@@ -392,25 +343,11 @@
     "reason": "ENV values containing escaped quotes differ in quoteChar and surrounding quote characters in literal children; review canonical representation and semantic value together."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L18-L23",
-    "inputSha256": "716a586a60359798830b7289b9cb6e98e1589fd48c33f01be4a6ee65ce007d38",
-    "outcomeSignature": "0483c89ccff89705c2e9cfcca8de79b9c788d2888b458365c58235fef272c70f",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean's continued ENV value tokenization differs from C# and does not retain the complete continued assignment structure, including the multiline quoted-value case."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L7-L7",
     "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
     "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L8-L9",
-    "inputSha256": "e449094bd033f4e5b1cd99f2bca584134c13cd3931bf204415adceada94187b3",
-    "outcomeSignature": "79a5ad68ee35b3e34e4b580bf6e3016dc717c273a5fcd79d8eabd4cdd749d3f8",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L5-L5",
@@ -420,25 +357,11 @@
     "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L6-L7",
-    "inputSha256": "c1d2ddcfae73c651c5b3dd29d021a6fb48385cf1c35f0d590be5e98869ded311",
-    "outcomeSignature": "cdcb8e4cabc8ef24527432bd3de37f86723a14c316055b8a6b41086f4f47ecae",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L4-L4",
     "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
     "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L5-L6",
-    "inputSha256": "9a2a5cf2083e33146dd13d5f7589811b9585ba07b58d7a91f81e5ee85a4f83e2",
-    "outcomeSignature": "638231533880443bed20475f6f17f560a4a3000950702e5ebe1b6c17befa5760",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L2-L2",
@@ -453,13 +376,6 @@
     "outcomeSignature": "4fe39f64077f3bc48f5045c7884367e33762e162bef9f975339d6fa3879c6420",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L8-L12",
-    "inputSha256": "9547a5283ebc57852e220c7c10aab642223554864d7ae329da7cb5cffd57f2fe",
-    "outcomeSignature": "b8428d81b090741be0cd9dc43fd111afb652e40574b43cb547cd5a397ddc368b",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/flags/Dockerfile#L10-L10",
@@ -887,20 +803,6 @@
     "outcomeSignature": "20402e9a00a1a9b3b3aec786e5bbf9122b8442a781b17c895264e2ef01af026d",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L12-L14",
-    "inputSha256": "16a78c2b5d3fde0de0c8fbe7eba80e01fff15a104acef1332613e36909d99290",
-    "outcomeSignature": "d8e15cc437c7f52c3590394b5b0d7e74c48969e0b3b79624a274c43e181fdf39",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean's continued ENV value tokenization differs from C# and does not retain the complete continued assignment structure, including the multiline quoted-value case."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L15-L17",
-    "inputSha256": "9795d4ec228518acdd1fac88c29cf75567716fc471e6d7b270aa389bb9877d07",
-    "outcomeSignature": "49b953747f90b9f788c0134038a8fe043b15ba8ab28f4fbd4280ac43912c1880",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
-    "reason": "Lean's continued ENV value tokenization differs from C# and does not retain the complete continued assignment structure, including the multiline quoted-value case."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L3-L3",

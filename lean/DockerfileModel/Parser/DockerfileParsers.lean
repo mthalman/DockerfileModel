@@ -133,6 +133,13 @@ def commentText : Parser (List Token) := do
   let commentChildren := concatOptTokens [some comment, lineEndTok]
   Parser.pure (concatTokens [leading, [Token.mkComment commentChildren]])
 
+/-- Parse one or more whitespace/comment trivia groups. This is used when a
+    continued literal or command resumes after a blank line or an intervening
+    comment before the next payload segment. -/
+def whitespaceOrComments : Parser (List Token) := do
+  let groups ← many1 (or' whitespace commentText)
+  Parser.pure (groups.flatten)
+
 -- ============================================================
 -- String token helpers (for character-level parsing)
 -- ============================================================
@@ -335,13 +342,18 @@ def literalChar (escapeChar : Char) (excludedChars : List Char)
 def literalStringWithoutSpaces (escapeChar : Char) (excludedChars : List Char)
     (excludeVariableRefChars : Bool := true) : Parser (List Token) := do
   let firstTok ← or'
-    (toStringToken (literalChar escapeChar excludedChars excludeVariableRefChars))
-    (escapedChar escapeChar)
+    (do
+      let lcs ← lineContinuations escapeChar
+      if lcs.isEmpty then Parser.fail "expected continuation before literal text"
+      else Parser.pure lcs)
+    (or'
+      (do let t ← toStringToken (literalChar escapeChar excludedChars excludeVariableRefChars); Parser.pure [t])
+      (do let t ← escapedChar escapeChar; Parser.pure [t]))
   let restToks ← many (do
     let lcs ← lineContinuations escapeChar
     let ch ← literalChar escapeChar excludedChars excludeVariableRefChars
     Parser.pure (lcs ++ [Token.mkString (String.ofList [ch])]))
-  Parser.pure (collapseStringTokens (firstTok :: restToks.flatten))
+  Parser.pure (collapseStringTokens (firstTok ++ restToks.flatten))
 
 /-- Parse a literal string (may include escaped chars).
     Corresponds to StringParsers.LiteralString() -/
@@ -379,7 +391,9 @@ partial def literalWithVariablesUnquoted (escapeChar : Char) (excludedChars : Li
   let tokenLists ← many1 (valueOrVariableRef escapeChar
     (if whitespaceMode == .allowed then
       or' (literalString escapeChar excludedChars)
-          (or' whitespace (lineContinuations escapeChar))
+        (or' whitespace
+          (or' (lineContinuations escapeChar)
+               whitespaceOrComments))
     else
       literalString escapeChar excludedChars))
   let tokens := collapseStringTokens tokenLists.flatten
@@ -395,27 +409,31 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
     (quoteChar : Char) (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token := do
   let _ ← char quoteChar
   let tokenLists ← many (valueOrVariableRef escapeChar
-    (do
-      let chars ← many1 (fun pos =>
-        match pos.current with
-        | none => .error "end of input" pos
-        | some c =>
-          if c == quoteChar || c == escapeChar || isLineTerminator c then
-            .error s!"excluded char '{c}'" pos
-          else if isVariableRefStart c then
-            -- Check lookahead for variable ref
-            let pos' := pos.next
-            match pos'.current with
-            | some c' =>
-              if c'.isAlpha || c'.isDigit || c' == '{' then
-                .error "variable reference start" pos
-              else .ok c pos.next
-            | none => .ok c pos.next
-          else if !(whitespaceMode == .allowedInQuotes || whitespaceMode == .allowed) &&
-                  (c == ' ' || c == '\t') then
-            .error "whitespace not allowed" pos
-          else .ok c pos.next)
-      Parser.pure [Token.mkString (String.ofList chars)]))
+    (or'
+      (do
+        let chars ← many1 (fun pos =>
+          match pos.current with
+          | none => .error "end of input" pos
+          | some c =>
+            if c == quoteChar || c == escapeChar || isLineTerminator c then
+              .error s!"excluded char '{c}'" pos
+            else if isVariableRefStart c then
+              -- Check lookahead for variable ref
+              let pos' := pos.next
+              match pos'.current with
+              | some c' =>
+                if c'.isAlpha || c'.isDigit || c' == '{' then
+                  .error "variable reference start" pos
+                else .ok c pos.next
+              | none => .ok c pos.next
+            else if !(whitespaceMode == .allowedInQuotes || whitespaceMode == .allowed) &&
+                    (c == ' ' || c == '\t') then
+              .error "whitespace not allowed" pos
+            else .ok c pos.next)
+        Parser.pure [Token.mkString (String.ofList chars)])
+      (or'
+        (do let lc ← lineContinuationParser escapeChar; Parser.pure [lc])
+        whitespaceOrComments)))
   let _ ← char quoteChar
   let tokens := collapseStringTokens tokenLists.flatten
   Parser.pure (Token.mkLiteral tokens (some ⟨quoteChar⟩))
@@ -740,30 +758,34 @@ def argDeclarationParser (escapeChar : Char) : Parser Token := do
     Corresponds to the shell-form branch of CommandInstruction.GetCommandParser() -/
 partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
   -- Parse shell form as opaque text: $ is treated as a regular character.
-  -- Each iteration produces either:
-  --   a) a maximal run of non-escape, non-newline characters → single StringToken, or
-  --   b) a line continuation (escape + optional whitespace + newline) → LineContinuationToken, or
-  --   c) an escaped char (escape + non-newline char, not a line continuation) → StringToken.
-  --
-  -- Line continuation must be tried before escaped char so that
-  -- `\<spaces><newline>` is recognized as a continuation rather than
-  -- `escapedChar` consuming `\<space>` and terminating the instruction.
+  -- Blank/comment-only continuation gaps are preserved as trivia while the
+  -- command continues on the following line, matching BuildKit's continuation
+  -- semantics. Preserve the instruction terminator newline inside the literal so
+  -- the token stream matches the upstream token structure instead of truncating
+  -- at the first blank/comment-only gap or the instruction boundary.
   let parts ← many1 (
-    or' (do
-      -- Maximal run of non-escape, non-newline characters (including $, spaces, tabs)
-      let s ← many1Chars (satisfy (fun c => !isLineTerminator c && c != escapeChar)
-                       "shell form character")
-      Parser.pure (Token.mkString s))
-    (or'
-      -- Line continuation (escape + optional whitespace + newline) — must be
-      -- tried first so `\<trailing-spaces><newline>` is not consumed by escapedChar
-      (lineContinuationParser escapeChar)
-      -- Escaped character, guarded: only match when the escape char is NOT
-      -- followed by optional whitespace + newline (which would be a continuation)
-      (except (escapedChar escapeChar) (lineContinuationParser escapeChar))))
-  -- Collapse adjacent string tokens into a single opaque StringToken.
-  -- LineContinuationTokens are preserved as-is.
-  let tokens := collapseStringTokens parts
+    or'
+      (do
+        let leading ← many (or' whitespace commentText)
+        let s ← many1Chars (satisfy (fun c => !isLineTerminator c && c != escapeChar)
+                         "shell form character")
+        Parser.pure (concatTokens [leading.flatten, [Token.mkString s]]))
+      (or'
+        (do
+          let leading ← many (or' whitespace commentText)
+          let lc ← lineContinuationParser escapeChar
+          let trailing ← many (or' whitespace commentText)
+          Parser.pure (concatTokens [leading.flatten, [lc], trailing.flatten]))
+        (or'
+          (do
+            let leading ← many (or' whitespace commentText)
+            let escaped ← except (escapedChar escapeChar) (lineContinuationParser escapeChar)
+            Parser.pure (concatTokens [leading.flatten, [escaped]]))
+          (do
+            let leading ← many (or' whitespace commentText)
+            let nl ← newLine
+            Parser.pure (concatTokens [leading.flatten, [nl]])))))
+  let tokens := collapseStringTokens (parts.flatten)
   if tokens.isEmpty then
     Parser.fail "expected shell form command"
   else
