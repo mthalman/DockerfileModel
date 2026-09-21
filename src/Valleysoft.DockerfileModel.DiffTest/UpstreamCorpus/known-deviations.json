@@ -14,25 +14,11 @@
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L2-L2",
-    "inputSha256": "33668bd31c692edf2fcaa676105a81c55e4ae5d4df74aacd9d6e7919cbd37f25",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L14-L26",
     "inputSha256": "755b000d2320186ca0c3a56cfc7376d06ad41f7febd15ba75b0970cd7fbc6966",
     "outcomeSignature": "a0b3a7d00adcdb1c8daca4cf4034e46317de38abcb743b5768a3ec65d78d3fbe",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L4-L4",
-    "inputSha256": "345baea22de191b13b9b429501f3c3dffaeedbfe657a01b28033afad947a756f",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L14-L19",
@@ -245,13 +231,6 @@
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L19-L19",
-    "inputSha256": "ab9e149fd73f408ebecda2fb71b4f7568440b9471a33ba0fe78196ad77b34e57",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L22-L41",
     "inputSha256": "d8983a80ec8f9334f5497bbf5ca150c2c297126e8b839098d8e9d93fdb121570",
     "outcomeSignature": "1c4801210cad74f553a88e2dae7bf1385b53fa042e7037a46440761f4a9b7747",
@@ -392,25 +371,11 @@
     "reason": "Lean's continued ENV value tokenization differs from C# and does not retain the complete continued assignment structure, including the multiline quoted-value case."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L7-L7",
-    "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/escape-after-comment/Dockerfile#L8-L9",
     "inputSha256": "e449094bd033f4e5b1cd99f2bca584134c13cd3931bf204415adceada94187b3",
     "outcomeSignature": "79a5ad68ee35b3e34e4b580bf6e3016dc717c273a5fcd79d8eabd4cdd749d3f8",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L5-L5",
-    "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/escape-nonewline/Dockerfile#L6-L7",
@@ -420,25 +385,11 @@
     "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L4-L4",
-    "inputSha256": "0997ae2723f28edb23520896b7d833d0ffed6866d81a4e2b13252c77123f07b0",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/escape/Dockerfile#L5-L6",
     "inputSha256": "9a2a5cf2083e33146dd13d5f7589811b9585ba07b58d7a91f81e5ee85a4f83e2",
     "outcomeSignature": "638231533880443bed20475f6f17f560a4a3000950702e5ebe1b6c17befa5760",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean rejects upstream-valid legacy ENV key/value syntax with a line continuation immediately after the key; C# accepts it."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L2-L2",
-    "inputSha256": "f0e39840d24dd0e562414984966d5f03dcd676f500a42e14acaaaae942fc65f1",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L4-L5",
@@ -507,7 +458,7 @@
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L10-L10",
     "inputSha256": "84ed0e741b8cf76ca22446ab36aae6fe8f8cf02e7d5c9fc9c6dffb664001820d",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
     "reason": "Intentional typed-validation boundary: both adapters reject this HEALTHCHECK, as does upstream's typed instruction layer, while upstream's low-level AST parser accepts it."
   },
   {
@@ -521,7 +472,7 @@
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L4-L4",
     "inputSha256": "41e1005432876ca7362edbc03b2b93562927b6e42a084e2717d158ffa4440391",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
     "reason": "Intentional typed-validation boundary: both adapters reject this HEALTHCHECK, as does upstream's typed instruction layer, while upstream's low-level AST parser accepts it."
   },
   {
@@ -534,9 +485,9 @@
   {
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L7-L7",
     "inputSha256": "dbf82270036f22708bc81b35a2c6644ac0c911414414de5cdee3a17fc9d59b18",
-    "outcomeSignature": "fad8d972647c557952bd58d6ec468bfa6ddb32597d795e7139d08a4e7116e0c9",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
-    "reason": "Empty HEALTHCHECK CMD crashes C# rather than rejecting normally. Lean and upstream typed instructions reject it, although the upstream low-level parser accepts it."
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
+    "reason": "C# now rejects empty HEALTHCHECK CMD through the typed parser, while the upstream low-level parser accepts it; the remaining C#/Lean difference is the rejection outcome signature."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L8-L8",
@@ -616,13 +567,6 @@
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L2-L2",
-    "inputSha256": "e9eeb3495124ef559eccf7b7591ff0fd239e6680a3834e03a188482e64de50b1",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L4-L4",
     "inputSha256": "4583c6f7b656d3a0dda97025881886caf396f9dc2f6bc18d2a0aedd98200f66e",
     "outcomeSignature": "c4e9b8bba4465153094ba98edc01c38ed8a6cd9b21a69bf5fe8befc73f3976cd",
@@ -677,13 +621,6 @@
     "outcomeSignature": "226bfe9aee4e37391f603bd6e1db2fa5154afecb4084000ec8fc1d922645d7fe",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L3-L3",
-    "inputSha256": "6e7781e576ae3f30c48550401848b31f0e294c115604b769215e90ed1fd7ac05",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/lk4d4-the-edge-case-generator/Dockerfile#L30-L30",
@@ -768,13 +705,6 @@
     "outcomeSignature": "5f5b2c90f6bc8d8565c4d81efc9eb087cb72028f70d6c1dd7e114cb6fe4a9048",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L2-L2",
-    "inputSha256": "5618d98d3d266dd6f5746eb1589695b4666492f489ddd2f022d54af94c3b1469",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L4-L4",
@@ -915,13 +845,6 @@
     "outcomeSignature": "5a61e7732737d2f540b7276198e6b00eef6c7c397b4984a9bb8ec6480d4a43ae",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/387",
     "reason": "Canonical token grouping differs: C# retains the final newline inside the shell literal; Lean places it at instruction level. Primitive leaves agree."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L2-L2",
-    "inputSha256": "5618d98d3d266dd6f5746eb1589695b4666492f489ddd2f022d54af94c3b1469",
-    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/390",
-    "reason": "Both adapters reject legacy LABEL key/value syntax without '='; both the pinned upstream parser and typed instruction layer accept this grammar."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L4-L4",
