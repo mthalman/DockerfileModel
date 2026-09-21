@@ -70,7 +70,7 @@ public class LabelInstruction : Instruction
             from variable in (
                 from key in LabelKeyToken.GetParser(escapeChar)
                 from valueWhitespace in Whitespace().Where(ws => ws.Any())
-                from value in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes)
+                from value in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.Allowed)
                 select new Token[] { new KeyValueToken<LabelKeyToken, LiteralToken>(ConcatTokens(new Token[] { key }, valueWhitespace, new Token[] { value }), escapeChar) })
             select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
         ).AtLeastOnce().Flatten();

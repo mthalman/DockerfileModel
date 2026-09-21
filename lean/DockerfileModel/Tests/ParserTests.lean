@@ -2167,6 +2167,17 @@ def testLabelVariable : IO Unit := do
   | none =>
     throw (IO.Error.userError "Parse failed: LABEL variable should parse")
 
+open DockerfileModel.Parser.Instructions.Label in
+/-- Test: LABEL description multi word value — legacy value keeps rest of line -/
+def testLabelLegacyMultiWordValue : IO Unit := do
+  IO.println "Label: legacy multi-word value"
+  match parseLabel "LABEL description multi word value" with
+  | some inst =>
+    assertEqual (Token.toString inst.token) "LABEL description multi word value"
+      "label legacy multi-word round-trip"
+  | none =>
+    throw (IO.Error.userError "Parse failed: LABEL legacy multi-word value should parse")
+
 -- ============================================================================
 -- RUN Instruction Tests
 -- ============================================================================
@@ -3205,6 +3216,7 @@ def runParserTests_PhaseC_Group2 : IO Unit := do
   testLabelDottedKey
   testLabelHyphenatedKey
   testLabelVariable
+  testLabelLegacyMultiWordValue
   testLabelEmptyValue
   testLabelLowercase
   IO.println ""

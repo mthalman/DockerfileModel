@@ -215,6 +215,37 @@ public class LabelInstructionTests
             },
             new ParseTestScenario<LabelInstruction>
             {
+                Text = "LABEL description multi word value",
+                TokenValidators = new Action<Token>[]
+                {
+                    token => ValidateKeyword(token, "LABEL"),
+                    token => ValidateWhitespace(token, " "),
+                    token => ValidateAggregate<KeyValueToken<LabelKeyToken, LiteralToken>>(token, "description multi word value",
+                        token => ValidateIdentifier<LabelKeyToken>(token, "description"),
+                        token => ValidateWhitespace(token, " "),
+                        token => ValidateAggregate<LiteralToken>(token, "multi word value",
+                            token => ValidateString(token, "multi"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "word"),
+                            token => ValidateWhitespace(token, " "),
+                            token => ValidateString(token, "value")))
+                },
+                Validate = result =>
+                {
+                    Assert.Empty(result.Comments);
+                    Assert.Equal("LABEL", result.InstructionName);
+                    Assert.Collection(result.Labels, new Action<IKeyValuePair>[]
+                    {
+                        pair =>
+                        {
+                            Assert.Equal("description", pair.Key);
+                            Assert.Equal("multi word value", pair.Value);
+                        }
+                    });
+                }
+            },
+            new ParseTestScenario<LabelInstruction>
+            {
                 Text = "LABEL MY_NAME=\"John Doe\"",
                 TokenValidators = new Action<Token>[]
                 {
