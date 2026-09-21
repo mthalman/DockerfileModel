@@ -117,21 +117,50 @@ def optionalWhitespaceOrLineContinuation (escapeChar : Char) : Parser (List Toke
 -- Comment parsers
 -- ============================================================
 
-/-- Parse a comment token: '#' followed by text until end of line.
+/-- Parse the flat children of a comment: '#' followed by text until end of
+    line. The whitespace immediately after '#' and any trailing whitespace
+    before the line end are split into their own WhitespaceToken siblings
+    (mirroring CommentToken.CommentCharParser + BasicParsers.TokenWithTrailingWhitespace).
+    Returns the flat child list (not wrapped in a CommentToken); the caller
+    (commentText) wraps these together with the trailing newline into the
+    single actual CommentToken, matching CommentToken.GetParser() returning
+    `Parser<IEnumerable<Token>>` rather than a token itself.
     Corresponds to CommentToken.GetParser() -/
-def commentTokenParser : Parser Token := do
+def commentTokenParser : Parser (List Token) := do
   let hash ← char '#'
-  let text ← manyChars (satisfy (fun c => !isLineTerminator c) "non-newline char")
-  Parser.pure (Token.mkComment [Token.mkSymbol hash, Token.mkString text])
+  let leadingWs ← whitespaceWithoutNewLine
+  let raw ← manyChars (satisfy (fun c => !isLineTerminator c) "non-newline char")
+  let chars := raw.toList
+  let trailingChars := chars.reverse.takeWhile (fun c => c == ' ' || c == '\t')
+  let textChars := chars.take (chars.length - trailingChars.length)
+  let textPart := String.ofList textChars
+  let trailingPart := String.ofList trailingChars.reverse
+  let children := concatOptTokens [
+    some (Token.mkSymbol hash),
+    leadingWs,
+    if textPart.isEmpty then none else some (Token.mkString textPart),
+    if trailingPart.isEmpty then none else some (Token.mkWhitespace trailingPart)
+  ]
+  Parser.pure children
 
 /-- Parse comment text with leading whitespace.
-    Corresponds to BasicParsers.CommentText() -/
+    Corresponds to BasicParsers.CommentText(): the flat `#`/whitespace/text/
+    trailing-whitespace children produced by CommentToken.GetParser() are
+    combined with the trailing newline (if any) into a SINGLE flat
+    CommentToken -- the newline is the comment's own trailing child, not a
+    sibling outside it. -/
 def commentText : Parser (List Token) := do
   let leading ← whitespace
-  let comment ← commentTokenParser
+  let commentChildren ← commentTokenParser
   let lineEndTok ← optionalNewLine
-  let commentChildren := concatOptTokens [some comment, lineEndTok]
-  Parser.pure (concatTokens [leading, [Token.mkComment commentChildren]])
+  Parser.pure (concatTokens [leading, [Token.mkComment (concatTokens [commentChildren, concatOptTokens [lineEndTok]])]])
+
+/-- Parse one or more whitespace/comment trivia groups. This is used when a
+    continued literal or command resumes after a blank line or an intervening
+    comment before the next payload segment. -/
+def whitespaceOrComments : Parser (List Token) := do
+  let groups ← many1 (or' whitespace commentText)
+  Parser.pure (groups.flatten)
 
 -- ============================================================
 -- String token helpers (for character-level parsing)
@@ -335,13 +364,13 @@ def literalChar (escapeChar : Char) (excludedChars : List Char)
 def literalStringWithoutSpaces (escapeChar : Char) (excludedChars : List Char)
     (excludeVariableRefChars : Bool := true) : Parser (List Token) := do
   let firstTok ← or'
-    (toStringToken (literalChar escapeChar excludedChars excludeVariableRefChars))
-    (escapedChar escapeChar)
+    (do let t ← toStringToken (literalChar escapeChar excludedChars excludeVariableRefChars); Parser.pure [t])
+    (do let t ← escapedChar escapeChar; Parser.pure [t])
   let restToks ← many (do
     let lcs ← lineContinuations escapeChar
     let ch ← literalChar escapeChar excludedChars excludeVariableRefChars
     Parser.pure (lcs ++ [Token.mkString (String.ofList [ch])]))
-  Parser.pure (collapseStringTokens (firstTok :: restToks.flatten))
+  Parser.pure (collapseStringTokens (firstTok ++ restToks.flatten))
 
 /-- Parse a literal string (may include escaped chars).
     Corresponds to StringParsers.LiteralString() -/
@@ -379,7 +408,9 @@ partial def literalWithVariablesUnquoted (escapeChar : Char) (excludedChars : Li
   let tokenLists ← many1 (valueOrVariableRef escapeChar
     (if whitespaceMode == .allowed then
       or' (literalString escapeChar excludedChars)
-          (or' whitespace (lineContinuations escapeChar))
+        (or' whitespace
+          (or' (lineContinuations escapeChar)
+               whitespaceOrComments))
     else
       literalString escapeChar excludedChars))
   let tokens := collapseStringTokens tokenLists.flatten
@@ -395,27 +426,39 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
     (quoteChar : Char) (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token := do
   let _ ← char quoteChar
   let tokenLists ← many (valueOrVariableRef escapeChar
-    (do
-      let chars ← many1 (fun pos =>
-        match pos.current with
-        | none => .error "end of input" pos
-        | some c =>
-          if c == quoteChar || c == escapeChar || isLineTerminator c then
-            .error s!"excluded char '{c}'" pos
-          else if isVariableRefStart c then
-            -- Check lookahead for variable ref
-            let pos' := pos.next
-            match pos'.current with
-            | some c' =>
-              if c'.isAlpha || c'.isDigit || c' == '{' then
-                .error "variable reference start" pos
-              else .ok c pos.next
-            | none => .ok c pos.next
-          else if !(whitespaceMode == .allowedInQuotes || whitespaceMode == .allowed) &&
-                  (c == ' ' || c == '\t') then
-            .error "whitespace not allowed" pos
-          else .ok c pos.next)
-      Parser.pure [Token.mkString (String.ofList chars)]))
+    (or'
+      (do
+        let chars ← many1 (fun pos =>
+          match pos.current with
+          | none => .error "end of input" pos
+          | some c =>
+            if c == quoteChar || c == escapeChar || isLineTerminator c then
+              .error s!"excluded char '{c}'" pos
+            else if isVariableRefStart c then
+              -- Check lookahead for variable ref
+              let pos' := pos.next
+              match pos'.current with
+              | some c' =>
+                if c'.isAlpha || c'.isDigit || c' == '{' then
+                  .error "variable reference start" pos
+                else .ok c pos.next
+              | none => .ok c pos.next
+            else if !(whitespaceMode == .allowedInQuotes || whitespaceMode == .allowed) &&
+                    (c == ' ' || c == '\t') then
+              .error "whitespace not allowed" pos
+            else .ok c pos.next)
+        Parser.pure [Token.mkString (String.ofList chars)])
+      (or'
+        (do let lc ← lineContinuationParser escapeChar; Parser.pure [lc])
+        (or'
+          (do
+            -- An escape char not forming a line continuation is a literal
+            -- escaped character pair (e.g. \n or \"), kept verbatim as string
+            -- content so quoted values round-trip exactly like the C# model.
+            let esc ← char escapeChar
+            let v ← satisfy (fun c => !isLineTerminator c) "escaped character"
+            Parser.pure [Token.mkString (String.ofList [esc, v])])
+          whitespaceOrComments))))
   let _ ← char quoteChar
   let tokens := collapseStringTokens tokenLists.flatten
   Parser.pure (Token.mkLiteral tokens (some ⟨quoteChar⟩))
@@ -740,30 +783,32 @@ def argDeclarationParser (escapeChar : Char) : Parser Token := do
     Corresponds to the shell-form branch of CommandInstruction.GetCommandParser() -/
 partial def shellFormCommand (escapeChar : Char) : Parser (List Token) := do
   -- Parse shell form as opaque text: $ is treated as a regular character.
-  -- Each iteration produces either:
-  --   a) a maximal run of non-escape, non-newline characters → single StringToken, or
-  --   b) a line continuation (escape + optional whitespace + newline) → LineContinuationToken, or
-  --   c) an escaped char (escape + non-newline char, not a line continuation) → StringToken.
-  --
-  -- Line continuation must be tried before escaped char so that
-  -- `\<spaces><newline>` is recognized as a continuation rather than
-  -- `escapedChar` consuming `\<space>` and terminating the instruction.
+  -- Whitespace (including on a continued line) is command content, not
+  -- instruction-level trivia, so it must merge into the surrounding string
+  -- run rather than being split out as its own WhitespaceToken. A '#' is only
+  -- recognized as a Dockerfile comment immediately after a line continuation,
+  -- matching BuildKit. The instruction terminator newline is captured by the
+  -- same loop, so it naturally ends up as the last child of the literal
+  -- instead of escaping to the instruction level.
   let parts ← many1 (
-    or' (do
-      -- Maximal run of non-escape, non-newline characters (including $, spaces, tabs)
-      let s ← many1Chars (satisfy (fun c => !isLineTerminator c && c != escapeChar)
-                       "shell form character")
-      Parser.pure (Token.mkString s))
-    (or'
-      -- Line continuation (escape + optional whitespace + newline) — must be
-      -- tried first so `\<trailing-spaces><newline>` is not consumed by escapedChar
-      (lineContinuationParser escapeChar)
-      -- Escaped character, guarded: only match when the escape char is NOT
-      -- followed by optional whitespace + newline (which would be a continuation)
-      (except (escapedChar escapeChar) (lineContinuationParser escapeChar))))
-  -- Collapse adjacent string tokens into a single opaque StringToken.
-  -- LineContinuationTokens are preserved as-is.
-  let tokens := collapseStringTokens parts
+    or'
+      (do
+        let s ← many1Chars (satisfy (fun c => !isLineTerminator c && c != escapeChar)
+                         "shell form character")
+        Parser.pure [Token.mkString s])
+      (or'
+        (do
+          let lc ← lineContinuationParser escapeChar
+          let trailingComments ← many commentText
+          Parser.pure (lc :: trailingComments.flatten))
+        (or'
+          (do
+            let escaped ← except (escapedChar escapeChar) (lineContinuationParser escapeChar)
+            Parser.pure [escaped])
+          (do
+            let nl ← newLine
+            Parser.pure [nl]))))
+  let tokens := collapseStringTokens (parts.flatten)
   if tokens.isEmpty then
     Parser.fail "expected shell form command"
   else
