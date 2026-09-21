@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L10-L10",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIC91c3IvYmluL2luZmx1eGRiIC0tcGlkZmlsZSAvdmFyL3J1bi9pbmZsdXhkYi5waWQgLWNvbmZpZyAvb3B0L2luZmx1eGRiL3NoYXJlZC9jb25maWcudG9tbAo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile",
+  "startLine": 10,
+  "endLine": 10,
+  "inputSha256": "9cbeeafced4c21edc46330de5f02b58c8dc82bd7f58baae26dcdd820818a33a0"
+}

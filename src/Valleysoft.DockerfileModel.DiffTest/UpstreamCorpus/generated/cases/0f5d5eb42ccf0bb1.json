@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L21-L36",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGFwdC1nZXQgdXBkYXRlIFwKCSYmIGRwa2cgLWwgfCBhd2sgJy9eaWkvIHtwcmludCAkMn0nID4gL3RtcC9kcGtnLmNsZWFuIFwKICAgICYmIGFwdC1nZXQgLS1uby1pbnN0YWxsLXJlY29tbWVuZHMgaW5zdGFsbCAteSB1bnppcCB3Z2V0IFwKICAgICYmIGFwdC1nZXQgY2xlYW4gXAogICAgJiYgcm0gLXJmIC92YXIvbGliL2FwdC9saXN0cyBcCgogICAgJiYgY2QgL3RtcCBcCiAgICAmJiB3Z2V0IGh0dHBzOi8vZGwuYmludHJheS5jb20vbWl0Y2hlbGxoL2NvbnN1bC8wLjMuMV93ZWJfdWkuemlwIFwKICAgICAgIC1PIHdlYl91aS56aXAgXAogICAgJiYgdW56aXAgd2ViX3VpLnppcCBcCiAgICAmJiBtdiBkaXN0IC93ZWJ1aSBcCiAgICAmJiBybSB3ZWJfdWkuemlwIFwKCgkmJiBkcGtnIC1sIHwgYXdrICcvXmlpLyB7cHJpbnQgJDJ9JyA+IC90bXAvZHBrZy5kaXJ0eSBcCgkmJiBhcHQtZ2V0IHJlbW92ZSAtLXB1cmdlIC15ICQoZGlmZiAvdG1wL2Rwa2cuY2xlYW4gL3RtcC9kcGtnLmRpcnR5IHwgYXdrICcvXj4vIHtwcmludCAkMn0nKSBcCgkmJiBybSAvdG1wL2Rwa2cuKgo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile",
+  "startLine": 21,
+  "endLine": 36,
+  "inputSha256": "c788d1e96a7e0c2ccd5f960dd487db97d0f36e402ecaa246b547de6591086b6f"
+}

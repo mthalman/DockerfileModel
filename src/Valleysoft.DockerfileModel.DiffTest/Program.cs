@@ -1,9 +1,14 @@
 using System.Text;
+using System.Text.Json;
 using Valleysoft.DockerfileModel.DiffTest;
 
 string mode = "";
 string leanCliPath = "";
 string corpusPath = RegressionCorpus.ResolveDefaultDirectory();
+string upstreamPath = UpstreamCorpus.ResolveDefaultDirectory();
+string compatibilityPath = UpstreamCorpus.ResolveDefaultCompatibilityPath();
+string? upstreamReplayId = null;
+string? upstreamReportPath = null;
 string? replayInstruction = null;
 string? replayInputBase64 = null;
 int count = 1000;
@@ -28,6 +33,25 @@ for (int index = 0; index < args.Length; index++)
             break;
         case "--replay":
             mode = "replay";
+            break;
+        case "--upstream-only":
+            mode = "upstream";
+            break;
+        case "--verify-upstream":
+            mode = "verify-upstream";
+            break;
+        case "--replay-upstream":
+            mode = "replay-upstream";
+            upstreamReplayId = ReadValue(argument);
+            break;
+        case "--upstream-corpus":
+            upstreamPath = ReadValue(argument);
+            break;
+        case "--compatibility":
+            compatibilityPath = ReadValue(argument);
+            break;
+        case "--upstream-report":
+            upstreamReportPath = ReadValue(argument);
             break;
         case "--lean-cli":
             leanCliPath = ReadValue(argument);
@@ -101,6 +125,9 @@ return mode switch
     "compare" => await RunCompareAsync(),
     "generate" => RunGenerate(),
     "replay" => await RunReplayAsync(),
+    "upstream" => await RunUpstreamOnlyAsync(),
+    "replay-upstream" => await RunUpstreamOnlyAsync(),
+    "verify-upstream" => VerifyUpstream(),
     _ => ShowUsage()
 };
 
@@ -138,6 +165,8 @@ async Task<int> RunCompareAsync()
         await runner.RunBatchAsync(regressionCases, workers);
     PrintProgress(regressionResults.Count, regressionResults.Count);
 
+    UpstreamEvaluation[] upstreamResults = await RunUpstreamAsync();
+
     Console.WriteLine(
         $"Running {generatedCases.Count} generated cases (seed={seed})...");
     IReadOnlyList<DiffResult> generatedResults =
@@ -149,7 +178,8 @@ async Task<int> RunCompareAsync()
         .Where(result => !result.Match)
         .ToArray();
     int infrastructureErrors =
-        failures.Count(result => result.Outcome == DiffOutcomeKind.InfrastructureError);
+        failures.Count(result => result.Outcome == DiffOutcomeKind.InfrastructureError) +
+        upstreamResults.Count(result => result.Result.Outcome == DiffOutcomeKind.InfrastructureError);
 
     foreach (DiffResult failure in failures)
     {
@@ -172,11 +202,95 @@ async Task<int> RunCompareAsync()
     }
 
     Console.WriteLine(
-        $"Results: {regressionCases.Count} regression, {generatedCases.Count} generated, " +
-        $"{failures.Length - infrastructureErrors} parser differences, " +
+        $"Results: {regressionCases.Count} regression, {upstreamResults.Length} upstream, " +
+        $"{generatedCases.Count} generated, " +
+        $"{failures.Length + upstreamResults.Count(result => !result.Passed) - infrastructureErrors} unexpected differences, " +
         $"{infrastructureErrors} infrastructure errors");
-    Console.WriteLine(failures.Length == 0 ? "PASS" : "FAIL");
-    return failures.Length == 0 ? 0 : 1;
+    bool passed = failures.Length == 0 && upstreamResults.All(result => result.Passed);
+    Console.WriteLine(passed ? "PASS" : "FAIL");
+    return passed ? 0 : 1;
+}
+
+int VerifyUpstream()
+{
+    IReadOnlyList<DiffCase> cases = new UpstreamCorpus(upstreamPath, compatibilityPath).Load();
+    Console.WriteLine($"Verified {cases.Count} upstream cases for Dockerfile {cases[0].Upstream!.FrontendVersion}.");
+    return 0;
+}
+
+async Task<int> RunUpstreamOnlyAsync()
+{
+    UpstreamEvaluation[] results = await RunUpstreamAsync();
+    return results.All(result => result.Passed) ? 0 : 1;
+}
+
+async Task<UpstreamEvaluation[]> RunUpstreamAsync()
+{
+    RequireLeanCli();
+    UpstreamCorpus corpus = new(upstreamPath, compatibilityPath);
+    IReadOnlyList<DiffCase> cases = corpus.Load();
+    if (upstreamReplayId is not null)
+    {
+        cases = cases.Where(testCase => testCase.Id == upstreamReplayId).ToArray();
+        if (cases.Count != 1)
+        {
+            throw new ArgumentException($"Unknown upstream fixture '{upstreamReplayId}'.");
+        }
+    }
+
+    Console.WriteLine(
+        $"Running {cases.Count} upstream cases (Dockerfile {cases[0].Upstream!.FrontendVersion}, " +
+        $"{cases[0].Upstream!.SourceCommit})...");
+    IReadOnlyList<DiffResult> rawResults =
+        await new DiffTestRunner(leanCliPath).RunBatchAsync(cases, workers);
+    UpstreamEvaluation[] results = rawResults.Select(corpus.Evaluate).ToArray();
+    foreach (UpstreamEvaluation result in results)
+    {
+        if (result.ExpectedFailure)
+        {
+            Console.WriteLine($"  EXPECTED FAILURE {result.Result.Case.Id}: {result.Deviation!.Issue}");
+        }
+        else if (!result.Passed)
+        {
+            Console.Error.WriteLine(result.Failure);
+            PrintFailure(result.Result, result.Result);
+        }
+        else if (upstreamReplayId is not null)
+        {
+            PrintFailure(result.Result, result.Result);
+        }
+    }
+
+    if (upstreamReportPath is not null)
+    {
+        var report = results.Select(result => new
+        {
+            id = result.Result.Case.Id,
+            inputSha256 = result.Result.Case.Upstream!.InputSha256,
+            outcomeSignature = UpstreamCorpus.OutcomeSignature(result.Result),
+            outcome = result.Result.Outcome.ToString(),
+            result.Result.CSharpStatus,
+            result.Result.LeanStatus,
+            result.Result.CrashType,
+            result.Result.Error,
+            result.Result.CSharpJson,
+            result.Result.LeanJson,
+            result.Result.Case.Input,
+            result.Result.Case.Upstream.SourcePath,
+            result.Result.Case.Upstream.StartLine,
+            result.Result.Case.Upstream.EndLine,
+            result.ExpectedFailure,
+            result.Failure
+        });
+        File.WriteAllText(upstreamReportPath, JsonSerializer.Serialize(report,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true }));
+    }
+
+    Console.WriteLine(
+        $"Upstream: {results.Count(result => result.Passed && !result.ExpectedFailure)} passed, " +
+        $"{results.Count(result => result.ExpectedFailure)} expected failures, " +
+        $"{results.Count(result => !result.Passed)} unexpected failures.");
+    return results;
 }
 
 async Task<int> RunReplayAsync()
@@ -236,6 +350,16 @@ void PrintFailure(DiffResult original, DiffResult minimized)
     }
 
     Console.Error.WriteLine($"  Input:     {Escape(testCase.Input)}");
+    if (testCase.Upstream is UpstreamExpectation upstream)
+    {
+        Console.Error.WriteLine(
+            $"  Upstream: {upstream.Repository}@{upstream.SourceCommit} " +
+            $"{upstream.SourcePath}:{upstream.StartLine}-{upstream.EndLine}");
+        Console.Error.WriteLine(
+            $"  Expected: {(upstream.Accept ? "accept" : "reject")}; " +
+            $"C#: {original.CSharpStatus}; Lean: {original.LeanStatus}");
+        Console.Error.WriteLine($"  Signature: {UpstreamCorpus.OutcomeSignature(original)}");
+    }
     if (minimized.Case.Input != testCase.Input)
     {
         Console.Error.WriteLine($"  Minimized: {Escape(minimized.Case.Input)}");
@@ -290,7 +414,11 @@ static int ShowUsage()
     Console.Error.WriteLine("  --parse [--escape <char>]");
     Console.Error.WriteLine(
         "  --compare --lean-cli <path> [--count N] [--seed N] [--workers N] " +
-        "[--corpus <path>] [--promote-failures]");
+        "[--corpus <path>] [--promote-failures] [--upstream-corpus <path>] [--compatibility <path>]");
+    Console.Error.WriteLine(
+        "  --upstream-only --lean-cli <path> [--workers N] [--upstream-report <path>]");
+    Console.Error.WriteLine("  --replay-upstream <id> --lean-cli <path>");
+    Console.Error.WriteLine("  --verify-upstream [--upstream-corpus <path>] [--compatibility <path>]");
     Console.Error.WriteLine(
         "  --replay --lean-cli <path> --instruction <type> --input-base64 <value> " +
         "[--escape-code N]");

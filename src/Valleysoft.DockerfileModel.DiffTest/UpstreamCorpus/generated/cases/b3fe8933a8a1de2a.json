@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L11-L11",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFsiL3Vzci9zYmluL25naW54Il0K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile",
+  "startLine": 11,
+  "endLine": 11,
+  "inputSha256": "c5060e52c53a9074983923aab927544eb248b47408b7770f1df52099fe822b2f"
+}

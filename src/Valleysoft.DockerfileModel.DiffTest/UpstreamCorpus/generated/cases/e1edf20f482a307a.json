@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L38-L38",
+  "instructionType": "ENV",
+  "inputBase64": "RU5WIEdPUEFUSCAvZ28K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile",
+  "startLine": 38,
+  "endLine": 38,
+  "inputSha256": "3554270ce05aed1adf54ef9c953df56cd1969c4870fb177570a650e0d9ea95a8"
+}

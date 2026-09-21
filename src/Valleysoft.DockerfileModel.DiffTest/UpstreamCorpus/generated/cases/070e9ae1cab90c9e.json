@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L9-L10",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGVjaG8gaGVsbG8gIFwKICB3b3JsZAo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile",
+  "startLine": 9,
+  "endLine": 10,
+  "inputSha256": "332a1190c5cd144c1db1b17b3851671557a3b6e7ed0597789007b09c4baf5e5f"
+}

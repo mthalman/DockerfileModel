@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile#L4-L4",
+  "instructionType": "COPY",
+  "inputBase64": "Q09QWQkuCS9nby9zcmMvZ2l0aHViLmNvbS9kb2NrZXIvZG9ja2VyCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/ADD-COPY-with-JSON/Dockerfile",
+  "startLine": 4,
+  "endLine": 4,
+  "inputSha256": "dd53aeb5c4e7fe4c7564b4f570b06e4ae85537f163d542276f4f3af48fb31bdc"
+}

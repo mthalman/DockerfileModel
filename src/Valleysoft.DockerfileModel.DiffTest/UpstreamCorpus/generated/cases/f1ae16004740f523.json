@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-single-quotes/Dockerfile#L1-L1",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFsnZWNobycsJ3NpbmdsZSBxdW90ZXMgYXJlIGludmFsaWQgSlNPTiddCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-single-quotes/Dockerfile",
+  "startLine": 1,
+  "endLine": 1,
+  "inputSha256": "c9e2f4fdce5db7bad55aa4bb4f9755d8a9bf73e198f7216b3a447e30a8ee83ef"
+}

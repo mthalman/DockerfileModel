@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-bracket/Dockerfile#L1-L1",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFsiZWNobyIsICJQbGVhc2UsIGNsb3NlIHRoZSBicmFja2V0cyB3aGVuIHlvdSdyZSBkb25lIgo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-bracket/Dockerfile",
+  "startLine": 1,
+  "endLine": 1,
+  "inputSha256": "7d5ab8e482aa425c7ff1eef1d924adf4c210d1453dbed6c4a1ff0f80fbc40258"
+}

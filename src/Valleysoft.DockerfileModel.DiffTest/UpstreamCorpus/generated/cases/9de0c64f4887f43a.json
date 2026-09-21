@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L9-L9",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIHpzaCAtYyB3ZWVjaGF0Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile",
+  "startLine": 9,
+  "endLine": 9,
+  "inputSha256": "74ac5467a1620fa61787b3647de174da688b7fd1df16e299d5ed47ffca142d4a"
+}

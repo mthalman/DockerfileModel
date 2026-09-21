@@ -86,6 +86,31 @@ jobs:
         working-directory: src
         run: dotnet build Valleysoft.DockerfileModel.DiffTest -c Release
 
+      - name: Run pinned upstream corpus without network
+        working-directory: src
+        run: |
+          sudo unshare --net -- "$(command -v dotnet)" \
+            Valleysoft.DockerfileModel.DiffTest/bin/Release/net8.0/Valleysoft.DockerfileModel.DiffTest.dll \
+            --upstream-only --lean-cli "$GITHUB_WORKSPACE/lean/.lake/build/bin/DockerfileModelDiffTest" --workers 4
+
       - name: Run differential tests
         working-directory: src
-        run: dotnet run --project Valleysoft.DockerfileModel.DiffTest -c Release -- --compare --lean-cli ../lean/.lake/build/bin/DockerfileModelDiffTest --count 10000 --seed 42 --workers 4
+        run: dotnet Valleysoft.DockerfileModel.DiffTest/bin/Release/net8.0/Valleysoft.DockerfileModel.DiffTest.dll --compare --lean-cli ../lean/.lake/build/bin/DockerfileModelDiffTest --count 10000 --seed 42 --workers 4
+
+  upstream-importer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: tools/BuildKitCorpus/go.mod
+          cache-dependency-path: tools/BuildKitCorpus/go.sum
+
+      - name: Test importer
+        working-directory: tools/BuildKitCorpus
+        run: go test ./...
+
+      - name: Verify deterministic upstream import
+        working-directory: tools/BuildKitCorpus
+        run: go run . --repo-root ../.. --check

@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L4-L4",
+  "instructionType": "LABEL",
+  "inputBase64": "TEFCRUwgbWFpbnRhaW5lciBicmltc3RvbmVAdGhlLm5hcnJvLndzCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile",
+  "startLine": 4,
+  "endLine": 4,
+  "inputSha256": "345baea22de191b13b9b429501f3c3dffaeedbfe657a01b28033afad947a756f"
+}

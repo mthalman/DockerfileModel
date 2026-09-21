@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L3-L3",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFtdCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile",
+  "startLine": 3,
+  "endLine": 3,
+  "inputSha256": "b1f534b57218e6006f0ac29050ac7f0083f6d9c7479510a4e05ee04e10edc7a9"
+}

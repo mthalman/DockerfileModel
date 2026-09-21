@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L54-L54",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFsiL3Vzci9sb2NhbC9iaW4vc3RhcnRfbmFnaW9zIl0K",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile",
+  "startLine": 54,
+  "endLine": 54,
+  "inputSha256": "2526eb61f29524e570c28c76d1b4611920d250c7bbaad093880b74fe31b3996b"
+}

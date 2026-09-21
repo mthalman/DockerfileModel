@@ -16,6 +16,14 @@ internal static class ReplayCommand
             ? $"dotnet {QuoteArgument(typeof(ReplayCommand).Assembly.Location)}"
             : $"dotnet run --project {QuoteArgument(resolvedProjectPath)} --";
 
+        if (testCase.Upstream is UpstreamExpectation upstream)
+        {
+            return $"{invocation} --replay-upstream {QuoteArgument(testCase.Id)} " +
+                $"--lean-cli {QuoteArgument(resolvedLeanCliPath)} " +
+                $"--upstream-corpus {QuoteArgument(Path.GetFullPath(upstream.CorpusDirectory))} " +
+                $"--compatibility {QuoteArgument(Path.GetFullPath(upstream.CompatibilityPath))}";
+        }
+
         return $"{invocation} --replay " +
             $"--lean-cli {QuoteArgument(resolvedLeanCliPath)} " +
             $"--instruction {QuoteArgument(testCase.InstructionType)} " +

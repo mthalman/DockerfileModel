@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L2-L2",
+  "instructionType": "LABEL",
+  "inputBase64": "TEFCRUwgbWFpbnRhaW5lciBFcmlrIEhvbGxlbnNiZSA8ZXJpa0Bob2xsZW5zYmUub3JnPgo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile",
+  "startLine": 2,
+  "endLine": 2,
+  "inputSha256": "5618d98d3d266dd6f5746eb1589695b4666492f489ddd2f022d54af94c3b1469"
+}

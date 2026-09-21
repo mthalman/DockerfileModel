@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L7-L7",
+  "instructionType": "EXPOSE",
+  "inputBase64": "RVhQT1NFIDg1MDAgODYwMCA4NDAwIDgzMDEgODMwMgo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile",
+  "startLine": 7,
+  "endLine": 7,
+  "inputSha256": "2333de93e7037b6f83903b114e58ecc40ba82856ec62e272e9cf8aa88e844de7"
+}

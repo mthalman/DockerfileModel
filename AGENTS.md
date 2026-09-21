@@ -6,7 +6,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 Valleysoft.DockerfileModel is a .NET library for parsing and generating Dockerfiles with full fidelity — parsed content round-trips character-for-character, including whitespace. Published as NuGet package `Valleysoft.DockerfileModel`.
 
-A companion **Lean 4 formal specification** (`lean/`) provides an executable grammar that serves as a bug-finding oracle via differential testing. The Lean parser is **derived from BuildKit's authoritative Go implementation** (`moby/buildkit/frontend/dockerfile/parser/`) — it must match BuildKit's parsing behavior, not the C# library's. When the C# and Lean parsers disagree, the Lean behavior is presumed correct (since it follows BuildKit) and the C# side needs a fix or a documented workaround.
+A companion **Lean 4 formal specification** (`lean/`) provides an executable grammar that serves as a bug-finding oracle via differential testing. The Lean parser is **derived from BuildKit's authoritative Go implementation** (`moby/buildkit/frontend/dockerfile/parser/`) and aims to match BuildKit's parsing behavior, not the C# library's. Either local implementation can contain defects. Investigate disagreements against the pinned upstream implementation and the documented known deviations before changing either parser or adding a serializer workaround.
 
 ## Build Commands
 
@@ -46,7 +46,15 @@ dotnet run --project src/Valleysoft.DockerfileModel.DiffTest/ -- \
   --count 180 --seed 42
 ```
 
-The `--count` flag controls inputs per instruction type (×18 types = total test cases). The `--seed` flag controls FsCheck's random seed for reproducibility.
+The `--count` flag controls the total generated inputs, distributed across the instruction types. The `--seed` flag controls FsCheck's random seed for reproducibility.
+
+Comparison runs local regressions, the pinned upstream corpus, and then
+generated cases. `upstream-compatibility.json` tracks the stable Dockerfile
+frontend release and exact BuildKit source commit. Renovate proposes version
+updates; maintainers review upstream changes and establish compatibility.
+The corpus is not automatic syntax-change detection or proof of complete
+frontend support. See `docs/dockerfile-compatibility.md` and the upgrade
+procedure in `MAINTAINERS.md`.
 
 ## Architecture
 
@@ -95,7 +103,7 @@ non-production infrastructure to Tests and DiffTest:
 
 ### Source of Truth
 
-**BuildKit's Go implementation** (`moby/buildkit/frontend/dockerfile/parser/`) is the authoritative specification for Dockerfile parsing behavior. The Lean parser is written to match BuildKit. When C# diverges from Lean, it's a C# bug (tracked as a GitHub issue) with a serializer workaround in `TokenJsonSerializer.cs` so differential tests can focus on finding *new* bugs rather than re-reporting known ones.
+**BuildKit's Go implementation**, at the commit in `upstream-compatibility.json`, is the source of truth for upstream behavior. Its low-level parser (`frontend/dockerfile/parser/`) and typed instruction validation (`frontend/dockerfile/instructions/`) have different acceptance boundaries. Reproduce a disagreement at the appropriate upstream layer before attributing it to C#, Lean, or canonical serialization. Existing serializer workarounds are issue-linked; imported corpus deviations remain executable exact expected failures in `UpstreamCorpus/known-deviations.json`. Do not normalize away a newly discovered difference without investigating its cause.
 
 Key BuildKit behaviors the Lean parser follows:
 - **Variable expansion:** BuildKit expands variables in ADD, COPY, ENV, EXPOSE, FROM, LABEL, STOPSIGNAL, USER, VOLUME, WORKDIR. NOT in RUN, CMD, ENTRYPOINT (the shell handles expansion).

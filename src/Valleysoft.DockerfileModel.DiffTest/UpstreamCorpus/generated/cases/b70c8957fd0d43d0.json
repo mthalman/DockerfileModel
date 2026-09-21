@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/znc/Dockerfile#L7-L7",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIFsgIi91c3IvYmluL3puYyIsICItZiIsICItciIgXQo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/znc/Dockerfile",
+  "startLine": 7,
+  "endLine": 7,
+  "inputSha256": "cd31996e4c7a4533a28cefb4961c037d3f30d825e9d31082b67daadf535e2506"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L19-L19",
+  "instructionType": "LABEL",
+  "inputBase64": "TEFCRUwJbWFpbnRhaW5lcglUaWFub24gR3JhdmkgPGFkbXdpZ2dpbkBnbWFpbC5jb20+IChAdGlhbm9uKQo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+  "startLine": 19,
+  "endLine": 19,
+  "inputSha256": "ab9e149fd73f408ebecda2fb71b4f7568440b9471a33ba0fe78196ad77b34e57"
+}

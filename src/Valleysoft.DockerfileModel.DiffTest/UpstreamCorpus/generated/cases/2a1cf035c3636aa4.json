@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile#L6-L6",
+  "instructionType": "EXPOSE",
+  "inputBase64": "RVhQT1NFIDYzNzkK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/kartar-entrypoint-oddities/Dockerfile",
+  "startLine": 6,
+  "endLine": 6,
+  "inputSha256": "4154b57d759e9722dbed97e1a33cc5d8322dc0917fbd844752f592ec702304d1"
+}

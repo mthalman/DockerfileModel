@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile#L5-L5",
+  "instructionType": "ADD",
+  "inputBase64": "QUREIC53ZWVjaGF0IC8ud2VlY2hhdAo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/weechat/Dockerfile",
+  "startLine": 5,
+  "endLine": 5,
+  "inputSha256": "2fc3766edd42b2fe7303eb1f99cadae45beb21570159f36feb712d9af66ac31e"
+}

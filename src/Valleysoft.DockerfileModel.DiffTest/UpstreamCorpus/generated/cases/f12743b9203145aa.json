@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L87-L87",
+  "instructionType": "WORKDIR",
+  "inputBase64": "V09SS0RJUgkvZ28vc3JjL2dpdGh1Yi5jb20vZG9ja2VyL2RvY2tlcgo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+  "startLine": 87,
+  "endLine": 87,
+  "inputSha256": "15bc107de66ff6f35b0169735a4f78880362380dad4182b8dc57f5735aa5323d"
+}

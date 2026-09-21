@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/docker/Dockerfile#L22-L41",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOCWFwdC1nZXQgdXBkYXRlICYmIERFQklBTl9GUk9OVEVORD1ub25pbnRlcmFjdGl2ZSBhcHQtZ2V0IC0tbm8taW5zdGFsbC1yZWNvbW1lbmRzIGluc3RhbGwgLXlxIFwKCWFwdC11dGlscyBcCglhdWZzLXRvb2xzIFwKCWF1dG9tYWtlIFwKCWJ0cmZzLXRvb2xzIFwKCWJ1aWxkLWVzc2VudGlhbCBcCgljdXJsIFwKCWRwa2ctc2lnIFwKCWdpdCBcCglpcHRhYmxlcyBcCglsaWJhcHBhcm1vci1kZXYgXAoJbGliY2FwLWRldiBcCgltZXJjdXJpYWwgXAoJcGFuZG9jIFwKCXBhcmFsbGVsIFwKCXJlcHJlcHJvIFwKCXJ1YnkxLjkuMSBcCglydWJ5MS45LjEtZGV2IFwKCXMzY21kPTEuMS4wKiBcCgktLW5vLWluc3RhbGwtcmVjb21tZW5kcwo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/docker/Dockerfile",
+  "startLine": 22,
+  "endLine": 41,
+  "inputSha256": "d8983a80ec8f9334f5497bbf5ca150c2c297126e8b839098d8e9d93fdb121570"
+}

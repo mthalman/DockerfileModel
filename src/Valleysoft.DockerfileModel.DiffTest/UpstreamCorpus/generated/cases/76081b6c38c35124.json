@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L14-L14",
+  "instructionType": "EXPOSE",
+  "inputBase64": "RVhQT1NFIDgwCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile",
+  "startLine": 14,
+  "endLine": 14,
+  "inputSha256": "503c135e9fcd0ae889efb63b7e6c88a67b00537b8a8d5e5f6de1345f6fb092d8"
+}

@@ -46,6 +46,50 @@ Dependabot manages only release-automation updates and applies `dependencies`,
 
 ## Versioning
 
+### Upgrade Dockerfile compatibility
+
+[`upstream-compatibility.json`](upstream-compatibility.json) records the stable
+Dockerfile frontend target and its exact BuildKit source commit. Renovate opens
+version-update PRs after the configured release age; it does not detect language
+changes or certify compatibility. These PRs must not automerge.
+
+Before accepting an update:
+
+1. Review all intervening `dockerfile/X.Y.Z` releases in `moby/buildkit`.
+   Inspect changes to command/parser code and tests, typed instruction flags
+   and nested option handling, shell expansion, Dockerfile-to-LLB conversion,
+   inline integration tests, directives, and stable/labs build gates. Follow
+   relevant changes into dependencies or backend capabilities. Do not restrict
+   review to `parser/testfiles` or assume release notes are exhaustive.
+2. Resolve the frontend release tag to its commit, dereferencing annotated tags,
+   and update `sourceCommit`. Never substitute the latest backend release or
+   silently follow a moved tag. Use the
+   [importer instructions](tools/BuildKitCorpus/README.md) to align the Go module
+   dependency with that commit and regenerate the corpus.
+3. Review fixture, coverage, license, and attribution changes. Implement required
+   parser/model changes and add regression tests for relevant behavior absent
+   from upstream file fixtures. Keep execution semantics separate from parsing
+   and typed API support.
+4. Run importer tests and check mode, .NET tests, and the C#/Lean corpus and
+   differential comparisons. Review every new difference and stale expected
+   failure. Update the [compatibility limitations](docs/dockerfile-compatibility.md);
+   do not turn a failing supported behavior into an unconditional guarantee by
+   adding an expected-failure entry.
+5. Record the reviewed changes, tests, and remaining limitations in the PR.
+   Confirm the proposed frontend version, source commit, importer dependency,
+   and corpus identity agree before human approval and merge.
+
+A version-only Renovate edit intentionally fails the metadata consistency check.
+Corpus execution is offline; importing and regeneration checks can use network
+access to acquire the pinned source and dependencies.
+
+The bot's initial dependency/patch labels are not the final release decision.
+Apply the highest-impact semantic-version label and appropriate category for the
+actual changes. Do not use `skip-changelog` for user-facing compatibility
+improvements, parser fixes, or features.
+
+### Package versions
+
 Package and assembly versions are derived from Git tags by
 [MinVer](https://github.com/adamralph/minver). Release tags use the stable format
 `vMAJOR.MINOR.PATCH`. The `v` prefix is omitted from the resulting package version.

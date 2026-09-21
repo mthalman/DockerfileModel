@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L3-L3",
+  "instructionType": "FROM",
+  "inputBase64": "RlJPTSBoZWxsby13b3JsZAo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile",
+  "startLine": 3,
+  "endLine": 3,
+  "inputSha256": "ee05c81fe44b648956bda8101564c6256af1c92da95616a7cec148ae08d5447a"
+}

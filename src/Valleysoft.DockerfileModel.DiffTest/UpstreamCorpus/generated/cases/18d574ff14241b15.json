@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L4-L4",
+  "instructionType": "ENV",
+  "inputBase64": "RU5WIG5hbWU9dmFsdWUgbmFtZTI9dmFsdWUyCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/env/Dockerfile",
+  "startLine": 4,
+  "endLine": 4,
+  "inputSha256": "5f221bf38a71582d7bb04bda810d25760dbc97601af2d2d8e0131df68eead5f4"
+}

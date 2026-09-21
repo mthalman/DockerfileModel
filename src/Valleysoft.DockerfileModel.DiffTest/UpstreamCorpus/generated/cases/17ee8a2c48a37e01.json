@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L3-L3",
+  "instructionType": "CMD",
+  "inputBase64": "Q01EIC9hcHAvbWFpbi5zaAo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/health/Dockerfile",
+  "startLine": 3,
+  "endLine": 3,
+  "inputSha256": "dfbb2bb661400fb112ff308a3c7251d75518fe5505b8076f09d3b830279e5dd6"
+}

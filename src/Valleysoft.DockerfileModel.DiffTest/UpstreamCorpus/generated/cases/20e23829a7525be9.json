@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile#L5-L5",
+  "instructionType": "ADD",
+  "inputBase64": "QUREIC4vbXVtYmxlLXNlcnZlci5pbmkgL2V0Yy9tdW1ibGUtc2VydmVyLmluaQo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/mumble/Dockerfile",
+  "startLine": 5,
+  "endLine": 5,
+  "inputSha256": "87eeb4c1b45dc0bb1a011fdd19a00832084fd53db2b99ae6cfc37d82536edc5d"
+}

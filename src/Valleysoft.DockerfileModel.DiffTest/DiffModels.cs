@@ -21,7 +21,8 @@ public enum DiffCaseSource
 {
     Regression,
     Generated,
-    Replay
+    Replay,
+    Upstream
 }
 
 public enum DiffOutcomeKind
@@ -31,7 +32,8 @@ public enum DiffOutcomeKind
     CSharpParseError,
     CSharpParserCrash,
     LeanParseError,
-    InfrastructureError
+    InfrastructureError,
+    UpstreamExpectationMismatch
 }
 
 public sealed record DiffCase(
@@ -42,7 +44,8 @@ public sealed record DiffCase(
     char EscapeChar,
     string? Generator = null,
     int? Seed = null,
-    int? CaseIndex = null)
+    int? CaseIndex = null,
+    UpstreamExpectation? Upstream = null)
 {
     public string InputBase64 => Convert.ToBase64String(Encoding.UTF8.GetBytes(Input));
 }
@@ -52,10 +55,25 @@ public sealed record DiffResult(
     string CSharpJson,
     string LeanJson,
     DiffOutcomeKind Outcome,
-    string? Error = null)
+    string? Error = null,
+    string? CSharpStatus = null,
+    string? LeanStatus = null,
+    string? CrashType = null)
 {
     public bool Match => Outcome == DiffOutcomeKind.Match;
 }
+
+public sealed record UpstreamExpectation(
+    bool Accept,
+    string Repository,
+    string FrontendVersion,
+    string SourceCommit,
+    string SourcePath,
+    int StartLine,
+    int EndLine,
+    string InputSha256,
+    string CorpusDirectory,
+    string CompatibilityPath);
 
 public sealed record RegressionFixture(
     string Id,

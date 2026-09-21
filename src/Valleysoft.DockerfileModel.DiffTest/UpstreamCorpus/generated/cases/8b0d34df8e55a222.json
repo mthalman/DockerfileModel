@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile#L50-L50",
+  "instructionType": "EXPOSE",
+  "inputBase64": "RVhQT1NFIDgwCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/cpuguy83-nagios/Dockerfile",
+  "startLine": 50,
+  "endLine": 50,
+  "inputSha256": "503c135e9fcd0ae889efb63b7e6c88a67b00537b8a8d5e5f6de1345f6fb092d8"
+}

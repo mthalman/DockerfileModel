@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/args/Dockerfile#L1-L1",
+  "instructionType": "ARG",
+  "inputBase64": "QVJHIGZvbyBiYXI9YmF6Cg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/args/Dockerfile",
+  "startLine": 1,
+  "endLine": 1,
+  "inputSha256": "f8abe9e81bb80b4492206282dfdaada7f16f14cadf5a2f64ae322173dfe8e8ed"
+}

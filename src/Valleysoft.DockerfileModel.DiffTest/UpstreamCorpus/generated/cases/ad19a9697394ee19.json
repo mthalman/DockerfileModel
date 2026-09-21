@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile#L9-L9",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIG1rZGlyIC93d3cK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/nginx/Dockerfile",
+  "startLine": 9,
+  "endLine": 9,
+  "inputSha256": "e0b639858a1f0ab2a788c3902e9c71786b9a848e9c14e10c21f6b39b54a4bc08"
+}

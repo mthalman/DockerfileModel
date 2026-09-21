@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L18-L23",
+  "instructionType": "ENV",
+  "inputBase64": "RU5WIG5hbWU9dmFsdWUgXAogICAgbmFtZTE9dmFsdWUxIFwKICAgIG5hbWUyPSJ2YWx1ZTJhIFwKICAgICAgICAgICB2YWx1ZTJiIiBcCiAgICBuYW1lMz0idmFsdWUzYVxuXCJ2YWx1ZTNiXCIiIFwKCW5hbWU0PSJ2YWx1ZTRhXFxudmFsdWU0YiIgXAo=",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/env/Dockerfile",
+  "startLine": 18,
+  "endLine": 23,
+  "inputSha256": "716a586a60359798830b7289b9cb6e98e1589fd48c33f01be4a6ee65ce007d38"
+}

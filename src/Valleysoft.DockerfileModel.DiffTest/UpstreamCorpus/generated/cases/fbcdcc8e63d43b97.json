@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile#L8-L8",
+  "instructionType": "VOLUME",
+  "inputBase64": "Vk9MVU1FIC9vcHQvaW5mbHV4ZGIvc2hhcmVkCg==",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/influxdb/Dockerfile",
+  "startLine": 8,
+  "endLine": 8,
+  "inputSha256": "efa1838ee4c7b05f3c154f7100824279230be287ca3ed6a10f1bf0bcf4ed14f2"
+}

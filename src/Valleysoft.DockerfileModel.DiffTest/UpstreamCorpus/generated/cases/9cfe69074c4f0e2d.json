@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile#L11-L11",
+  "instructionType": "ADD",
+  "inputBase64": "QUREIC4vc2NyaXB0IC9zdGVhbS9zY3JpcHQK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/tf2/Dockerfile",
+  "startLine": 11,
+  "endLine": 11,
+  "inputSha256": "6d3664f264193ac869e9f9075fa704663a41ed127f7042b74c77b37a3d1aa09b"
+}

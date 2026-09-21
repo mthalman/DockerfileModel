@@ -1,0 +1,11 @@
+{
+  "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L14-L26",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIGFwdC1nZXQgdXBkYXRlIFwKCSYmIGRwa2cgLWwgfCBhd2sgJy9eaWkvIHtwcmludCAkMn0nID4gL3RtcC9kcGtnLmNsZWFuIFwKICAgICYmIGFwdC1nZXQgLS1uby1pbnN0YWxsLXJlY29tbWVuZHMgaW5zdGFsbCAteSBnaXQgZ29sYW5nIGNhLWNlcnRpZmljYXRlcyBcCiAgICAmJiBhcHQtZ2V0IGNsZWFuIFwKICAgICYmIHJtIC1yZiAvdmFyL2xpYi9hcHQvbGlzdHMgXAoKCSYmIGdvIGdldCAtdiBnaXRodWIuY29tL2JyaW1zdG9uZS9jb25zdWxkb2NrIFwKICAgICYmIG12ICRHT1BBVEgvYmluL2NvbnN1bGRvY2sgL3Vzci9sb2NhbC9iaW4vY29uc3VsZG9jayBcCgoJJiYgZHBrZyAtbCB8IGF3ayAnL15paS8ge3ByaW50ICQyfScgPiAvdG1wL2Rwa2cuZGlydHkgXAoJJiYgYXB0LWdldCByZW1vdmUgLS1wdXJnZSAteSAkKGRpZmYgL3RtcC9kcGtnLmNsZWFuIC90bXAvZHBrZy5kaXJ0eSB8IGF3ayAnL14+LyB7cHJpbnQgJDJ9JykgXAoJJiYgcm0gL3RtcC9kcGtnLiogXAoJJiYgcm0gLXJmICRHT1BBVEgK",
+  "escapeCharacter": "\\",
+  "expectedParse": "accept",
+  "sourcePath": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile",
+  "startLine": 14,
+  "endLine": 26,
+  "inputSha256": "755b000d2320186ca0c3a56cfc7376d06ad41f7febd15ba75b0970cd7fbc6966"
+}
