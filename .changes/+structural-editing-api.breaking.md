@@ -1,5 +1,11 @@
 ### Adopt syntax-aware editable model collections
 
+Model collection APIs now use `EditableList<T>` for syntax-aware writes that
+preserve whitespace and comments. Changed getter signatures break binary
+compatibility, requiring dependent assemblies to be recompiled. Collection writes
+also enforce structural constraints, so edits that rely on invalid intermediate
+states must change.
+
 #### Previous behavior
 
 Model collection getters exposed `IList<T>` or `IReadOnlyList<T>`. Instruction
