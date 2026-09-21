@@ -514,7 +514,7 @@
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L10-L10",
     "inputSha256": "84ed0e741b8cf76ca22446ab36aae6fe8f8cf02e7d5c9fc9c6dffb664001820d",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
     "reason": "Intentional typed-validation boundary: both adapters reject this HEALTHCHECK, as does upstream's typed instruction layer, while upstream's low-level AST parser accepts it."
   },
   {
