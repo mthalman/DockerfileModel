@@ -86,7 +86,7 @@ To bind `Clear` to an `Action`, use
 `Action clear = () => dockerfile.Items.Clear()` or bind through
 `ICollection<DockerfileConstruct>`.
 
-Follow [the collection editing migration](../docs/migrations/structural-editing.md)
+Follow [the collection editing migration](../docs/structural-editing-migration.md)
 to check adopted objects, replace heredocs, resume builder appends, and refresh
 analysis. The [editing reference](../docs/editing.md) contains the complete
 contracts and examples.

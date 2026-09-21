@@ -11,5 +11,5 @@ may appear here before publication.
 
 ## Upcoming topics
 
-- [Collection editing](structural-editing.md): recompile for editable collection
+- [Collection editing](../structural-editing-migration.md): recompile for editable collection
   getter types and migrate collection-mutation workarounds to validated operations.

@@ -436,4 +436,4 @@ Changing collection getter types to `EditableList<T>` is a binary API break,
 even though ordinary assignments to `IList<T>` and `IReadOnlyList<T>` remain
 source-compatible. Recompile dependent assemblies and review code that assumed
 structural writes were unsupported or that `Items` accepted incomplete syntax.
-See [Collection editing migration](migrations/structural-editing.md).
+See [Collection editing migration](structural-editing-migration.md).

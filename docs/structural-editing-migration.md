@@ -2,7 +2,7 @@
 
 This upcoming breaking change replaces collection getter types with
 `EditableList<T>` and makes their writes syntax-aware. See the
-[editing reference](../editing.md) for the complete API and trivia contracts.
+[editing reference](editing.md) for the complete API and trivia contracts.
 
 ## Understand validation boundaries
 
@@ -169,7 +169,7 @@ resuming appends, ensure the preceding construct is complete and terminated.
 For a complete instruction left without a final newline, use
 `builder.NewLine().RunInstruction("echo next")`. This preserves the builder's
 existing raw-construction behavior. See the
-[mixed-use example](../editing.md#resume-a-builder-after-collection-edits).
+[mixed-use example](editing.md#resume-a-builder-after-collection-edits).
 
 ## Refresh derived information
 

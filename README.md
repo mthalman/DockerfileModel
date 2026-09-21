@@ -33,7 +33,7 @@ dockerfile.Items.Insert(dockerfile.Items.IndexOf(copy) + 1, new RunInstruction("
 See [Collection editing](docs/editing.md) for document items, value/token lists,
 comments, mount entries, paired heredocs, and trivia policies. Existing scalar
 property setters are unchanged. Upgrading consumers should read the
-[collection editing migration](docs/migrations/structural-editing.md).
+[collection editing migration](docs/structural-editing-migration.md).
 
 Use `Dockerfile.Analyze()` to inspect stage dependencies and external image references
 without modifying the model. See [Stage dependencies and image inventory](docs/stage-analysis.md)
