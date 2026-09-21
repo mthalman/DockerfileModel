@@ -528,7 +528,7 @@
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L4-L4",
     "inputSha256": "41e1005432876ca7362edbc03b2b93562927b6e42a084e2717d158ffa4440391",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
     "reason": "Intentional typed-validation boundary: both adapters reject this HEALTHCHECK, as does upstream's typed instruction layer, while upstream's low-level AST parser accepts it."
   },
   {
@@ -542,7 +542,7 @@
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L7-L7",
     "inputSha256": "dbf82270036f22708bc81b35a2c6644ac0c911414414de5cdee3a17fc9d59b18",
     "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
+    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
     "reason": "C# now rejects empty HEALTHCHECK CMD through the typed parser, while the upstream low-level parser accepts it; the remaining C#/Lean difference is the rejection outcome signature."
   },
   {
