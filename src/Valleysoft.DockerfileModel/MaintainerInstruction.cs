@@ -6,11 +6,11 @@ namespace Valleysoft.DockerfileModel;
 public class MaintainerInstruction : Instruction
 {
     public MaintainerInstruction(string maintainer, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(maintainer, escapeChar))
+        : this(GetTokens(maintainer, escapeChar), escapeChar)
     {
     }
 
-    private MaintainerInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private MaintainerInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
     }
 
@@ -35,11 +35,11 @@ public class MaintainerInstruction : Instruction
     }
    
     public static MaintainerInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<MaintainerInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new MaintainerInstruction(tokens);
+        select new MaintainerInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string maintainer, char escapeChar)
     {

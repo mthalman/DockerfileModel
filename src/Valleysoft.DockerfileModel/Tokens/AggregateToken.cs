@@ -24,6 +24,8 @@ public abstract class AggregateToken : Token
 
     public IEnumerable<Token> Tokens => this.TokenList;
 
+    internal char EditingEscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
+
     protected override string GetUnderlyingValue(TokenStringOptions options)
     {
         Guard.NotNull(options, nameof(options));
@@ -51,13 +53,7 @@ public abstract class AggregateToken : Token
         }
     }
 
-    protected IList<string?> GetComments()
-    {
-        return new ProjectedItemList<CommentToken, string?>(
-            GetCommentTokens(),
-            token => token.Text,
-            (token, value) => token.Text = value);
-    }
+    protected EditableList<string?> GetComments() => InstructionCommentEditing.Values(this);
 
     protected void SetToken<TToken>(TToken? currentValue, TToken? newValue,
         Action<TToken>? addToken = null, Action<TToken>? removeToken = null)

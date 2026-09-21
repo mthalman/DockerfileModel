@@ -9,10 +9,12 @@ public class KeywordToken : AggregateToken, IValueToken
     public KeywordToken(string value, char escapeChar = Dockerfile.DefaultEscapeChar)
         : base(GetTokens(value, GetInnerParser(StripLineContinuations(value, escapeChar), escapeChar)))
     {
+        EditingEscapeChar = escapeChar;
     }
 
-    internal KeywordToken(IEnumerable<Token> tokens) : base(tokens)
+    internal KeywordToken(IEnumerable<Token> tokens, char escapeChar = Dockerfile.DefaultEscapeChar) : base(tokens)
     {
+        EditingEscapeChar = escapeChar;
     }
 
     public string Value => this.ToString(TokenStringOptions.CreateOptionsForValueString());
@@ -25,7 +27,7 @@ public class KeywordToken : AggregateToken, IValueToken
 
     public static Parser<KeywordToken> GetParser(string keyword, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(keyword, escapeChar)
-        select new KeywordToken(tokens);
+        select new KeywordToken(tokens, escapeChar);
 
     /// <summary>
     /// Parses any keyword: starts with a letter, digit, underscore, or hyphen, followed by zero or
@@ -37,7 +39,7 @@ public class KeywordToken : AggregateToken, IValueToken
             escapeChar,
             Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')),
             Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')))
-        select new KeywordToken(tokens);
+        select new KeywordToken(tokens, escapeChar);
 
     private static string StripLineContinuations(string value, char escapeChar)
     {

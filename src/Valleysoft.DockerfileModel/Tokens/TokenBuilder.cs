@@ -18,7 +18,7 @@ public class TokenBuilder
         AddToken(new ExecFormCommand(values, EscapeChar));
 
     public TokenBuilder ExecFormCommand(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new ExecFormCommand(GetTokens(configureBuilder)));
+        AddToken(new ExecFormCommand(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder FromFlag(string fromStageName) =>
         AddToken(new FromFlag(fromStageName, EscapeChar));
@@ -53,7 +53,7 @@ public class TokenBuilder
         AddToken(new KeywordToken(value, EscapeChar));
 
     public TokenBuilder Keyword(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new KeywordToken(GetTokens(configureBuilder)));
+        AddToken(new KeywordToken(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder LineContinuation() =>
         AddToken(new LineContinuationToken(DefaultNewLine, EscapeChar));
@@ -98,7 +98,7 @@ public class TokenBuilder
         AddToken(new ShellFormCommand(command, EscapeChar));
 
     public TokenBuilder ShellFormCommand(Action<TokenBuilder> configureBuilder) =>
-        AddToken(new ShellFormCommand(GetTokens(configureBuilder)));
+        AddToken(new ShellFormCommand(GetTokens(configureBuilder), EscapeChar));
 
     public TokenBuilder StageName(string stageName) =>
         AddToken(new StageName(stageName, EscapeChar));

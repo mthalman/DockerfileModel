@@ -9,7 +9,7 @@ public class Comment : DockerfileConstruct
     {
     }
 
-    private Comment(IEnumerable<Token> tokens)
+    internal Comment(IEnumerable<Token> tokens)
         : base(tokens)
     {
     }

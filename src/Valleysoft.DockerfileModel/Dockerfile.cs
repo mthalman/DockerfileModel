@@ -13,10 +13,15 @@ public class Dockerfile : IConstructContainer
     public Dockerfile(IEnumerable<DockerfileConstruct> items)
     {
         Guard.NotNull(items, nameof(items));
-        this.Items = items.ToList();
+        RawItems = items.ToList();
+        Items = new EditableList<DockerfileConstruct>(new DocumentListAdapter(this));
     }
 
-    public IList<DockerfileConstruct> Items { get; }
+    public EditableList<DockerfileConstruct> Items { get; }
+
+    internal List<DockerfileConstruct> RawItems { get; }
+
+    internal void AddRaw(DockerfileConstruct item) => RawItems.Add(item);
 
     IEnumerable<DockerfileConstruct> IConstructContainer.Items => Items;
 

@@ -6,24 +6,26 @@ namespace Valleysoft.DockerfileModel;
 public class GenericInstruction : Instruction
 {
     public GenericInstruction(string instruction, string args, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(instruction, args, escapeChar))
+        : this(GetTokens(instruction, args, escapeChar), escapeChar)
     {
             
     }
 
     protected GenericInstruction(IEnumerable<Token> tokens)
-        : base(tokens)
+        : this(tokens, Dockerfile.DefaultEscapeChar)
     {
-        ArgLines = new ProjectedItemList<LiteralToken, string>(
-            Tokens.OfType<LiteralToken>(),
-            token => token.Value,
-            (token, value) => token.Value = value);
     }
 
-    public IList<string> ArgLines { get; }
+    protected GenericInstruction(IEnumerable<Token> tokens, char escapeChar)
+        : base(tokens, escapeChar)
+    {
+        ArgLines = InstructionCollectionEditing.Strings(new TokenList<LiteralToken>(this), this);
+    }
+
+    public EditableList<string> ArgLines { get; }
 
     public static GenericInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     private static IEnumerable<Token> GetTokens(string instruction, string args, char escapeChar)
     {

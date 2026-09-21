@@ -34,6 +34,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         : base(tokens)
     {
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
     }
 
     public string Key

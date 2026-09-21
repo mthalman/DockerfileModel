@@ -20,7 +20,7 @@ public class ChangeOwnerFlag : KeyValueToken<KeywordToken, LiteralToken>
         Parse(text,
             KeywordToken.GetParser("chown", escapeChar),
             LiteralWithVariables(escapeChar),
-            tokens => new ChangeOwnerFlag(tokens),
+            tokens => new ChangeOwnerFlag(tokens, escapeChar),
             escapeChar: escapeChar,
             isFlag: true);
 
@@ -28,7 +28,7 @@ public class ChangeOwnerFlag : KeyValueToken<KeywordToken, LiteralToken>
         GetParser(
             KeywordToken.GetParser("chown", escapeChar),
             LiteralWithVariables(escapeChar),
-            tokens => new ChangeOwnerFlag(tokens),
+            tokens => new ChangeOwnerFlag(tokens, escapeChar),
             escapeChar: escapeChar,
             isFlag: true);
 }

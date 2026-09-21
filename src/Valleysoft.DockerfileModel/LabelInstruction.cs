@@ -6,34 +6,26 @@ namespace Valleysoft.DockerfileModel;
 public class LabelInstruction : Instruction
 {
     public LabelInstruction(IDictionary<string, string> labels, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(labels, escapeChar))
+        : this(GetTokens(labels, escapeChar), escapeChar)
     {
     }
 
-    private LabelInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private LabelInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        LabelTokens = new TokenList<KeyValueToken<LabelKeyToken, LiteralToken>>(TokenList);
-        Labels = new ProjectedItemList<KeyValueToken<LabelKeyToken, LiteralToken>, IKeyValuePair>(
-            LabelTokens,
-            token => token,
-            (token, keyValuePair) =>
-            {
-                Guard.NotNull(keyValuePair, "value");
-                token.Key = keyValuePair.Key;
-                token.Value = keyValuePair.Value!;
-            });
+        LabelTokens = new TokenList<KeyValueToken<LabelKeyToken, LiteralToken>>(this);
+        Labels = InstructionCollectionEditing.Pairs(LabelTokens, this);
     }
 
-    public IList<IKeyValuePair> Labels { get; }
+    public EditableList<IKeyValuePair> Labels { get; }
 
-    public IList<KeyValueToken<LabelKeyToken, LiteralToken>> LabelTokens { get; }
+    public EditableList<KeyValueToken<LabelKeyToken, LiteralToken>> LabelTokens { get; }
    
     public static LabelInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<LabelInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new LabelInstruction(tokens);
+        select new LabelInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(IDictionary<string, string> variables, char escapeChar)
     {

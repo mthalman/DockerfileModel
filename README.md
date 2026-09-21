@@ -12,12 +12,28 @@ This .NET library provides a structured model of the Dockerfile syntax for the p
 * Static stage dependency analysis and an inventory of external image references.
 * Opt-in recovery with structured diagnostics, opaque unknown instructions, and original-source spans.
 * Typed parser directives and frontend image/version metadata, without inferring feature compatibility.
+* Trivia-preserving structural edits through live editable collections.
 
 ## Usage
 
 The library is available as a NuGet package: [Valleysoft.DockerfileModel](https://www.nuget.org/packages/Valleysoft.DockerfileModel/).
 
 For code examples, check out the [scenario tests](https://github.com/mthalman/DockerfileModel/blob/main/src/Valleysoft.DockerfileModel.Tests/ScenarioTests.cs) which demonstrate how the API can be used for various scenarios.
+
+Edit document and instruction collections directly:
+
+```csharp
+Dockerfile dockerfile = Dockerfile.Parse(
+    "FROM alpine AS build\nCOPY src/ /app/\n");
+CopyInstruction copy = dockerfile.Items.OfType<CopyInstruction>().Single();
+copy.Sources.Add("generated/");
+dockerfile.Items.Insert(dockerfile.Items.IndexOf(copy) + 1, new RunInstruction("echo ready"));
+```
+
+See [Collection editing](docs/editing.md) for document items, value/token lists,
+comments, mount entries, paired heredocs, and trivia policies. Existing scalar
+property setters are unchanged. Upgrading consumers should read the
+[collection editing migration](docs/structural-editing-migration.md).
 
 Use `Dockerfile.Analyze()` to inspect stage dependencies and external image references
 without modifying the model. See [Stage dependencies and image inventory](docs/stage-analysis.md)

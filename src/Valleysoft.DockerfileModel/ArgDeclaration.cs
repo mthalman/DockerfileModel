@@ -18,6 +18,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         : base(tokens)
     {
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
     }
 
     public string Name

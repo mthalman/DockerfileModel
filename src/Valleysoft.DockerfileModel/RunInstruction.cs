@@ -4,7 +4,7 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public class RunInstruction : CommandInstruction
+public partial class RunInstruction : CommandInstruction
 {
     private readonly char escapeChar;
 
@@ -30,14 +30,23 @@ public class RunInstruction : CommandInstruction
     {
     }
 
-    private RunInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
+    private RunInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
         this.escapeChar = escapeChar;
         Mounts = new ProjectedItemList<MountFlag, Mount>(
-            new TokenList<MountFlag>(TokenList),
+            new TokenList<MountFlag>(this),
             flag => flag.ValueToken
                 ?? throw new InvalidOperationException("MountFlag.ValueToken cannot be null when accessing RunInstruction.Mounts."),
-            (flag, mount) => flag.ValueToken = mount);
+            mount =>
+            {
+                Guard.NotNull(mount, nameof(mount));
+                if (mount.EditingEscapeChar != escapeChar)
+                {
+                    throw new InvalidOperationException("The mount uses an incompatible escape character.");
+                }
+                return new MountFlag(mount, escapeChar);
+            },
+            ReferenceComparer<Mount>.Instance);
     }
 
     /// <summary>
@@ -63,7 +72,7 @@ public class RunInstruction : CommandInstruction
         }
     }
 
-    public IList<Mount> Mounts { get; }
+    public EditableList<Mount> Mounts { get; }
 
     /// <summary>
     /// Gets the heredoc marker tokens in this instruction.
@@ -74,26 +83,6 @@ public class RunInstruction : CommandInstruction
     /// Gets the heredoc body tokens in this instruction.
     /// </summary>
     public IEnumerable<HeredocBodyToken> HeredocBodyTokens => Tokens.OfType<HeredocBodyToken>();
-
-    /// <summary>
-    /// Gets the paired heredoc marker+body objects in this instruction.
-    /// Association is positional: first marker pairs with first body, etc.
-    /// </summary>
-    public IReadOnlyList<Heredoc> Heredocs
-    {
-        get
-        {
-            var markerList = HeredocMarkerTokens.ToList();
-            var bodyList = HeredocBodyTokens.ToList();
-            int count = Math.Min(markerList.Count, bodyList.Count);
-            List<Heredoc> result = new(count);
-            for (int i = 0; i < count; i++)
-            {
-                result.Add(new Heredoc(markerList[i], bodyList[i]));
-            }
-            return result;
-        }
-    }
 
     /// <summary>
     /// Gets the heredoc tokens in this instruction (marker tokens, for backward compatibility checks).

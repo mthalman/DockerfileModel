@@ -6,38 +6,31 @@ namespace Valleysoft.DockerfileModel;
 public class ExposeInstruction : Instruction
 {
     public ExposeInstruction(string portSpecs, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(portSpecs, escapeChar))
+        : this(GetTokens(portSpecs, escapeChar), escapeChar)
     {
     }
 
     public ExposeInstruction(IEnumerable<string> portSpecs, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(portSpecs, escapeChar))
+        : this(GetTokens(portSpecs, escapeChar), escapeChar)
     {
     }
 
-    private ExposeInstruction(IEnumerable<Token> tokens) : base(tokens)
+    private ExposeInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        PortTokens = new TokenList<LiteralToken>(TokenList);
-        Ports = new ProjectedItemList<LiteralToken, string>(
-            PortTokens,
-            token => token.Value,
-            (token, value) =>
-            {
-                Guard.NotNullOrEmpty(value, nameof(value));
-                token.Value = value;
-            });
+        PortTokens = new TokenList<LiteralToken>(this);
+        Ports = InstructionCollectionEditing.Strings(PortTokens, this);
     }
 
-    public IList<string> Ports { get; }
+    public EditableList<string> Ports { get; }
 
-    public IList<LiteralToken> PortTokens { get; }
+    public EditableList<LiteralToken> PortTokens { get; }
 
     public static ExposeInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)));
+        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
     public static Parser<ExposeInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
-        select new ExposeInstruction(tokens);
+        select new ExposeInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string portSpecs, char escapeChar)
     {

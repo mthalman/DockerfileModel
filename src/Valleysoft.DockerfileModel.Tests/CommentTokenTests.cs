@@ -14,6 +14,19 @@ public class CommentTokenTests
         Assert.Equal("# \ttest", comment.ToString());
     }
 
+    [Theory]
+    [InlineData("\n", "")]
+    [InlineData("\r\n", "")]
+    [InlineData("\n", " \t")]
+    [InlineData("\r\n", " \t")]
+    public void EmptyCommentDoesNotConsumeTheFollowingLine(string newline, string whitespace)
+    {
+        var result = CommentToken.GetParser()(new Sprache.Input($"#{whitespace}{newline}80"));
+        Assert.True(result.WasSuccessful);
+        Assert.Equal($"#{whitespace}", string.Concat(result.Value.Select(token => token.ToString())));
+        Assert.Equal(newline + "80", result.Remainder.Source.Substring(result.Remainder.Position));
+    }
+
     [Fact]
     public void Create()
     {

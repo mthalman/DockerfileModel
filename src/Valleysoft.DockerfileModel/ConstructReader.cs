@@ -43,56 +43,8 @@ internal static class ConstructReader
 
     public static Region Read(string text, int start, char escapeChar)
     {
-        StringBuilder header = new();
         List<int> headerOffsets = new();
-        int position = start;
-        bool continued = false;
-
-        while (position < text.Length)
-        {
-            int end = LineEnd(text, position);
-            int contentEnd = ContentEnd(text, position, end);
-            int first = position;
-            while (first < contentEnd && char.IsWhiteSpace(text[first]))
-            {
-                first++;
-            }
-
-            bool commentOrEmpty = first == contentEnd || text[first] == '#';
-            if (commentOrEmpty)
-            {
-                if (!continued)
-                {
-                    return new Region(end);
-                }
-                position = end;
-                continue;
-            }
-
-            int last = contentEnd - 1;
-            while (last >= position && (text[last] == ' ' || text[last] == '\t'))
-            {
-                last--;
-            }
-
-            // BuildKit's continuation rule excludes an escape preceded by another escape.
-            continued = end > contentEnd && last >= position && text[last] == escapeChar &&
-                (last == position || text[last - 1] != escapeChar);
-            int headerEnd = continued ? last : contentEnd;
-            for (int i = position; i < headerEnd; i++)
-            {
-                header.Append(text[i]);
-                headerOffsets.Add(i);
-            }
-
-            position = end;
-            if (!continued)
-            {
-                break;
-            }
-        }
-
-        string logicalHeader = header.ToString();
+        string logicalHeader = FoldHeader(text, start, escapeChar, out int position, headerOffsets);
         if (!CanContainHeredoc(logicalHeader))
         {
             return new Region(position);
@@ -153,6 +105,69 @@ internal static class ConstructReader
 
         return new Region(position, headerEnd: headerEndOffset, heredocs: heredocs,
             trailingCommentStart: trailingCommentStart);
+    }
+
+    /// <summary>Folds one physical header using the reader's continuation and skipped-comment rules.</summary>
+    /// <param name="text">The complete physical input, which may include following constructs.</param>
+    /// <param name="start">The first physical character of the header.</param>
+    /// <param name="escapeChar">The active Dockerfile continuation character.</param>
+    /// <param name="consumedEnd">The exclusive physical end; callers validating isolated syntax must check it.</param>
+    /// <param name="offsets">An optional output mapping from logical characters to physical offsets.</param>
+    /// <returns>The logical header without its terminal newline or physical continuations.</returns>
+    internal static string FoldHeader(string text, int start, char escapeChar, out int consumedEnd,
+        List<int>? offsets = null)
+    {
+        StringBuilder header = new();
+        int position = start;
+        bool continued = false;
+
+        while (position < text.Length)
+        {
+            int end = LineEnd(text, position);
+            int contentEnd = ContentEnd(text, position, end);
+            int first = position;
+            while (first < contentEnd && char.IsWhiteSpace(text[first]))
+            {
+                first++;
+            }
+
+            bool commentOrEmpty = first == contentEnd || text[first] == '#';
+            if (commentOrEmpty)
+            {
+                if (!continued)
+                {
+                    consumedEnd = end;
+                    return header.ToString();
+                }
+                position = end;
+                continue;
+            }
+
+            int last = contentEnd - 1;
+            while (last >= position && (text[last] == ' ' || text[last] == '\t'))
+            {
+                last--;
+            }
+
+            // BuildKit's continuation rule excludes an escape preceded by another escape.
+            continued = end > contentEnd && last >= position && text[last] == escapeChar &&
+                (last == position || text[last - 1] != escapeChar);
+            int headerEnd = continued ? last : contentEnd;
+            for (int i = position; i < headerEnd; i++)
+            {
+                header.Append(text[i]);
+                offsets?.Add(i);
+            }
+
+            position = end;
+            if (!continued)
+            {
+                break;
+            }
+        }
+
+        consumedEnd = position;
+        return header.ToString();
     }
 
     private static List<HeredocRegion> FindHeredocs(string header, List<int> offsets)

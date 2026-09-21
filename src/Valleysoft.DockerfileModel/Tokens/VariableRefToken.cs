@@ -36,6 +36,7 @@ public class VariableRefToken : AggregateToken
     internal VariableRefToken(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
     {
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
     }
 
     public string VariableName

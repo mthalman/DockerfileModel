@@ -3,7 +3,7 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
-public abstract class Instruction : DockerfileConstruct, ICommentable
+public abstract partial class Instruction : DockerfileConstruct, ICommentable
 {
     private static readonly Dictionary<string, Func<string, char, Instruction>> instructionParsers =
         new(StringComparer.OrdinalIgnoreCase)
@@ -28,8 +28,13 @@ public abstract class Instruction : DockerfileConstruct, ICommentable
             { "WORKDIR", WorkdirInstruction.Parse },
         };
 
-    protected Instruction(IEnumerable<Token> tokens) : base(tokens)
+    protected Instruction(IEnumerable<Token> tokens) : this(tokens, Dockerfile.DefaultEscapeChar)
     {
+    }
+
+    protected Instruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens)
+    {
+        EditingEscapeChar = escapeChar;
     }
 
     public string InstructionName
@@ -42,9 +47,13 @@ public abstract class Instruction : DockerfileConstruct, ICommentable
         get => Tokens.OfType<KeywordToken>().First();
     }
 
-    public IList<string?> Comments => GetComments();
+    public EditableList<string?> Comments => InstructionCommentEditing.Values(this);
 
-    public IEnumerable<CommentToken> CommentTokens => GetCommentTokens();
+    public EditableList<CommentToken> CommentTokens => InstructionCommentEditing.Tokens(this);
+
+    IList<string?> ICommentable.Comments => Comments;
+
+    IEnumerable<CommentToken> ICommentable.CommentTokens => CommentTokens;
 
     public override ConstructType Type => ConstructType.Instruction;
 

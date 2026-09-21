@@ -24,6 +24,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     {
         this.canContainVariables = canContainVariables;
         this.escapeChar = escapeChar;
+        EditingEscapeChar = escapeChar;
         this.preserveRawValue = preserveRawValue;
     }
 

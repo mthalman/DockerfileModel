@@ -8,7 +8,7 @@ namespace Valleysoft.DockerfileModel;
 /// <see cref="HeredocBodyToken"/>. Association is positional: the first marker pairs with
 /// the first body, the second marker with the second body, etc.
 /// </summary>
-public class Heredoc
+public partial class Heredoc
 {
     internal Heredoc(HeredocMarkerToken marker, HeredocBodyToken body)
     {
