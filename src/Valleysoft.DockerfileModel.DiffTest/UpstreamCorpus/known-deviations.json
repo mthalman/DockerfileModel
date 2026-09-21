@@ -9,7 +9,7 @@
   {
     "id": "frontend/dockerfile/parser/testfile-line/Dockerfile#L17-L31",
     "inputSha256": "519436084ae9b9147424370dca6cb3b612c041a31c17e8d795cd9baeb22da294",
-    "outcomeSignature": "73e347377d53866188b8d97e6ddce4dc07ce3f1214502ac0fcc34f3ad05eb13d",
+    "outcomeSignature": "280f8830f7e69171e3cc847a35cf25f46882974140a3379d202d442904f948b1",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
@@ -23,28 +23,28 @@
   {
     "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L14-L26",
     "inputSha256": "755b000d2320186ca0c3a56cfc7376d06ad41f7febd15ba75b0970cd7fbc6966",
-    "outcomeSignature": "a0b3a7d00adcdb1c8daca4cf4034e46317de38abcb743b5768a3ec65d78d3fbe",
+    "outcomeSignature": "1f78036cc7cbe79fff74e469143bb219e5610b6ddd5b5141895a305ce489c16d",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L21-L36",
     "inputSha256": "c788d1e96a7e0c2ccd5f960dd487db97d0f36e402ecaa246b547de6591086b6f",
-    "outcomeSignature": "6a72e997ce8f59726f220a9d0b45643eea79d25c5c4fedc06fea06b91f240ecf",
+    "outcomeSignature": "4b3fba31058b48b34b0a4239faa4fa1f1386afb2989c955021e62d733ca081e4",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/brimstone-docker-consul/Dockerfile#L40-L52",
     "inputSha256": "dfdd7d7b27ca0dddc06a3902282285cf1e3aaf51d3e6269c2b75a885cfa6bfc9",
-    "outcomeSignature": "bedd7767e4e547370fc46c5c1fd5ae72acaa8ed88b484f78f91d196affee50c9",
+    "outcomeSignature": "305fb7e523fb2bab17c9849fc069b1cf6963c7ba70f1dc03eebd210baa24c997",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/continueIndent/Dockerfile#L31-L36",
     "inputSha256": "77dfa061b0b1b54f4f2ffe5d9d29e4a682bf5535ad17c3b77d8c7dd3159d4b0b",
-    "outcomeSignature": "e0cd36cf3e378d4b8765da6e1e6683a8cf77dd7df727bad9e4cb07ac959d1cd7",
+    "outcomeSignature": "6af125d5f185c6980be8bca5a04606b323028d568fd5379662ef0557d82bb7f2",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
@@ -58,7 +58,7 @@
   {
     "id": "frontend/dockerfile/parser/testfiles/env/Dockerfile#L18-L23",
     "inputSha256": "716a586a60359798830b7289b9cb6e98e1589fd48c33f01be4a6ee65ce007d38",
-    "outcomeSignature": "0483c89ccff89705c2e9cfcca8de79b9c788d2888b458365c58235fef272c70f",
+    "outcomeSignature": "46d0419892a0f9faf86b29a61589141bc0881671f9195c912c9f5383f91258ec",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean's continued ENV value tokenization differs from C# and does not retain the complete continued assignment structure, including the multiline quoted-value case."
   },
@@ -86,7 +86,7 @@
   {
     "id": "frontend/dockerfile/parser/testfiles/escapes/Dockerfile#L8-L12",
     "inputSha256": "9547a5283ebc57852e220c7c10aab642223554864d7ae329da7cb5cffd57f2fe",
-    "outcomeSignature": "b8428d81b090741be0cd9dc43fd111afb652e40574b43cb547cd5a397ddc368b",
+    "outcomeSignature": "b9dc86d4de01b52be667d7a82561ccccbd51f67b590be2ae40313fdd89285e92",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/388",
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
