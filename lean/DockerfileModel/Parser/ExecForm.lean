@@ -162,6 +162,11 @@ def jsonWhitespaceChar : Parser Unit := do
   let _ ← satisfy (fun c => c == ' ' || c == '\t' || c == '\r' || c == '\n') "JSON whitespace"
   Parser.pure ()
 
+/-- Parse horizontal JSON whitespace that does not advance to the next physical instruction line. -/
+def jsonHorizontalWhitespace : Parser Unit := do
+  let _ ← satisfy (fun c => c == ' ' || c == '\t') "horizontal JSON whitespace"
+  Parser.pure ()
+
 /-- Parse JSON whitespace plus Dockerfile line continuations accepted between exec-form elements. -/
 def jsonWhitespace (escapeChar : Char) : Parser Unit := do
   let _ ← many (or'
@@ -173,14 +178,15 @@ def jsonWhitespace (escapeChar : Char) : Parser Unit := do
 
 /-- Parse trailing whitespace and continuation comments after a complete command JSON value. -/
 def jsonTrailingTrivia (escapeChar : Char) : Parser Unit := do
-  let _ ← many jsonWhitespaceChar
+  let _ ← many jsonHorizontalWhitespace
   let _ ← many (do
     let _ ← lineContinuationParser escapeChar
     let _ ← many commentText
-    let _ ← many jsonWhitespaceChar
+    let _ ← many jsonHorizontalWhitespace
     Parser.pure ())
-  let _ ← eof
-  Parser.pure ()
+  or'
+    (do let _ ← eof; Parser.pure ())
+    (do let _ ← lineEnd; Parser.pure ())
 
 /-- Parse a JSON string for syntax validation only. -/
 def jsonSyntaxString : Parser Unit := do

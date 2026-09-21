@@ -95,7 +95,8 @@ public class CmdInstructionTests
     [InlineData("CMD [\"echo\", \\\n 1]")]
     [InlineData("CMD [\"echo\", \\\n [\"nested json\"]]")]
     [InlineData("CMD [\"echo\", 1] \\\n# comment\n")]
-    public void Parse_JsonArrayWithLineContinuationAndNonStringElementRejects(string text)
+    [InlineData("CMD [\"echo\", 1]\n# comment\n")]
+    public void Parse_JsonArrayWithNonStringElementAndTrailingTriviaRejects(string text)
     {
         Assert.Throws<ParseException>(() => CmdInstruction.Parse(text));
     }
