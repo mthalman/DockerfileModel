@@ -541,9 +541,9 @@
   {
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L7-L7",
     "inputSha256": "dbf82270036f22708bc81b35a2c6644ac0c911414414de5cdee3a17fc9d59b18",
-    "outcomeSignature": "fad8d972647c557952bd58d6ec468bfa6ddb32597d795e7139d08a4e7116e0c9",
+    "outcomeSignature": "16da17f3f3c793aa5a0094a77b9e12453699d89ffea22ad9bee3b9c8a47c0859",
     "issue": "https://github.com/mthalman/DockerfileModel/issues/391",
-    "reason": "Empty HEALTHCHECK CMD crashes C# rather than rejecting normally. Lean and upstream typed instructions reject it, although the upstream low-level parser accepts it."
+    "reason": "C# now rejects empty HEALTHCHECK CMD through the typed parser, while the upstream low-level parser accepts it; the remaining C#/Lean difference is the rejection outcome signature."
   },
   {
     "id": "frontend/dockerfile/parser/testfiles/health/Dockerfile#L8-L8",
