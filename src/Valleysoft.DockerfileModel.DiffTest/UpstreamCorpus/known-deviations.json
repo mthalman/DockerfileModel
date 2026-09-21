@@ -14,13 +14,6 @@
     "reason": "Lean stops the continued RUN instruction at a blank continuation line, omitting subsequent command text; C# retains the complete upstream span. Intervening comment tokenization can also differ."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles-negative/shykes-nested-json/Dockerfile#L1-L1",
-    "inputSha256": "7884a986670856acedb7f544c7ccfc55ffa3d9d6ee4c926229ee8432e46553f1",
-    "outcomeSignature": "a2551c212b8c2a7dc26a2eaba37d9c37425b2b8b9d17203dd833a5890aa96cda",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
-    "reason": "Lean accepts a decoded JSON array containing a nested array, which the pinned upstream parser and C# reject; this must not use malformed-JSON shell fallback."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/brimstone-consuldock/Dockerfile#L14-L26",
     "inputSha256": "755b000d2320186ca0c3a56cfc7376d06ad41f7febd15ba75b0970cd7fbc6966",
     "outcomeSignature": "1f78036cc7cbe79fff74e469143bb219e5610b6ddd5b5141895a305ce489c16d",
