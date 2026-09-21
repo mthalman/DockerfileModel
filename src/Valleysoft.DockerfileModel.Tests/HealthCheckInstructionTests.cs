@@ -253,7 +253,7 @@ public class HealthCheckInstructionTests
     [InlineData("HEALTHCHECK CMD")]
     public void MalformedInstructionsRejectInsteadOfCrashing(string text)
     {
-        Assert.ThrowsAny<Exception>(() => HealthCheckInstruction.Parse(text));
+        Assert.Throws<ParseException>(() => HealthCheckInstruction.Parse(text));
 
         DockerfileParseResult result = Dockerfile.TryParse(text + "\n");
         Assert.False(result.Success);
