@@ -2,6 +2,10 @@
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
+/// <summary>A token-backed key/value assignment, optionally prefixed with <c>--</c> as a flag.</summary>
+/// <typeparam name="TKey">The token type exposing the key's value.</typeparam>
+/// <typeparam name="TValue">The token type containing the value syntax.</typeparam>
+/// <remarks>Scalar access omits formatting; token access retains it. Replacing a child is a low-level edit, not a syntax-aware collection operation.</remarks>
 public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
     where TKey : Token, IValueToken
     where TValue : Token
@@ -37,6 +41,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         EditingEscapeChar = escapeChar;
     }
 
+    /// <summary>Gets or sets the key's value through the existing key token.</summary>
     public string Key
     {
         get => KeyToken.Value;
@@ -47,6 +52,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         }
     }
 
+    /// <summary>Gets or replaces the key token without replacing the assignment's other syntax.</summary>
     public TKey KeyToken
     {
         get => Tokens.OfType<TKey>().First();
@@ -63,6 +69,15 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         set => Value = value!;
     }
 
+    /// <summary>Gets the value without quotes and formatting trivia, or an empty string when no value token exists.</summary>
+    /// <remarks>
+    /// Setting updates an existing <see cref="IValueToken"/>. A missing <see cref="LiteralToken"/> value can
+    /// be inserted automatically; other missing token types require <see cref="ValueToken"/>.
+    /// An existing token that does not implement <see cref="IValueToken"/> cannot be set through this property.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The assigned value is null.</exception>
+    /// <exception cref="InvalidOperationException">A nonempty value requires a missing token that cannot be constructed automatically.</exception>
+    /// <exception cref="NotSupportedException">The existing value token does not support scalar value assignment.</exception>
     public virtual string Value
     {
         get
@@ -108,6 +123,8 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
         }
     }
 
+    /// <summary>Gets or replaces the value token, or removes it when assigned null.</summary>
+    /// <remarks>Removing a value retains the key and separator and removes intervening whitespace and continuation tokens.</remarks>
     public TValue? ValueToken
     {
         get => Tokens.After(KeyToken).OfType<TValue>().FirstOrDefault();

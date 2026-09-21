@@ -4,6 +4,12 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A token-preserving parser-directive declaration.</summary>
+/// <remarks>
+/// Standalone directive syntax does not establish that the declaration is effective in a document.
+/// Header placement and duplicate directives matter. Typed wrappers interpret their current tokens;
+/// low-level edits may leave declarations that no longer satisfy the typed accessor's requirements.
+/// </remarks>
 public class ParserDirective : DockerfileConstruct
 {
     public const string EscapeDirective = "escape";
@@ -31,6 +37,8 @@ public class ParserDirective : DockerfileConstruct
 
     public KeywordToken DirectiveNameToken => Tokens.OfType<KeywordToken>().First();
 
+    /// <summary>Gets or replaces the serialized value text while retaining surrounding directive tokens.</summary>
+    /// <remarks>Setting stores raw text and clears a value quote wrapper; it does not validate frontend support or execute checks.</remarks>
     public string DirectiveValue
     {
         get => DirectiveValueToken.ToString();
@@ -55,6 +63,8 @@ public class ParserDirective : DockerfileConstruct
 
     public override ConstructType Type => ConstructType.ParserDirective;
 
+    /// <summary>Parses a standalone directive, returning a typed wrapper for syntax, escape, or check names.</summary>
+    /// <remarks>Typed value validity and effective document-header placement are separate from syntax parsing.</remarks>
     public static ParserDirective Parse(string text) =>
         Create(GetTokens(text, GetParser().End()));
 

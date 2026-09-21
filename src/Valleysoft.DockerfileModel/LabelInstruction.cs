@@ -3,6 +3,7 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A LABEL instruction with ordered, mutable key/value assignments.</summary>
 public class LabelInstruction : Instruction
 {
     public LabelInstruction(IDictionary<string, string> labels, char escapeChar = Dockerfile.DefaultEscapeChar)
@@ -16,8 +17,11 @@ public class LabelInstruction : Instruction
         Labels = InstructionCollectionEditing.Pairs(LabelTokens, this);
     }
 
+    /// <summary>Gets the live syntax-aware assignment view, not a detached dictionary.</summary>
+    /// <remarks>Pair objects remain connected to their tokens. Structural edits preserve trivia by default and must leave required operands.</remarks>
     public EditableList<IKeyValuePair> Labels { get; }
 
+    /// <summary>Gets the corresponding live assignment token view for syntax-level replacement.</summary>
     public EditableList<KeyValueToken<LabelKeyToken, LiteralToken>> LabelTokens { get; }
    
     public static LabelInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>

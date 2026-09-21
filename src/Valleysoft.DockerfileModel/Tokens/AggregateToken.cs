@@ -2,6 +2,11 @@
 using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel.Tokens;
+/// <summary>A syntax element composed of ordered child tokens.</summary>
+/// <remarks>
+/// Children are shared mutable objects. Low-level token manipulation does not provide all validation
+/// and separator/trivia maintenance supplied by syntax-aware <see cref="EditableList{T}"/> views.
+/// </remarks>
 public abstract class AggregateToken : Token
 {
     protected AggregateToken(IEnumerable<Token> tokens)
@@ -22,6 +27,8 @@ public abstract class AggregateToken : Token
 
     protected internal List<Token> TokenList { get; }
 
+    /// <summary>Gets the live ordered child sequence, not a snapshot or a deep copy.</summary>
+    /// <remarks>Structural edits during enumeration can invalidate the enumerator.</remarks>
     public IEnumerable<Token> Tokens => this.TokenList;
 
     internal char EditingEscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
@@ -38,6 +45,12 @@ public abstract class AggregateToken : Token
                 .Select(token => token.ToString(options)));
     }
 
+    /// <summary>Resolves variable-reference tokens using the supplied environment, without establishing document ARG scope.</summary>
+    /// <param name="escapeChar">The escape character to use when formatting resolved text.</param>
+    /// <param name="variables">Variable values, or null for an empty environment.</param>
+    /// <param name="options">Substitution options, or null for non-mutating defaults.</param>
+    /// <returns>Resolved token text, including surrounding quotes when present; a variable token may resolve to null.</returns>
+    /// <remarks>Command instructions can suppress expansion, and raw command text may contain no variable-reference tokens. Use document resolution when ARG scope matters.</remarks>
     public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
     {
         variables ??= new Dictionary<string, string?>();

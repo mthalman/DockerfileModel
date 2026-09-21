@@ -3,18 +3,22 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A CMD instruction in shell or JSON exec form.</summary>
 public class CmdInstruction : CommandInstruction
 {
+    /// <summary>Parses raw command text after CMD; ordinary text uses shell form, while JSON-array text selects exec form.</summary>
     public CmdInstruction(string commandWithArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(commandWithArgs, escapeChar), escapeChar)
     {
     }
 
+    /// <summary>Creates JSON exec-form CMD from default argument elements without shell splitting.</summary>
     public CmdInstruction(IEnumerable<string> defaultArgs, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(defaultArgs, escapeChar), escapeChar)
     {
     }
 
+    /// <summary>Creates JSON exec-form CMD with the command as its first element followed by the supplied arguments.</summary>
     public CmdInstruction(string command, IEnumerable<string> args, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(command, args, escapeChar), escapeChar)
     {
@@ -24,6 +28,7 @@ public class CmdInstruction : CommandInstruction
     {
     }
 
+    /// <summary>Parses a standalone CMD instruction, preserving its form, formatting, and escape context.</summary>
     public static CmdInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 

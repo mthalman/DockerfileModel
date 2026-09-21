@@ -2,6 +2,8 @@ using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A typed escape directive whose effective value must be a backslash or backtick.</summary>
+/// <remarks>Editing this declaration does not reparse existing instructions or change their retained escape contexts.</remarks>
 public sealed class EscapeDirective : ParserDirective
 {
     public EscapeDirective(char escapeChar) : base(ParserDirective.EscapeDirective, Format(escapeChar))

@@ -4,6 +4,7 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>An ARG name and optional default, preserving the distinction between no assignment and an empty assignment.</summary>
 public class ArgDeclaration : AggregateToken, IKeyValuePair
 {
     private const char AssignmentOperator = '=';
@@ -47,6 +48,12 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         }
     }
 
+    /// <summary>Gets the default value, null for a bare name, or an empty string for an empty assignment; sets the default contents.</summary>
+    /// <remarks>
+    /// A scalar update retains an existing value token. When a value token exists, assigning null removes it
+    /// and its assignment operator. A parsed empty assignment can have no value token; assigning null in
+    /// that state leaves the existing assignment operator unchanged.
+    /// </remarks>
     public string? Value
     {
         get
@@ -73,6 +80,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         }
     }
 
+    /// <summary>Gets or replaces the default's syntax token, which can be absent even when an empty assignment exists.</summary>
     public LiteralToken? ValueToken
     {
         get => this.Tokens.OfType<LiteralToken>().FirstOrDefault();
@@ -103,6 +111,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         }
     }
 
+    /// <summary>Gets whether the serialized declaration contains an assignment operator, independently of value-token presence.</summary>
     public bool HasAssignmentOperator =>
         Tokens.OfType<SymbolToken>().Where(token => token.Value == AssignmentOperator.ToString()).Any();
 

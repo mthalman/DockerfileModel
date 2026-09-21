@@ -5,6 +5,12 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A mutable token model of a registry, repository, and optional tag or digest.</summary>
+/// <remarks>
+/// This model supports either a tag or a digest, not both. It does not contact a registry or
+/// resolve implicit defaults. Parsing a FROM operand creates a separate object; assign its
+/// serialized text back to <see cref="FromInstruction.ImageName"/> to update the instruction.
+/// </remarks>
 public class ImageName : AggregateToken
 {
     private InnerTokens.Registry? registryToken;
@@ -13,6 +19,12 @@ public class ImageName : AggregateToken
     private InnerTokens.Digest? digestToken;
     private readonly char escapeChar;
 
+    /// <summary>Creates an image reference from components and retains its escape context for later edits.</summary>
+    /// <param name="repository">The required repository path.</param>
+    /// <param name="registry">An optional registry host, including a port when needed.</param>
+    /// <param name="tag">An optional tag, mutually exclusive with <paramref name="digest"/>.</param>
+    /// <param name="digest">An optional digest including its algorithm prefix, mutually exclusive with <paramref name="tag"/>.</param>
+    /// <param name="escapeChar">The Dockerfile escape character; defaults to backslash.</param>
     public ImageName(string repository, string? registry = null, string? tag = null, string? digest = null,
         char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(repository, registry, tag, digest, escapeChar), escapeChar)
@@ -29,6 +41,7 @@ public class ImageName : AggregateToken
         digestToken = Tokens.OfType<InnerTokens.Digest>().FirstOrDefault();
     }
 
+    /// <summary>Gets or sets the explicit registry; null removes it and its separator.</summary>
     public string? Registry
     {
         get => this.registryToken?.Value;
@@ -70,6 +83,7 @@ public class ImageName : AggregateToken
         }
     }
 
+    /// <summary>Gets or sets the required repository component without normalizing its name.</summary>
     public string Repository
     {
         get => RepositoryToken.Value;
@@ -91,6 +105,8 @@ public class ImageName : AggregateToken
         }
     }
 
+    /// <summary>Gets or sets the tag; null removes it and its separator.</summary>
+    /// <exception cref="InvalidOperationException">A non-null tag is assigned while a digest is present.</exception>
     public string? Tag
     {
         get => this.tagToken?.Value;
@@ -140,6 +156,8 @@ public class ImageName : AggregateToken
         }
     }
 
+    /// <summary>Gets or sets the digest including its algorithm prefix; null removes it and its separator.</summary>
+    /// <exception cref="InvalidOperationException">A non-null digest is assigned while a tag is present.</exception>
     public string? Digest
     {
         get => this.digestToken?.Value;
@@ -189,6 +207,8 @@ public class ImageName : AggregateToken
         }
     }
 
+    /// <summary>Joins image components with their separators without performing a registry lookup or parsing the result.</summary>
+    /// <remarks>Supply either a tag or a digest, not both.</remarks>
     public static string FormatImageName(string repository, string? registry, string? tag, string? digest)
     {
         Guard.NotNullOrWhiteSpace(repository, nameof(repository));
@@ -219,6 +239,10 @@ public class ImageName : AggregateToken
         return builder.ToString();
     }
 
+    /// <summary>Parses an image reference into a new, independently editable token model.</summary>
+    /// <param name="imageName">Reference syntax accepted by this model, with at most one tag or digest.</param>
+    /// <param name="escapeChar">Escape context retained for subsequent component edits.</param>
+    /// <returns>A new image model; no source instruction is updated automatically.</returns>
     public static ImageName Parse(string imageName, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(imageName, GetParser(escapeChar)), escapeChar);
 

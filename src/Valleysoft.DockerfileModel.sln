@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Valleysoft.DockerfileModel.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Valleysoft.DockerfileModel.TestSupport", "Valleysoft.DockerfileModel.TestSupport\Valleysoft.DockerfileModel.TestSupport.csproj", "{252445EB-5183-4DAE-A8F8-763A3174EAA1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Valleysoft.DockerfileModel.Samples", "Valleysoft.DockerfileModel.Samples\Valleysoft.DockerfileModel.Samples.csproj", "{DF15A671-654D-48D5-A512-C35D80FA5431}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{252445EB-5183-4DAE-A8F8-763A3174EAA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{252445EB-5183-4DAE-A8F8-763A3174EAA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{252445EB-5183-4DAE-A8F8-763A3174EAA1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DF15A671-654D-48D5-A512-C35D80FA5431}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DF15A671-654D-48D5-A512-C35D80FA5431}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DF15A671-654D-48D5-A512-C35D80FA5431}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DF15A671-654D-48D5-A512-C35D80FA5431}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

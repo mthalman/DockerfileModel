@@ -3,6 +3,7 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>An ENV instruction with ordered, mutable key/value assignments.</summary>
 public class EnvInstruction : Instruction
 {
     public EnvInstruction(IDictionary<string, string> variables, char escapeChar = Dockerfile.DefaultEscapeChar)
@@ -16,8 +17,11 @@ public class EnvInstruction : Instruction
         Variables = InstructionCollectionEditing.Pairs(VariableTokens, this);
     }
 
+    /// <summary>Gets the live syntax-aware assignment view, not a detached dictionary.</summary>
+    /// <remarks>Pair objects remain connected to their tokens. Structural edits preserve trivia by default and must leave required operands.</remarks>
     public EditableList<IKeyValuePair> Variables { get; }
 
+    /// <summary>Gets the corresponding live assignment token view for syntax-level replacement.</summary>
     public EditableList<KeyValueToken<Variable, LiteralToken>> VariableTokens { get; }
 
     public static EnvInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>

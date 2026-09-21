@@ -3,6 +3,12 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A mutable Dockerfile instruction with its original keyword, operands, and formatting tokens.</summary>
+/// <remarks>
+/// Standalone parsers and constructors default to backslash escaping. Their escape context is retained for
+/// later syntax-aware edits; moving an instruction to another document does not change that context.
+/// Prefer typed properties and editable collections over low-level token changes for structural edits.
+/// </remarks>
 public abstract partial class Instruction : DockerfileConstruct, ICommentable
 {
     private static readonly Dictionary<string, Func<string, char, Instruction>> instructionParsers =
@@ -47,8 +53,10 @@ public abstract partial class Instruction : DockerfileConstruct, ICommentable
         get => Tokens.OfType<KeywordToken>().First();
     }
 
+    /// <summary>Gets a live editable view of comments associated with this instruction.</summary>
     public EditableList<string?> Comments => InstructionCommentEditing.Values(this);
 
+    /// <summary>Gets the corresponding live comment tokens, retaining their identity and formatting.</summary>
     public EditableList<CommentToken> CommentTokens => InstructionCommentEditing.Tokens(this);
 
     IList<string?> ICommentable.Comments => Comments;

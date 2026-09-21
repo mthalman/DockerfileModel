@@ -4,28 +4,34 @@ using static Valleysoft.DockerfileModel.ParseHelper;
 
 namespace Valleysoft.DockerfileModel;
 
+/// <summary>A HEALTHCHECK CMD instruction or the disabling HEALTHCHECK NONE form.</summary>
+/// <remarks>Argument-sequence constructors add JSON quote wrappers but do not implement general JSON escaping.</remarks>
 public class HealthCheckInstruction : Instruction
 {
     private readonly char escapeChar;
 
+    /// <summary>Creates HEALTHCHECK CMD from raw command text; ordinary text uses shell form and JSON-array text selects exec form.</summary>
     public HealthCheckInstruction(string commandWithArgs, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(ValidateNotNullOrEmpty(commandWithArgs, nameof(commandWithArgs)), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
+    /// <summary>Creates HEALTHCHECK CMD using the supplied JSON exec-form elements.</summary>
     public HealthCheckInstruction(IEnumerable<string> defaultArgs, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(ValidateAndFormatAsJson(defaultArgs, nameof(defaultArgs)), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
+    /// <summary>Creates HEALTHCHECK CMD in JSON exec form with the command followed by its arguments.</summary>
     public HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(GetTokens(ValidateAndFormatAsJson(command, args), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
     {
     }
 
+    /// <summary>Creates HEALTHCHECK NONE without a trailing newline.</summary>
     public HealthCheckInstruction(char escapeChar = Dockerfile.DefaultEscapeChar)
         : this(
             new Token[]
@@ -137,6 +143,8 @@ public class HealthCheckInstruction : Instruction
         set => SetOptionalFlagToken(RetriesFlag, value);
     }
 
+    /// <summary>Gets or sets the command, or null for HEALTHCHECK NONE.</summary>
+    /// <remarks>Assigning null replaces CMD and its command with NONE; assigning a command to NONE restores CMD.</remarks>
     public Command? Command
     {
         get => Tokens.OfType<Command>().FirstOrDefault();
@@ -209,6 +217,7 @@ public class HealthCheckInstruction : Instruction
         }
     }
 
+    /// <summary>Parses a standalone HEALTHCHECK instruction, preserving its form, formatting, and escape context.</summary>
     public static HealthCheckInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
