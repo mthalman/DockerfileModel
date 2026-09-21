@@ -91,6 +91,11 @@ public abstract class CommandInstruction : Instruction
 
     private static bool ShouldFallbackToShell(string text, char escapeChar)
     {
+        if (!CouldStartExecForm(text))
+        {
+            return true;
+        }
+
         try
         {
             string jsonText = NormalizeLineContinuations(text, escapeChar);
@@ -111,6 +116,22 @@ public abstract class CommandInstruction : Instruction
         {
             return true;
         }
+    }
+
+    private static bool CouldStartExecForm(string text)
+    {
+        for (int index = 0; index < text.Length; index++)
+        {
+            char ch = text[index];
+            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
+            {
+                continue;
+            }
+
+            return ch == '[';
+        }
+
+        return false;
     }
 
     private static string NormalizeLineContinuations(string text, char escapeChar)
