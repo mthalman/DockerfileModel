@@ -37,6 +37,18 @@ public class HealthCheckInstructionTests
         scenario.Validate?.Invoke(result);
     }
 
+    [Theory]
+    [InlineData("HEALTHCHECK CMD [\"echo\", \"Please, close the brackets when you're done\"\n")]
+    [InlineData("HEALTHCHECK CMD [\"echo\", \"look ma, no quote!]\n")]
+    [InlineData("HEALTHCHECK CMD ['echo','single quotes are invalid JSON']\n")]
+    public void MalformedCmdJsonFallsBackToShellForm(string text)
+    {
+        HealthCheckInstruction result = HealthCheckInstruction.Parse(text);
+
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal(text, result.ToString());
+    }
+
     [Fact]
     public void Interval()
     {

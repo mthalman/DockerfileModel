@@ -65,5 +65,5 @@ public abstract class CommandInstruction : Instruction
     private protected static Parser<Command> GetCommandParser(char escapeChar, bool diagnostic) =>
         ExecFormCommand.GetParser(escapeChar)
             .Cast<ExecFormCommand, Command>()
-            .XOr(diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar));
+            .Or(ShellFormCommand.GetExecFormFallbackParser(escapeChar, diagnostic));
 }

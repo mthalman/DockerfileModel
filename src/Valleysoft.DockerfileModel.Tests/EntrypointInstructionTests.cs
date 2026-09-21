@@ -36,6 +36,18 @@ public class EntrypointInstructionTests
         scenario.Validate?.Invoke(result);
     }
 
+    [Theory]
+    [InlineData("ENTRYPOINT [\"echo\", \"Please, close the brackets when you're done\"\n")]
+    [InlineData("ENTRYPOINT [\"echo\", \"look ma, no quote!]\n")]
+    [InlineData("ENTRYPOINT ['echo','single quotes are invalid JSON']\n")]
+    public void MalformedJsonFallsBackToShellForm(string text)
+    {
+        EntrypointInstruction result = EntrypointInstruction.Parse(text);
+
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal(text, result.ToString());
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<EntrypointInstruction>[] testInputs = new ParseTestScenario<EntrypointInstruction>[]

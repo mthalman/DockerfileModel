@@ -112,27 +112,6 @@
     "reason": "C# now rejects empty HEALTHCHECK CMD through the typed parser, while the upstream low-level parser accepts it; the remaining C#/Lean difference is the rejection outcome signature."
   },
   {
-    "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-single-quotes/Dockerfile#L1-L1",
-    "inputSha256": "c9e2f4fdce5db7bad55aa4bb4f9755d8a9bf73e198f7216b3a447e30a8ee83ef",
-    "outcomeSignature": "929a4cb5a4254667200b77594a4942a4ea2cc89b2754de766abf5b2d9f4e51dd",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
-    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-bracket/Dockerfile#L1-L1",
-    "inputSha256": "7d5ab8e482aa425c7ff1eef1d924adf4c210d1453dbed6c4a1ff0f80fbc40258",
-    "outcomeSignature": "50c81f264676a8d915d273972e88f00d14e3847810468a0e7b7672f4a01e75ae",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
-    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
-  },
-  {
-    "id": "frontend/dockerfile/parser/testfiles/jeztah-invalid-json-unterminated-string/Dockerfile#L1-L1",
-    "inputSha256": "ae23e529393cf7111bd1de55a10a90d0769e1563c407593824525f476796f086",
-    "outcomeSignature": "4790711c4493a6cd27f5204e748266f4600468b1fff00938793cfd042ca22db6",
-    "issue": "https://github.com/mthalman/DockerfileModel/issues/389",
-    "reason": "C# rejects malformed CMD JSON syntax that the pinned upstream parser accepts as shell form; Lean accepts the shell fallback."
-  },
-  {
     "id": "frontend/dockerfile/parser/testfiles/trailing-backslash/Dockerfile#L12-L14",
     "inputSha256": "16a78c2b5d3fde0de0c8fbe7eba80e01fff15a104acef1332613e36909d99290",
     "outcomeSignature": "d8e15cc437c7f52c3590394b5b0d7e74c48969e0b3b79624a274c43e181fdf39",

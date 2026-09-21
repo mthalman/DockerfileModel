@@ -279,7 +279,7 @@ public class HealthCheckInstruction : Instruction
         from cmdKeyword in ArgTokens(KeywordToken.GetParser("CMD", escapeChar).AsEnumerable(), escapeChar)
         from cmd in ArgTokens(
             ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Token>()
-                .XOr((diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar))
+                .Or(ShellFormCommand.GetExecFormFallbackParser(escapeChar, diagnostic)
                     .Cast<ShellFormCommand, Token>())
                 .AsEnumerable(), escapeChar)
         select ConcatTokens(cmdKeyword, cmd);

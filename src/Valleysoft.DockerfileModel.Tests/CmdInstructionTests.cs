@@ -1,4 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Parsing;
+﻿using Sprache;
+using Valleysoft.DockerfileModel.Parsing;
 using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Tests.TokenValidator;
@@ -30,6 +31,22 @@ public class CmdInstructionTests
         Assert.Collection(result.Tokens, scenario.TokenValidators);
         scenario.Validate?.Invoke(result);
     }
+
+    [Theory]
+    [InlineData("CMD [\"echo\", \"Please, close the brackets when you're done\"\n")]
+    [InlineData("CMD [\"echo\", \"look ma, no quote!]\n")]
+    [InlineData("CMD ['echo','single quotes are invalid JSON']\n")]
+    public void MalformedJsonFallsBackToShellForm(string text)
+    {
+        CmdInstruction result = CmdInstruction.Parse(text);
+
+        Assert.IsType<ShellFormCommand>(result.Command);
+        Assert.Equal(text, result.ToString());
+    }
+
+    [Fact]
+    public void NestedJsonArrayDoesNotFallBackToShellForm() =>
+        Assert.Throws<ParseException>(() => CmdInstruction.Parse("CMD [ \"echo\", [ \"nested json\" ] ]\n"));
 
     public static IEnumerable<object[]> ParseTestInput()
     {
