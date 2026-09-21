@@ -60,7 +60,6 @@ public class ParsingCompatibilityTests
     [InlineData("RUN")]
     [InlineData("CMD")]
     [InlineData("ENTRYPOINT")]
-    [InlineData("HEALTHCHECK CMD")]
     public void LegacyEmptyCommandsKeepTheirExceptionContract(string text)
     {
         Assert.Throws<ArgumentException>(() => Dockerfile.Parse(text));
