@@ -36,6 +36,12 @@ public class EntrypointInstructionTests
         scenario.Validate?.Invoke(result);
     }
 
+    [Fact]
+    public void Parse_JsonArrayWithLineContinuationAndNonStringElementRejects()
+    {
+        Assert.Throws<ParseException>(() => EntrypointInstruction.Parse("ENTRYPOINT [\"echo\", \\\n 1]"));
+    }
+
     public static IEnumerable<object[]> ParseTestInput()
     {
         ParseTestScenario<EntrypointInstruction>[] testInputs = new ParseTestScenario<EntrypointInstruction>[]

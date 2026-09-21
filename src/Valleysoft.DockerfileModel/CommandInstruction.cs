@@ -79,7 +79,7 @@ public abstract class CommandInstruction : Instruction
             }
 
             string remainingText = input.Source.Substring(input.Position);
-            if (ShouldFallbackToShell(remainingText))
+            if (ShouldFallbackToShell(remainingText, escapeChar))
             {
                 return shellFormParser(input);
             }
@@ -88,11 +88,11 @@ public abstract class CommandInstruction : Instruction
         };
     }
 
-    private static bool ShouldFallbackToShell(string text)
+    private static bool ShouldFallbackToShell(string text, char escapeChar)
     {
         try
         {
-            using JsonDocument document = JsonDocument.Parse(text);
+            using JsonDocument document = JsonDocument.Parse(RemoveLineContinuations(text, escapeChar));
             JsonElement root = document.RootElement;
 
             return root.ValueKind != JsonValueKind.Array ||
@@ -102,5 +102,49 @@ public abstract class CommandInstruction : Instruction
         {
             return true;
         }
+    }
+
+    private static string RemoveLineContinuations(string text, char escapeChar)
+    {
+        int continuationIndex = text.IndexOf(escapeChar);
+        if (continuationIndex < 0)
+        {
+            return text;
+        }
+
+        var builder = new System.Text.StringBuilder(text.Length);
+        for (int index = 0; index < text.Length; index++)
+        {
+            if (text[index] != escapeChar)
+            {
+                builder.Append(text[index]);
+                continue;
+            }
+
+            int lookahead = index + 1;
+            while (lookahead < text.Length && (text[lookahead] == ' ' || text[lookahead] == '\t'))
+            {
+                lookahead++;
+            }
+
+            if (lookahead < text.Length && text[lookahead] == '\r')
+            {
+                int lineFeed = lookahead + 1;
+                if (lineFeed < text.Length && text[lineFeed] == '\n')
+                {
+                    index = lineFeed;
+                    continue;
+                }
+            }
+            else if (lookahead < text.Length && text[lookahead] == '\n')
+            {
+                index = lookahead;
+                continue;
+            }
+
+            builder.Append(text[index]);
+        }
+
+        return builder.ToString();
     }
 }
