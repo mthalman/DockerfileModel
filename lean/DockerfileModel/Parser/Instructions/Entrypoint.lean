@@ -52,7 +52,7 @@ open DockerfileModel.Parser.ExecForm
     Try JSON array first, fall back to shell form command.
     Corresponds to EntrypointInstruction.GetArgsParser() -/
 partial def entrypointArgsParser (escapeChar : Char) : Parser (List Token) :=
-  argTokens (or' (jsonArrayParser escapeChar) (shellFormCommand escapeChar)) escapeChar
+  argTokens (commandFormParser escapeChar) escapeChar
 
 -- ============================================================
 -- ENTRYPOINT instruction parser
