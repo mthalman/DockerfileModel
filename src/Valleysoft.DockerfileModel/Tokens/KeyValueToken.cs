@@ -187,8 +187,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
             isFlag: isFlag);
 
     // Breaking change: the optionalValue parameter was added intentionally, changing this public method's signature.
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<KeyValueToken<TKey, TValue>> GetParser(
+    internal static Parser<KeyValueToken<TKey, TValue>> GetParser(
         Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar, bool excludeLeadingWhitespaceInValue = false,
         bool excludeTrailingWhitespaceInSeparator = false, bool optionalValue = false) =>
@@ -197,8 +196,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
             optionalValue: optionalValue);
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<KeyValueToken<TKey, TValue>> GetParser(
+    internal static Parser<KeyValueToken<TKey, TValue>> GetParser(
         Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         char separator, char escapeChar, bool excludeLeadingWhitespaceInValue, bool excludeTrailingWhitespaceInSeparator,
         bool optionalValue, bool isFlag) =>

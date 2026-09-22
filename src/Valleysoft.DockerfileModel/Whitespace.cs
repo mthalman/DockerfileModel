@@ -68,7 +68,6 @@ public class Whitespace : DockerfileConstruct
     public static bool IsWhitespace(string value) =>
         GetParser().TryParse(value).WasSuccessful;
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<IEnumerable<Token>> GetParser() =>
+    internal static Parser<IEnumerable<Token>> GetParser() =>
         BasicParsers.Whitespace().End();
 }

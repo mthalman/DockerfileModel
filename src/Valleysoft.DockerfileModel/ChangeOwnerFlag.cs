@@ -25,8 +25,7 @@ public class ChangeOwnerFlag : KeyValueToken<KeywordToken, LiteralToken>
             escapeChar: escapeChar,
             isFlag: true);
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<ChangeOwnerFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<ChangeOwnerFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("chown", escapeChar),
             LiteralWithVariables(escapeChar),

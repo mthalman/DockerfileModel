@@ -27,8 +27,7 @@ public class LineContinuationToken : AggregateToken
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Line continuation tokens.</returns>
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<LineContinuationToken> GetParser(char escapeChar) =>
+    internal static Parser<LineContinuationToken> GetParser(char escapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new LineContinuationToken(tokens);
 

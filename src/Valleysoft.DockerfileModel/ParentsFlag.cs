@@ -24,7 +24,6 @@ public class ParentsFlag : BooleanFlag
     public static ParentsFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new ParentsFlag(tokens, esc), escapeChar);
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<ParentsFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<ParentsFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new ParentsFlag(tokens, esc), escapeChar);
 }

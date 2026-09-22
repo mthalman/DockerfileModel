@@ -26,8 +26,7 @@ public class LabelKeyToken : IdentifierToken
         EditingEscapeChar = escapeChar;
     }
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<LabelKeyToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<LabelKeyToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from result in GetInnerParser(escapeChar)
         select new LabelKeyToken(result.Tokens, escapeChar)
         {

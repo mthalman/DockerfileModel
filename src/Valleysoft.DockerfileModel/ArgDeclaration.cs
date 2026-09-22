@@ -122,8 +122,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
     public static ArgDeclaration Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar).End()), escapeChar);
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<ArgDeclaration> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<ArgDeclaration> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ArgDeclaration(tokens, escapeChar);
 

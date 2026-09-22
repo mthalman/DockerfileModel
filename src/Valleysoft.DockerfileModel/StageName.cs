@@ -19,8 +19,7 @@ public class StageName : IdentifierToken
     {
     }
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<StageName> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<StageName> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new StageName(tokens, escapeChar);
 

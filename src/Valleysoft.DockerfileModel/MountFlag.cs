@@ -17,8 +17,7 @@ public class MountFlag : KeyValueToken<KeywordToken, Mount>
     public static MountFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(escapeChar).Parse(text);
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<MountFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("mount", escapeChar),
             MountParser(escapeChar),

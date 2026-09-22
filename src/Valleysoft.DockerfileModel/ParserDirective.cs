@@ -69,8 +69,7 @@ public class ParserDirective : DockerfileConstruct
     public static ParserDirective Parse(string text) =>
         Create(GetTokens(text, GetParser().End()));
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<IEnumerable<Token>> GetParser() =>
+    internal static Parser<IEnumerable<Token>> GetParser() =>
         from bom in Valleysoft.DockerfileModel.Parsing.Parse.Char('\uFEFF').Optional()
         from leading in HorizontalWhitespace()
         from hash in Symbol('#')

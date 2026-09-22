@@ -41,8 +41,7 @@ public class CommentToken : AggregateToken
     public static CommentToken Parse(string text) =>
         new(GetTokens(text, GetParser()));
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<IEnumerable<Token>> GetParser() =>
+    internal static Parser<IEnumerable<Token>> GetParser() =>
         from commentChar in CommentCharParser()
         from text in TokenWithTrailingWhitespace(val => new StringToken(val))
         select ConcatTokens(commentChar, text);

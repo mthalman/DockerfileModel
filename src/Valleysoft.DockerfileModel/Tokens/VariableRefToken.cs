@@ -250,8 +250,7 @@ public class VariableRefToken : AggregateToken
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Parsed variable reference token.</returns>
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new VariableRefToken(tokens, escapeChar);
 
@@ -262,8 +261,7 @@ public class VariableRefToken : AggregateToken
     /// <see cref="ModifierValueParser"/> to allow horizontal whitespace.</param>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Parsed variable reference token.</returns>
-    [Obsolete("The createModifierValueTokenParser parameter is no longer used. Use GetParser(char) instead.")]
-    public static Parser<VariableRefToken> GetParser(
+    internal static Parser<VariableRefToken> GetParser(
         CreateTokenParserDelegate createModifierValueTokenParser, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(escapeChar);
 

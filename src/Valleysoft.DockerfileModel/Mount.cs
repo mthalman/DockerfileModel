@@ -82,8 +82,7 @@ public partial class Mount : AggregateToken
     public static Mount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, isFlagValue: false).End()), escapeChar);
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<Mount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<Mount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(escapeChar, isFlagValue: false);
 
     internal static Parser<Mount> GetParser(char escapeChar, bool isFlagValue) =>

@@ -249,8 +249,7 @@ public class ImageName : AggregateToken
     public static ImageName Parse(string imageName, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(imageName, GetParser(escapeChar)), escapeChar);
 
-    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-    public static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from registryRepository in ParseRegistryRepository(escapeChar)
             from tagDigest in ParseTagDigest(escapeChar).Optional()
             select ConcatTokens(
@@ -306,8 +305,7 @@ public class ImageName : AggregateToken
             public static Digest Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-            [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-            public static Parser<Digest> GetParser(char escapeChar) =>
+            internal static Parser<Digest> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Digest(tokens, escapeChar);
 
@@ -348,8 +346,7 @@ public class ImageName : AggregateToken
             public static Tag Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-            [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-            public static Parser<Tag> GetParser(char escapeChar) =>
+            internal static Parser<Tag> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Tag(tokens, escapeChar);
 
@@ -386,8 +383,7 @@ public class ImageName : AggregateToken
             public static Repository Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-            [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-            public static Parser<Repository> GetParser(char escapeChar) =>
+            internal static Parser<Repository> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Repository(tokens, escapeChar);
 
@@ -423,8 +419,7 @@ public class ImageName : AggregateToken
             public static Registry Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-            [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
-            public static Parser<Registry> GetParser(char escapeChar) =>
+            internal static Parser<Registry> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Registry(tokens, escapeChar);
 
