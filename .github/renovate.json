@@ -28,6 +28,24 @@
   ],
   "packageRules": [
     {
+      "description": "Do not pin alpine references embedded in these test fixtures",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "alpine"
+      ],
+      "matchFileNames": [
+        "src/Valleysoft.DockerfileModel.Tests/DockerfileBuilderTests.cs",
+        "src/Valleysoft.DockerfileModel.Tests/DockerfileParseTests.cs"
+      ],
+      "matchUpdateTypes": [
+        "pinDigest",
+        "digest"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Require maintainer compatibility review for stable Dockerfile frontend updates",
       "matchManagers": [
         "custom.regex"
