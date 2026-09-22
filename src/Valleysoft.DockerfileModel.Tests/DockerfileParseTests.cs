@@ -50,7 +50,7 @@ public class DockerfileParseTests
     public void ContinuedInstructionPreservesNestedTokenLayout()
     {
         string text = """
-            ARG TAG=latest@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+            ARG TAG=latest
             FROM alpine:$TAG \
               AS build
             """.ReplaceLineEndings("\n");

@@ -28,6 +28,16 @@
   ],
   "packageRules": [
     {
+      "description": "Do not pin alpine references embedded in test fixtures",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "alpine"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Require maintainer compatibility review for stable Dockerfile frontend updates",
       "matchManagers": [
         "custom.regex"
