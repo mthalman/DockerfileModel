@@ -1,15 +1,5 @@
 # Parsing, recovery, and diagnostics
 
-## Parser engine migration
-
-The parser implementation is backed by Superpower and exposes parser primitives
-from the library-owned `Valleysoft.DockerfileModel.Parsing` namespace. This
-migration is intentionally breaking: the instruction and token
-`GetParser()` factories are no longer public APIs.
-Applications should use `Dockerfile.Parse` or `Dockerfile.TryParse`, which are
-the supported parsing entry points and provide the library-owned diagnostic
-model.
-
 ## Parse results
 
 `Dockerfile.Parse(text)` throws on syntax errors. Use `TryParse` to
