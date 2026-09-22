@@ -19,6 +19,6 @@ public class SecurityFlag : KeywordLiteralFlag
     public static SecurityFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new SecurityFlag(tokens, esc), escapeChar);
 
-    internal static Parser<SecurityFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<SecurityFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new SecurityFlag(tokens, esc), escapeChar);
 }

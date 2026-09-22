@@ -18,21 +18,21 @@ public class StageName : IdentifierToken
     {
     }
 
-    internal static Parser<StageName> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<StageName> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new StageName(tokens, escapeChar);
 
     protected override IEnumerable<Token> GetInnerTokens(string value) =>
         GetTokens(value, GetInnerParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         IdentifierString(escapeChar, FirstCharParser(), TailCharParser());
 
-    private static Parser<char> FirstCharParser() => P.Parse.Letter;
+    private static TextParser<char> FirstCharParser() => Character.Letter;
 
-    private static Parser<char> TailCharParser() =>
-        P.Parse.LetterOrDigit
-            .Or(P.Parse.Char('_'))
-            .Or(P.Parse.Char('-'))
-            .Or(P.Parse.Char('.'));
+    private static TextParser<char> TailCharParser() =>
+        Character.LetterOrDigit
+            .Try().Or(Character.EqualTo('_'))
+            .Try().Or(Character.EqualTo('-'))
+            .Try().Or(Character.EqualTo('.'));
 }

@@ -48,6 +48,6 @@ public class Comment : DockerfileConstruct
     public static bool IsComment(string text)
     {
         Guard.NotNullOrEmpty(text, nameof(text));
-        return BasicParsers.CommentText().TryParse(text).WasSuccessful;
+        return BasicParsers.CommentText().TryParse(text).HasValue;
     }
 }

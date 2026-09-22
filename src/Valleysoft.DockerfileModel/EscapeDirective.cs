@@ -31,9 +31,9 @@ public sealed class EscapeDirective : ParserDirective
     }
 
     public new static EscapeDirective Parse(string text) =>
-        new(GetTokens(text, NamedParser(ParserDirective.EscapeDirective).End()));
+        new(GetTokens(text, NamedParser(ParserDirective.EscapeDirective).AtEnd()));
 
-    public new static Parser<EscapeDirective> GetParser() =>
+    public new static TextParser<EscapeDirective> GetParser() =>
         from tokens in NamedParser(ParserDirective.EscapeDirective)
         select new EscapeDirective(tokens);
 

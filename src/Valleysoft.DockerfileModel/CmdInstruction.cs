@@ -32,14 +32,14 @@ public class CmdInstruction : CommandInstruction
     public static CmdInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    internal static Parser<CmdInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<CmdInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new CmdInstruction(tokens, escapeChar);
 
     internal static CmdInstruction ParseDiagnostic(string text, char escapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
-    internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
+    internal static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
         Instruction("CMD", escapeChar, GetArgsParser(escapeChar, diagnostic));
 
     private static IEnumerable<Token> GetTokens(string commandWithArgs, char escapeChar)

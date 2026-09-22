@@ -78,21 +78,21 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
         where TFlag : BooleanFlag =>
         factory(GetTokens(text, GetInnerParser(keyword, escapeChar)), escapeChar);
 
-    protected static Parser<TFlag> GetFlagParser<TFlag>(string keyword,
+    protected static TextParser<TFlag> GetFlagParser<TFlag>(string keyword,
         Func<IEnumerable<Token>, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
         where TFlag : BooleanFlag =>
         GetFlagParser(keyword, (tokens, _) => factory(tokens), escapeChar);
 
-    protected static Parser<TFlag> GetFlagParser<TFlag>(string keyword,
+    protected static TextParser<TFlag> GetFlagParser<TFlag>(string keyword,
         Func<IEnumerable<Token>, char, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
         where TFlag : BooleanFlag =>
         from tokens in GetInnerParser(keyword, escapeChar)
         select factory(tokens, escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(string keyword, char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(string keyword, char escapeChar) =>
         // Path 1: --name=true or --name=false (case-insensitive)
-        // Valleysoft.DockerfileModel.Parsing's .Or() backtracks even when input has been consumed, so if '='
-        // is present but the value is invalid (e.g. =yes, =1, empty =), .Or()
+        // Valleysoft.DockerfileModel.Parsing's .Try().Or() backtracks even when input has been consumed, so if '='
+        // is present but the value is invalid (e.g. =yes, =1, empty =), .Try().Or()
         // backtracks to try Path 2.
         (from dash1 in Symbol('-').AsEnumerable()
          from dash2 in Symbol('-').AsEnumerable()
@@ -100,7 +100,7 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
          from eq in Symbol('=').AsEnumerable()
          from val in BooleanValueLiteral(escapeChar).AsEnumerable()
          select ConcatTokens(dash1, dash2, kw, eq, val)
-        ).Or(
+        ).Try().Or(
         // Path 2: bare --name (must be followed by a true argument boundary — end of input,
         // whitespace (space/tab), comment start (#), or line-continuation escape (\) — to
         // prevent matching when the keyword is only a prefix of a longer token such as
@@ -109,21 +109,21 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
             from dash1 in Symbol('-').AsEnumerable()
             from dash2 in Symbol('-').AsEnumerable()
             from kw in KeywordToken.GetParser(keyword, escapeChar).AsEnumerable()
-            from boundary in P.Parse.Not(
-                P.Parse.Char(c => !char.IsWhiteSpace(c) && c != '#' && c != escapeChar, "non-boundary character"))
+            from boundary in Superpower.Parse.Not(
+                Character.Matching(c => !char.IsWhiteSpace(c) && c != '#' && c != escapeChar, "non-boundary character"))
             select ConcatTokens(dash1, dash2, kw)
         );
 
     /// <summary>
     /// Parses a case-insensitive "true" or "false" and returns it as a LiteralToken.
     /// </summary>
-    private static Parser<LiteralToken> BooleanValueLiteral(char escapeChar) =>
+    private static TextParser<LiteralToken> BooleanValueLiteral(char escapeChar) =>
         (from tokens in StringToken("true", escapeChar)
          select new LiteralToken(
              TokenHelper.CollapseStringTokens(tokens),
              canContainVariables: false,
              escapeChar)
-        ).Or(
+        ).Try().Or(
         from tokens in StringToken("false", escapeChar)
         select new LiteralToken(
             TokenHelper.CollapseStringTokens(tokens),

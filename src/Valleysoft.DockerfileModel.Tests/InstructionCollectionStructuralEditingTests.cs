@@ -261,7 +261,7 @@ public class InstructionCollectionStructuralEditingTests
     public void TypedMountFlagCannotMaskNestedEscapeMismatch()
     {
         RunInstruction run = RunInstruction.Parse("RUN echo ok", '`');
-        TokenList<MountFlag> flags = new(run);
+        Valleysoft.DockerfileModel.Tokens.TokenList<MountFlag> flags = new(run);
         Mount incompatible = Mount.Parse("target=/cache");
         MountFlag wrapper = new(incompatible, '`');
 

@@ -26,7 +26,7 @@ public class ShellInstruction : CommandInstruction
     public static ShellInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    internal static Parser<ShellInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ShellInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ShellInstruction(tokens, escapeChar);
 
@@ -37,10 +37,10 @@ public class ShellInstruction : CommandInstruction
         return GetTokens($"SHELL {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         Instruction("SHELL", escapeChar,
             GetArgsParser(escapeChar));
 
-    private new static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private new static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(ExecFormCommand.GetParser(escapeChar).AsEnumerable(), escapeChar);
 }

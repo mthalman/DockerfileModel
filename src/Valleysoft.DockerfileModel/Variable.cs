@@ -25,13 +25,13 @@ public class Variable : IdentifierToken
         EditingEscapeChar = escapeChar;
     }
 
-    internal static Parser<Variable> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<Variable> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new Variable(tokens, escapeChar);
 
     protected override IEnumerable<Token> GetInnerTokens(string value) =>
         GetTokens(value, GetInnerParser(escapeChar)).Tokens;
 
-    private static Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> GetInnerParser(char escapeChar) =>
+    private static TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)> GetInnerParser(char escapeChar) =>
         IdentifierTokens(VariableRefCharParser, VariableRefCharParser, escapeChar);
 }

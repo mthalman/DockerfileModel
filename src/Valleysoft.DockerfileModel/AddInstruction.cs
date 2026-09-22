@@ -30,7 +30,7 @@ public class AddInstruction : FileTransferInstruction
 
     private void InitExcludes()
     {
-        ExcludeFlagTokens = new TokenList<ExcludeFlag>(this);
+        ExcludeFlagTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<ExcludeFlag>(this);
         Excludes = InstructionCollectionEditing.Excludes(ExcludeFlagTokens, this);
     }
 
@@ -171,20 +171,20 @@ public class AddInstruction : FileTransferInstruction
     public static AddInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    internal static Parser<AddInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<AddInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new AddInstruction(tokens, escapeChar);
 
     internal static AddInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
         new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
         GetInnerParser(escapeChar, Name,
             ArgTokens(ChecksumFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)
-                .Or(ArgTokens(KeepGitDirFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Or(ArgTokens(UnpackFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context);
+                .Try().Or(ArgTokens(KeepGitDirFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Try().Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Try().Or(ArgTokens(UnpackFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Try().Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context);
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
         string? changeOwner, string? permissions, string? checksum, bool keepGitDir, bool link,

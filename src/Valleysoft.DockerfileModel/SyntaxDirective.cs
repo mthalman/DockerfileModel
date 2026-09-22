@@ -21,9 +21,9 @@ public sealed class SyntaxDirective : ParserDirective
         DockerfileFrontendMetadata.FromValue(GetCurrentValue(ParserDirective.SyntaxDirective));
 
     public new static SyntaxDirective Parse(string text) =>
-        new(GetTokens(text, NamedParser(ParserDirective.SyntaxDirective).End()));
+        new(GetTokens(text, NamedParser(ParserDirective.SyntaxDirective).AtEnd()));
 
-    public new static Parser<SyntaxDirective> GetParser() =>
+    public new static TextParser<SyntaxDirective> GetParser() =>
         from tokens in NamedParser(ParserDirective.SyntaxDirective)
         select new SyntaxDirective(tokens);
 }

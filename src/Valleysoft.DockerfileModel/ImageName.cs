@@ -245,39 +245,39 @@ public class ImageName : AggregateToken
     public static ImageName Parse(string imageName, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(imageName, GetParser(escapeChar)), escapeChar);
 
-    internal static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from registryRepository in ParseRegistryRepository(escapeChar)
-            from tagDigest in ParseTagDigest(escapeChar).Optional()
+            from tagDigest in ParseTagDigest(escapeChar).Try().OptionalOrDefault(Enumerable.Empty<Token>())
             select ConcatTokens(
-                registryRepository, tagDigest.IsDefined ? tagDigest.GetOrDefault() : Enumerable.Empty<Token?>());
+                registryRepository, tagDigest);
 
     private static IEnumerable<Token> GetTokens(string repository, string? registry, string? tag, string? digest, char escapeChar) =>
         GetTokens(FormatImageName(repository, registry, tag, digest), GetParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> ParseRegistryRepository(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> ParseRegistryRepository(char escapeChar) =>
         (from registry in InnerTokens.Registry.GetParser(escapeChar)
             from separator in Symbol('/')
             from repository in InnerTokens.Repository.GetParser(escapeChar)
             select ConcatTokens(
                 registry,
                 separator,
-                repository)).Or<IEnumerable<Token>>(
+                repository)).Try().Or<IEnumerable<Token>>(
         from repository in InnerTokens.Repository.GetParser(escapeChar)
-        select new Token[] { repository });
+        select (IEnumerable<Token>)new Token[] { repository });
 
-    private static Parser<IEnumerable<Token>> ParseTag(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> ParseTag(char escapeChar) =>
         from separator in Symbol(':')
         from tag in InnerTokens.Tag.GetParser(escapeChar)
         select ConcatTokens(separator, tag);
 
-    private static Parser<IEnumerable<Token>> ParseDigest(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> ParseDigest(char escapeChar) =>
         from digestSeparator in Symbol('@')
         from digest in InnerTokens.Digest.GetParser(escapeChar)
         select ConcatTokens(digestSeparator, digest);
 
-    private static Parser<IEnumerable<Token>> ParseTagDigest(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> ParseTagDigest(char escapeChar) =>
         (from tag in ParseTag(escapeChar)
-            select tag).Or(
+            select tag).Try().Or(
             from digest in ParseDigest(escapeChar)
             select digest);
 
@@ -301,22 +301,22 @@ public class ImageName : AggregateToken
             public static Digest Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-            internal static Parser<Digest> GetParser(char escapeChar) =>
+            internal static TextParser<Digest> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Digest(tokens, escapeChar);
 
             protected override IEnumerable<Token> GetInnerTokens(string value) =>
                 GetTokens(value, GetInnerParser(escapeChar));
 
-            private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+            private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
                 from prefix in ArgTokens(
                     StringToken("sha", escapeChar), escapeChar)
                 from digits in ArgTokens(
-                    StringTokenCharWithOptionalLineContinuation(escapeChar, P.Parse.Digit), escapeChar).Many()
+                    StringTokenCharWithOptionalLineContinuation(escapeChar, Character.Digit), escapeChar).Try().Many()
                 from shaSeparator in ArgTokens(
-                    StringTokenCharWithOptionalLineContinuation(escapeChar, P.Parse.Char(':')), escapeChar)
+                    StringTokenCharWithOptionalLineContinuation(escapeChar, Character.EqualTo(':')), escapeChar)
                 from digest in ArgTokens(
-                    IdentifierString(escapeChar, P.Parse.LetterOrDigit, P.Parse.LetterOrDigit), escapeChar, excludeTrailingWhitespace: true)
+                    IdentifierString(escapeChar, Character.LetterOrDigit, Character.LetterOrDigit), escapeChar, excludeTrailingWhitespace: true)
                 select TokenHelper.CollapseStringTokens(ConcatTokens(
                     prefix,
                     TokenHelper.CollapseStringTokens(digits.Flatten()),
@@ -342,23 +342,23 @@ public class ImageName : AggregateToken
             public static Tag Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-            internal static Parser<Tag> GetParser(char escapeChar) =>
+            internal static TextParser<Tag> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Tag(tokens, escapeChar);
 
             protected override IEnumerable<Token> GetInnerTokens(string value) =>
                 GetTokens(value, GetInnerParser(escapeChar));
 
-            private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+            private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
                 DelimitedIdentifier(escapeChar, FirstCharParser(), TailCharParser(), '/');
 
-            private static Parser<char> FirstCharParser() => P.Parse.LetterOrDigit;
+            private static TextParser<char> FirstCharParser() => Character.LetterOrDigit;
 
-            private static Parser<char> TailCharParser() =>
-                P.Parse.LetterOrDigit
-                    .Or(P.Parse.Char('.'))
-                    .Or(P.Parse.Char('_'))
-                    .Or(P.Parse.Char('-'));
+            private static TextParser<char> TailCharParser() =>
+                Character.LetterOrDigit
+                    .Try().Or(Character.EqualTo('.'))
+                    .Try().Or(Character.EqualTo('_'))
+                    .Try().Or(Character.EqualTo('-'));
         }
 
         public class Repository : LiteralToken
@@ -379,22 +379,22 @@ public class ImageName : AggregateToken
             public static Repository Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-            internal static Parser<Repository> GetParser(char escapeChar) =>
+            internal static TextParser<Repository> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Repository(tokens, escapeChar);
 
             protected override IEnumerable<Token> GetInnerTokens(string value) =>
                 GetTokens(value, GetInnerParser(escapeChar));
 
-            private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+            private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
                 DelimitedIdentifier(escapeChar, FirstCharParser(), TailCharParser(), '/');
 
-            private static Parser<char> FirstCharParser() => P.Parse.LetterOrDigit;
+            private static TextParser<char> FirstCharParser() => Character.LetterOrDigit;
 
-            private static Parser<char> TailCharParser() =>
-                P.Parse.LetterOrDigit
-                    .Or(P.Parse.Char('_'))
-                    .Or(P.Parse.Char('-'));
+            private static TextParser<char> TailCharParser() =>
+                Character.LetterOrDigit
+                    .Try().Or(Character.EqualTo('_'))
+                    .Try().Or(Character.EqualTo('-'));
         }
 
         public class Registry : LiteralToken
@@ -415,39 +415,39 @@ public class ImageName : AggregateToken
             public static Registry Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-            internal static Parser<Registry> GetParser(char escapeChar) =>
+            internal static TextParser<Registry> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Registry(tokens, escapeChar);
 
             protected override IEnumerable<Token> GetInnerTokens(string value) =>
                 GetTokens(value, GetInnerParser(escapeChar));
 
-            private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+            private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
                 DelimitedIdentifier(
                     escapeChar,
                     FirstCharParser(),
-                    TailCharParser().Or(P.Parse.Char(':')),
+                    TailCharParser().Try().Or(Character.EqualTo(':')),
                     '.',
                     minimumDelimiters: 1)
-                .Or(
+                .Try().Or(
                     DelimitedIdentifier(
                         escapeChar,
                         FirstCharParser(),
-                        TailCharParser().Or(P.Parse.Char('.')),
+                        TailCharParser().Try().Or(Character.EqualTo('.')),
                         ':',
                         minimumDelimiters: 1))
-                .Or(LocalhostParser());
+                .Try().Or(LocalhostParser());
 
-            private static Parser<IEnumerable<Token>> LocalhostParser() =>
-                from localhost in P.Parse.IgnoreCase("localhost").Text()
-                select new Token[] { new StringToken(localhost) };
+            private static TextParser<IEnumerable<Token>> LocalhostParser() =>
+                from localhost in Span.EqualToIgnoreCase("localhost").Text()
+                select (IEnumerable<Token>)new Token[] { new StringToken(localhost) };
 
-            private static Parser<char> FirstCharParser() => P.Parse.LetterOrDigit;
+            private static TextParser<char> FirstCharParser() => Character.LetterOrDigit;
 
-            private static Parser<char> TailCharParser() =>
-                P.Parse.LetterOrDigit
-                    .Or(P.Parse.Char('_'))
-                    .Or(P.Parse.Char('-'));
+            private static TextParser<char> TailCharParser() =>
+                Character.LetterOrDigit
+                    .Try().Or(Character.EqualTo('_'))
+                    .Try().Or(Character.EqualTo('-'));
         }
     }
 }

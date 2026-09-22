@@ -19,6 +19,6 @@ public class RetriesFlag : KeywordLiteralFlag
     public static RetriesFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new RetriesFlag(tokens, esc), escapeChar);
 
-    internal static Parser<RetriesFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<RetriesFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new RetriesFlag(tokens, esc), escapeChar);
 }

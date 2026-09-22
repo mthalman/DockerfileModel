@@ -13,7 +13,7 @@ public class LabelInstruction : Instruction
 
     private LabelInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        LabelTokens = new TokenList<KeyValueToken<LabelKeyToken, LiteralToken>>(this);
+        LabelTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<KeyValueToken<LabelKeyToken, LiteralToken>>(this);
         Labels = InstructionCollectionEditing.Pairs(LabelTokens, this);
     }
 
@@ -27,7 +27,7 @@ public class LabelInstruction : Instruction
     public static LabelInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    internal static Parser<LabelInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<LabelInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new LabelInstruction(tokens, escapeChar);
 
@@ -42,32 +42,32 @@ public class LabelInstruction : Instruction
         return GetTokens($"LABEL {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         Instruction("LABEL", escapeChar, GetArgsParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         LegacyKeyValueFormat(escapeChar)
-            .Or(StandardKeyValueFormat(escapeChar));
+            .Try().Or(StandardKeyValueFormat(escapeChar));
 
-    private static Parser<IEnumerable<Token>> StandardKeyValueFormat(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> StandardKeyValueFormat(char escapeChar) =>
         ArgTokens(
-            from whitespace in Whitespace().Optional()
+            from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
             from variable in KeyValueToken<LabelKeyToken, LiteralToken>.GetParser(
                 LabelKeyToken.GetParser(escapeChar),
                 LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes),
                 escapeChar: escapeChar,
                 optionalValue: true).AsEnumerable()
-            select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
-        ).AtLeastOnce().Flatten();
+            select ConcatTokens(whitespace, variable), escapeChar
+        ).Try().AtLeastOnce().Flatten();
 
-    private static Parser<IEnumerable<Token>> LegacyKeyValueFormat(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> LegacyKeyValueFormat(char escapeChar) =>
         ArgTokens(
-            from whitespace in Whitespace().Optional()
+            from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
             from variable in (
                 from key in LabelKeyToken.GetParser(escapeChar)
                 from valueWhitespace in Whitespace().Where(ws => ws.Any())
                 from value in UnquotedLiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.Allowed)
                 select new Token[] { new KeyValueToken<LabelKeyToken, LiteralToken>(ConcatTokens(new Token[] { key }, valueWhitespace, new Token[] { value }), escapeChar) })
-            select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
-        ).AtLeastOnce().Flatten();
+            select ConcatTokens(whitespace, variable), escapeChar
+        ).Try().AtLeastOnce().Flatten();
 }

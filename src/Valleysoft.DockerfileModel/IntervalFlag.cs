@@ -19,6 +19,6 @@ public class IntervalFlag : KeywordLiteralFlag
     public static IntervalFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new IntervalFlag(tokens, esc), escapeChar);
 
-    internal static Parser<IntervalFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<IntervalFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new IntervalFlag(tokens, esc), escapeChar);
 }

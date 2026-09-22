@@ -19,6 +19,6 @@ public class ChangeModeFlag : KeywordLiteralFlag
     public static ChangeModeFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new ChangeModeFlag(tokens, esc), escapeChar);
 
-    internal static Parser<ChangeModeFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ChangeModeFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new ChangeModeFlag(tokens, esc), escapeChar);
 }

@@ -32,7 +32,7 @@ public class EntrypointInstruction : CommandInstruction
     public static EntrypointInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    internal static Parser<EntrypointInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<EntrypointInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new EntrypointInstruction(tokens, escapeChar);
 
@@ -59,7 +59,7 @@ public class EntrypointInstruction : CommandInstruction
     internal static EntrypointInstruction ParseDiagnostic(string text, char escapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar, bool diagnostic = false) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar, bool diagnostic = false) =>
         Instruction("ENTRYPOINT", escapeChar,
             GetArgsParser(escapeChar, diagnostic));
 }

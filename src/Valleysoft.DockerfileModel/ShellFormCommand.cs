@@ -23,11 +23,11 @@ public class ShellFormCommand : Command
     public static ShellFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, ArgumentListAsLiteral(escapeChar)), escapeChar);
 
-    internal static Parser<ShellFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ShellFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ShellFormCommand(tokens, escapeChar);
 
-    internal static Parser<ShellFormCommand> GetDiagnosticParser(char escapeChar) =>
+    internal static TextParser<ShellFormCommand> GetDiagnosticParser(char escapeChar) =>
         from tokens in ArgumentListAsLiteral(escapeChar, requireContent: true)
         select new ShellFormCommand(tokens, escapeChar);
 
@@ -61,6 +61,6 @@ public class ShellFormCommand : Command
         return GetTokens(command, GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         ArgumentListAsLiteral(escapeChar);
 }

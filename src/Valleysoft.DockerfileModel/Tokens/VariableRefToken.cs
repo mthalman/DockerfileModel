@@ -16,9 +16,9 @@ public class VariableRefToken : AggregateToken
     /// <summary>
     /// Parsers for all of the variable substitution modifiers.
     /// </summary>
-    private static readonly Parser<string>[] variableSubstitutionModifiers =
+    private static readonly TextParser<string>[] variableSubstitutionModifiers =
         ValidModifiers
-            .Select(modifier => P.Parse.String(modifier).Text())
+            .Select(modifier => Span.EqualTo(modifier).Text())
             .ToArray();
     private readonly char escapeChar;
 
@@ -246,7 +246,7 @@ public class VariableRefToken : AggregateToken
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Parsed variable reference token.</returns>
-    internal static Parser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new VariableRefToken(tokens, escapeChar);
 
@@ -257,7 +257,7 @@ public class VariableRefToken : AggregateToken
     /// <see cref="ModifierValueParser"/> to allow horizontal whitespace.</param>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Parsed variable reference token.</returns>
-    internal static Parser<VariableRefToken> GetParser(
+    internal static TextParser<VariableRefToken> GetParser(
         CreateTokenParserDelegate createModifierValueTokenParser, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(escapeChar);
 
@@ -298,19 +298,19 @@ public class VariableRefToken : AggregateToken
         }
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         SimpleVariableReference()
-            .Or(BracedVariableReference(escapeChar));
+            .Try().Or(BracedVariableReference(escapeChar));
 
 
     /// <summary>
     /// Parses a variable reference using the simple variable syntax.
     /// </summary>
     /// <returns>Parsed variable reference token.</returns>
-    private static Parser<IEnumerable<Token>> SimpleVariableReference() =>
-        from variableChar in P.Parse.Char('$')
+    private static TextParser<IEnumerable<Token>> SimpleVariableReference() =>
+        from variableChar in Character.EqualTo('$')
         from variableIdentifier in VariableIdentifier()
-        select new Token[] { new StringToken(variableIdentifier) };
+        select (IEnumerable<Token>)new Token[] { new StringToken(variableIdentifier) };
 
     /// <summary>
     /// Parses a variable reference using the braced variable syntax.
@@ -320,24 +320,24 @@ public class VariableRefToken : AggregateToken
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Parsed variable reference token.</returns>
-    private static Parser<IEnumerable<Token>> BracedVariableReference(
+    private static TextParser<IEnumerable<Token>> BracedVariableReference(
         char escapeChar) =>
-        from variableChar in P.Parse.Char('$')
+        from variableChar in Character.EqualTo('$')
         from opening in Symbol('{').AsEnumerable()
         from varNameToken in
             from varName in VariableIdentifier()
             select new StringToken(varName)
         from modifierTokens in (
-            from modifier in variableSubstitutionModifiers.Aggregate((current, next) => current.Or(next)).Once()
+            from modifier in variableSubstitutionModifiers.Aggregate((current, next) => current.Try().Or(next)).AsEnumerable()
             from modifierValueTokens in ValueOrVariableRef(escapeChar, ModifierValueParser(), new char[] { '}' })
-                .Many()
+                .Try().Many()
                 .Flatten()
             select ConcatTokens(
                 String.Concat(modifier).Select(ch => new SymbolToken(ch)),
                 new Token[] { new LiteralToken(modifierValueTokens, canContainVariables: true, escapeChar) })
-            ).Optional()
+            ).Try().OptionalOrDefault(Enumerable.Empty<Token>())
         from closing in Symbol('}').AsEnumerable()
-        select ConcatTokens(opening, new Token[] { varNameToken }, modifierTokens.GetOrDefault(), closing);
+        select ConcatTokens(opening, new Token[] { varNameToken }, modifierTokens, closing);
 
     /// <summary>
     /// Creates a parser delegate for modifier values inside braces. Modifier values may

@@ -19,6 +19,6 @@ public class NetworkFlag : KeywordLiteralFlag
     public static NetworkFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new NetworkFlag(tokens, esc), escapeChar);
 
-    internal static Parser<NetworkFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<NetworkFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new NetworkFlag(tokens, esc), escapeChar);
 }

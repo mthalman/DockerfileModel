@@ -217,7 +217,7 @@ internal static class DockerfileParser
                 }
 
                 if ((isComment && !inLineContinuation) ||
-                    (!EndsInLineContinuation(escapeChar).TryParse(line).WasSuccessful &&
+                    (!EndsInLineContinuation(escapeChar).TryParse(line).HasValue &&
                         !(isComment && inLineContinuation)))
                 {
                     constructLines.Add(constructBuilder.ToString());
@@ -305,8 +305,11 @@ internal static class DockerfileParser
         return text.Length == keyword.Length || char.IsWhiteSpace(text[keyword.Length]);
     }
 
-    private static Parser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
-        from text in P.Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Many().Text()
+    private static TextParser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
+        from text in Superpower.Parse.Not(LineContinuationToken.GetParser(escapeChar))
+            .IgnoreThen(Character.AnyChar)
+            .Try().Many()
+            .Text()
         from lineCont in LineContinuationToken.GetParser(escapeChar)
         select lineCont;
 }

@@ -21,8 +21,8 @@ public class LiteralTokenTests
         {
             ParseException exception = Assert.Throws<ParseException>(
                 () => ExposeInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
+            Assert.Equal(scenario.ParseExceptionPosition.Value.Line, exception.ErrorPosition.Line);
+            Assert.Equal(scenario.ParseExceptionPosition.Value.Column, exception.ErrorPosition.Column);
         }
     }
 

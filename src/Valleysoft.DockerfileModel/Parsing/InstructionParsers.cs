@@ -4,6 +4,18 @@ namespace Valleysoft.DockerfileModel.Parsing;
 
 internal static class InstructionParsers
 {
+    internal static TextParser<IEnumerable<Token>> ArgTokens<TToken>(
+        TextParser<IEnumerable<TToken>> tokenParser,
+        char escapeChar,
+        bool excludeTrailingWhitespace = false,
+        bool excludeLeadingWhitespace = false)
+        where TToken : Token =>
+        ArgTokens(
+            tokenParser.Select(tokens => tokens.Cast<Token>()),
+            escapeChar,
+            excludeTrailingWhitespace,
+            excludeLeadingWhitespace);
+
     /// <summary>
     /// Tokenizes an argument of an instruction. This handles the parsing of whitespace and line continuations.
     /// </summary>
@@ -12,7 +24,7 @@ internal static class InstructionParsers
     /// <param name="excludeTrailingWhitespace">A value indicating whether trailing whitespace should not be parsed.</param>
     /// <param name="excludeLeadingWhitespace">A value indicating whether leading whitespace should not be parsed.</param>
     /// <returns>Set of tokens.</returns>
-    internal static Parser<IEnumerable<Token>> ArgTokens(Parser<IEnumerable<Token>> tokenParser, char escapeChar,
+    internal static TextParser<IEnumerable<Token>> ArgTokens(TextParser<IEnumerable<Token>> tokenParser, char escapeChar,
         bool excludeTrailingWhitespace = false, bool excludeLeadingWhitespace = false)
     {
         if (excludeTrailingWhitespace)
@@ -31,7 +43,7 @@ internal static class InstructionParsers
         }
         else
         {
-            Parser<IEnumerable<Token>> primaryParser;
+            TextParser<IEnumerable<Token>> primaryParser;
             if (excludeLeadingWhitespace)
             {
                 primaryParser = tokenParser;
@@ -51,7 +63,7 @@ internal static class InstructionParsers
         }
     }
 
-    internal static Parser<IEnumerable<Token>> ArgTrailingWhitespace(char escapeChar) =>
+    internal static TextParser<IEnumerable<Token>> ArgTrailingWhitespace(char escapeChar) =>
         // After at least one line continuation, comments (# ...) at the start of the
         // next line are recognized as Dockerfile comments. This matches BuildKit, which
         // only treats # as a comment delimiter at the beginning of a line — including
@@ -60,14 +72,14 @@ internal static class InstructionParsers
         (from whitespaceBeforeContinuation in BasicParsers.Whitespace()
             from firstContinuation in LineContinuationToken.GetParser(escapeChar)
             from moreContinuations in BasicParsers.LineContinuations(escapeChar)
-            from trailingComments in BasicParsers.CommentText().Many()
+            from trailingComments in BasicParsers.CommentText().Try().Many()
             select TokenSequences.ConcatTokens(
                 whitespaceBeforeContinuation,
                 new Token[] { firstContinuation },
                 moreContinuations,
-                trailingComments.SelectMany(c => c))).Or(
+                trailingComments.SelectMany(c => c))).Try().Or(
         // Fallback: whitespace and zero-or-more line continuations with no comments.
-        // LineContinuations uses .Many() so it succeeds with zero matches,
+        // LineContinuations uses .Try().Many() so it succeeds with zero matches,
         // making this branch always succeed and subsume any plain-newline case.
             from trailingWhitespaceOnly in BasicParsers.Whitespace()
             from lineContinuations in BasicParsers.LineContinuations(escapeChar)
@@ -80,7 +92,7 @@ internal static class InstructionParsers
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="instructionArgsParser">Parser for the instruction's arguments.</param>
     /// <returns>Set of tokens.</returns>
-    internal static Parser<IEnumerable<Token>> Instruction(string instructionName, char escapeChar, Parser<IEnumerable<Token>> instructionArgsParser) =>
+    internal static TextParser<IEnumerable<Token>> Instruction(string instructionName, char escapeChar, TextParser<IEnumerable<Token>> instructionArgsParser) =>
         from instructionNameTokens in InstructionNameWithTrailingContent(instructionName, escapeChar)
         from instructionArgs in instructionArgsParser
         select TokenSequences.ConcatTokens(instructionNameTokens, instructionArgs);
@@ -90,7 +102,7 @@ internal static class InstructionParsers
     /// </summary>
     /// <param name="instructionName">Name of the instruction.</param>
     /// <param name="escapeChar">Escape character.</param>
-    private static Parser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> InstructionNameWithTrailingContent(string instructionName, char escapeChar) =>
         // Comments (# ...) are only recognized after a mandatory line continuation,
         // never directly after the instruction keyword. This prevents "RUN #arg" from
         // incorrectly treating "#arg" as a comment.
@@ -99,11 +111,11 @@ internal static class InstructionParsers
         from lineContinuationAndComments in (
             from firstContinuation in LineContinuationToken.GetParser(escapeChar)
             from moreContinuations in BasicParsers.LineContinuations(escapeChar)
-            from trailingComments in BasicParsers.CommentText().Many()
+            from trailingComments in BasicParsers.CommentText().Try().Many()
             select TokenSequences.ConcatTokens(
                 new Token[] { firstContinuation },
                 moreContinuations,
                 trailingComments.SelectMany(c => c))
-        ).Optional()
-        select TokenSequences.ConcatTokens(leading, instruction, lineContinuationAndComments.GetOrDefault());
+        ).Try().OptionalOrDefault(Enumerable.Empty<Token>())
+        select TokenSequences.ConcatTokens(leading, instruction, lineContinuationAndComments);
 }

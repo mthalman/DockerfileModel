@@ -20,8 +20,8 @@ public class GenericInstructionTests
         {
             ParseException exception = Assert.Throws<ParseException>(
                 () => GenericInstruction.Parse(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
+            Assert.Equal(scenario.ParseExceptionPosition.Value.Line, exception.ErrorPosition.Line);
+            Assert.Equal(scenario.ParseExceptionPosition.Value.Column, exception.ErrorPosition.Column);
         }
     }
 

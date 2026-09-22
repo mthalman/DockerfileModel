@@ -15,7 +15,7 @@ public class EnvInstruction : Instruction
 
     private EnvInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        VariableTokens = new TokenList<KeyValueToken<Variable, LiteralToken>>(this);
+        VariableTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<KeyValueToken<Variable, LiteralToken>>(this);
         Variables = InstructionCollectionEditing.Pairs(VariableTokens, this);
     }
 
@@ -29,7 +29,7 @@ public class EnvInstruction : Instruction
     public static EnvInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    internal static Parser<EnvInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<EnvInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new EnvInstruction(tokens, escapeChar);
 
@@ -44,16 +44,16 @@ public class EnvInstruction : Instruction
         return GetTokens($"ENV {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         Instruction("ENV", escapeChar,
             GetArgsParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        MultiVariableFormat(escapeChar).Or(SingleVariableFormat(escapeChar));
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+        MultiVariableFormat(escapeChar).Try().Or(SingleVariableFormat(escapeChar));
 
-    private static Parser<IEnumerable<Token>> MultiVariableFormat(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> MultiVariableFormat(char escapeChar) =>
         ArgTokens(
-            from whitespace in Whitespace().Optional()
+            from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
             from variable in KeyValueToken<Variable, LiteralToken>.GetParser(
                 Variable.GetParser(escapeChar),
                 EnvLiteralWithVariables(escapeChar),
@@ -61,21 +61,21 @@ public class EnvInstruction : Instruction
                 excludeLeadingWhitespaceInValue: true,
                 excludeTrailingWhitespaceInSeparator: true,
                 optionalValue: true).AsEnumerable()
-            select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
-        ).AtLeastOnce().Flatten();
+            select ConcatTokens(whitespace, variable), escapeChar
+        ).Try().AtLeastOnce().Flatten();
 
-    private static Parser<LiteralToken> EnvLiteralWithVariables(char escapeChar) =>
+    private static TextParser<LiteralToken> EnvLiteralWithVariables(char escapeChar) =>
         EnvRawEscapedQuoteLiteral(escapeChar)
-            .Or(LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes));
+            .Try().Or(LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes));
 
-    private static Parser<LiteralToken> EnvRawEscapedQuoteLiteral(char escapeChar) =>
+    private static TextParser<LiteralToken> EnvRawEscapedQuoteLiteral(char escapeChar) =>
         input =>
         {
-            string source = input.Source;
-            int start = input.Position;
+            string source = input.Source!;
+            int start = input.Position.Absolute;
             if (start >= source.Length || source[start] is not ('\'' or '"'))
             {
-                return Result.Failure<LiteralToken>(input, "Expected quoted ENV literal with escaped quote.", new[] { "ENV literal" });
+                return Result.Empty<LiteralToken>(input, "ENV literal");
             }
 
             int end = start;
@@ -106,7 +106,7 @@ public class EnvInstruction : Instruction
 
             if (!containsEscapedQuote || !closed)
             {
-                return Result.Failure<LiteralToken>(input, "Expected quoted ENV literal with escaped quote.", new[] { "ENV literal" });
+                return Result.Empty<LiteralToken>(input, "ENV literal");
             }
 
             while (end < source.Length && !char.IsWhiteSpace(source[end]))
@@ -114,11 +114,7 @@ public class EnvInstruction : Instruction
                 end++;
             }
 
-            IInput remainder = input;
-            for (int i = 0; i < end - start; i++)
-            {
-                remainder = remainder.Advance();
-            }
+            TextSpan remainder = input.Skip(end - start);
 
             LiteralToken literal;
             if (closingQuoteEnd == end)
@@ -132,7 +128,7 @@ public class EnvInstruction : Instruction
                 literal = new EnvEscapedQuoteLiteralToken(TokenizeRawEnvValue(rawValue, escapeChar), escapeChar);
             }
 
-            return Result.Success(literal, remainder);
+            return Result.Value(literal, input, remainder);
         };
 
     private static bool IsEscapedQuoteStart(string source, int index, char escapeChar)
@@ -307,7 +303,7 @@ public class EnvInstruction : Instruction
     private static bool IsVariableIdentifierChar(char value) =>
         char.IsLetterOrDigit(value) || value == '_';
 
-    private static Parser<IEnumerable<Token>> SingleVariableFormat(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> SingleVariableFormat(char escapeChar) =>
         ArgTokens(
             KeyValueToken<Variable, LiteralToken>.GetParser(
                 Variable.GetParser(escapeChar),

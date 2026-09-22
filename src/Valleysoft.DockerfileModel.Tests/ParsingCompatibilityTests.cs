@@ -74,6 +74,6 @@ public class ParsingCompatibilityTests
     {
         ParseException standalone = Assert.Throws<ParseException>(() => FromInstruction.Parse("FROM"));
         ParseException dockerfile = Assert.Throws<ParseException>(() => Dockerfile.Parse("RUN echo hello\nFROM"));
-        Assert.Equal(standalone.Position, dockerfile.Position);
+        Assert.Equal(standalone.ErrorPosition, dockerfile.ErrorPosition);
     }
 }

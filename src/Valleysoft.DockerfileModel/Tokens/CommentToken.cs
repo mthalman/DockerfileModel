@@ -39,12 +39,12 @@ public class CommentToken : AggregateToken
     public static CommentToken Parse(string text) =>
         new(GetTokens(text, GetParser()));
 
-    internal static Parser<IEnumerable<Token>> GetParser() =>
+    internal static TextParser<IEnumerable<Token>> GetParser() =>
         from commentChar in CommentCharParser()
         from text in TokenWithTrailingWhitespace(val => new StringToken(val))
         select ConcatTokens(commentChar, text);
 
-    internal static Parser<IEnumerable<Token>> CommentCharParser() =>
+    internal static TextParser<IEnumerable<Token>> CommentCharParser() =>
         from commentChar in Symbol('#')
         from whitespace in WhitespaceWithoutNewLine()
         select ConcatTokens(commentChar, whitespace);

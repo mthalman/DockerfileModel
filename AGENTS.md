@@ -62,7 +62,8 @@ procedure in `MAINTAINERS.md`.
 
 ### C# Library
 
-The library uses a **token-based model** with a library-owned parser abstraction backed by Superpower. The hierarchy is:
+The library uses a **token-based model** with grammar implemented directly on
+Superpower's `TextParser<T>`, `Result<T>`, and native combinators. The hierarchy is:
 
 - **Dockerfile** — top-level container, parses via `Dockerfile.Parse(string)`. Contains a list of `DockerfileConstruct` items.
 - **DockerfileConstruct** — base class for all elements: `Instruction`, `Comment`, `ParserDirective`, `Whitespace`.

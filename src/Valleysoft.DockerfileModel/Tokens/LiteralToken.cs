@@ -66,7 +66,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
             return (new Token[] { new StringToken(value) }, null);
         }
 
-        Parser<(IEnumerable<Token> Tokens, char? QuoteChar)> parser;
+        TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)> parser;
         if (canContainVariables)
         {
             parser = LiteralWithVariablesTokens(escapeChar, whitespaceMode: WhitespaceMode.Allowed);

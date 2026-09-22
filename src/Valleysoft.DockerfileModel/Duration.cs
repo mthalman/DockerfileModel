@@ -43,22 +43,22 @@ public class Duration
 
     public static Duration Parse(string text)
     {
-        Parser<TimeSpan> parser =
-            from hr in DurationSegment("h").Optional()
-            from min in DurationSegment("m").Optional()
-            from sec in DurationSegment("s").Optional()
-            from ms in DurationSegment("ms").Optional()
+        TextParser<TimeSpan> parser =
+            from hr in DurationSegment("h").Try().Optional()
+            from min in DurationSegment("m").Try().Optional()
+            from sec in DurationSegment("s").Try().Optional()
+            from ms in DurationSegment("ms").Try().Optional()
             select
-                TimeSpan.FromHours(hr.GetOrDefault()) +
-                TimeSpan.FromMinutes(min.GetOrDefault()) +
-                TimeSpan.FromSeconds(sec.GetOrDefault()) +
-                TimeSpan.FromMilliseconds(ms.GetOrDefault());
+                TimeSpan.FromHours(hr ?? 0) +
+                TimeSpan.FromMinutes(min ?? 0) +
+                TimeSpan.FromSeconds(sec ?? 0) +
+                TimeSpan.FromMilliseconds(ms ?? 0);
 
         return new Duration(parser.Parse(text));
     }
 
-    private static Parser<double> DurationSegment(string unit) =>
-        from val in P.Parse.Identifier(P.Parse.Digit, P.Parse.Digit.Or(P.Parse.Char('.')))
-        from unitParser in P.Parse.String(unit)
+    private static TextParser<double> DurationSegment(string unit) =>
+        from val in NativeParsers.Identifier(Character.Digit, Character.Digit.Try().Or(Character.EqualTo('.')))
+        from unitParser in Span.EqualTo(unit)
         select double.Parse(val);
 }

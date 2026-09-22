@@ -31,12 +31,12 @@ public abstract class KeywordLiteralFlag : KeyValueToken<KeywordToken, LiteralTo
         Parse(text, KeywordToken.GetParser(keyword, escapeChar), LiteralWithVariables(escapeChar),
             tokens => factory(tokens, escapeChar), escapeChar: escapeChar, isFlag: true);
 
-    protected static Parser<TFlag> GetFlagParser<TFlag>(string keyword,
+    protected static TextParser<TFlag> GetFlagParser<TFlag>(string keyword,
         Func<IEnumerable<Token>, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
         where TFlag : KeywordLiteralFlag =>
         GetFlagParser(keyword, (tokens, _) => factory(tokens), escapeChar);
 
-    protected static Parser<TFlag> GetFlagParser<TFlag>(string keyword,
+    protected static TextParser<TFlag> GetFlagParser<TFlag>(string keyword,
         Func<IEnumerable<Token>, char, TFlag> factory, char escapeChar = Dockerfile.DefaultEscapeChar)
         where TFlag : KeywordLiteralFlag =>
         GetParser(KeywordToken.GetParser(keyword, escapeChar), LiteralWithVariables(escapeChar),

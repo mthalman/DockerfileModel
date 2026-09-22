@@ -66,8 +66,8 @@ public class Whitespace : DockerfileConstruct
     public override ConstructType Type => ConstructType.Whitespace;
 
     public static bool IsWhitespace(string value) =>
-        GetParser().TryParse(value).WasSuccessful;
+        GetParser().TryParse(value).HasValue;
 
-    internal static Parser<IEnumerable<Token>> GetParser() =>
-        BasicParsers.Whitespace().End();
+    internal static TextParser<IEnumerable<Token>> GetParser() =>
+        BasicParsers.Whitespace().AtEnd();
 }

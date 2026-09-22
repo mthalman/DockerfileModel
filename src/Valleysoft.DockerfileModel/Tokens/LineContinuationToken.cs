@@ -25,14 +25,16 @@ public class LineContinuationToken : AggregateToken
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Line continuation tokens.</returns>
-    internal static Parser<LineContinuationToken> GetParser(char escapeChar) =>
+    internal static TextParser<LineContinuationToken> GetParser(char escapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new LineContinuationToken(tokens);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         from escape in Symbol(escapeChar)
-        from whitespace in P.Parse.WhiteSpace.Except(P.Parse.LineEnd).Many()
-        from lineEnding in P.Parse.LineEnd
+        from whitespace in Character.Matching(
+            ch => char.IsWhiteSpace(ch) && ch is not ('\r' or '\n'),
+            "horizontal whitespace").Try().Many()
+        from lineEnding in NativeParsers.LineEnd
         select ConcatTokens(
             escape,
             whitespace.Any() ? new WhitespaceToken(new string(whitespace.ToArray())) : null,

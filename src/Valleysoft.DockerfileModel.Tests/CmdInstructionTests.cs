@@ -87,8 +87,8 @@ public class CmdInstructionTests
         ParseException exception = Assert.Throws<ParseException>(
             () => CmdInstruction.Parse("CMD [\"echo\", [\"nested json\"]]"));
 
-        Assert.Equal(1, exception.Position.Line);
-        Assert.Equal(12, exception.Position.Column);
+        Assert.Equal(1, exception.ErrorPosition.Line);
+        Assert.Equal(12, exception.ErrorPosition.Column);
     }
 
     [Theory]

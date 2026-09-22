@@ -24,7 +24,7 @@ public class FromFlag : KeyValueToken<KeywordToken, LiteralToken>
             escapeChar: escapeChar,
             isFlag: true);
 
-    internal static Parser<FromFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<FromFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("from", escapeChar),
             LiteralToken(escapeChar, Enumerable.Empty<char>()),

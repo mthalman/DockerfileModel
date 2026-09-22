@@ -116,9 +116,9 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         Tokens.OfType<SymbolToken>().Where(token => token.Value == AssignmentOperator.ToString()).Any();
 
     public static ArgDeclaration Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar).End()), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar).AtEnd()), escapeChar);
 
-    internal static Parser<ArgDeclaration> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ArgDeclaration> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ArgDeclaration(tokens, escapeChar);
 
@@ -135,7 +135,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         return GetTokens(builder.ToString(), GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         from argName in ArgTokens(
             Variable.GetParser(escapeChar).AsEnumerable(),
             escapeChar,
@@ -143,12 +143,12 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
         from argAssignment in ArgTokens(
             GetArgAssignmentParser(escapeChar),
             escapeChar,
-            excludeTrailingWhitespace: true).Optional()
+            excludeTrailingWhitespace: true).Try().OptionalOrDefault(Enumerable.Empty<Token>())
         select ConcatTokens(
             argName,
-            argAssignment.GetOrDefault());
+            argAssignment);
 
-    private static Parser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetArgAssignmentParser(char escapeChar) =>
         from lineContinuation in LineContinuations(escapeChar)
         from assignment in Symbol(AssignmentOperator).AsEnumerable()
         from lineContinuation2 in LineContinuationWithTrailingWhitespace(escapeChar)
@@ -163,7 +163,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
     /// Parses zero or more line continuations. When at least one line continuation is present,
     /// also consumes any trailing whitespace (continuation-line indentation).
     /// </summary>
-    private static Parser<IEnumerable<Token>> LineContinuationWithTrailingWhitespace(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> LineContinuationWithTrailingWhitespace(char escapeChar) =>
         (from firstContinuation in LineContinuationToken.GetParser(escapeChar)
          from moreContinuations in LineContinuations(escapeChar)
          from trailingWhitespace in ContinuationIndentation()
@@ -171,22 +171,28 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
              new Token[] { firstContinuation },
              moreContinuations,
              trailingWhitespace is null ? Enumerable.Empty<Token>() : new Token[] { trailingWhitespace }))
-        .Or(P.Parse.Return(Enumerable.Empty<Token>()));
+        .Try().Or(Superpower.Parse.Return(Enumerable.Empty<Token>()));
 
-    private static Parser<IEnumerable<Token>> GetAssignedValueParser(char escapeChar, bool requireValue)
+    private static TextParser<IEnumerable<Token>> GetAssignedValueParser(char escapeChar, bool requireValue)
     {
-        Parser<IEnumerable<Token>> valueParser = LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable();
+        TextParser<IEnumerable<Token>> valueParser = LiteralWithVariables(
+                escapeChar,
+                whitespaceMode: WhitespaceMode.AllowedInQuotes)
+            .AsEnumerable()
+            .Select(tokens => tokens.Cast<Token>());
         if (requireValue)
         {
             return valueParser;
         }
 
         return
-            from optionalValue in valueParser.Optional()
-            select optionalValue.GetOrDefault();
+            from optionalValue in valueParser.Try().OptionalOrDefault(Enumerable.Empty<Token>())
+            select optionalValue;
     }
 
-    private static Parser<WhitespaceToken?> ContinuationIndentation() =>
-        from whitespace in P.Parse.WhiteSpace.Except(P.Parse.LineTerminator).XMany().Text()
+    private static TextParser<WhitespaceToken?> ContinuationIndentation() =>
+        from whitespace in Character.Matching(
+            ch => char.IsWhiteSpace(ch) && ch is not ('\r' or '\n'),
+            "horizontal whitespace").Try().Many().Text()
         select whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null;
 }

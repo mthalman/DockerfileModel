@@ -8,36 +8,26 @@ public class ParserExtractionTests
     [Theory]
     [InlineData("\n")]
     [InlineData("\r\n")]
-    public void HeredocParserPreservesRemainderAndMemos(string newLine)
+    public void HeredocParserPreservesNativeRemainder(string newLine)
     {
         string prefix = $"# prefix{newLine}";
         string heredoc = $"<<EOF{newLine}body{newLine}EOF{newLine}";
         string suffix = $"FROM scratch{newLine}";
-        IInput input = new Input(prefix + heredoc + suffix);
-        for (int i = 0; i < prefix.Length; i++)
-        {
-            input = input.Advance();
-        }
-        object memoKey = new();
-        object memoValue = new();
-        input.Memos.Add(memoKey, memoValue);
+        TextSpan input = new TextSpan(prefix + heredoc + suffix).Skip(prefix.Length);
 
-        IResult<IEnumerable<Token>> result = HeredocParsers.HeredocTokenParser()(input);
+        Result<IEnumerable<Token>> result = HeredocParsers.HeredocTokenParser()(input);
 
-        Assert.True(result.WasSuccessful);
+        Assert.True(result.HasValue);
         Assert.Equal(heredoc, string.Concat(result.Value));
-        Assert.Equal(prefix.Length + heredoc.Length, result.Remainder.Position);
-        Assert.Equal(5, result.Remainder.Line);
-        Assert.Equal(1, result.Remainder.Column);
-        Assert.Same(input.Memos, result.Remainder.Memos);
-        Assert.Same(memoValue, result.Remainder.Memos[memoKey]);
-        Assert.Equal('F', result.Remainder.Current);
+        Assert.Equal(prefix.Length + heredoc.Length, result.Remainder.Position.Absolute);
+        Assert.Equal(5, result.Remainder.Position.Line);
+        Assert.Equal(1, result.Remainder.Position.Column);
+        Assert.Equal('F', result.Remainder[0]);
 
-        IInput advanced = result.Remainder.Advance();
-        Assert.Equal(result.Remainder.Position + 1, advanced.Position);
-        Assert.Equal(5, advanced.Line);
-        Assert.Equal(2, advanced.Column);
-        Assert.Same(input.Memos, advanced.Memos);
+        TextSpan advanced = result.Remainder.Skip(1);
+        Assert.Equal(result.Remainder.Position.Absolute + 1, advanced.Position.Absolute);
+        Assert.Equal(5, advanced.Position.Line);
+        Assert.Equal(2, advanced.Position.Column);
         Assert.Equal(suffix, FromInstruction.GetParser()(result.Remainder).Value.ToString());
     }
 
@@ -47,32 +37,29 @@ public class ParserExtractionTests
     [InlineData("<<EOF\nbody\nEOF", 3, 4)]
     public void HeredocParserPreservesEndOfInput(string text, int line, int column)
     {
-        IInput input = new Input(text);
+        TextSpan input = new(text);
 
-        IResult<IEnumerable<Token>> result = HeredocParsers.HeredocTokenParser()(input);
+        Result<IEnumerable<Token>> result = HeredocParsers.HeredocTokenParser()(input);
 
-        Assert.True(result.WasSuccessful);
+        Assert.True(result.HasValue);
         Assert.Equal(text, string.Concat(result.Value));
-        Assert.Equal(text.Length, result.Remainder.Position);
-        Assert.Equal(line, result.Remainder.Line);
-        Assert.Equal(column, result.Remainder.Column);
-        Assert.True(result.Remainder.AtEnd);
-        Assert.Same(input.Memos, result.Remainder.Memos);
-        Assert.Throws<InvalidOperationException>(() => result.Remainder.Advance());
+        Assert.Equal(text.Length, result.Remainder.Position.Absolute);
+        Assert.Equal(line, result.Remainder.Position.Line);
+        Assert.Equal(column, result.Remainder.Position.Column);
+        Assert.True(result.Remainder.IsAtEnd);
     }
 
     [Theory]
-    [InlineData("<EOF", "Expected heredoc marker <<")]
-    [InlineData("<<", "Invalid heredoc marker")]
-    public void HeredocParserFailureDoesNotAdvance(string text, string message)
+    [InlineData("<EOF", "heredoc marker <<")]
+    [InlineData("<<", "valid heredoc marker")]
+    public void HeredocParserFailureReportsNativePosition(string text, string expectation)
     {
-        IInput input = new Input(text);
+        TextSpan input = new(text);
 
-        IResult<IEnumerable<Token>> result = HeredocParsers.HeredocTokenParser()(input);
+        Result<IEnumerable<Token>> result = HeredocParsers.HeredocTokenParser()(input);
 
-        Assert.False(result.WasSuccessful);
-        Assert.Same(input, result.Remainder);
-        Assert.Equal(message, result.Message);
-        Assert.Empty(result.Expectations);
+        Assert.False(result.HasValue);
+        Assert.Equal(input.Position, result.ErrorPosition);
+        Assert.Equal(expectation, result.ErrorMessage);
     }
 }

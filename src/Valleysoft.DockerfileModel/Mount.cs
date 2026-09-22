@@ -76,57 +76,56 @@ public partial class Mount : AggregateToken
     /// Unlike a RUN flag parser, this method rejects unconsumed trailing text.
     /// </summary>
     public static Mount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar, isFlagValue: false).End()), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar, isFlagValue: false).AtEnd()), escapeChar);
 
-    internal static Parser<Mount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<Mount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(escapeChar, isFlagValue: false);
 
-    internal static Parser<Mount> GetParser(char escapeChar, bool isFlagValue) =>
+    internal static TextParser<Mount> GetParser(char escapeChar, bool isFlagValue) =>
         from tokens in GetInnerParser(escapeChar, isFlagValue)
         select new Mount(tokens, escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool isFlagValue)
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool isFlagValue)
     {
-        Parser<bool> wordBoundary = P.Parse.WhiteSpace.Select(_ => true)
-            .Or(P.Parse.Return(true).End());
-        Parser<IEnumerable<Token>> continuationTrivia =
+        TextParser<bool> wordBoundary = Character.WhiteSpace.Select(_ => true)
+            .Try().Or(Superpower.Parse.Return(true).AtEnd());
+        TextParser<IEnumerable<Token>> continuationTrivia =
             from continuations in LineContinuations(escapeChar)
             from comments in continuations.Any()
-                ? CommentText().Many().Flatten()
-                : P.Parse.Return(Enumerable.Empty<Token>())
+                ? CommentText().Try().Many().Flatten()
+                : Superpower.Parse.Return(Enumerable.Empty<Token>())
             select ConcatTokens(continuations, comments);
-        Parser<LiteralToken> emptyValueParser =
-            from boundary in (
+        TextParser<LiteralToken> emptyValueParser =
+            from boundary in Superpower.Parse.Not(Superpower.Parse.Not(
                 from trivia in continuationTrivia
-                from end in P.Parse.Char(',').Select(_ => true).Or(wordBoundary)
-                select end).Preview()
-            where boundary.IsDefined
+                from end in Character.EqualTo(',').Select(_ => true).Try().Or(wordBoundary)
+                select end))
             select new LiteralToken("", canContainVariables: true, escapeChar);
 
-        Parser<LiteralToken> valueParser = LiteralWithVariables(
+        TextParser<LiteralToken> valueParser = LiteralWithVariables(
             escapeChar, new char[] { ',' });
 
         // Check empty values before the whitespace-tolerant parser, so "source= echo"
         // leaves the command untouched while nonempty values retain their continuation tokens.
-        Parser<KeyValueToken<KeywordToken, LiteralToken>> keyValueParser =
+        TextParser<KeyValueToken<KeywordToken, LiteralToken>> keyValueParser =
             KeyValueToken<KeywordToken, LiteralToken>.GetParser(
                 KeywordToken.GetParser(escapeChar), emptyValueParser, escapeChar: escapeChar,
                 excludeLeadingWhitespaceInValue: true, excludeTrailingWhitespaceInSeparator: true)
-            .Or(KeyValueToken<KeywordToken, LiteralToken>.GetParser(
+            .Try().Or(KeyValueToken<KeywordToken, LiteralToken>.GetParser(
                 KeywordToken.GetParser(escapeChar), valueParser, escapeChar: escapeChar));
 
-        Parser<Token> bareKeyParser =
+        TextParser<Token> bareKeyParser =
             from keyword in KeywordToken.GetParser(escapeChar)
-            from noSeparator in (
+            from noSeparator in Superpower.Parse.Not(
                 from continuations in LineContinuations(escapeChar)
                 from separator in Symbol('=')
-                select separator).Not()
+                select separator)
             select (Token)keyword;
 
         // Backtrack for bare keys, but not for a key whose '=' value failed to parse.
-        Parser<Token> entryParser =
+        TextParser<Token> entryParser =
             keyValueParser.Cast<KeyValueToken<KeywordToken, LiteralToken>, Token>()
-            .Or(bareKeyParser);
+            .Try().Or(bareKeyParser);
 
         // Line continuations can appear between comma-separated pairs.
         // Whitespace() after each LineContinuations() handles indentation that may
@@ -142,24 +141,23 @@ public partial class Mount : AggregateToken
                 excludeTrailingWhitespace: true)
             from rest in (
                 from lineCont1 in LineContinuations(escapeChar)
-                from comments1 in CommentText().Many()
+                from comments1 in CommentText().Try().Many()
                 from ws1 in Whitespace()
                 where !isFlagValue || !ws1.Any() || lineCont1.Any()
                 from comma in Symbol(',')
                 from wsAfterComma in Whitespace()
                 from lineCont2 in LineContinuations(escapeChar)
                 where !isFlagValue || !wsAfterComma.Any() || lineCont2.Any()
-                from comments2 in CommentText().Many()
+                from comments2 in CommentText().Try().Many()
                 from ws2 in Whitespace()
                 from entry in entryParser
-                select ConcatTokens(lineCont1, comments1.SelectMany(c => c), ws1, new Token[] { comma }, wsAfterComma, lineCont2, comments2.SelectMany(c => c), ws2, new Token[] { entry })).Many()
-            from boundary in (
+                select ConcatTokens(lineCont1, comments1.SelectMany(c => c), ws1, new Token[] { comma }, wsAfterComma, lineCont2, comments2.SelectMany(c => c), ws2, new Token[] { entry })).Try().Many()
+            from boundary in Superpower.Parse.Not(Superpower.Parse.Not(
                 from trivia in continuationTrivia
                 from end in wordBoundary
-                select end).Preview()
-            where boundary.IsDefined
+                select end))
             from trailingWhitespace in isFlagValue
-                ? P.Parse.Return(Enumerable.Empty<Token>())
+                ? Superpower.Parse.Return(Enumerable.Empty<Token>())
                 : ArgTrailingWhitespace(escapeChar)
             select ConcatTokens(first, rest.SelectMany(t => t), trailingWhitespace);
     }

@@ -7,12 +7,12 @@ were exposed as public APIs backed by Sprache-shaped parser combinators.
 
 #### New behavior
 
-The implementation uses Superpower through the library-owned
-`Valleysoft.DockerfileModel.Parsing` namespace. Instruction and token
-`GetParser()` factories are now internal implementation details and are no
-longer available to consumers. `Dockerfile.Parse` and `Dockerfile.TryParse`
-are the supported parsing entry points and expose the library-owned parse
-result and diagnostic types.
+The grammar now uses Superpower's native `TextParser<T>`, `Result<T>`, and
+combinator APIs directly. The Sprache-shaped compatibility parser types have
+been removed. Instruction and token `GetParser()` factories are now internal
+implementation details and are no longer available to consumers.
+`Dockerfile.Parse` and `Dockerfile.TryParse` are the supported parsing entry
+points and expose the library-owned parse result and diagnostic types.
 
 #### Type of breaking change
 

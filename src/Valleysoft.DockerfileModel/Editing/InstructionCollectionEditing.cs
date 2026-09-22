@@ -4,7 +4,7 @@ namespace Valleysoft.DockerfileModel;
 
 /// <summary>Builds semantic projections over owner-bound token collections and supplies shared boundary helpers.</summary>
 /// <remarks>
-/// Projection factories require a <c>TokenList</c> backing instance even though their parameters
+/// Projection factories require a <c>Valleysoft.DockerfileModel.Tokens.TokenList</c> backing instance even though their parameters
 /// expose the common editable-list contract. Values use the owner's escape context;
 /// JSON string values requiring escaping are rejected rather than implicitly encoded.
 /// Projected replacement can retain the selected token rather than replacing its identity.
@@ -12,23 +12,23 @@ namespace Valleysoft.DockerfileModel;
 internal static class InstructionCollectionEditing
 {
     /// <summary>Creates an ordinal string view that shares the literal list's syntax-aware edits.</summary>
-    /// <param name="tokens">The owner's live literal token list, backed by a <c>TokenList</c>.</param>
+    /// <param name="tokens">The owner's live literal token list, backed by a <c>Valleysoft.DockerfileModel.Tokens.TokenList</c>.</param>
     /// <param name="owner">The instruction or command determining operand grammar and escape context.</param>
     /// <returns>A synchronized semantic view; new strings are validated and quoted rather than adopted as syntax.</returns>
     /// <remarks>JSON values containing double quotes, backslashes, or U+0000–U+001F are unsupported.</remarks>
     public static EditableList<string> Strings(EditableList<LiteralToken> tokens, AggregateToken owner) =>
         new ProjectedItemList<LiteralToken, string>(tokens, token => token.Value,
             value => CreateLiteral(value, owner), StringComparer.Ordinal,
-            (index, value, trivia) => ((TokenList<LiteralToken>)tokens).ReplaceValue(index, CreateLiteral(value, owner), trivia));
+            (index, value, trivia) => ((Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>)tokens).ReplaceValue(index, CreateLiteral(value, owner), trivia));
 
     /// <summary>Creates an ordinal pattern view over optional exclude flags.</summary>
-    /// <param name="tokens">The owner's exclude flag list, backed by a <c>TokenList</c>.</param>
+    /// <param name="tokens">The owner's exclude flag list, backed by a <c>Valleysoft.DockerfileModel.Tokens.TokenList</c>.</param>
     /// <param name="owner">The file-transfer instruction supplying escape context and flag placement.</param>
     /// <returns>A synchronized view whose writes retain flags before positional operands.</returns>
     public static EditableList<string> Excludes(EditableList<ExcludeFlag> tokens, AggregateToken owner) =>
         new ProjectedItemList<ExcludeFlag, string>(tokens, token => token.Value,
             value => CreateExclude(value, owner), StringComparer.Ordinal,
-            (index, value, trivia) => ((TokenList<ExcludeFlag>)tokens).ReplaceValue(index, CreateExclude(value, owner), trivia));
+            (index, value, trivia) => ((Valleysoft.DockerfileModel.Tokens.TokenList<ExcludeFlag>)tokens).ReplaceValue(index, CreateExclude(value, owner), trivia));
 
     private static ExcludeFlag CreateExclude(string value, AggregateToken owner)
     {
@@ -43,14 +43,14 @@ internal static class InstructionCollectionEditing
 
     /// <summary>Creates an assignment view with ordinal key/value equality rather than token identity equality.</summary>
     /// <typeparam name="T">The instruction-specific assignment token type.</typeparam>
-    /// <param name="tokens">The owner's assignment list, backed by a <c>TokenList</c>.</param>
+    /// <param name="tokens">The owner's assignment list, backed by a <c>Valleysoft.DockerfileModel.Tokens.TokenList</c>.</param>
     /// <param name="owner">The instruction determining assignment syntax and allowed missing values.</param>
     /// <returns>A live view that encodes supplied pair data into validated assignment tokens.</returns>
     public static EditableList<IKeyValuePair> Pairs<T>(EditableList<T> tokens, Instruction owner)
         where T : Token, IKeyValuePair =>
         new ProjectedItemList<T, IKeyValuePair>(tokens, token => token,
             pair => CreatePair<T>(pair, owner), PairComparer.Instance,
-            (index, pair, trivia) => ((TokenList<T>)tokens).ReplaceValue(index, CreatePair<T>(pair, owner), trivia));
+            (index, pair, trivia) => ((Valleysoft.DockerfileModel.Tokens.TokenList<T>)tokens).ReplaceValue(index, CreatePair<T>(pair, owner), trivia));
 
     private static T CreatePair<T>(IKeyValuePair pair, Instruction owner) where T : Token, IKeyValuePair
     {

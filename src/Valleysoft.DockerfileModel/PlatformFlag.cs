@@ -19,6 +19,6 @@ public class PlatformFlag : KeywordLiteralFlag
     public static PlatformFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new PlatformFlag(tokens, esc), escapeChar);
 
-    internal static Parser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<PlatformFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new PlatformFlag(tokens, esc), escapeChar);
 }

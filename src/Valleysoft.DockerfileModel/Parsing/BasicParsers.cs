@@ -8,7 +8,7 @@ internal static class BasicParsers
     /// Parses whitespace.
     /// </summary>
     /// <returns>Set of tokens representing whitespace.</returns>
-    internal static Parser<IEnumerable<Token>> Whitespace() =>
+    internal static TextParser<IEnumerable<Token>> Whitespace() =>
         from whitespace in WhitespaceWithoutNewLine()
         from newLine in OptionalNewLine()
         select TokenSequences.ConcatTokens(whitespace, newLine);
@@ -17,7 +17,7 @@ internal static class BasicParsers
     /// Parses the text of a comment, including leading whitespace.
     /// </summary>
     /// <returns>Set of tokens representing comment text.</returns>
-    internal static Parser<IEnumerable<Token>> CommentText() =>
+    internal static TextParser<IEnumerable<Token>> CommentText() =>
         from leading in Whitespace()
         from comment in CommentToken.GetParser()
         from lineEnd in OptionalNewLine().AsEnumerable()
@@ -27,40 +27,44 @@ internal static class BasicParsers
     /// Optionally parses a line continuation surrounded by optional whitespace.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
-    internal static Parser<IEnumerable<Token>> OptionalWhitespaceOrLineContinuation(char escapeChar) =>
-        from leading in Whitespace().Optional()
-        from lineContinuation in LineContinuations(escapeChar).Optional()
-        from trailing in Whitespace().Optional()
+    internal static TextParser<IEnumerable<Token>> OptionalWhitespaceOrLineContinuation(char escapeChar) =>
+        from leading in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
+        from lineContinuation in LineContinuations(escapeChar).Try().OptionalOrDefault(Enumerable.Empty<Token>())
+        from trailing in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
         select TokenSequences.ConcatTokens(
-            leading.GetOrDefault(),
-            lineContinuation.IsDefined ? lineContinuation.GetOrDefault() : Enumerable.Empty<Token>(),
-            trailing.GetOrDefault());
+            leading,
+            lineContinuation,
+            trailing);
 
     /// <summary>
     /// Parses a new line that is optional.
     /// </summary>
     /// <returns>The new line token if a new line exists; otherwise, null.</returns>
-    internal static Parser<NewLineToken> OptionalNewLine() =>
-        from lineEnd in P.Parse.LineEnd.Optional()
-        select lineEnd.IsDefined ? new NewLineToken(lineEnd.Get()) : null;
+    internal static TextParser<NewLineToken> OptionalNewLine() =>
+        from lineEnd in NativeParsers.LineEnd.OptionalOrDefault(null!)
+        select lineEnd is null ? null : new NewLineToken(lineEnd);
 
     /// <summary>
     /// Parses a token and any trailing whitespace.
     /// </summary>
     /// <param name="parser">Token parser.</param>
     /// <returns>Set of parsed tokens.</returns>
-    internal static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Parser<Token> parser) =>
+    internal static TextParser<IEnumerable<Token>> TokenWithTrailingWhitespace<TToken>(TextParser<TToken> parser)
+        where TToken : Token =>
         from token in parser.AsEnumerable()
         from trailingWhitespace in Whitespace()
-        select TokenSequences.ConcatTokens(token, trailingWhitespace);
+        select TokenSequences.ConcatTokens(token.Cast<Token>(), trailingWhitespace);
 
     /// <summary>
     /// Parses a token and any trailing whitespace.
     /// </summary>
     /// <param name="createToken">Delegate to create the token.</param>
     /// <returns>Set of parsed tokens.</returns>
-    internal static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Func<string, Token> createToken) =>
-        from val in P.Parse.AnyChar.Except(P.Parse.LineEnd).Many().Text()
+    internal static TextParser<IEnumerable<Token>> TokenWithTrailingWhitespace(Func<string, Token> createToken) =>
+        from val in Superpower.Parse.Not(NativeParsers.LineEnd)
+            .IgnoreThen(Character.AnyChar)
+            .Try().Many()
+            .Text()
         select TokenSequences.ConcatTokens(createToken(val.Trim()), GetTrailingWhitespaceToken(val)!);
 
     /// <summary>
@@ -110,7 +114,7 @@ internal static class BasicParsers
     /// <param name="charParser">Character parser.</param>
     /// <param name="createToken">Delegate to create the token containing the character.</param>
     /// <returns>Parsed tokens.</returns>
-    internal static Parser<IEnumerable<Token>> CharWithOptionalLineContinuation(char escapeChar, Parser<char> charParser,
+    internal static TextParser<IEnumerable<Token>> CharWithOptionalLineContinuation(char escapeChar, TextParser<char> charParser,
         Func<char, Token> createToken) =>
         from lineContinuation in LineContinuations(escapeChar)
         from ch in charParser
@@ -121,8 +125,8 @@ internal static class BasicParsers
     /// </summary>
     /// <param name="value">Symbol value.</param>
     /// <returns>A symbol token.</returns>
-    internal static Parser<SymbolToken> Symbol(char value) =>
-        from val in P.Parse.Char(value)
+    internal static TextParser<SymbolToken> Symbol(char value) =>
+        from val in Character.EqualTo(value)
         select new SymbolToken(val);
 
     /// <summary>
@@ -130,35 +134,39 @@ internal static class BasicParsers
     /// </summary>
     /// <param name="parsers">Set of string parsers to concatenate.</param>
     /// <returns>String parser that matches on any of the given parsers.</returns>
-    internal static Parser<string> OrConcat(params Parser<string>[] parsers) =>
-        from vals in parsers.Aggregate((current, next) => current.Or(next)).Many()
+    internal static TextParser<string> OrConcat(params TextParser<string>[] parsers) =>
+        from vals in parsers.Aggregate((current, next) => current.Try().Or(next)).Try().AtLeastOnce()
         select String.Concat(vals);
 
     /// <summary>
     /// Parses a required new line.
     /// </summary>
-    internal static Parser<NewLineToken> NewLine() =>
-        from lineEnd in P.Parse.LineEnd
+    internal static TextParser<NewLineToken> NewLine() =>
+        from lineEnd in NativeParsers.LineEnd
         select new NewLineToken(lineEnd);
 
     /// <summary>
     /// Parses any character except for whitespace.
     /// </summary>
-    internal static Parser<char> NonWhitespace() =>
-        P.Parse.AnyChar.Except(P.Parse.WhiteSpace);
+    internal static TextParser<char> NonWhitespace() =>
+        Character.Matching(ch => !char.IsWhiteSpace(ch), "non-whitespace");
 
     /// <summary>
     /// Parses multiple line continuations and any whitespace.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
-    internal static Parser<IEnumerable<Token>> LineContinuations(char escapeChar) =>
-        LineContinuationToken.GetParser(escapeChar).Many();
+    internal static TextParser<IEnumerable<Token>> LineContinuations(char escapeChar) =>
+        LineContinuationToken.GetParser(escapeChar)
+            .Try().Many()
+            .Select(tokens => tokens.Cast<Token>());
 
     /// <summary>
     /// Parses all whitespace except a new line.
     /// </summary>
-    internal static Parser<WhitespaceToken?> WhitespaceWithoutNewLine() =>
-        from whitespace in P.Parse.WhiteSpace.Except(P.Parse.LineTerminator).XMany().Text()
+    internal static TextParser<WhitespaceToken?> WhitespaceWithoutNewLine() =>
+        from whitespace in Character.Matching(
+            ch => char.IsWhiteSpace(ch) && ch is not ('\r' or '\n'),
+            "horizontal whitespace").Try().Many().Text()
         select whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null;
 
     /// <summary>
@@ -166,15 +174,15 @@ internal static class BasicParsers
     /// </summary>
     /// <param name="parsers">Set of string parsers to concatenate.</param>
     /// <returns>String parser that matches on any of the given parsers.</returns>
-    internal static Parser<IEnumerable<Token>> OrConcat(params Parser<IEnumerable<Token>>[] parsers) =>
-        from vals in (parsers.Aggregate((current, next) => current.Or(next))).Many()
+    internal static TextParser<IEnumerable<Token>> OrConcat(params TextParser<IEnumerable<Token>>[] parsers) =>
+        from vals in parsers.Aggregate((current, next) => current.Try().Or(next)).Try().AtLeastOnce()
         select vals.SelectMany(val => val);
 
     /// <summary>
     /// Transforms a character parser into a parser for a set of tokens containing a single string token.
     /// </summary>
     /// <param name="parser">Character parser.</param>
-    internal static Parser<IEnumerable<Token>> ToStringTokens(Parser<char> parser) =>
+    internal static TextParser<IEnumerable<Token>> ToStringTokens(TextParser<char> parser) =>
         from ch in parser
-        select new Token[] { new StringToken(ch.ToString()) };
+        select (IEnumerable<Token>)new Token[] { new StringToken(ch.ToString()) };
 }

@@ -221,7 +221,7 @@ public class HealthCheckInstruction : Instruction
     public static HealthCheckInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
-    internal static Parser<HealthCheckInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<HealthCheckInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar, diagnostic: true)
         select new HealthCheckInstruction(tokens, escapeChar);
 
@@ -263,17 +263,17 @@ public class HealthCheckInstruction : Instruction
     internal static HealthCheckInstruction ParseDiagnostic(string text, char escapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
         Instruction("HEALTHCHECK", escapeChar,
             GetArgsParser(escapeChar, diagnostic));
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, bool diagnostic) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar, bool diagnostic) =>
         from options in Options(escapeChar)
         from command in CmdTokens(escapeChar, diagnostic)
-            .Or(ArgTokens(KeywordToken.GetParser("NONE", escapeChar).AsEnumerable(), escapeChar))
+            .Try().Or(ArgTokens(KeywordToken.GetParser("NONE", escapeChar).AsEnumerable(), escapeChar))
         select ConcatTokens(options, command);
 
-    private static Parser<IEnumerable<Token>> CmdTokens(char escapeChar, bool diagnostic) =>
+    private static TextParser<IEnumerable<Token>> CmdTokens(char escapeChar, bool diagnostic) =>
         from cmdKeyword in ArgTokens(KeywordToken.GetParser("CMD", escapeChar).AsEnumerable(), escapeChar)
         from cmd in ArgTokens(
             CommandInstruction.GetCommandParser(escapeChar, diagnostic)
@@ -281,15 +281,15 @@ public class HealthCheckInstruction : Instruction
                 .AsEnumerable(), escapeChar)
         select ConcatTokens(cmdKeyword, cmd);
 
-    private static Parser<IEnumerable<Token>> Options(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> Options(char escapeChar) =>
         ArgTokens(
             IntervalFlag.GetParser(escapeChar).Cast<IntervalFlag, Token>()
-                .Or(TimeoutFlag.GetParser(escapeChar))
-                .Or(StartPeriodFlag.GetParser(escapeChar))
-                .Or(StartIntervalFlag.GetParser(escapeChar))
-                .Or(RetriesFlag.GetParser(escapeChar)).AsEnumerable(),
+                .Try().Or(TimeoutFlag.GetParser(escapeChar).Cast<TimeoutFlag, Token>())
+                .Try().Or(StartPeriodFlag.GetParser(escapeChar).Cast<StartPeriodFlag, Token>())
+                .Try().Or(StartIntervalFlag.GetParser(escapeChar).Cast<StartIntervalFlag, Token>())
+                .Try().Or(RetriesFlag.GetParser(escapeChar).Cast<RetriesFlag, Token>()).AsEnumerable(),
             escapeChar)
-            .Many().Flatten();
+            .Try().Many().Flatten();
 
     private static string ValidateNotNullOrEmpty(string value, string paramName)
     {

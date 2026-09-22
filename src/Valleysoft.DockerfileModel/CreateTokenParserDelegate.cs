@@ -8,5 +8,5 @@ namespace Valleysoft.DockerfileModel;
 /// <param name="escapeChar">The escape character.</param>
 /// <param name="excludedChars">Characters to be excluded from parsing.</param>
 /// <returns>The token parser.</returns>
-public delegate Parser<IEnumerable<Token>> CreateTokenParserDelegate(
+internal delegate TextParser<IEnumerable<Token>> CreateTokenParserDelegate(
     char escapeChar, IEnumerable<char> excludedChars);

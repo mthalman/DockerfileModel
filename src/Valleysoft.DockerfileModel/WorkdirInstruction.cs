@@ -37,11 +37,11 @@ public class WorkdirInstruction : Instruction
     public static WorkdirInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    internal static Parser<WorkdirInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<WorkdirInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new WorkdirInstruction(tokens, escapeChar);
 
-    internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    internal static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         Instruction("WORKDIR", escapeChar, GetArgsParser(escapeChar));
 
     private static IEnumerable<Token> GetTokens(string path, char escapeChar)
@@ -50,6 +50,6 @@ public class WorkdirInstruction : Instruction
         return GetTokens($"WORKDIR {path}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.Allowed).AsEnumerable(), escapeChar);
 }

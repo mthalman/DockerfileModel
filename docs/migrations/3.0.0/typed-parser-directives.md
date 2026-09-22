@@ -46,7 +46,7 @@ after `=` and is recognized as an invalid escape directive:
 
 `ParserDirective.Parse` requires its input to contain exactly one directive,
 with an optional final newline. The constructor likewise rejects arguments
-that produce trailing content. `GetParser()` remains composable; append `.End()`
+that produce trailing content. `GetParser()` remains composable; append `.AtEnd()`
 when complete input consumption is required.
 
 Names start with an ASCII letter and contain only ASCII letters or digits.

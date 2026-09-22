@@ -143,8 +143,8 @@ public class PublicSurfaceStructuralEditingTests
     {
         Assert.Equal(typeof(IList<string>), typeof(ICommentable).GetProperty("Comments")!.PropertyType);
         Assert.Equal(typeof(IEnumerable<CommentToken>), typeof(ICommentable).GetProperty("CommentTokens")!.PropertyType);
-        Assert.True(typeof(IList<LiteralToken>).IsAssignableFrom(typeof(TokenList<LiteralToken>)));
-        Assert.True(typeof(EditableList<LiteralToken>).IsAssignableFrom(typeof(TokenList<LiteralToken>)));
+        Assert.True(typeof(IList<LiteralToken>).IsAssignableFrom(typeof(Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>)));
+        Assert.True(typeof(EditableList<LiteralToken>).IsAssignableFrom(typeof(Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>)));
         MethodInfo? getComments = typeof(AggregateToken).GetMethod(
             "GetComments", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(getComments);
@@ -175,9 +175,9 @@ public class PublicSurfaceStructuralEditingTests
         AggregateToken[] flags =
         [
             FromFlag.Parse("--from=builder", '`'),
-            FromFlag.GetParser('`')(new Input("--from=builder")).Value,
+            FromFlag.GetParser('`')(new TextSpan("--from=builder")).Value,
             ChangeOwnerFlag.Parse("--chown=root", '`'),
-            ChangeOwnerFlag.GetParser('`')(new Input("--chown=root")).Value
+            ChangeOwnerFlag.GetParser('`')(new TextSpan("--chown=root")).Value
         ];
         PropertyInfo? context = typeof(AggregateToken).GetProperty(
             "EditingEscapeChar", BindingFlags.Instance | BindingFlags.NonPublic);
