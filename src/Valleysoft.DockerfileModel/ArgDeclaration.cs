@@ -1,10 +1,6 @@
 using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -175,7 +171,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
              new Token[] { firstContinuation },
              moreContinuations,
              trailingWhitespace is null ? Enumerable.Empty<Token>() : new Token[] { trailingWhitespace }))
-        .Or(Valleysoft.DockerfileModel.Parsing.Parse.Return(Enumerable.Empty<Token>()));
+        .Or(P.Parse.Return(Enumerable.Empty<Token>()));
 
     private static Parser<IEnumerable<Token>> GetAssignedValueParser(char escapeChar, bool requireValue)
     {
@@ -191,6 +187,6 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
     }
 
     private static Parser<WhitespaceToken?> ContinuationIndentation() =>
-        from whitespace in Valleysoft.DockerfileModel.Parsing.Parse.WhiteSpace.Except(Valleysoft.DockerfileModel.Parsing.Parse.LineTerminator).XMany().Text()
+        from whitespace in P.Parse.WhiteSpace.Except(P.Parse.LineTerminator).XMany().Text()
         select whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null;
 }

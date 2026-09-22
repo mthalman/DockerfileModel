@@ -1,9 +1,5 @@
 using System.Text;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.StringParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
@@ -22,7 +18,7 @@ public class VariableRefToken : AggregateToken
     /// </summary>
     private static readonly Parser<string>[] variableSubstitutionModifiers =
         ValidModifiers
-            .Select(modifier => Valleysoft.DockerfileModel.Parsing.Parse.String(modifier).Text())
+            .Select(modifier => P.Parse.String(modifier).Text())
             .ToArray();
     private readonly char escapeChar;
 
@@ -312,7 +308,7 @@ public class VariableRefToken : AggregateToken
     /// </summary>
     /// <returns>Parsed variable reference token.</returns>
     private static Parser<IEnumerable<Token>> SimpleVariableReference() =>
-        from variableChar in Valleysoft.DockerfileModel.Parsing.Parse.Char('$')
+        from variableChar in P.Parse.Char('$')
         from variableIdentifier in VariableIdentifier()
         select new Token[] { new StringToken(variableIdentifier) };
 
@@ -326,7 +322,7 @@ public class VariableRefToken : AggregateToken
     /// <returns>Parsed variable reference token.</returns>
     private static Parser<IEnumerable<Token>> BracedVariableReference(
         char escapeChar) =>
-        from variableChar in Valleysoft.DockerfileModel.Parsing.Parse.Char('$')
+        from variableChar in P.Parse.Char('$')
         from opening in Symbol('{').AsEnumerable()
         from varNameToken in
             from varName in VariableIdentifier()

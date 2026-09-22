@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -70,17 +69,17 @@ public class ParserDirective : DockerfileConstruct
         Create(GetTokens(text, GetParser().End()));
 
     internal static Parser<IEnumerable<Token>> GetParser() =>
-        from bom in Valleysoft.DockerfileModel.Parsing.Parse.Char('\uFEFF').Optional()
+        from bom in P.Parse.Char('\uFEFF').Optional()
         from leading in HorizontalWhitespace()
         from hash in Symbol('#')
         from afterHash in HorizontalWhitespace()
-        from name in Valleysoft.DockerfileModel.Parsing.Parse.Identifier(
-            Valleysoft.DockerfileModel.Parsing.Parse.Char(IsAsciiLetter, "directive name"),
-            Valleysoft.DockerfileModel.Parsing.Parse.Char(c => IsAsciiLetter(c) || c >= '0' && c <= '9', "directive name"))
-        from beforeEquals in Valleysoft.DockerfileModel.Parsing.Parse.Chars(' ', '\t', '\f', '\r').Many().Text()
+        from name in P.Parse.Identifier(
+            P.Parse.Char(IsAsciiLetter, "directive name"),
+            P.Parse.Char(c => IsAsciiLetter(c) || c >= '0' && c <= '9', "directive name"))
+        from beforeEquals in P.Parse.Chars(' ', '\t', '\f', '\r').Many().Text()
         from op in Symbol('=')
-        from suffix in Valleysoft.DockerfileModel.Parsing.Parse.CharExcept('\n').Many().Text()
-        from newline in Valleysoft.DockerfileModel.Parsing.Parse.Char('\n').Optional()
+        from suffix in P.Parse.CharExcept('\n').Many().Text()
+        from newline in P.Parse.Char('\n').Optional()
         let content = suffix.TrimEnd('\r')
         let value = ValuePattern.Match(content)
         where value.Success
@@ -157,7 +156,7 @@ public class ParserDirective : DockerfileConstruct
     private static bool IsAsciiLetter(char c) => c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
 
     private static Parser<string> HorizontalWhitespace() =>
-        Valleysoft.DockerfileModel.Parsing.Parse.Char(c => char.IsWhiteSpace(c) && c != '\n', "horizontal whitespace").Many().Text();
+        P.Parse.Char(c => char.IsWhiteSpace(c) && c != '\n', "horizontal whitespace").Many().Text();
 
     private static IEnumerable<Token> CreateTokens(bool bom, string leading, Token hash, string afterHash,
         string name, string beforeEquals, Token op, Match value, string newline)

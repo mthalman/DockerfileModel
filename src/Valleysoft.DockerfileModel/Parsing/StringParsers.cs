@@ -18,7 +18,7 @@ internal static class StringParsers
     /// <returns>Delimited identifiers.</returns>
     internal static Parser<IEnumerable<Token>> DelimitedIdentifier(char escapeChar,
         Parser<char> firstCharParser, Parser<char> tailCharParser, char delimiter, int minimumDelimiters = 0) =>
-        from segments in IdentifierString(escapeChar, firstCharParser, tailCharParser).Many().DelimitedBy(Parse.Char(delimiter))
+        from segments in IdentifierString(escapeChar, firstCharParser, tailCharParser).Many().DelimitedBy(P.Parse.Char(delimiter))
         where (segments.Count() > minimumDelimiters)
         select
             segments
@@ -39,12 +39,12 @@ internal static class StringParsers
             int currentIndex = i;
             if (parser is null)
             {
-                parser = BasicParsers.ToStringTokens(Parse.IgnoreCase(value[currentIndex]));
+                parser = BasicParsers.ToStringTokens(P.Parse.IgnoreCase(value[currentIndex]));
             }
             else
             {
                 parser = from previousTokens in parser
-                            from nextTokens in StringTokenCharWithOptionalLineContinuation(escapeChar, Parse.IgnoreCase(value[currentIndex]))
+                            from nextTokens in StringTokenCharWithOptionalLineContinuation(escapeChar, P.Parse.IgnoreCase(value[currentIndex]))
                             select TokenSequences.ConcatTokens(previousTokens, nextTokens);
             }
         }
@@ -175,7 +175,7 @@ internal static class StringParsers
     /// <returns>Character parser that excludes the specified characters.</returns>
     private static Parser<char> ExceptChars(this Parser<char> parser, IEnumerable<char> chars) =>
         chars
-            .Select(ch => Parse.Char(ch))
+            .Select(ch => P.Parse.Char(ch))
             .Aggregate(parser, (current, next) => current.Except(next));
 
     /// <summary>
@@ -312,10 +312,10 @@ internal static class StringParsers
         bool excludeVariableRefChars = true)
     {
         // Allow any non-newline character except excluded chars and the escape char itself.
-        Parser<char> parser = Parse.AnyChar
-            .Except(Parse.LineTerminator)
+        Parser<char> parser = P.Parse.AnyChar
+            .Except(P.Parse.LineTerminator)
             .ExceptChars(excludedChars)
-            .Except(Parse.Char(escapeChar));
+            .Except(P.Parse.Char(escapeChar));
 
         if (excludeVariableRefChars)
         {
@@ -347,9 +347,9 @@ internal static class StringParsers
     private static Parser<char> LiteralChar(char escapeChar, IEnumerable<char> excludedChars,
         bool isWhitespaceAllowed = false, bool excludeVariableRefChars = true)
     {
-        Parser<char> parser = (isWhitespaceAllowed ? Parse.AnyChar : BasicParsers.NonWhitespace())
+        Parser<char> parser = (isWhitespaceAllowed ? P.Parse.AnyChar : BasicParsers.NonWhitespace())
             .ExceptChars(excludedChars)
-            .Except(Parse.Char(escapeChar));
+            .Except(P.Parse.Char(escapeChar));
 
         if (excludeVariableRefChars)
         {
@@ -363,16 +363,16 @@ internal static class StringParsers
     /// Parses variable ref characters.
     /// </summary>
     private static Parser<char> VariableRefChars() =>
-        Parse.Char('$').Then(ch => Parse.LetterOrDigit.Or(Parse.Char('{')).Or(Parse.Char('_')));
+        P.Parse.Char('$').Then(ch => P.Parse.LetterOrDigit.Or(P.Parse.Char('{')).Or(P.Parse.Char('_')));
 
     /// <summary>
     /// Parses an escaped character.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     private static Parser<IEnumerable<Token>> EscapedChar(char escapeChar) =>
-        from esc in Parse.Char(escapeChar)
-        from v in Parse.AnyChar.AsEnumerable()
-            .Except(Parse.LineEnd)
+        from esc in P.Parse.Char(escapeChar)
+        from v in P.Parse.AnyChar.AsEnumerable()
+            .Except(P.Parse.LineEnd)
             .Text()
         select new Token[] { new StringToken(esc + v) };
 
@@ -435,7 +435,7 @@ internal static class StringParsers
     /// <param name="wrappingQuoteChar">The wrapping quote character to exclude, or null to exclude both.</param>
     private static Parser<char> ExceptQuote(Parser<char> parser, char? wrappingQuoteChar) =>
         wrappingQuoteChar.HasValue
-            ? parser.Except(Parse.Char(wrappingQuoteChar.Value))
+            ? parser.Except(P.Parse.Char(wrappingQuoteChar.Value))
             : ExceptQuotes(parser);
 
     /// <summary>
@@ -447,9 +447,9 @@ internal static class StringParsers
     /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
     private static Parser<IEnumerable<Token>> WrappedInCharacters(CreateWrappedTokenParserDelegate createParser,
         char escapeChar, TokenWrapper tokenWrapper, IEnumerable<char> excludedChars) =>
-        from opening in Parse.String(tokenWrapper.OpeningString).AsEnumerable()
+        from opening in P.Parse.String(tokenWrapper.OpeningString).AsEnumerable()
         from val in createParser(escapeChar, excludedChars, tokenWrapper)
-        from closing in Parse.String(tokenWrapper.ClosingString).AsEnumerable()
+        from closing in P.Parse.String(tokenWrapper.ClosingString).AsEnumerable()
         select val;
 
     /// <summary>

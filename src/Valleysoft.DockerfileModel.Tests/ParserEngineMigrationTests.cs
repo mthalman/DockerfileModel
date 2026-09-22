@@ -9,7 +9,7 @@ public class ParserEngineMigrationTests
     {
         IInput input = new Input("abc");
 
-        IResult<char> result = Parse.Char('a')(input);
+        IResult<char> result = P.Parse.Char('a')(input);
 
         Assert.True(result.WasSuccessful);
         Assert.Equal('a', result.Value);
@@ -23,7 +23,7 @@ public class ParserEngineMigrationTests
     {
         IInput input = new Input("xyz");
 
-        IResult<char> result = Parse.Char('a')(input);
+        IResult<char> result = P.Parse.Char('a')(input);
 
         Assert.False(result.WasSuccessful);
         Assert.Same(input, result.Remainder);
@@ -36,7 +36,7 @@ public class ParserEngineMigrationTests
     {
         IInput input = new Input("a\nb").Advance().Advance();
 
-        IResult<char> result = Parse.Char('b')(input);
+        IResult<char> result = P.Parse.Char('b')(input);
 
         Assert.True(result.WasSuccessful);
         Assert.Equal(2, result.Remainder.Line);
@@ -47,7 +47,7 @@ public class ParserEngineMigrationTests
     public void SuperpowerFailureDoesNotReplaceCompatibilityInputPosition()
     {
         IInput input = new Input("a");
-        IResult<char> result = Parse.Char(_ => false, "custom character")(input);
+        IResult<char> result = P.Parse.Char(_ => false, "custom character")(input);
 
         Assert.False(result.WasSuccessful);
         Assert.Same(input, result.Remainder);

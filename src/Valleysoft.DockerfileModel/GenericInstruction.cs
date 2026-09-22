@@ -1,7 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -48,7 +46,7 @@ public class GenericInstruction : Instruction
         select lineSets.SelectMany(lineSet => lineSet);
 
     private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
-        from text in Valleysoft.DockerfileModel.Parsing.Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Except(Valleysoft.DockerfileModel.Parsing.Parse.LineEnd).Many().Text()
+        from text in P.Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Except(P.Parse.LineEnd).Many().Text()
         from lineContinuation in LineContinuations(escapeChar).Optional()
         from lineEnd in OptionalNewLine().AsEnumerable()
         select ConcatTokens(

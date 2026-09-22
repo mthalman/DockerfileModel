@@ -52,7 +52,7 @@ public class Dockerfile : IConstructContainer
     /// <param name="text">Dockerfile source, including any desired line endings.</param>
     /// <returns>A mutable document containing the parsed constructs.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="text"/> is null.</exception>
-    /// <exception cref="Valleysoft.DockerfileModel.Parsing.ParseException">The source cannot be parsed as a supported Dockerfile.</exception>
+    /// <exception cref="ParseException">The source cannot be parsed as a supported Dockerfile.</exception>
     /// <remarks>Use <c>TryParse</c> with explicit recovery options to retain malformed or unknown constructs.</remarks>
     public static Dockerfile Parse(string text)
     {

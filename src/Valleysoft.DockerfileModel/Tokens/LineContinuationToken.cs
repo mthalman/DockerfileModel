@@ -1,5 +1,3 @@
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
@@ -33,8 +31,8 @@ public class LineContinuationToken : AggregateToken
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         from escape in Symbol(escapeChar)
-        from whitespace in Valleysoft.DockerfileModel.Parsing.Parse.WhiteSpace.Except(Valleysoft.DockerfileModel.Parsing.Parse.LineEnd).Many()
-        from lineEnding in Valleysoft.DockerfileModel.Parsing.Parse.LineEnd
+        from whitespace in P.Parse.WhiteSpace.Except(P.Parse.LineEnd).Many()
+        from lineEnding in P.Parse.LineEnd
         select ConcatTokens(
             escape,
             whitespace.Any() ? new WhitespaceToken(new string(whitespace.ToArray())) : null,

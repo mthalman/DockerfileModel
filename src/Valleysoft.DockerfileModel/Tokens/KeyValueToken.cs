@@ -1,6 +1,3 @@
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
@@ -260,6 +257,6 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
 
     private static Parser<Token?> SeparatorParser(char separator) =>
         Char.IsWhiteSpace(separator) ?
-            Valleysoft.DockerfileModel.Parsing.Parse.Return<Token?>(null) :
+            P.Parse.Return<Token?>(null) :
             Symbol(separator).Cast<SymbolToken, Token>();
 }

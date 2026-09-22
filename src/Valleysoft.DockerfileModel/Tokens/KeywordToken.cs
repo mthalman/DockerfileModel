@@ -1,6 +1,5 @@
 using System.Text;
 
-using static Valleysoft.DockerfileModel.Parsing.StringParsers;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
@@ -37,8 +36,8 @@ public class KeywordToken : AggregateToken, IValueToken
     internal static Parser<KeywordToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in IdentifierString(
             escapeChar,
-            Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')),
-            Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')))
+            P.Parse.LetterOrDigit.Or(P.Parse.Char('_')).Or(P.Parse.Char('-')),
+            P.Parse.LetterOrDigit.Or(P.Parse.Char('_')).Or(P.Parse.Char('-')))
         select new KeywordToken(tokens, escapeChar);
 
     private static string StripLineContinuations(string value, char escapeChar)

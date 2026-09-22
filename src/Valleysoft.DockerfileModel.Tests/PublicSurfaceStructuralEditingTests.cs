@@ -175,9 +175,9 @@ public class PublicSurfaceStructuralEditingTests
         AggregateToken[] flags =
         [
             FromFlag.Parse("--from=builder", '`'),
-            FromFlag.GetParser('`')(new Valleysoft.DockerfileModel.Parsing.Input("--from=builder")).Value,
+            FromFlag.GetParser('`')(new Input("--from=builder")).Value,
             ChangeOwnerFlag.Parse("--chown=root", '`'),
-            ChangeOwnerFlag.GetParser('`')(new Valleysoft.DockerfileModel.Parsing.Input("--chown=root")).Value
+            ChangeOwnerFlag.GetParser('`')(new Input("--chown=root")).Value
         ];
         PropertyInfo? context = typeof(AggregateToken).GetProperty(
             "EditingEscapeChar", BindingFlags.Instance | BindingFlags.NonPublic);

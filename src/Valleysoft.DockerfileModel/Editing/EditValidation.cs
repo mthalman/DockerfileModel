@@ -230,7 +230,7 @@ internal static class EditValidation
             parsed = Instruction.CreateDiagnosticInstruction(name, text, escapeChar,
                 new InstructionParseContext(region, 0));
         }
-        catch (Valleysoft.DockerfileModel.Parsing.ParseException exception)
+        catch (ParseException exception)
         {
             throw new InvalidOperationException("The edit would produce an invalid instruction.", exception);
         }

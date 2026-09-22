@@ -1,6 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.CommandParsers;
 
 namespace Valleysoft.DockerfileModel;
 

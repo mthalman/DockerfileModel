@@ -1,10 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.StringParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -89,7 +84,7 @@ internal sealed class InstructionParseContext
                 Parser<IEnumerable<Token>> commentParser =
                     from marker in Symbol('#')
                     from leading in WhitespaceWithoutNewLine()
-                    from text in Valleysoft.DockerfileModel.Parsing.Parse.AnyChar.Except(Valleysoft.DockerfileModel.Parsing.Parse.LineEnd.End()).Many().Text()
+                    from text in P.Parse.AnyChar.Except(P.Parse.LineEnd.End()).Many().Text()
                     from lineEnd in OptionalNewLine().AsEnumerable()
                     select ConcatTokens(new Token[]
                     {
@@ -155,7 +150,7 @@ internal sealed class InstructionParseContext
     {
         Parser<Token> continuation = LineContinuationToken.GetParser(escapeChar).Cast<LineContinuationToken, Token>();
         Parser<Token> content =
-            from value in Valleysoft.DockerfileModel.Parsing.Parse.AnyChar.Except(continuation).AtLeastOnce().Text()
+            from value in P.Parse.AnyChar.Except(continuation).AtLeastOnce().Text()
             select (Token)new StringToken(value);
         return continuation.Or(content).Many().End().Parse(text);
     }

@@ -43,10 +43,10 @@ internal static class CommandParsers
         select TokenSequences.ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
 
     /// <summary>
-    /// Creates a <see cref="LiteralToken"/> for a JSON array element from its parsed tokens.
+    /// Creates a <see cref="Tokens.LiteralToken"/> for a JSON array element from its parsed tokens.
     /// When the element is an empty string (e.g. ""), the token sequence is empty and
     /// <see cref="StringParsers.CollapseLiteralTokens"/> cannot be used because it requires non-empty input.
-    /// In that case, a zero-length <see cref="LiteralToken"/> with <see cref="LiteralToken.QuoteChar"/>
+    /// In that case, a zero-length <see cref="Tokens.LiteralToken"/> with <see cref="Tokens.LiteralToken.QuoteChar"/>
     /// set to double-quote is returned directly.
     /// </summary>
     private static IEnumerable<Token> CreateJsonArrayElementLiteral(IEnumerable<Token> tokens,

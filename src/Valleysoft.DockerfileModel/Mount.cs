@@ -1,9 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -91,18 +87,18 @@ public partial class Mount : AggregateToken
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool isFlagValue)
     {
-        Parser<bool> wordBoundary = Valleysoft.DockerfileModel.Parsing.Parse.WhiteSpace.Select(_ => true)
-            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Return(true).End());
+        Parser<bool> wordBoundary = P.Parse.WhiteSpace.Select(_ => true)
+            .Or(P.Parse.Return(true).End());
         Parser<IEnumerable<Token>> continuationTrivia =
             from continuations in LineContinuations(escapeChar)
             from comments in continuations.Any()
                 ? CommentText().Many().Flatten()
-                : Valleysoft.DockerfileModel.Parsing.Parse.Return(Enumerable.Empty<Token>())
+                : P.Parse.Return(Enumerable.Empty<Token>())
             select ConcatTokens(continuations, comments);
         Parser<LiteralToken> emptyValueParser =
             from boundary in (
                 from trivia in continuationTrivia
-                from end in Valleysoft.DockerfileModel.Parsing.Parse.Char(',').Select(_ => true).Or(wordBoundary)
+                from end in P.Parse.Char(',').Select(_ => true).Or(wordBoundary)
                 select end).Preview()
             where boundary.IsDefined
             select new LiteralToken("", canContainVariables: true, escapeChar);
@@ -163,7 +159,7 @@ public partial class Mount : AggregateToken
                 select end).Preview()
             where boundary.IsDefined
             from trailingWhitespace in isFlagValue
-                ? Valleysoft.DockerfileModel.Parsing.Parse.Return(Enumerable.Empty<Token>())
+                ? P.Parse.Return(Enumerable.Empty<Token>())
                 : ArgTrailingWhitespace(escapeChar)
             select ConcatTokens(first, rest.SelectMany(t => t), trailingWhitespace);
     }

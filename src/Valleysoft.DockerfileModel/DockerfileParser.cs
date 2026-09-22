@@ -306,7 +306,7 @@ internal static class DockerfileParser
     }
 
     private static Parser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
-        from text in Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Many().Text()
+        from text in P.Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Many().Text()
         from lineCont in LineContinuationToken.GetParser(escapeChar)
         select lineCont;
 }

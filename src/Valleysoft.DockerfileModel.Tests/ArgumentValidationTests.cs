@@ -132,7 +132,7 @@ public class ArgumentValidationTests
     public void NullElementValidationIsDistinctFromStringValidation()
     {
         Assert.Equal("VOLUME [\"\"]", new VolumeInstruction(new[] { "" }).ToString());
-        Assert.Throws<Valleysoft.DockerfileModel.Parsing.ParseException>(() => new VolumeInstruction(new[] { " " }));
+        Assert.Throws<ParseException>(() => new VolumeInstruction(new[] { " " }));
         Assert.Throws<ArgumentException>("values", () => StringHelper.FormatAsJson(new[] { "valid", null! }));
     }
 

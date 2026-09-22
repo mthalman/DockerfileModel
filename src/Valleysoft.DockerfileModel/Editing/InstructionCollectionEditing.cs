@@ -411,7 +411,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         }
         if (IsFlag)
         {
-            int position = tokens.FindIndex(token => token is LiteralToken or Command or HeredocMarkerToken ||
+            int position = tokens.FindIndex(token => token is Tokens.LiteralToken or Command or HeredocMarkerToken ||
                 token is SymbolToken && token.ToString() == "[");
             if (position < 0)
             {
@@ -587,7 +587,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
                 _ => throw new InvalidOperationException("This owner does not define an editable instruction collection.")
             };
         }
-        catch (Valleysoft.DockerfileModel.Parsing.ParseException exception)
+        catch (ParseException exception)
         {
             throw new InvalidOperationException("The edit would produce invalid collection syntax.", exception);
         }

@@ -41,7 +41,7 @@ internal static class BasicParsers
     /// </summary>
     /// <returns>The new line token if a new line exists; otherwise, null.</returns>
     internal static Parser<NewLineToken> OptionalNewLine() =>
-        from lineEnd in Parse.LineEnd.Optional()
+        from lineEnd in P.Parse.LineEnd.Optional()
         select lineEnd.IsDefined ? new NewLineToken(lineEnd.Get()) : null;
 
     /// <summary>
@@ -60,7 +60,7 @@ internal static class BasicParsers
     /// <param name="createToken">Delegate to create the token.</param>
     /// <returns>Set of parsed tokens.</returns>
     internal static Parser<IEnumerable<Token>> TokenWithTrailingWhitespace(Func<string, Token> createToken) =>
-        from val in Parse.AnyChar.Except(Parse.LineEnd).Many().Text()
+        from val in P.Parse.AnyChar.Except(P.Parse.LineEnd).Many().Text()
         select TokenSequences.ConcatTokens(createToken(val.Trim()), GetTrailingWhitespaceToken(val)!);
 
     /// <summary>
@@ -122,7 +122,7 @@ internal static class BasicParsers
     /// <param name="value">Symbol value.</param>
     /// <returns>A symbol token.</returns>
     internal static Parser<SymbolToken> Symbol(char value) =>
-        from val in Parse.Char(value)
+        from val in P.Parse.Char(value)
         select new SymbolToken(val);
 
     /// <summary>
@@ -138,14 +138,14 @@ internal static class BasicParsers
     /// Parses a required new line.
     /// </summary>
     internal static Parser<NewLineToken> NewLine() =>
-        from lineEnd in Parse.LineEnd
+        from lineEnd in P.Parse.LineEnd
         select new NewLineToken(lineEnd);
 
     /// <summary>
     /// Parses any character except for whitespace.
     /// </summary>
     internal static Parser<char> NonWhitespace() =>
-        Parse.AnyChar.Except(Parse.WhiteSpace);
+        P.Parse.AnyChar.Except(P.Parse.WhiteSpace);
 
     /// <summary>
     /// Parses multiple line continuations and any whitespace.
@@ -158,7 +158,7 @@ internal static class BasicParsers
     /// Parses all whitespace except a new line.
     /// </summary>
     internal static Parser<WhitespaceToken?> WhitespaceWithoutNewLine() =>
-        from whitespace in Parse.WhiteSpace.Except(Parse.LineTerminator).XMany().Text()
+        from whitespace in P.Parse.WhiteSpace.Except(P.Parse.LineTerminator).XMany().Text()
         select whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null;
 
     /// <summary>

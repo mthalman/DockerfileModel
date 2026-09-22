@@ -1,6 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.StringParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -44,13 +43,13 @@ public class LabelKeyToken : IdentifierToken
     // characters, underscores, and dots as the first character of a LABEL
     // key, even though digits are permitted in subsequent characters.
     private static Parser<char> FirstCharParser() =>
-        Valleysoft.DockerfileModel.Parsing.Parse.Letter
-            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('_'))
-            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('.'));
+        P.Parse.Letter
+            .Or(P.Parse.Char('_'))
+            .Or(P.Parse.Char('.'));
 
     private static Parser<char> TailCharParser() =>
-        Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit
-            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('_'))
-            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('-'))
-            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('.'));
+        P.Parse.LetterOrDigit
+            .Or(P.Parse.Char('_'))
+            .Or(P.Parse.Char('-'))
+            .Or(P.Parse.Char('.'));
 }

@@ -23,7 +23,7 @@ public sealed class MountEntry
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">The key is empty or the supplied values cannot be represented faithfully as one entry.</exception>
-    /// <exception cref="Valleysoft.DockerfileModel.Parsing.ParseException">The entry's representation is not accepted by the mount parser.</exception>
+    /// <exception cref="ParseException">The entry's representation is not accepted by the mount parser.</exception>
     public MountEntry(string key, string? value = null, char escapeChar = Dockerfile.DefaultEscapeChar)
     {
         Guard.NotNullOrEmpty(key, nameof(key));

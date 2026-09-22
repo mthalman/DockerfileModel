@@ -1,8 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.StringParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -112,8 +109,8 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
             from dash1 in Symbol('-').AsEnumerable()
             from dash2 in Symbol('-').AsEnumerable()
             from kw in KeywordToken.GetParser(keyword, escapeChar).AsEnumerable()
-            from boundary in Valleysoft.DockerfileModel.Parsing.Parse.Not(
-                Valleysoft.DockerfileModel.Parsing.Parse.Char(c => !char.IsWhiteSpace(c) && c != '#' && c != escapeChar, "non-boundary character"))
+            from boundary in P.Parse.Not(
+                P.Parse.Char(c => !char.IsWhiteSpace(c) && c != '#' && c != escapeChar, "non-boundary character"))
             select ConcatTokens(dash1, dash2, kw)
         );
 

@@ -7,7 +7,7 @@ internal static class VariableParsers
     /// <summary>
     /// Parses the characters of a variable reference.
     /// </summary>
-    internal static Parser<char> VariableRefCharParser => Parse.LetterOrDigit.Or(Parse.Char('_'));
+    internal static Parser<char> VariableRefCharParser => P.Parse.LetterOrDigit.Or(P.Parse.Char('_'));
 
     /// <summary>
     /// Parses a variable identifier reference.
