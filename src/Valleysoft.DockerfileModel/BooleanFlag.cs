@@ -94,7 +94,7 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
 
     private static Parser<IEnumerable<Token>> GetInnerParser(string keyword, char escapeChar) =>
         // Path 1: --name=true or --name=false (case-insensitive)
-        // Sprache's .Or() backtracks even when input has been consumed, so if '='
+        // Valleysoft.DockerfileModel.Parsing's .Or() backtracks even when input has been consumed, so if '='
         // is present but the value is invalid (e.g. =yes, =1, empty =), .Or()
         // backtracks to try Path 2.
         (from dash1 in Symbol('-').AsEnumerable()
@@ -112,8 +112,8 @@ public abstract class BooleanFlag : KeyValueToken<KeywordToken, LiteralToken>
             from dash1 in Symbol('-').AsEnumerable()
             from dash2 in Symbol('-').AsEnumerable()
             from kw in KeywordToken.GetParser(keyword, escapeChar).AsEnumerable()
-            from boundary in Sprache.Parse.Not(
-                Sprache.Parse.Char(c => !char.IsWhiteSpace(c) && c != '#' && c != escapeChar, "non-boundary character"))
+            from boundary in Valleysoft.DockerfileModel.Parsing.Parse.Not(
+                Valleysoft.DockerfileModel.Parsing.Parse.Char(c => !char.IsWhiteSpace(c) && c != '#' && c != escapeChar, "non-boundary character"))
             select ConcatTokens(dash1, dash2, kw)
         );
 

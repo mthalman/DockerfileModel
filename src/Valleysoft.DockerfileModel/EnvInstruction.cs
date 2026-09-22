@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 
 using Valleysoft.DockerfileModel.Tokens;
 
@@ -33,6 +33,7 @@ public class EnvInstruction : Instruction
     public static EnvInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<EnvInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new EnvInstruction(tokens, escapeChar);

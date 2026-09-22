@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Parsing.StringParsers;
 using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
@@ -27,6 +27,7 @@ public class Variable : IdentifierToken
         EditingEscapeChar = escapeChar;
     }
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<Variable> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new Variable(tokens, escapeChar);

@@ -1,5 +1,5 @@
 using Valleysoft.DockerfileModel.TestSupport;
-using Sprache;
+using Valleysoft.DockerfileModel.Parsing;
 
 namespace Valleysoft.DockerfileModel.DiffTest;
 

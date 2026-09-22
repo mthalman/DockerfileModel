@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 
 using static Valleysoft.DockerfileModel.Parsing.StringParsers;
 
@@ -25,6 +25,7 @@ public class KeywordToken : AggregateToken, IValueToken
         set => throw new NotSupportedException("The value of a keyword is read-only.");
     }
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<KeywordToken> GetParser(string keyword, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(keyword, escapeChar)
         select new KeywordToken(tokens, escapeChar);
@@ -34,6 +35,7 @@ public class KeywordToken : AggregateToken, IValueToken
     /// more letters, digits, underscores, hyphens, line continuations, or escaped characters.
     /// Used for generic key-value parsing where the key name is not known in advance.
     /// </summary>
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<KeywordToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in IdentifierString(
             escapeChar,

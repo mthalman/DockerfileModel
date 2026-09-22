@@ -24,6 +24,7 @@ public class LinkFlag : BooleanFlag
     public static LinkFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new LinkFlag(tokens, esc), escapeChar);
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<LinkFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new LinkFlag(tokens, esc), escapeChar);
 }

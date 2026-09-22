@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
@@ -25,6 +25,7 @@ public class ChangeOwnerFlag : KeyValueToken<KeywordToken, LiteralToken>
             escapeChar: escapeChar,
             isFlag: true);
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<ChangeOwnerFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("chown", escapeChar),

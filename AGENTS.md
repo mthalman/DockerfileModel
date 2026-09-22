@@ -62,7 +62,7 @@ procedure in `MAINTAINERS.md`.
 
 ### C# Library
 
-The library uses a **token-based model** with the [Sprache](https://github.com/sprache/Sprache) parser combinator library. The hierarchy is:
+The library uses a **token-based model** with a library-owned parser abstraction backed by Superpower. The hierarchy is:
 
 - **Dockerfile** — top-level container, parses via `Dockerfile.Parse(string)`. Contains a list of `DockerfileConstruct` items.
 - **DockerfileConstruct** — base class for all elements: `Instruction`, `Comment`, `ParserDirective`, `Whitespace`.
@@ -73,7 +73,7 @@ Key supporting classes:
 - **DockerfileBuilder** — fluent API for constructing Dockerfiles programmatically.
 - **StagesView / Stage** — organizes a Dockerfile by multi-stage build stages (global ARGs + per-stage groupings).
 - **ImageName** — parses image references into registry, repository, tag, and digest components.
-- **Parser modules** (`Parsing/`) — internal Sprache helpers grouped by grammar:
+- **Parser modules** (`Parsing/`) — internal parser helpers grouped by grammar:
   `BasicParsers` for trivia and primitives, `StringParsers` for quoting and
   literals, `VariableParsers` for variable-aware literals, `InstructionParsers`
   for argument framing, `CommandParsers` for shell/JSON forms, and

@@ -1,4 +1,4 @@
-﻿using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
+using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
 using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel.Tokens;
@@ -27,14 +27,15 @@ public class LineContinuationToken : AggregateToken
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Line continuation tokens.</returns>
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<LineContinuationToken> GetParser(char escapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new LineContinuationToken(tokens);
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         from escape in Symbol(escapeChar)
-        from whitespace in Sprache.Parse.WhiteSpace.Except(Sprache.Parse.LineEnd).Many()
-        from lineEnding in Sprache.Parse.LineEnd
+        from whitespace in Valleysoft.DockerfileModel.Parsing.Parse.WhiteSpace.Except(Valleysoft.DockerfileModel.Parsing.Parse.LineEnd).Many()
+        from lineEnding in Valleysoft.DockerfileModel.Parsing.Parse.LineEnd
         select ConcatTokens(
             escape,
             whitespace.Any() ? new WhitespaceToken(new string(whitespace.ToArray())) : null,

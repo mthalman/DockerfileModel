@@ -89,7 +89,7 @@ internal sealed class InstructionParseContext
                 Parser<IEnumerable<Token>> commentParser =
                     from marker in Symbol('#')
                     from leading in WhitespaceWithoutNewLine()
-                    from text in Sprache.Parse.AnyChar.Except(Sprache.Parse.LineEnd.End()).Many().Text()
+                    from text in Valleysoft.DockerfileModel.Parsing.Parse.AnyChar.Except(Valleysoft.DockerfileModel.Parsing.Parse.LineEnd.End()).Many().Text()
                     from lineEnd in OptionalNewLine().AsEnumerable()
                     select ConcatTokens(new Token[]
                     {
@@ -155,7 +155,7 @@ internal sealed class InstructionParseContext
     {
         Parser<Token> continuation = LineContinuationToken.GetParser(escapeChar).Cast<LineContinuationToken, Token>();
         Parser<Token> content =
-            from value in Sprache.Parse.AnyChar.Except(continuation).AtLeastOnce().Text()
+            from value in Valleysoft.DockerfileModel.Parsing.Parse.AnyChar.Except(continuation).AtLeastOnce().Text()
             select (Token)new StringToken(value);
         return continuation.Or(content).Many().End().Parse(text);
     }

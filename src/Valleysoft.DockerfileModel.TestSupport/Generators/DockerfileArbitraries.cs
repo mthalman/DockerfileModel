@@ -5,7 +5,7 @@ namespace Valleysoft.DockerfileModel.TestSupport.Generators;
 
 /// <summary>
 /// FsCheck 3.x generators that produce valid Dockerfile instruction strings.
-/// Every generated string is designed to be parseable by the Sprache-based parser
+/// Every generated string is designed to be parseable by the Valleysoft.DockerfileModel.Parsing-based parser
 /// and to round-trip through Parse/ToString with character-for-character fidelity.
 ///
 /// Uses the FsCheck.Fluent namespace for C#-friendly Gen combinators with LINQ syntax.
@@ -2775,7 +2775,7 @@ public static class DockerfileArbitraries
 
     /// <summary>
     /// Generates a single instruction valid after FROM (not FROM itself, no ONBUILD recursion).
-    /// Includes all instruction types whose Sprache parser preserves trailing \n
+    /// Includes all instruction types whose Valleysoft.DockerfileModel.Parsing parser preserves trailing \n
     /// during Dockerfile-level parsing.
     /// Filters out multi-line instructions (containing newlines from line continuations)
     /// because the Dockerfile-level parser handles line splitting separately.

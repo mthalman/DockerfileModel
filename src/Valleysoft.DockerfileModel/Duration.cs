@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 
 namespace Valleysoft.DockerfileModel;
  
@@ -58,7 +58,7 @@ public class Duration
     }
 
     private static Parser<double> DurationSegment(string unit) =>
-        from val in Sprache.Parse.Identifier(Sprache.Parse.Digit, Sprache.Parse.Digit.Or(Sprache.Parse.Char('.')))
-        from unitParser in Sprache.Parse.String(unit)
+        from val in Valleysoft.DockerfileModel.Parsing.Parse.Identifier(Valleysoft.DockerfileModel.Parsing.Parse.Digit, Valleysoft.DockerfileModel.Parsing.Parse.Digit.Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('.')))
+        from unitParser in Valleysoft.DockerfileModel.Parsing.Parse.String(unit)
         select double.Parse(val);
 }

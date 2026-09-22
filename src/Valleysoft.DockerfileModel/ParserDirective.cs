@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
@@ -69,18 +69,19 @@ public class ParserDirective : DockerfileConstruct
     public static ParserDirective Parse(string text) =>
         Create(GetTokens(text, GetParser().End()));
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<IEnumerable<Token>> GetParser() =>
-        from bom in Sprache.Parse.Char('\uFEFF').Optional()
+        from bom in Valleysoft.DockerfileModel.Parsing.Parse.Char('\uFEFF').Optional()
         from leading in HorizontalWhitespace()
         from hash in Symbol('#')
         from afterHash in HorizontalWhitespace()
-        from name in Sprache.Parse.Identifier(
-            Sprache.Parse.Char(IsAsciiLetter, "directive name"),
-            Sprache.Parse.Char(c => IsAsciiLetter(c) || c >= '0' && c <= '9', "directive name"))
-        from beforeEquals in Sprache.Parse.Chars(' ', '\t', '\f', '\r').Many().Text()
+        from name in Valleysoft.DockerfileModel.Parsing.Parse.Identifier(
+            Valleysoft.DockerfileModel.Parsing.Parse.Char(IsAsciiLetter, "directive name"),
+            Valleysoft.DockerfileModel.Parsing.Parse.Char(c => IsAsciiLetter(c) || c >= '0' && c <= '9', "directive name"))
+        from beforeEquals in Valleysoft.DockerfileModel.Parsing.Parse.Chars(' ', '\t', '\f', '\r').Many().Text()
         from op in Symbol('=')
-        from suffix in Sprache.Parse.CharExcept('\n').Many().Text()
-        from newline in Sprache.Parse.Char('\n').Optional()
+        from suffix in Valleysoft.DockerfileModel.Parsing.Parse.CharExcept('\n').Many().Text()
+        from newline in Valleysoft.DockerfileModel.Parsing.Parse.Char('\n').Optional()
         let content = suffix.TrimEnd('\r')
         let value = ValuePattern.Match(content)
         where value.Success
@@ -157,7 +158,7 @@ public class ParserDirective : DockerfileConstruct
     private static bool IsAsciiLetter(char c) => c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
 
     private static Parser<string> HorizontalWhitespace() =>
-        Sprache.Parse.Char(c => char.IsWhiteSpace(c) && c != '\n', "horizontal whitespace").Many().Text();
+        Valleysoft.DockerfileModel.Parsing.Parse.Char(c => char.IsWhiteSpace(c) && c != '\n', "horizontal whitespace").Many().Text();
 
     private static IEnumerable<Token> CreateTokens(bool bom, string leading, Token hash, string afterHash,
         string name, string beforeEquals, Token op, Match value, string newline)

@@ -82,6 +82,7 @@ public partial class Mount : AggregateToken
     public static Mount Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, isFlagValue: false).End()), escapeChar);
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<Mount> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(escapeChar, isFlagValue: false);
 
@@ -91,18 +92,18 @@ public partial class Mount : AggregateToken
 
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool isFlagValue)
     {
-        Parser<bool> wordBoundary = Sprache.Parse.WhiteSpace.Select(_ => true)
-            .Or(Sprache.Parse.Return(true).End());
+        Parser<bool> wordBoundary = Valleysoft.DockerfileModel.Parsing.Parse.WhiteSpace.Select(_ => true)
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Return(true).End());
         Parser<IEnumerable<Token>> continuationTrivia =
             from continuations in LineContinuations(escapeChar)
             from comments in continuations.Any()
                 ? CommentText().Many().Flatten()
-                : Sprache.Parse.Return(Enumerable.Empty<Token>())
+                : Valleysoft.DockerfileModel.Parsing.Parse.Return(Enumerable.Empty<Token>())
             select ConcatTokens(continuations, comments);
         Parser<LiteralToken> emptyValueParser =
             from boundary in (
                 from trivia in continuationTrivia
-                from end in Sprache.Parse.Char(',').Select(_ => true).Or(wordBoundary)
+                from end in Valleysoft.DockerfileModel.Parsing.Parse.Char(',').Select(_ => true).Or(wordBoundary)
                 select end).Preview()
             where boundary.IsDefined
             select new LiteralToken("", canContainVariables: true, escapeChar);
@@ -163,7 +164,7 @@ public partial class Mount : AggregateToken
                 select end).Preview()
             where boundary.IsDefined
             from trailingWhitespace in isFlagValue
-                ? Sprache.Parse.Return(Enumerable.Empty<Token>())
+                ? Valleysoft.DockerfileModel.Parsing.Parse.Return(Enumerable.Empty<Token>())
                 : ArgTrailingWhitespace(escapeChar)
             select ConcatTokens(first, rest.SelectMany(t => t), trailingWhitespace);
     }

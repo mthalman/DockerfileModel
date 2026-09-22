@@ -24,7 +24,7 @@
 
   <ItemGroup>
     <PackageReference Include="MinVer" Version="8.0.0" PrivateAssets="All" />
-    <PackageReference Include="Sprache" Version="2.3.1" />
+    <PackageReference Include="Superpower" Version="3.1.0" />
     <PackageReference Include="System.Text.Json" Version="10.0.12" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
   </ItemGroup>
 

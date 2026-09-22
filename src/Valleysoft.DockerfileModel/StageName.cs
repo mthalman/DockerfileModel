@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Parsing.StringParsers;
 
@@ -19,6 +19,7 @@ public class StageName : IdentifierToken
     {
     }
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<StageName> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new StageName(tokens, escapeChar);
@@ -29,11 +30,11 @@ public class StageName : IdentifierToken
     private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         IdentifierString(escapeChar, FirstCharParser(), TailCharParser());
 
-    private static Parser<char> FirstCharParser() => Sprache.Parse.Letter;
+    private static Parser<char> FirstCharParser() => Valleysoft.DockerfileModel.Parsing.Parse.Letter;
 
     private static Parser<char> TailCharParser() =>
-        Sprache.Parse.LetterOrDigit
-            .Or(Sprache.Parse.Char('_'))
-            .Or(Sprache.Parse.Char('-'))
-            .Or(Sprache.Parse.Char('.'));
+        Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('_'))
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('-'))
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('.'));
 }

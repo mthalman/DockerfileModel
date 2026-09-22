@@ -1,2 +1,2 @@
-﻿global using global::Sprache;
+global using global::Valleysoft.DockerfileModel.Parsing;
 global using global::Xunit;

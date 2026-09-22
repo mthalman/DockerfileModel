@@ -1,4 +1,4 @@
-﻿using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
+using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
 using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
 using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
@@ -187,6 +187,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
             isFlag: isFlag);
 
     // Breaking change: the optionalValue parameter was added intentionally, changing this public method's signature.
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<KeyValueToken<TKey, TValue>> GetParser(
         Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         char separator = DefaultSeparator, char escapeChar = Dockerfile.DefaultEscapeChar, bool excludeLeadingWhitespaceInValue = false,
@@ -196,6 +197,7 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
             excludeTrailingWhitespaceInSeparator: excludeTrailingWhitespaceInSeparator,
             optionalValue: optionalValue);
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<KeyValueToken<TKey, TValue>> GetParser(
         Parser<TKey> keyTokenParser, Parser<TValue> valueTokenParser,
         char separator, char escapeChar, bool excludeLeadingWhitespaceInValue, bool excludeTrailingWhitespaceInSeparator,
@@ -260,6 +262,6 @@ public class KeyValueToken<TKey, TValue> : AggregateToken, IKeyValuePair
 
     private static Parser<Token?> SeparatorParser(char separator) =>
         Char.IsWhiteSpace(separator) ?
-            Sprache.Parse.Return<Token?>(null) :
+            Valleysoft.DockerfileModel.Parsing.Parse.Return<Token?>(null) :
             Symbol(separator).Cast<SymbolToken, Token>();
 }

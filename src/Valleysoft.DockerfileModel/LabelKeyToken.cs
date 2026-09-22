@@ -26,6 +26,7 @@ public class LabelKeyToken : IdentifierToken
         EditingEscapeChar = escapeChar;
     }
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<LabelKeyToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from result in GetInnerParser(escapeChar)
         select new LabelKeyToken(result.Tokens, escapeChar)
@@ -44,13 +45,13 @@ public class LabelKeyToken : IdentifierToken
     // characters, underscores, and dots as the first character of a LABEL
     // key, even though digits are permitted in subsequent characters.
     private static Parser<char> FirstCharParser() =>
-        Sprache.Parse.Letter
-            .Or(Sprache.Parse.Char('_'))
-            .Or(Sprache.Parse.Char('.'));
+        Valleysoft.DockerfileModel.Parsing.Parse.Letter
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('_'))
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('.'));
 
     private static Parser<char> TailCharParser() =>
-        Sprache.Parse.LetterOrDigit
-            .Or(Sprache.Parse.Char('_'))
-            .Or(Sprache.Parse.Char('-'))
-            .Or(Sprache.Parse.Char('.'));
+        Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('_'))
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('-'))
+            .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('.'));
 }

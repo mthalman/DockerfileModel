@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
@@ -249,6 +249,7 @@ public class ImageName : AggregateToken
     public static ImageName Parse(string imageName, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(imageName, GetParser(escapeChar)), escapeChar);
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<IEnumerable<Token>> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
             from registryRepository in ParseRegistryRepository(escapeChar)
             from tagDigest in ParseTagDigest(escapeChar).Optional()
@@ -305,6 +306,7 @@ public class ImageName : AggregateToken
             public static Digest Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
+            [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
             public static Parser<Digest> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Digest(tokens, escapeChar);
@@ -316,11 +318,11 @@ public class ImageName : AggregateToken
                 from prefix in ArgTokens(
                     StringToken("sha", escapeChar), escapeChar)
                 from digits in ArgTokens(
-                    StringTokenCharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Digit), escapeChar).Many()
+                    StringTokenCharWithOptionalLineContinuation(escapeChar, Valleysoft.DockerfileModel.Parsing.Parse.Digit), escapeChar).Many()
                 from shaSeparator in ArgTokens(
-                    StringTokenCharWithOptionalLineContinuation(escapeChar, Sprache.Parse.Char(':')), escapeChar)
+                    StringTokenCharWithOptionalLineContinuation(escapeChar, Valleysoft.DockerfileModel.Parsing.Parse.Char(':')), escapeChar)
                 from digest in ArgTokens(
-                    IdentifierString(escapeChar, Sprache.Parse.LetterOrDigit, Sprache.Parse.LetterOrDigit), escapeChar, excludeTrailingWhitespace: true)
+                    IdentifierString(escapeChar, Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit, Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit), escapeChar, excludeTrailingWhitespace: true)
                 select TokenHelper.CollapseStringTokens(ConcatTokens(
                     prefix,
                     TokenHelper.CollapseStringTokens(digits.Flatten()),
@@ -346,6 +348,7 @@ public class ImageName : AggregateToken
             public static Tag Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
+            [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
             public static Parser<Tag> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Tag(tokens, escapeChar);
@@ -356,13 +359,13 @@ public class ImageName : AggregateToken
             private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
                 DelimitedIdentifier(escapeChar, FirstCharParser(), TailCharParser(), '/');
 
-            private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
+            private static Parser<char> FirstCharParser() => Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit;
 
             private static Parser<char> TailCharParser() =>
-                Sprache.Parse.LetterOrDigit
-                    .Or(Sprache.Parse.Char('.'))
-                    .Or(Sprache.Parse.Char('_'))
-                    .Or(Sprache.Parse.Char('-'));
+                Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit
+                    .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('.'))
+                    .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('_'))
+                    .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('-'));
         }
 
         public class Repository : LiteralToken
@@ -383,6 +386,7 @@ public class ImageName : AggregateToken
             public static Repository Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
+            [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
             public static Parser<Repository> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Repository(tokens, escapeChar);
@@ -393,12 +397,12 @@ public class ImageName : AggregateToken
             private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
                 DelimitedIdentifier(escapeChar, FirstCharParser(), TailCharParser(), '/');
 
-            private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
+            private static Parser<char> FirstCharParser() => Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit;
 
             private static Parser<char> TailCharParser() =>
-                Sprache.Parse.LetterOrDigit
-                    .Or(Sprache.Parse.Char('_'))
-                    .Or(Sprache.Parse.Char('-'));
+                Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit
+                    .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('_'))
+                    .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('-'));
         }
 
         public class Registry : LiteralToken
@@ -419,6 +423,7 @@ public class ImageName : AggregateToken
             public static Registry Parse(string text, char escapeChar) =>
                 new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
+            [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
             public static Parser<Registry> GetParser(char escapeChar) =>
                 from tokens in GetInnerParser(escapeChar)
                 select new Registry(tokens, escapeChar);
@@ -430,28 +435,28 @@ public class ImageName : AggregateToken
                 DelimitedIdentifier(
                     escapeChar,
                     FirstCharParser(),
-                    TailCharParser().Or(Sprache.Parse.Char(':')),
+                    TailCharParser().Or(Valleysoft.DockerfileModel.Parsing.Parse.Char(':')),
                     '.',
                     minimumDelimiters: 1)
                 .Or(
                     DelimitedIdentifier(
                         escapeChar,
                         FirstCharParser(),
-                        TailCharParser().Or(Sprache.Parse.Char('.')),
+                        TailCharParser().Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('.')),
                         ':',
                         minimumDelimiters: 1))
                 .Or(LocalhostParser());
 
             private static Parser<IEnumerable<Token>> LocalhostParser() =>
-                from localhost in Sprache.Parse.IgnoreCase("localhost").Text()
+                from localhost in Valleysoft.DockerfileModel.Parsing.Parse.IgnoreCase("localhost").Text()
                 select new Token[] { new StringToken(localhost) };
 
-            private static Parser<char> FirstCharParser() => Sprache.Parse.LetterOrDigit;
+            private static Parser<char> FirstCharParser() => Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit;
 
             private static Parser<char> TailCharParser() =>
-                Sprache.Parse.LetterOrDigit
-                    .Or(Sprache.Parse.Char('_'))
-                    .Or(Sprache.Parse.Char('-'));
+                Valleysoft.DockerfileModel.Parsing.Parse.LetterOrDigit
+                    .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('_'))
+                    .Or(Valleysoft.DockerfileModel.Parsing.Parse.Char('-'));
         }
     }
 }

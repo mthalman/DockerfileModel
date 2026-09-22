@@ -24,6 +24,7 @@ public class UnpackFlag : BooleanFlag
     public static UnpackFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new UnpackFlag(tokens, esc), escapeChar);
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<UnpackFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new UnpackFlag(tokens, esc), escapeChar);
 }

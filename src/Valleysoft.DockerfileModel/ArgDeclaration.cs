@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
 using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
@@ -122,6 +122,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
     public static ArgDeclaration Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar).End()), escapeChar);
 
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<ArgDeclaration> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ArgDeclaration(tokens, escapeChar);
@@ -175,7 +176,7 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
              new Token[] { firstContinuation },
              moreContinuations,
              trailingWhitespace is null ? Enumerable.Empty<Token>() : new Token[] { trailingWhitespace }))
-        .Or(Sprache.Parse.Return(Enumerable.Empty<Token>()));
+        .Or(Valleysoft.DockerfileModel.Parsing.Parse.Return(Enumerable.Empty<Token>()));
 
     private static Parser<IEnumerable<Token>> GetAssignedValueParser(char escapeChar, bool requireValue)
     {
@@ -191,6 +192,6 @@ public class ArgDeclaration : AggregateToken, IKeyValuePair
     }
 
     private static Parser<WhitespaceToken?> ContinuationIndentation() =>
-        from whitespace in Sprache.Parse.WhiteSpace.Except(Sprache.Parse.LineTerminator).XMany().Text()
+        from whitespace in Valleysoft.DockerfileModel.Parsing.Parse.WhiteSpace.Except(Valleysoft.DockerfileModel.Parsing.Parse.LineTerminator).XMany().Text()
         select whitespace.Length > 0 ? new WhitespaceToken(whitespace) : null;
 }

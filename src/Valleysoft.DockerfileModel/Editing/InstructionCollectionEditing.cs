@@ -587,7 +587,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
                 _ => throw new InvalidOperationException("This owner does not define an editable instruction collection.")
             };
         }
-        catch (Sprache.ParseException exception)
+        catch (Valleysoft.DockerfileModel.Parsing.ParseException exception)
         {
             throw new InvalidOperationException("The edit would produce invalid collection syntax.", exception);
         }

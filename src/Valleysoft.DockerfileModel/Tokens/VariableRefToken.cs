@@ -22,7 +22,7 @@ public class VariableRefToken : AggregateToken
     /// </summary>
     private static readonly Parser<string>[] variableSubstitutionModifiers =
         ValidModifiers
-            .Select(modifier => Sprache.Parse.String(modifier).Text())
+            .Select(modifier => Valleysoft.DockerfileModel.Parsing.Parse.String(modifier).Text())
             .ToArray();
     private readonly char escapeChar;
 
@@ -250,6 +250,7 @@ public class VariableRefToken : AggregateToken
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     /// <returns>Parsed variable reference token.</returns>
+    [Obsolete("Use Dockerfile.Parse or Dockerfile.TryParse instead. Parser factories will be removed in the next major version.")]
     public static Parser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new VariableRefToken(tokens, escapeChar);
@@ -313,7 +314,7 @@ public class VariableRefToken : AggregateToken
     /// </summary>
     /// <returns>Parsed variable reference token.</returns>
     private static Parser<IEnumerable<Token>> SimpleVariableReference() =>
-        from variableChar in Sprache.Parse.Char('$')
+        from variableChar in Valleysoft.DockerfileModel.Parsing.Parse.Char('$')
         from variableIdentifier in VariableIdentifier()
         select new Token[] { new StringToken(variableIdentifier) };
 
@@ -327,7 +328,7 @@ public class VariableRefToken : AggregateToken
     /// <returns>Parsed variable reference token.</returns>
     private static Parser<IEnumerable<Token>> BracedVariableReference(
         char escapeChar) =>
-        from variableChar in Sprache.Parse.Char('$')
+        from variableChar in Valleysoft.DockerfileModel.Parsing.Parse.Char('$')
         from opening in Symbol('{').AsEnumerable()
         from varNameToken in
             from varName in VariableIdentifier()

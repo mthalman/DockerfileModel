@@ -312,7 +312,7 @@ public class JsonStructuralEditingTests
     {
         const string body = "a\\\"b";
         Assert.True(JsonStringValidation.IsValid($"\"{body}\"", '`'));
-        Assert.Throws<Sprache.ParseException>(() => ExecFormCommand.Parse($"[\"{body}\"]", '`'));
+        Assert.Throws<Valleysoft.DockerfileModel.Parsing.ParseException>(() => ExecFormCommand.Parse($"[\"{body}\"]", '`'));
         ExecFormCommand command = ExecFormCommand.Parse("[\"old\"]", '`');
         LiteralToken incoming = RawLiteral(body, '`');
 
