@@ -1,7 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -21,7 +19,7 @@ public class GenericInstruction : Instruction
     protected GenericInstruction(IEnumerable<Token> tokens, char escapeChar)
         : base(tokens, escapeChar)
     {
-        ArgLines = InstructionCollectionEditing.Strings(new TokenList<LiteralToken>(this), this);
+        ArgLines = InstructionCollectionEditing.Strings(new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this), this);
     }
 
     public EditableList<string> ArgLines { get; }
@@ -36,25 +34,31 @@ public class GenericInstruction : Instruction
         return GetTokens($"{instruction} {args}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         from leading in Whitespace()
         from instruction in TokenWithTrailingWhitespace(InstructionIdentifier(escapeChar))
-        from lineContinuation in LineContinuations(escapeChar).Optional()
+        from lineContinuation in LineContinuations(escapeChar).Try().OptionalOrDefault(Enumerable.Empty<Token>())
         from instructionArgs in InstructionArgs(escapeChar)
-        select ConcatTokens(leading, instruction, lineContinuation.GetOrDefault(), instructionArgs);
+        select ConcatTokens(leading, instruction, lineContinuation, instructionArgs);
 
-    protected static Parser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
-        from lineSets in (CommentText().Or(InstructionArgLine(escapeChar))).Many()
+    protected static TextParser<IEnumerable<Token>> InstructionArgs(char escapeChar) =>
+        from lineSets in (CommentText().Try().Or(InstructionArgLine(escapeChar))).Try().Many()
         select lineSets.SelectMany(lineSet => lineSet);
 
-    private static Parser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
-        from text in Sprache.Parse.AnyChar.Except(LineContinuationToken.GetParser(escapeChar)).Except(Sprache.Parse.LineEnd).Many().Text()
-        from lineContinuation in LineContinuations(escapeChar).Optional()
+    private static TextParser<IEnumerable<Token>> InstructionArgLine(char escapeChar) =>
+        (
+        from text in Superpower.Parse.Not(LineContinuationToken.GetParser(escapeChar))
+            .IgnoreThen(Superpower.Parse.Not(NativeParsers.LineEnd))
+            .IgnoreThen(Character.AnyChar)
+            .Try().Many()
+            .Text()
+        from lineContinuation in LineContinuations(escapeChar).Try().OptionalOrDefault(Enumerable.Empty<Token>())
         from lineEnd in OptionalNewLine().AsEnumerable()
         select ConcatTokens(
             GetInstructionArgLineContent(text, escapeChar),
-            lineContinuation.GetOrDefault(),
-            lineEnd);
+            lineContinuation,
+            lineEnd)
+        ).Where(tokens => tokens.Any());
 
     private static IEnumerable<Token?> GetInstructionArgLineContent(string text, char escapeChar)
     {

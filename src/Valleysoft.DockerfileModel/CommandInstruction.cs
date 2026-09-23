@@ -3,9 +3,6 @@ using System.Text.Json;
 
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -53,33 +50,33 @@ public abstract class CommandInstruction : Instruction
         return ToString();
     }
 
-    protected static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    protected static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         GetArgsParser(escapeChar, false);
 
-    private protected static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, bool diagnostic) =>
+    private protected static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar, bool diagnostic) =>
         from whitespace in Whitespace()
         from command in ArgTokens(GetCommandParser(escapeChar, diagnostic).AsEnumerable(), escapeChar)
         select ConcatTokens(
             whitespace, command);
 
-    protected static Parser<Command> GetCommandParser(char escapeChar) =>
+    protected static TextParser<Command> GetCommandParser(char escapeChar) =>
         GetCommandParser(escapeChar, false);
 
-    internal static Parser<Command> GetCommandParser(char escapeChar, bool diagnostic)
+    internal static TextParser<Command> GetCommandParser(char escapeChar, bool diagnostic)
     {
-        Parser<Command> execFormParser = ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Command>();
-        Parser<Command> shellFormParser = (diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar))
+        TextParser<Command> execFormParser = ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Command>();
+        TextParser<Command> shellFormParser = (diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar))
             .Cast<ShellFormCommand, Command>();
 
         return input =>
         {
-            IResult<Command> execResult = execFormParser(input);
-            if (execResult.WasSuccessful)
+            Result<Command> execResult = execFormParser(input);
+            if (execResult.HasValue)
             {
                 return execResult;
             }
 
-            string remainingText = input.Source.Substring(input.Position);
+            string remainingText = input.Source!.Substring(input.Position.Absolute);
             if (ShouldFallbackToShell(remainingText, escapeChar))
             {
                 return shellFormParser(input);

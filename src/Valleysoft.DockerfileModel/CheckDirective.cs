@@ -32,9 +32,9 @@ public sealed class CheckDirective : ParserDirective
     }
 
     public new static CheckDirective Parse(string text) =>
-        new(GetTokens(text, NamedParser(ParserDirective.CheckDirective).End()));
+        new(GetTokens(text, NamedParser(ParserDirective.CheckDirective).AtEnd()));
 
-    public new static Parser<CheckDirective> GetParser() =>
+    public new static TextParser<CheckDirective> GetParser() =>
         from tokens in NamedParser(ParserDirective.CheckDirective)
         select new CheckDirective(tokens);
 

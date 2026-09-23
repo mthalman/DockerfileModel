@@ -21,7 +21,7 @@ public abstract class IdentifierToken : AggregateToken, IQuotableValueToken
     protected abstract IEnumerable<Token> GetInnerTokens(string value);
 
     protected static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value,
-        Parser<(IEnumerable<Token> Token, char? QuoteChar)> parser)
+        TextParser<(IEnumerable<Token> Token, char? QuoteChar)> parser)
     {
         Guard.NotNull(value, nameof(value));
         return parser.Parse(value);

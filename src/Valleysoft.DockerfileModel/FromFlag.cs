@@ -1,6 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.StringParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -25,7 +24,7 @@ public class FromFlag : KeyValueToken<KeywordToken, LiteralToken>
             escapeChar: escapeChar,
             isFlag: true);
 
-    public static Parser<FromFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<FromFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetParser(
             KeywordToken.GetParser("from", escapeChar),
             LiteralToken(escapeChar, Enumerable.Empty<char>()),

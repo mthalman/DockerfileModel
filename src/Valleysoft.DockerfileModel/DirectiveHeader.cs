@@ -18,8 +18,8 @@ internal sealed class DirectiveHeader
             return null;
         }
 
-        IResult<ParserDirective> result = ParserDirective.GetDiagnosticParser().TryParse(line);
-        if (!result.WasSuccessful || !ParserDirective.IsSupportedName(result.Value.DirectiveName) ||
+        Result<ParserDirective> result = ParserDirective.GetDiagnosticParser().TryParse(line);
+        if (!result.HasValue || !ParserDirective.IsSupportedName(result.Value.DirectiveName) ||
             line.StartsWith("\uFEFF", StringComparison.Ordinal))
         {
             Complete = true;

@@ -35,8 +35,8 @@ public static class TestHelper
         {
             ParseException exception = Assert.Throws<ParseException>(
                 () => parseFunc(scenario.Text, scenario.EscapeChar));
-            Assert.Equal(scenario.ParseExceptionPosition.Line, exception.Position.Line);
-            Assert.Equal(scenario.ParseExceptionPosition.Column, exception.Position.Column);
+            Assert.Equal(scenario.ParseExceptionPosition.Value.Line, exception.ErrorPosition.Line);
+            Assert.Equal(scenario.ParseExceptionPosition.Value.Column, exception.ErrorPosition.Column);
         }
     }
 

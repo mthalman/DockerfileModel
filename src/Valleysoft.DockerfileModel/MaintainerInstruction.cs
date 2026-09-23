@@ -1,7 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -39,7 +37,7 @@ public class MaintainerInstruction : Instruction
     public static MaintainerInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<MaintainerInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<MaintainerInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new MaintainerInstruction(tokens, escapeChar);
 
@@ -49,10 +47,10 @@ public class MaintainerInstruction : Instruction
         return GetTokens($"MAINTAINER {(String.IsNullOrEmpty(maintainer) ? "\"\"" : maintainer)}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         Instruction("MAINTAINER", escapeChar, GetArgsParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(
             LiteralWithVariables(
                 escapeChar, whitespaceMode: WhitespaceMode.Allowed).AsEnumerable(), escapeChar);

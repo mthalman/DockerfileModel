@@ -1,7 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.CommandParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -21,7 +19,7 @@ public class ExecFormCommand : Command
 
     internal ExecFormCommand(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        ValueTokens = new TokenList<LiteralToken>(this);
+        ValueTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this);
         Values = InstructionCollectionEditing.Strings(ValueTokens, this);
     }
 
@@ -36,7 +34,7 @@ public class ExecFormCommand : Command
     public static ExecFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<ExecFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ExecFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ExecFormCommand(tokens, escapeChar);
 
@@ -58,6 +56,6 @@ public class ExecFormCommand : Command
 
     public override CommandType CommandType => CommandType.ExecForm;
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         ArgTokens(JsonArray(escapeChar, canContainVariables: false, allowEmpty: true), escapeChar);
 }

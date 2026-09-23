@@ -62,10 +62,12 @@ internal static class TolerantDockerfileParser
                             nameStart++;
                         }
 
-                        IResult<KeywordToken> nameResult = KeywordToken.GetParser(escapeChar)
+                        Result<KeywordToken> nameResult = KeywordToken.GetParser(escapeChar)
                             .TryParse(content.Substring(nameStart));
-                        int nameEnd = nameStart + nameResult.Remainder.Position;
-                        if (!nameResult.WasSuccessful ||
+                        int nameEnd = nameStart + (nameResult.HasValue
+                            ? nameResult.Remainder.Position.Absolute
+                            : nameResult.ErrorPosition.Absolute);
+                        if (!nameResult.HasValue ||
                             (nameEnd < content.Length && !char.IsWhiteSpace(content[nameEnd])))
                         {
                             diagnostic = Failure(DockerfileDiagnosticCodes.InvalidSyntax,
@@ -97,7 +99,7 @@ internal static class TolerantDockerfileParser
                 catch (ParseException exception)
                 {
                     diagnostic = Failure(DockerfileDiagnosticCodes.InvalidSyntax,
-                        exception.Message, exception.Position?.Pos ?? 0, contentStart, content.Length, sourceMap);
+                        exception.Message, exception.ErrorPosition.Absolute, contentStart, content.Length, sourceMap);
                 }
 
                 if (construct is not null && !string.Equals(construct.ToString(), content, StringComparison.Ordinal))

@@ -1,6 +1,5 @@
-﻿using System.Text;
+using System.Text;
 
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 /// <summary>A syntax element composed of ordered child tokens.</summary>
@@ -17,12 +16,15 @@ public abstract class AggregateToken : Token
         this.TokenList = tokens.ToList();
     }
 
-    protected static IEnumerable<Token> GetTokens(string text, Parser<IEnumerable<Token?>> parser)
+    protected static IEnumerable<Token> GetTokens<TToken>(string text, TextParser<IEnumerable<TToken>> parser)
+        where TToken : Token?
     {
         Guard.NotNull(text, nameof(text));
         Guard.NotNull(parser, nameof(parser));
 
-        return FilterNulls(parser.Parse(text))
+        return parser.Parse(text)
+            .Where(token => token is not null)
+            .Cast<Token>()
             .ToList();
     }
 

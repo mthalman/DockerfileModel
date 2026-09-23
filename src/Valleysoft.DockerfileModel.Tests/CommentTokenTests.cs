@@ -21,10 +21,10 @@ public class CommentTokenTests
     [InlineData("\r\n", " \t")]
     public void EmptyCommentDoesNotConsumeTheFollowingLine(string newline, string whitespace)
     {
-        var result = CommentToken.GetParser()(new Sprache.Input($"#{whitespace}{newline}80"));
-        Assert.True(result.WasSuccessful);
+        var result = CommentToken.GetParser()(new TextSpan($"#{whitespace}{newline}80"));
+        Assert.True(result.HasValue);
         Assert.Equal($"#{whitespace}", string.Concat(result.Value.Select(token => token.ToString())));
-        Assert.Equal(newline + "80", result.Remainder.Source.Substring(result.Remainder.Position));
+        Assert.Equal(newline + "80", result.Remainder.Source!.Substring(result.Remainder.Position.Absolute));
     }
 
     [Fact]

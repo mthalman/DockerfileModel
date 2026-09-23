@@ -1,6 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -88,12 +87,43 @@ public abstract partial class Instruction : DockerfileConstruct, ICommentable
             _ => instructionParsers[name](text, escapeChar)
         };
 
-    protected static Parser<KeywordToken> InstructionIdentifier(char escapeChar) =>
-        instructionParsers.Keys
+    protected static TextParser<KeywordToken> InstructionIdentifier(char escapeChar)
+    {
+        TextParser<KeywordToken> parser = instructionParsers.Keys
             .Select(instructionName => KeywordToken.GetParser(instructionName, escapeChar))
-            .Aggregate((current, next) => current.Or(next));
+            .Aggregate((current, next) => current.Try().Or(next));
 
-    internal static Parser<string> InstructionNameParser(char escapeChar) =>
+        return input =>
+        {
+            Result<KeywordToken> result = parser(input);
+            if (result.HasValue)
+            {
+                return result;
+            }
+
+            int matchedPrefixLength = instructionParsers.Keys
+                .Select(instructionName => MatchingPrefixLength(input, instructionName))
+                .Max();
+            return Result.Empty<KeywordToken>(
+                input.Skip(matchedPrefixLength),
+                result.Expectations ?? instructionParsers.Keys.ToArray());
+        };
+    }
+
+    private static int MatchingPrefixLength(TextSpan input, string value)
+    {
+        int length = Math.Min(input.Length, value.Length);
+        int index = 0;
+        while (index < length &&
+            char.ToUpperInvariant(input[index]) == char.ToUpperInvariant(value[index]))
+        {
+            index++;
+        }
+
+        return index;
+    }
+
+    internal static TextParser<string> InstructionNameParser(char escapeChar) =>
         from leading in Whitespace()
         from instruction in InstructionIdentifier(escapeChar)
         select instruction.Value;

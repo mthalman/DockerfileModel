@@ -19,6 +19,6 @@ public class StartPeriodFlag : KeywordLiteralFlag
     public static StartPeriodFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new StartPeriodFlag(tokens, esc), escapeChar);
 
-    public static Parser<StartPeriodFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<StartPeriodFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new StartPeriodFlag(tokens, esc), escapeChar);
 }

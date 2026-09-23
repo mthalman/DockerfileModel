@@ -1,10 +1,6 @@
 using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.HeredocParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -44,7 +40,7 @@ public partial class RunInstruction : CommandInstruction
     {
         this.escapeChar = escapeChar;
         Mounts = new ProjectedItemList<MountFlag, Mount>(
-            new TokenList<MountFlag>(this),
+            new Valleysoft.DockerfileModel.Tokens.TokenList<MountFlag>(this),
             flag => flag.ValueToken
                 ?? throw new InvalidOperationException("MountFlag.ValueToken cannot be null when accessing RunInstruction.Mounts."),
             mount =>
@@ -143,7 +139,7 @@ public partial class RunInstruction : CommandInstruction
     public static RunInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<RunInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<RunInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new RunInstruction(tokens, escapeChar);
 
@@ -170,7 +166,7 @@ public partial class RunInstruction : CommandInstruction
     internal static RunInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
         new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
         Instruction("RUN", escapeChar,
             GetArgsParser(escapeChar, context));
 
@@ -196,24 +192,24 @@ public partial class RunInstruction : CommandInstruction
         return builder.ToString();
     }
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar, InstructionParseContext? context) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar, InstructionParseContext? context) =>
         from options in Options(escapeChar)
         from whitespace in Whitespace()
         from command in context is { HasHeredocs: true }
             ? context.HeredocParser(escapeChar)
             : context is null
-                ? HeredocTokenParser(escapeChar).Or(ArgTokens(GetCommandParser(escapeChar, false).AsEnumerable(), escapeChar))
+                ? HeredocTokenParser(escapeChar).Try().Or(ArgTokens(GetCommandParser(escapeChar, false).AsEnumerable(), escapeChar))
                 : ArgTokens(GetCommandParser(escapeChar, true).AsEnumerable(), escapeChar)
         select ConcatTokens(options, whitespace, command);
 
-    private static Parser<IEnumerable<Token>> Options(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> Options(char escapeChar) =>
         ArgTokens(
             MountFlag.GetParser(escapeChar).Cast<MountFlag, Token>()
-                .Or(NetworkFlag.GetParser(escapeChar))
-                .Or(SecurityFlag.GetParser(escapeChar)).AsEnumerable(),
+                .Try().Or(NetworkFlag.GetParser(escapeChar).Cast<NetworkFlag, Token>())
+                .Try().Or(SecurityFlag.GetParser(escapeChar).Cast<SecurityFlag, Token>()).AsEnumerable(),
             escapeChar)
-            .Many().Flatten();
+            .Try().Many().Flatten();
 
-    private new static Parser<Command> GetCommandParser(char escapeChar, bool diagnostic) =>
+    private new static TextParser<Command> GetCommandParser(char escapeChar, bool diagnostic) =>
         CommandInstruction.GetCommandParser(escapeChar, diagnostic);
 }

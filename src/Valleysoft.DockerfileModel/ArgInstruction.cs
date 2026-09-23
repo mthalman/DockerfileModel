@@ -1,9 +1,6 @@
-﻿using System.Text;
+using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -31,7 +28,7 @@ public class ArgInstruction : Instruction
 
     private ArgInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        ArgTokens = new TokenList<ArgDeclaration>(this);
+        ArgTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<ArgDeclaration>(this);
         Args = InstructionCollectionEditing.Pairs(ArgTokens, this);
     }
 
@@ -46,7 +43,7 @@ public class ArgInstruction : Instruction
     public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ArgInstruction(tokens, escapeChar);
 
@@ -63,18 +60,18 @@ public class ArgInstruction : Instruction
         return GetTokens($"ARG {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         Instruction("ARG", escapeChar, GetArgsParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        from whitespace in Whitespace().Optional()
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+        from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
         from variables in VariablesParser(escapeChar)
-        select ConcatTokens(whitespace.GetOrDefault(), variables);
+        select ConcatTokens(whitespace, variables);
 
-    internal static Parser<IEnumerable<Token>> VariablesParser(char escapeChar) =>
+    internal static TextParser<IEnumerable<Token>> VariablesParser(char escapeChar) =>
         ArgTokens(
-            from whitespace in Whitespace().Optional()
+            from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
             from variable in ArgDeclaration.GetParser(escapeChar).AsEnumerable()
-            select ConcatTokens(whitespace.GetOrDefault(), variable), escapeChar
-        ).AtLeastOnce().Flatten();
+            select ConcatTokens(whitespace, variable), escapeChar
+        ).Try().AtLeastOnce().Flatten();
 }

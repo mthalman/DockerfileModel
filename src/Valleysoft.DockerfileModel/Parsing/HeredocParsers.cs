@@ -12,7 +12,7 @@ internal static class HeredocParsers
     /// a NewLineToken for the end of the command line, then HeredocBodyTokens sequentially.
     /// </summary>
     /// <returns>A parser that produces a flat list of instruction-level tokens.</returns>
-    internal static Parser<IEnumerable<Token>> HeredocTokenParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<IEnumerable<Token>> HeredocTokenParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         input => HeredocTokenParseImpl(input, escapeChar);
 
     private static readonly Regex HeredocMarkerRegex = new(
@@ -40,24 +40,22 @@ internal static class HeredocParsers
     /// HeredocMarkerToken(s) inline, StringToken(s) for text between markers,
     /// NewLineToken for end of command line, HeredocBodyToken(s) in marker order.
     /// </summary>
-    private static IResult<IEnumerable<Token>> HeredocTokenParseImpl(IInput input, char escapeChar)
+    private static Result<IEnumerable<Token>> HeredocTokenParseImpl(TextSpan input, char escapeChar)
     {
-        string source = input.Source;
-        int pos = input.Position;
+        string source = input.Source!;
+        int pos = input.Position.Absolute;
 
         // Must start with <<
         if (pos + 1 >= source.Length || source[pos] != '<' || source[pos + 1] != '<')
         {
-            return Result.Failure<IEnumerable<Token>>(
-                input, "Expected heredoc marker <<", Array.Empty<string>());
+            return Result.Empty<IEnumerable<Token>>(input, "heredoc marker <<");
         }
 
         // Match the first marker using regex starting from current position
         Match firstMatch = HeredocMarkerRegex.Match(source, pos);
         if (!firstMatch.Success || firstMatch.Index != pos)
         {
-            return Result.Failure<IEnumerable<Token>>(
-                input, "Invalid heredoc marker", Array.Empty<string>());
+            return Result.Empty<IEnumerable<Token>>(input, "valid heredoc marker");
         }
 
         // Find end of the command line (the line containing the marker(s))
@@ -194,8 +192,8 @@ internal static class HeredocParsers
         else
         {
             // No newline after marker - no bodies possible
-            IInput advancedInput = AdvanceInput(input, lineEndPos - pos);
-            return Result.Success<IEnumerable<Token>>(resultTokens, advancedInput);
+            TextSpan advancedInput = input.Skip(lineEndPos - pos);
+            return Result.Value<IEnumerable<Token>>(resultTokens, input, advancedInput);
         }
 
         // Read bodies for all markers sequentially
@@ -258,8 +256,8 @@ internal static class HeredocParsers
             resultTokens.Add(new HeredocBodyToken(bodyChildren));
         }
 
-        IInput advancedInput2 = AdvanceInput(input, currentPos - pos);
-        return Result.Success<IEnumerable<Token>>(resultTokens, advancedInput2);
+        TextSpan advancedInput2 = input.Skip(currentPos - pos);
+        return Result.Value<IEnumerable<Token>>(resultTokens, input, advancedInput2);
     }
 
     /// <summary>
@@ -318,91 +316,4 @@ internal static class HeredocParsers
         return pos;
     }
 
-    /// <summary>
-    /// Advances the input by the specified number of characters using direct position offset.
-    /// Line and column are computed by scanning the source up to the target position,
-    /// so the runtime complexity scales with the position in the source.
-    /// </summary>
-    private static IInput AdvanceInput(IInput input, int count)
-    {
-        return new OffsetInput(input.Source, input.Position + count, input.Memos);
-    }
-
-    /// <summary>
-    /// Lightweight <see cref="IInput"/> that jumps to an arbitrary position
-    /// without walking character-by-character.  Line and column are computed
-    /// by scanning the source string up to the target position.
-    /// </summary>
-    private sealed class OffsetInput : IInput, IEquatable<IInput>
-    {
-        private readonly string _source;
-        private readonly int _position;
-        private readonly int _line;
-        private readonly int _column;
-
-        public OffsetInput(string source, int position, IDictionary<object, object> memos)
-        {
-            _source = source;
-            _position = position;
-
-            // Compute line and column by scanning source up to position
-            int line = 1;
-            int lastNewlinePos = -1;
-            for (int i = 0; i < position && i < source.Length; i++)
-            {
-                if (source[i] == '\n')
-                {
-                    line++;
-                    lastNewlinePos = i;
-                }
-            }
-            _line = line;
-            _column = position - lastNewlinePos;
-
-            Memos = memos;
-        }
-
-        private OffsetInput(string source, int position, int line, int column, IDictionary<object, object> memos)
-        {
-            _source = source;
-            _position = position;
-            _line = line;
-            _column = column;
-            Memos = memos;
-        }
-
-        public string Source => _source;
-        public int Position => _position;
-        public bool AtEnd => _position >= _source.Length;
-        public char Current => _source[_position];
-        public int Line => _line;
-        public int Column => _column;
-        public IDictionary<object, object> Memos { get; }
-
-        public IInput Advance()
-        {
-            if (AtEnd)
-            {
-                throw new InvalidOperationException("The input is already at the end of the source.");
-            }
-
-            int newLine = _line;
-            int newColumn = _column + 1;
-            if (_source[_position] == '\n')
-            {
-                newLine++;
-                newColumn = 1;
-            }
-            return new OffsetInput(_source, _position + 1, newLine, newColumn, Memos);
-        }
-
-        public bool Equals(IInput? other)
-        {
-            return other is not null && _source == other.Source && _position == other.Position;
-        }
-
-        public override bool Equals(object? obj) => obj is IInput other && Equals(other);
-
-        public override int GetHashCode() => (_source?.GetHashCode() ?? 0) ^ _position;
-    }
 }

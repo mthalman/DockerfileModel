@@ -1,7 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -19,7 +17,7 @@ public class ExposeInstruction : Instruction
 
     private ExposeInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        PortTokens = new TokenList<LiteralToken>(this);
+        PortTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this);
         Ports = InstructionCollectionEditing.Strings(PortTokens, this);
     }
 
@@ -30,7 +28,7 @@ public class ExposeInstruction : Instruction
     public static ExposeInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<ExposeInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ExposeInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ExposeInstruction(tokens, escapeChar);
 
@@ -46,14 +44,14 @@ public class ExposeInstruction : Instruction
         return GetTokens(string.Join(" ", portSpecs), escapeChar);
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         Instruction("EXPOSE", escapeChar,
             GetArgsParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         // LiteralWithVariables already keeps '/' inside the LiteralToken because '/' is not
         // in the set of excluded characters (whitespace, escape char, variable ref chars).
         // This matches BuildKit, which treats port/protocol specs like "80/tcp" as single
         // opaque literals rather than splitting on '/'.
-        ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar).AtLeastOnce().Flatten();
+        ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar).Try().AtLeastOnce().Flatten();
 }

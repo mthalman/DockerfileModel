@@ -1,10 +1,6 @@
-﻿using System.Text;
+using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -129,7 +125,7 @@ public class FromInstruction : Instruction
     public static FromInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<FromInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<FromInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new FromInstruction(tokens, escapeChar);
 
@@ -153,28 +149,28 @@ public class FromInstruction : Instruction
         return GetTokens(builder.ToString(), GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         (from instruction in Instruction("FROM", escapeChar, GetArgsParser(escapeChar))
         from trailingWhitespace in Whitespace()
-        select ConcatTokens(instruction, trailingWhitespace)).End();
+        select ConcatTokens(instruction, trailingWhitespace)).AtEnd();
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        from platform in GetPlatformParser(escapeChar).Optional()
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+        from platform in GetPlatformParser(escapeChar).Try().OptionalOrDefault(Enumerable.Empty<Token>())
         from imageName in GetImageNameParser(escapeChar)
-        from stageName in GetStageNameParser(escapeChar).Optional()
+        from stageName in GetStageNameParser(escapeChar).Try().OptionalOrDefault(Enumerable.Empty<Token>())
         select ConcatTokens(
-            platform.GetOrDefault(),
+            platform,
             imageName,
-            stageName.GetOrDefault());
+            stageName);
 
-    private static Parser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetStageNameParser(char escapeChar) =>
         from asKeyword in ArgTokens(KeywordToken.GetParser("AS", escapeChar).AsEnumerable(), escapeChar)
         from stageName in ArgTokens(DockerfileModel.StageName.GetParser(escapeChar).AsEnumerable(), escapeChar)
         select ConcatTokens(asKeyword, stageName);
 
-    private static Parser<IEnumerable<Token>> GetPlatformParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetPlatformParser(char escapeChar) =>
         ArgTokens(PlatformFlag.GetParser(escapeChar).AsEnumerable(), escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetImageNameParser(char escapeChar) =>
         ArgTokens(LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar);
 }

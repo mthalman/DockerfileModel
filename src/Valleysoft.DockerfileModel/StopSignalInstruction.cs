@@ -1,7 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -39,7 +37,7 @@ public class StopSignalInstruction : Instruction
     public static StopSignalInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<StopSignalInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<StopSignalInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new StopSignalInstruction(tokens, escapeChar);
 
@@ -49,10 +47,10 @@ public class StopSignalInstruction : Instruction
         return GetTokens($"STOPSIGNAL {signal}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         Instruction("STOPSIGNAL", escapeChar, GetArgsParser(escapeChar));
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(
             LiteralWithVariables(escapeChar).AsEnumerable(), escapeChar);
 }

@@ -1,6 +1,5 @@
-﻿using System.Text;
+using System.Text;
 
-using static Valleysoft.DockerfileModel.Parsing.StringParsers;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
@@ -25,7 +24,7 @@ public class KeywordToken : AggregateToken, IValueToken
         set => throw new NotSupportedException("The value of a keyword is read-only.");
     }
 
-    public static Parser<KeywordToken> GetParser(string keyword, char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<KeywordToken> GetParser(string keyword, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(keyword, escapeChar)
         select new KeywordToken(tokens, escapeChar);
 
@@ -34,11 +33,11 @@ public class KeywordToken : AggregateToken, IValueToken
     /// more letters, digits, underscores, hyphens, line continuations, or escaped characters.
     /// Used for generic key-value parsing where the key name is not known in advance.
     /// </summary>
-    public static Parser<KeywordToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<KeywordToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in IdentifierString(
             escapeChar,
-            Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')),
-            Parse.LetterOrDigit.Or(Parse.Char('_')).Or(Parse.Char('-')))
+            Character.LetterOrDigit.Try().Or(Character.EqualTo('_')).Try().Or(Character.EqualTo('-')),
+            Character.LetterOrDigit.Try().Or(Character.EqualTo('_')).Try().Or(Character.EqualTo('-')))
         select new KeywordToken(tokens, escapeChar);
 
     private static string StripLineContinuations(string value, char escapeChar)
@@ -57,6 +56,6 @@ public class KeywordToken : AggregateToken, IValueToken
         return builder.ToString();
     }
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(string value, char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(string value, char escapeChar) =>
         StringToken(value, escapeChar);
 }

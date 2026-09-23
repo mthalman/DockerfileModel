@@ -19,6 +19,6 @@ public class ChecksumFlag : KeywordLiteralFlag
     public static ChecksumFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new ChecksumFlag(tokens, esc), escapeChar);
 
-    public static Parser<ChecksumFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ChecksumFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new ChecksumFlag(tokens, esc), escapeChar);
 }

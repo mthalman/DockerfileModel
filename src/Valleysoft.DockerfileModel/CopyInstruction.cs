@@ -1,6 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -135,7 +134,7 @@ public class CopyInstruction : FileTransferInstruction
 
     private void InitializeLists()
     {
-        ExcludeFlagTokens = new TokenList<ExcludeFlag>(this);
+        ExcludeFlagTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<ExcludeFlag>(this);
         Excludes = InstructionCollectionEditing.Excludes(ExcludeFlagTokens, this);
     }
 
@@ -143,19 +142,19 @@ public class CopyInstruction : FileTransferInstruction
     public static CopyInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<CopyInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<CopyInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new CopyInstruction(tokens, escapeChar);
 
     internal static CopyInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
         new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
 
-    private static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
         GetInnerParser(escapeChar, Name,
             ArgTokens(FromFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)
-                .Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Or(ArgTokens(ParentsFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context);
+                .Try().Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Try().Or(ArgTokens(ParentsFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
+                .Try().Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context);
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
         string? fromStageName, string? changeOwner, string? permissions, bool link, bool parents,

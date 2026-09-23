@@ -1,7 +1,6 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -67,28 +66,28 @@ public class ParserDirective : DockerfileConstruct
     /// <summary>Parses a standalone directive, returning a typed wrapper for syntax, escape, or check names.</summary>
     /// <remarks>Typed value validity and effective document-header placement are separate from syntax parsing.</remarks>
     public static ParserDirective Parse(string text) =>
-        Create(GetTokens(text, GetParser().End()));
+        Create(GetTokens(text, GetParser().AtEnd()));
 
-    public static Parser<IEnumerable<Token>> GetParser() =>
-        from bom in Sprache.Parse.Char('\uFEFF').Optional()
+    internal static TextParser<IEnumerable<Token>> GetParser() =>
+        from bom in Character.EqualTo('\uFEFF').Try().Optional()
         from leading in HorizontalWhitespace()
         from hash in Symbol('#')
         from afterHash in HorizontalWhitespace()
-        from name in Sprache.Parse.Identifier(
-            Sprache.Parse.Char(IsAsciiLetter, "directive name"),
-            Sprache.Parse.Char(c => IsAsciiLetter(c) || c >= '0' && c <= '9', "directive name"))
-        from beforeEquals in Sprache.Parse.Chars(' ', '\t', '\f', '\r').Many().Text()
+        from name in NativeParsers.Identifier(
+            Character.Matching(IsAsciiLetter, "directive name"),
+            Character.Matching(c => IsAsciiLetter(c) || c >= '0' && c <= '9', "directive name"))
+        from beforeEquals in Character.In(' ', '\t', '\f', '\r').Try().Many().Text()
         from op in Symbol('=')
-        from suffix in Sprache.Parse.CharExcept('\n').Many().Text()
-        from newline in Sprache.Parse.Char('\n').Optional()
+        from suffix in Character.Except('\n').Try().Many().Text()
+        from newline in Character.EqualTo('\n').Try().Optional()
         let content = suffix.TrimEnd('\r')
         let value = ValuePattern.Match(content)
         where value.Success
-        select CreateTokens(bom.IsDefined, leading, hash, afterHash, name, beforeEquals, op, value,
-            suffix.Substring(content.Length) + (newline.IsDefined ? "\n" : ""));
+        select CreateTokens(bom.HasValue, leading, hash, afterHash, name, beforeEquals, op, value,
+            suffix.Substring(content.Length) + (newline.HasValue ? "\n" : ""));
 
-    internal static Parser<ParserDirective> GetDiagnosticParser() =>
-        from tokens in GetParser().End()
+    internal static TextParser<ParserDirective> GetDiagnosticParser() =>
+        from tokens in GetParser().AtEnd()
         select Create(tokens);
 
     internal static bool IsSupportedName(string name) =>
@@ -114,10 +113,10 @@ public class ParserDirective : DockerfileConstruct
     {
         value = null;
         // Token edits can move trivia into the value or name; interpret the serialized grammar without editing it.
-        IResult<ParserDirective> result = GetDiagnosticParser().TryParse(ToString());
-        if (!result.WasSuccessful)
+        Result<ParserDirective> result = GetDiagnosticParser().TryParse(ToString());
+        if (!result.HasValue)
         {
-            error = $"The current tokens do not form a single parser directive: {result.Message}";
+            error = $"The current tokens do not form a single parser directive: {result.ErrorMessage}";
             return false;
         }
         if (!result.Value.HasName(name))
@@ -130,7 +129,7 @@ public class ParserDirective : DockerfileConstruct
         return true;
     }
 
-    private protected static Parser<IEnumerable<Token>> NamedParser(string name) =>
+    private protected static TextParser<IEnumerable<Token>> NamedParser(string name) =>
         from tokens in GetParser()
         where tokens.OfType<KeywordToken>().First().Value.Equals(name, StringComparison.OrdinalIgnoreCase)
         select tokens;
@@ -151,13 +150,13 @@ public class ParserDirective : DockerfileConstruct
     {
         Guard.NotNullOrEmpty(directive, nameof(directive));
         Guard.NotNullOrEmpty(value, nameof(value));
-        return GetTokens($"#{directive}={value}", GetParser().End());
+        return GetTokens($"#{directive}={value}", GetParser().AtEnd());
     }
 
     private static bool IsAsciiLetter(char c) => c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
 
-    private static Parser<string> HorizontalWhitespace() =>
-        Sprache.Parse.Char(c => char.IsWhiteSpace(c) && c != '\n', "horizontal whitespace").Many().Text();
+    private static TextParser<string> HorizontalWhitespace() =>
+        Character.Matching(c => char.IsWhiteSpace(c) && c != '\n', "horizontal whitespace").Try().Many().Text();
 
     private static IEnumerable<Token> CreateTokens(bool bom, string leading, Token hash, string afterHash,
         string name, string beforeEquals, Token op, Match value, string newline)

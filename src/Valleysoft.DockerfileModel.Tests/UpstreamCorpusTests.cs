@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Sprache;
+using Valleysoft.DockerfileModel.Parsing;
 using Valleysoft.DockerfileModel.DiffTest;
 
 namespace Valleysoft.DockerfileModel.Tests;

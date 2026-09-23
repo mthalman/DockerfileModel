@@ -19,6 +19,6 @@ public class TimeoutFlag : KeywordLiteralFlag
     public static TimeoutFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new TimeoutFlag(tokens, esc), escapeChar);
 
-    public static Parser<TimeoutFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<TimeoutFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new TimeoutFlag(tokens, esc), escapeChar);
 }

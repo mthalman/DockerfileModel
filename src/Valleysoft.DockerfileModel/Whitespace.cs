@@ -1,4 +1,4 @@
-﻿using Valleysoft.DockerfileModel.Parsing;
+using Valleysoft.DockerfileModel.Parsing;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
@@ -66,8 +66,8 @@ public class Whitespace : DockerfileConstruct
     public override ConstructType Type => ConstructType.Whitespace;
 
     public static bool IsWhitespace(string value) =>
-        GetParser().TryParse(value).WasSuccessful;
+        GetParser().TryParse(value).HasValue;
 
-    public static Parser<IEnumerable<Token>> GetParser() =>
-        BasicParsers.Whitespace().End();
+    internal static TextParser<IEnumerable<Token>> GetParser() =>
+        BasicParsers.Whitespace().AtEnd();
 }

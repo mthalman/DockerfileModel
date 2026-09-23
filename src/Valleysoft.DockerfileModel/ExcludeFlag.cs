@@ -19,6 +19,6 @@ public class ExcludeFlag : KeywordLiteralFlag
     public static ExcludeFlag Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         ParseFlag(text, Keyword, (tokens, esc) => new ExcludeFlag(tokens, esc), escapeChar);
 
-    public static Parser<ExcludeFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<ExcludeFlag> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         GetFlagParser(Keyword, (tokens, esc) => new ExcludeFlag(tokens, esc), escapeChar);
 }

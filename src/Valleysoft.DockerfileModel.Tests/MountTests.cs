@@ -17,7 +17,7 @@ public class MountTests
         Mount mount = Mount.Parse(text);
 
         Assert.Equal(text, mount.ToString());
-        Assert.Equal(text, Mount.GetParser().End().Parse(text).ToString());
+        Assert.Equal(text, Mount.GetParser().AtEnd().Parse(text).ToString());
         Assert.Equal("/src", mount.Tokens.OfType<KeyValueToken<KeywordToken, LiteralToken>>()
             .Single(token => token.Key == "target").Value);
         Assert.Equal("bind", mount.Type);

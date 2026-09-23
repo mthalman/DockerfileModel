@@ -1,11 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.CommandParsers;
-using static Valleysoft.DockerfileModel.Parsing.HeredocParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -25,7 +19,7 @@ public abstract partial class FileTransferInstruction : Instruction
 
     protected FileTransferInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        SourceTokens = new TokenList<LiteralToken>(this,
+        SourceTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this,
             literals => literals.Take(literals.Count() - 1));
         Sources = InstructionCollectionEditing.Strings(SourceTokens, this);
         EscapeChar = escapeChar;
@@ -148,12 +142,12 @@ public abstract partial class FileTransferInstruction : Instruction
         set => SetOptionalFlagToken(ChangeModeFlagToken, value);
     }
 
-    protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
-        Parser<IEnumerable<Token>>? optionalFlagParser = null) =>
+    protected static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
+        TextParser<IEnumerable<Token>>? optionalFlagParser = null) =>
         GetInnerParser(escapeChar, instructionName, optionalFlagParser, null);
 
-    private protected static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
-        Parser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context) =>
+    private protected static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
+        TextParser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context) =>
         Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser, context));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
@@ -193,35 +187,35 @@ public abstract partial class FileTransferInstruction : Instruction
         }
     }
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar,
-        Parser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context) =>
-        from flags in FlagOption(escapeChar, optionalFlagParser).Many().Flatten()
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar,
+        TextParser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context) =>
+        from flags in FlagOption(escapeChar, optionalFlagParser).Try().Many().Flatten()
         from whitespace in Whitespace()
         from files in context is { HasHeredocs: true }
             ? context.HeredocParser(escapeChar, canContainVariables: true)
             : context is null
-                ? HeredocTokenParser(escapeChar).Or(FileArgs(escapeChar))
+                ? HeredocTokenParser(escapeChar).Try().Or(FileArgs(escapeChar))
                 : FileArgs(escapeChar)
         select ConcatTokens(flags, whitespace, files);
 
-    private static Parser<IEnumerable<Token>> FileArgs(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> FileArgs(char escapeChar) =>
         ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar)
-            .Or(from literals in ArgTokens(
+            .Try().Or(from literals in ArgTokens(
                     LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
-                    escapeChar).Many()
+                    escapeChar).Try().Many()
                 select literals.Flatten());
 
-    private static Parser<IEnumerable<Token>> FlagOption(char escapeChar, Parser<IEnumerable<Token>>? optionalFlagParser)
+    private static TextParser<IEnumerable<Token>> FlagOption(char escapeChar, TextParser<IEnumerable<Token>>? optionalFlagParser)
     {
-        Parser<IEnumerable<Token>> parser =
+        TextParser<IEnumerable<Token>> parser =
             ArgTokens(ChangeOwnerFlag.GetParser(escapeChar)
                 .Cast<ChangeOwnerFlag, Token>()
                 .AsEnumerable(), escapeChar)
-            .Or(ArgTokens(ChangeModeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar));
+            .Try().Or(ArgTokens(ChangeModeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar));
 
         if (optionalFlagParser is not null)
         {
-            parser = parser.Or(optionalFlagParser);
+            parser = parser.Try().Or(optionalFlagParser);
         }
 
         return parser;

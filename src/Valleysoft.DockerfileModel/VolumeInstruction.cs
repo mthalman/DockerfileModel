@@ -1,10 +1,5 @@
-﻿using Valleysoft.DockerfileModel.Tokens;
+using Valleysoft.DockerfileModel.Tokens;
 
-using static Valleysoft.DockerfileModel.Parsing.BasicParsers;
-using static Valleysoft.DockerfileModel.Parsing.CommandParsers;
-using static Valleysoft.DockerfileModel.Parsing.InstructionParsers;
-using static Valleysoft.DockerfileModel.Parsing.TokenSequences;
-using static Valleysoft.DockerfileModel.Parsing.VariableParsers;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -22,7 +17,7 @@ public class VolumeInstruction : Instruction
 
     private VolumeInstruction(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
     {
-        PathTokens = new TokenList<LiteralToken>(this);
+        PathTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this);
         Paths = InstructionCollectionEditing.Strings(PathTokens, this);
     }
 
@@ -46,11 +41,11 @@ public class VolumeInstruction : Instruction
     public static VolumeInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    public static Parser<VolumeInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    internal static TextParser<VolumeInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new VolumeInstruction(tokens, escapeChar);
 
-    internal static Parser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    internal static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
         Instruction("VOLUME", escapeChar, GetArgsParser(escapeChar));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> paths, char escapeChar)
@@ -64,20 +59,20 @@ public class VolumeInstruction : Instruction
         return GetTokens($"VOLUME {args}", GetInnerParser(escapeChar));
     }
 
-    private static Parser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         from whitespace in Whitespace()
         from paths in ArgTokens(GetPathsParser(escapeChar), escapeChar)
         select ConcatTokens(
             whitespace, paths);
 
-    private static Parser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
         JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
-            .XOr(NonJsonPaths(escapeChar));
+             .Or(NonJsonPaths(escapeChar));
 
-    private static Parser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
         ArgTokens(
-            from whitespace in Whitespace().Optional()
+            from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
             from path in LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable()
-            select ConcatTokens(whitespace.GetOrDefault(), path), escapeChar
-        ).AtLeastOnce().Flatten();
+            select ConcatTokens(whitespace, path), escapeChar
+        ).Try().AtLeastOnce().Flatten();
 }
