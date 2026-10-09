@@ -8,7 +8,7 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class NestedStructuralEditingTests
 {
     /// <summary>
-    /// Equal-valued assignment roots remain distinct edit targets even when a consumer overrides object equality.
+    /// Equal-valued assignment roots remain distinct edit targets.
     /// </summary>
     /// <param name="operation">The collection write whose exact target identity is checked.</param>
     [Theory]
@@ -22,8 +22,6 @@ public class NestedStructuralEditingTests
     public void EqualMountAssignmentsAreEditedByReference(string operation)
     {
         var mount = Mount.Parse("type=bind,type=bind");
-        var first = new EqualMountAssignment();
-        mount.TypeToken = first;
         var original = mount.Entries.ToArray();
         var incoming = new MountEntry("type", "bind");
         MountEntry[] expected;
@@ -69,7 +67,6 @@ public class NestedStructuralEditingTests
             Assert.Same(expected[i].KeyValueToken, actual[i].KeyValueToken);
             Assert.Equal(i, mount.Entries.IndexOf(expected[i]));
         }
-        Assert.Equal(0, first.EqualsCalls);
         Assert.Equal(string.Join(",", Enumerable.Repeat("type=bind", expected.Length)), mount.ToString());
         Assert.Equal(mount.ToString(), Mount.Parse(mount.ToString()).ToString());
     }
@@ -81,10 +78,11 @@ public class NestedStructuralEditingTests
     public void MountCacheTracksReferenceMembershipAcrossRawReplacement()
     {
         var mount = Mount.Parse("type=bind,type=bind");
-        var first = new EqualMountAssignment();
+        var first = mount.TypeToken!;
         mount.TypeToken = first;
         var original = mount.Entries.ToArray();
-        var replacement = new EqualMountAssignment();
+        var replacement = new KeyValueToken<KeywordToken, LiteralToken>(
+            new KeywordToken("type"), new LiteralToken("bind"));
 
         mount.TypeToken = replacement;
         Assert.Same(replacement, mount.Entries[0].KeyValueToken);
@@ -103,7 +101,7 @@ public class NestedStructuralEditingTests
     [Fact]
     public void MountRemovalKeepsTheUnselectedEqualComma()
     {
-        var firstComma = new EqualMountComma();
+        var firstComma = new SymbolToken(',');
         var secondComma = new SymbolToken(',');
         var builder = new TokenBuilder();
         builder.Mount(fields =>
@@ -124,7 +122,6 @@ public class NestedStructuralEditingTests
         Assert.Same(entries[0], mount.Entries[0]);
         Assert.Same(entries[1], mount.Entries[1]);
         Assert.Equal("required", entries[2].Key);
-        Assert.Equal(0, firstComma.EqualsCalls);
     }
 
     /// <summary>
@@ -172,39 +169,12 @@ public class NestedStructuralEditingTests
             }
         });
 
-        Assert.Contains("built-in", exception.Message);
+        Assert.Contains("consumer-defined token subclasses", exception.Message);
         Assert.Equal(0, poison.Calls);
         Assert.Equal("bind", Assert.IsType<StringToken>(Assert.Single(poison.Tokens)).Value);
         Assert.Equal(entries, mount.Entries);
         Assert.Equal(ownerTree, Descendants(mount));
         Assert.Equal(incomingTree, Descendants(incoming.Token));
-    }
-
-    private sealed class EqualMountAssignment() :
-        KeyValueToken<KeywordToken, LiteralToken>(new KeywordToken("type"), new LiteralToken("bind"))
-    {
-        public int EqualsCalls { get; private set; }
-
-        public override bool Equals(object? obj)
-        {
-            EqualsCalls++;
-            return obj is KeyValueToken<KeywordToken, LiteralToken> other && Key == other.Key && Value == other.Value;
-        }
-
-        public override int GetHashCode() => 0;
-    }
-
-    private sealed class EqualMountComma() : SymbolToken(',')
-    {
-        public int EqualsCalls { get; private set; }
-
-        public override bool Equals(object? obj)
-        {
-            EqualsCalls++;
-            return obj is SymbolToken { Value: "," };
-        }
-
-        public override int GetHashCode() => 0;
     }
 
     private sealed class MutatingMountValue() : LiteralToken("bind")

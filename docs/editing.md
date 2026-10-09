@@ -425,13 +425,12 @@ They do not automatically update stage references or preserve their bindings.
 
 ## Supported token implementations
 
-Structural editing rejects unsupported effective serialization overrides and
-custom implementations of `IQuotableToken`, including interface
-reimplementations on subclasses of built-in tokens. Subclasses that inherit
-supported built-in serialization and quoting implementations remain eligible.
-This boundary applies to existing and incoming tokens; extending a model type
-does not automatically make custom serialization or quote accessors safe for
-structural editing.
+Structural editing rejects consumer-defined `Dockerfile` and `Token`
+subclasses, including subclasses that inherit built-in serialization and quote
+behavior. This applies to existing and incoming objects; ordinary reads and
+serialization remain available. Restricting edits to library-defined runtime
+types lets validation avoid invoking consumer code and inspecting runtime
+method metadata.
 
 ## Errors, identity, and compatibility
 

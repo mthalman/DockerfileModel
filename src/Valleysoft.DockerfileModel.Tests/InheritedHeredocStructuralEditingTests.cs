@@ -2,11 +2,11 @@ using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel.Tests;
 
-/// <summary>Protects heredoc editing on consumer types that inherit supported instruction behavior.</summary>
+/// <summary>Protects heredoc editing on library-defined instruction types.</summary>
 public class InheritedHeredocStructuralEditingTests
 {
-    /// <summary>Inherited owners support complete pair edits without losing their instruction kind or payload.</summary>
-    /// <param name="kind">The built-in instruction family inherited by the consumer.</param>
+    /// <summary>Built-in owners support complete pair edits without losing their instruction kind or payload.</summary>
+    /// <param name="kind">The built-in instruction family.</param>
     /// <param name="escapeChar">The instruction's parsing context.</param>
     /// <param name="newLine">The exact line ending used in raw heredoc payloads.</param>
     [Theory]
@@ -22,15 +22,13 @@ public class InheritedHeredocStructuralEditingTests
     [InlineData("ADD", '\\', "\r\n")]
     [InlineData("ADD", '`', "\n")]
     [InlineData("ADD", '`', "\r\n")]
-    public void InheritedOwnersSupportPairedEdits(string kind, char escapeChar, string newLine)
+    public void BuiltInOwnersSupportPairedEdits(string kind, char escapeChar, string newLine)
     {
         Instruction owner = CreateOwner(kind, escapeChar);
         EditableList<Heredoc> pairs = GetHeredocs(owner);
         Heredoc first = new("FIRST", "first" + newLine);
         Heredoc second = new("SECOND", "second" + newLine);
         Heredoc replacement = new("REPLACEMENT", "replacement" + newLine);
-        Assert.NotEqual(typeof(Instruction).Assembly, owner.GetType().Assembly);
-
         pairs.Add(first);
         Assert.Same(first, Assert.Single(pairs));
         AssertReparses(owner, kind, escapeChar);
@@ -108,12 +106,12 @@ public class InheritedHeredocStructuralEditingTests
         Assert.Empty(owner.Heredocs);
     }
 
-    /// <summary>Creates a consumer subclass without overriding token serialization.</summary>
+    /// <summary>Creates a library-defined instruction with the requested parsing context.</summary>
     private static Instruction CreateOwner(string kind, char escapeChar) => kind switch
     {
-        "RUN" => new InheritedRun(escapeChar),
-        "COPY" => new InheritedCopy(escapeChar),
-        "ADD" => new InheritedAdd(escapeChar),
+        "RUN" => RunInstruction.Parse("RUN cat /input", escapeChar),
+        "COPY" => CopyInstruction.Parse("COPY source /out", escapeChar),
+        "ADD" => AddInstruction.Parse("ADD source /out", escapeChar),
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
@@ -139,20 +137,6 @@ public class InheritedHeredocStructuralEditingTests
             GetHeredocs(owner).Select(pair => (pair.Name, pair.RawContent, pair.Chomp, pair.Expand)),
             GetHeredocs(parsed).Select(pair => (pair.Name, pair.RawContent, pair.Chomp, pair.Expand)));
     }
-
-    /// <summary>Uses the inherited RUN implementation from a consumer assembly.</summary>
-    /// <param name="escapeChar">The parsing context passed to the built-in constructor.</param>
-    private sealed class InheritedRun(char escapeChar) : RunInstruction("cat /input", escapeChar);
-
-    /// <summary>Uses the inherited COPY implementation from a consumer assembly.</summary>
-    /// <param name="escapeChar">The parsing context passed to the built-in constructor.</param>
-    private sealed class InheritedCopy(char escapeChar)
-        : CopyInstruction(new[] { "source" }, "/out", escapeChar: escapeChar);
-
-    /// <summary>Uses the inherited ADD implementation from a consumer assembly.</summary>
-    /// <param name="escapeChar">The parsing context passed to the built-in constructor.</param>
-    private sealed class InheritedAdd(char escapeChar)
-        : AddInstruction(new[] { "source" }, "/out", escapeChar: escapeChar);
 
     /// <summary>Detects accidental invocation of unsupported consumer serialization during admission.</summary>
     private sealed class OverridingRun() : RunInstruction("cat")

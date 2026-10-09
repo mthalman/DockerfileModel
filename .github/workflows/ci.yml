@@ -38,6 +38,16 @@ jobs:
       - name: Test
         run: dotnet test --no-restore -v normal -c Release --results-directory test-results -l trx
 
+      - name: Install Native AOT prerequisites
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish and run Native AOT smoke application
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          dotnet publish Valleysoft.DockerfileModel.AotSmoke -c Release -r linux-x64 -o ../artifacts/native-aot-smoke
+          ../artifacts/native-aot-smoke/Valleysoft.DockerfileModel.AotSmoke
+
       - name: Verify packaged documentation and examples
         working-directory: .
         shell: pwsh

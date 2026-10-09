@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Reflection;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
@@ -7,13 +5,6 @@ namespace Valleysoft.DockerfileModel;
 /// <summary>Supplies shared policy, live-tree ownership, and serialized-grammar checks for structural edits.</summary>
 internal static class EditValidation
 {
-    private static readonly MethodInfo underlyingValueSlot = typeof(Token).GetMethod(
-        "GetUnderlyingValue", BindingFlags.Instance | BindingFlags.NonPublic)!;
-    private static readonly MethodInfo documentStringSlot = typeof(Dockerfile).GetMethod(
-        nameof(ToString), Type.EmptyTypes)!.GetBaseDefinition();
-    private static readonly ConcurrentDictionary<Type, bool> supportedImplementations = new();
-    private static readonly ConcurrentDictionary<Type, bool> supportedDocuments = new();
-
     /// <summary>Rejects unsupported serialization and existing cycles before an edit reads the live document text.</summary>
     /// <param name="document">The owner to inspect without invoking its virtual serializer.</param>
     /// <remarks>
@@ -23,10 +14,9 @@ internal static class EditValidation
     /// <exception cref="InvalidOperationException">The document contains a cycle or unsupported serialization behavior.</exception>
     internal static void ValidateSupportedDocument(Dockerfile document)
     {
-        if (!supportedDocuments.GetOrAdd(document.GetType(), type =>
-            EffectiveImplementation(type, documentStringSlot)?.DeclaringType == typeof(Dockerfile)))
+        if (document.GetType().Assembly != typeof(Dockerfile).Assembly)
         {
-            throw new InvalidOperationException("Structural editing requires inherited built-in document serialization.");
+            throw new InvalidOperationException("Structural editing does not support consumer-defined Dockerfile subclasses.");
         }
         HashSet<Token> active = new(ReferenceComparer<Token>.Instance);
         HashSet<Token> completed = new(ReferenceComparer<Token>.Instance);
@@ -67,17 +57,16 @@ internal static class EditValidation
     /// <summary>Rejects effective token implementations that staged rendering and publication cannot safely reproduce.</summary>
     /// <param name="token">The token to inspect without invoking its serializer or quote accessors.</param>
     /// <remarks>
-    /// Inheriting built-in behavior is supported, including through consumer subclasses. The
-    /// effective Token serialization slot and both quote-interface accessors must remain built-in;
-    /// unrelated hidden members do not change that dispatch. This check does not inspect descendants.
+    /// Consumer-defined token subclasses are rejected because structural editing cannot guarantee
+    /// their serializer or quote behavior without inspecting runtime method metadata. This check
+    /// does not inspect descendants.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The token supplies unsupported serialization or quote behavior.</exception>
     internal static void ValidateSupportedToken(Token token)
     {
-        if (!supportedImplementations.GetOrAdd(token.GetType(), HasSupportedImplementation))
+        if (token.GetType().Assembly != typeof(Token).Assembly)
         {
-            throw new InvalidOperationException(
-                "Structural editing requires inherited built-in token serialization and quote implementations.");
+            throw new InvalidOperationException("Structural editing does not support consumer-defined token subclasses.");
         }
     }
 
@@ -91,48 +80,6 @@ internal static class EditValidation
             throw new InvalidOperationException("Structural quote changes require a supported token.");
         }
         ValidateSupportedToken(value);
-    }
-
-    private static bool HasSupportedImplementation(Type type)
-    {
-        if (!HasSupportedSerializer(type))
-        {
-            return false;
-        }
-        if (!typeof(IQuotableToken).IsAssignableFrom(type))
-        {
-            return true;
-        }
-        InterfaceMapping mapping = type.GetInterfaceMap(typeof(IQuotableToken));
-        return mapping.TargetMethods.All(method =>
-            method.DeclaringType == typeof(LiteralToken) || method.DeclaringType == typeof(IdentifierToken));
-    }
-
-    private static bool HasSupportedSerializer(Type type)
-    {
-        Type? declaringType = EffectiveImplementation(type, underlyingValueSlot)?.DeclaringType;
-        return declaringType == typeof(AggregateToken) ||
-            declaringType == typeof(VariableRefToken) ||
-            declaringType == typeof(PrimitiveToken);
-    }
-
-    /// <summary>Finds the actual virtual-slot implementation rather than an unrelated member hiding the same name.</summary>
-    /// <param name="type">The concrete consumer or built-in type.</param>
-    /// <param name="slot">The base definition whose dispatch structural serialization uses.</param>
-    /// <returns>The most-derived override of that slot, or null if none exists.</returns>
-    private static MethodInfo? EffectiveImplementation(Type type, MethodInfo slot)
-    {
-        for (Type? current = type; current is not null; current = current.BaseType)
-        {
-            MethodInfo? implementation = current.GetMethods(BindingFlags.Instance |
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
-                .FirstOrDefault(method => method.IsVirtual && method.GetBaseDefinition().Equals(slot));
-            if (implementation is not null)
-            {
-                return implementation;
-            }
-        }
-        return null;
     }
 
     /// <summary>Rejects undefined trivia policies before an edit is prepared.</summary>

@@ -118,11 +118,11 @@ ownership validation is local to the edited tree, not global across trees.
 
 ## Check adopted token implementations and context
 
-Structural edits reject unsupported effective serialization overrides and custom
-`IQuotableToken` implementations, including interface reimplementations on
-built-in token subclasses. Subclasses inheriting supported built-in
-serialization and quoting implementations remain eligible. Use supported token
-implementations for both existing owners and incoming objects.
+Structural edits reject consumer-defined `Dockerfile` and `Token` subclasses,
+including subclasses inheriting supported built-in serialization and quoting
+implementations. Use library-defined runtime types for existing owners and
+incoming objects. Ordinary reads and serialization of consumer-defined
+subclasses remain available.
 
 Construct adopted instructions, mounts, and context-bearing operands with the
 owner's escape character, including nested commands. A `Mount.Entries` insertion
