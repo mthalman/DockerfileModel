@@ -37,3 +37,8 @@ without suppressing trimming warnings.
 Use library-defined `Dockerfile` and `Token` types for models that will be
 structurally edited. Consumer-defined subclasses can still be parsed, read, and
 serialized, but cannot participate in structural writes.
+
+#### Affected APIs
+
+- `Dockerfile.Items` and document structural edits.
+- `EditableList<T>` and structural edits on token-backed model collections.
