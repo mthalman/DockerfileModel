@@ -1,5 +1,9 @@
 ### Migrate the parser engine to Superpower
 
+The parser engine now uses Superpower, and parser factories are no longer public.
+Consumers that call `GetParser()` or reference the former parser-engine types
+must migrate to the library's supported parsing entry points.
+
 #### Previous behavior
 
 Parser implementation details and instruction/token `GetParser()` factories
