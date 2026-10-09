@@ -2,6 +2,10 @@
 
 **Version introduced:** 3.0.0
 
+Parser directives now use typed model classes and BuildKit-compatible header
+rules. Consumers that depend on exact directive types, permissive header
+parsing, or escape selection must update their code.
+
 ## Previous behavior
 
 Known directives parsed as instances of exactly `ParserDirective`. Full-file
