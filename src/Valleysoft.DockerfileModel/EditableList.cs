@@ -15,8 +15,8 @@ namespace Valleysoft.DockerfileModel;
 /// Typed insertions adopt supplied objects; semantic insertions encode values in the owner's grammar.
 /// Preserved trivia can remain shared with removed or replaced objects; owner-local ownership
 /// checks do not guarantee those outgoing objects can be mutated or reused independently.
-/// Unsupported effective serialization overrides and custom <see cref="Tokens.IQuotableToken"/>
-/// implementations are rejected; subclasses inheriting supported built-in implementations remain eligible.
+/// Consumer-defined <see cref="Dockerfile"/> and <see cref="Tokens.Token"/> subclasses are rejected
+/// for writes; ordinary reads remain available.
 /// Write admission precedes snapshot-based index and membership checks, without imposing that
 /// eligibility requirement on ordinary reads.
 /// Validation neither repairs nor certifies preexisting inconsistencies between live token roles

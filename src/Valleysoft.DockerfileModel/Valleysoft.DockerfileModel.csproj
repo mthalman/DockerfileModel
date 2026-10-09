@@ -5,6 +5,7 @@
     <LangVersion>13.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <IsAotCompatible Condition="'$(TargetFramework)' == 'net10.0'">true</IsAotCompatible>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- Document behavior-sensitive APIs incrementally without hiding malformed XML or invalid references. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>

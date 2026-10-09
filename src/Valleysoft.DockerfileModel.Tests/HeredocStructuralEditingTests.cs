@@ -14,13 +14,11 @@ public class HeredocStructuralEditingTests
     public void FirstCopyHeredocLocatesDestinationByReference()
     {
         var copy = CopyInstruction.Parse("COPY same same\n");
-        var source = new EqualHeredocOperand();
-        var destination = new EqualHeredocOperand();
+        LiteralToken source = new("same");
+        LiteralToken destination = new("same");
         copy.DestinationToken = destination;
         copy.SourceTokens[0] = source;
         var pair = new Heredoc("DOC", "body\n");
-        int sourceEqualityCalls = source.EqualsCalls;
-        int destinationEqualityCalls = destination.EqualsCalls;
 
         copy.Heredocs.Add(pair);
 
@@ -28,8 +26,6 @@ public class HeredocStructuralEditingTests
         Assert.Same(source, Assert.Single(copy.SourceTokens));
         Assert.Same(destination, copy.DestinationToken);
         Assert.Same(pair, Assert.Single(copy.Heredocs));
-        Assert.Equal(0, source.EqualsCalls - sourceEqualityCalls);
-        Assert.Equal(0, destination.EqualsCalls - destinationEqualityCalls);
         var parsed = Dockerfile.TryParse(copy.ToString());
         Assert.True(parsed.Success);
         Assert.Equal(copy.ToString(), parsed.Dockerfile!.ToString());
@@ -41,7 +37,7 @@ public class HeredocStructuralEditingTests
     [Fact]
     public void FirstRunHeredocExtractsExactCommandBoundary()
     {
-        var text = new BoundaryEqualText();
+        var text = new StringToken("cat");
         var newline = new NewLineToken("\n");
         var builder = new TokenBuilder();
         builder.ShellFormCommand(command => command.Literal(literal =>
@@ -61,7 +57,6 @@ public class HeredocStructuralEditingTests
         Assert.Same(command.ValueToken, Assert.Single(run.Tokens.OfType<LiteralToken>()));
         Assert.Same(newline, Assert.Single(run.Tokens.OfType<NewLineToken>()));
         Assert.Same(pair, Assert.Single(run.Heredocs));
-        Assert.Equal(0, text.EqualsCalls);
         var parsed = Dockerfile.TryParse(run.ToString());
         Assert.True(parsed.Success);
         Assert.Equal(run.ToString(), parsed.Dockerfile!.ToString());
@@ -113,38 +108,12 @@ public class HeredocStructuralEditingTests
             }
         });
 
-        Assert.Contains("built-in", exception.Message);
+        Assert.Contains("consumer-defined token subclasses", exception.Message);
         Assert.Equal(0, poison.Calls);
         Assert.Equal("none", Assert.IsType<StringToken>(Assert.Single(poison.Tokens)).Value);
         Assert.Equal(pairs, run.Heredocs);
         Assert.Equal(ownerTree, Descendants(run));
         Assert.Equal(incomingTree, Descendants(incoming.Marker).Concat(Descendants(incoming.Body)));
-    }
-
-    private sealed class EqualHeredocOperand() : LiteralToken("same")
-    {
-        public int EqualsCalls { get; private set; }
-
-        public override bool Equals(object? obj)
-        {
-            EqualsCalls++;
-            return obj is LiteralToken other && Value == other.Value;
-        }
-
-        public override int GetHashCode() => 0;
-    }
-
-    private sealed class BoundaryEqualText() : StringToken("cat")
-    {
-        public int EqualsCalls { get; private set; }
-
-        public override bool Equals(object? obj)
-        {
-            EqualsCalls++;
-            return ReferenceEquals(this, obj) || obj is NewLineToken;
-        }
-
-        public override int GetHashCode() => 0;
     }
 
     private sealed class MutatingHeredocHeaderValue() : LiteralToken("none")

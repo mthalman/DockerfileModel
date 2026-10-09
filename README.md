@@ -44,6 +44,9 @@ See [Parsing, recovery, and diagnostics](docs/parsing.md) for parse options, rec
 See [Parser directives and frontend metadata](docs/parser-directives.md) for typed
 syntax, escape, and check directives, header placement rules, and lossless editing.
 
+See [Native AOT and trimming](docs/native-aot.md) for supported targets and
+restrictions on consumer-defined subclasses.
+
 See [Dockerfile compatibility](docs/dockerfile-compatibility.md) for the pinned
 stable frontend target, upstream conformance corpus, known limitations, and
 maintainer-reviewed upgrade policy.

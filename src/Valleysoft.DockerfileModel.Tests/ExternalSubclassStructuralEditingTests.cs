@@ -37,24 +37,21 @@ public class ExternalSubclassStructuralEditingTests
         Assert.Equal(items, document.Items);
     }
 
-    /// <summary>Document subclasses inheriting the real virtual serializer remain supported even if they hide its name.</summary>
-    /// <param name="shadowMember">Whether a new nonvirtual method hides ToString only on the consumer's concrete type.</param>
+    /// <summary>Consumer-defined document subclasses are rejected before structural edits.</summary>
+    /// <param name="shadowMember">Whether a new nonvirtual method hides ToString on the consumer's concrete type.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void InheritedDocumentSerializationRemainsSupported(bool shadowMember)
+    public void ConsumerDocumentSubclassRejectsStructuralEditing(bool shadowMember)
     {
         Dockerfile document = shadowMember ? new ShadowingDocument() : new InheritedDocument();
         FromInstruction from = new("alpine");
         RunInstruction run = new("echo candidate");
 
-        document.Items.Add(from);
-        document.Items.Add(run);
+        Assert.Throws<InvalidOperationException>(() => document.Items.Add(from));
+        Assert.Throws<InvalidOperationException>(() => document.Items.Add(run));
 
-        Assert.Same(from, document.Items[0]);
-        Assert.Same(run, document.Items[1]);
-        Assert.Equal("FROM alpine\nRUN echo candidate", document.ToString());
-        Assert.Equal(document.ToString(), Dockerfile.Parse(document.ToString()).ToString());
+        Assert.Empty(document.Items);
     }
 
     /// <summary>Legacy constructor-seeded extensions are rejected before an edit serializes the existing document.</summary>
@@ -233,13 +230,13 @@ public class ExternalSubclassStructuralEditingTests
         Assert.Throws<InvalidOperationException>(() => instruction.Comments.Add("unsupported edit"));
     }
 
-    /// <summary>Inherited serialization remains supported for external instruction roots and their subsequent comment edits.</summary>
-    /// <param name="variant">The inherited aggregate, primitive, or special variable serializer nested in the instruction.</param>
+    /// <summary>Consumer-defined instruction roots are rejected before structural edits.</summary>
+    /// <param name="variant">The inherited aggregate, primitive, or special variable token nested in the instruction.</param>
     [Theory]
     [InlineData("literal")]
     [InlineData("primitive")]
     [InlineData("variable")]
-    public void InheritedInstructionSerializationPreservesIdentity(string variant)
+    public void ConsumerInstructionSubclassRejectsStructuralEditing(string variant)
     {
         Dockerfile document = Dockerfile.Parse("FROM alpine\n");
         Token operand = variant switch
@@ -251,54 +248,38 @@ public class ExternalSubclassStructuralEditingTests
         };
         ConsumerInstruction instruction = new(operand, variant == "variable" ? "FROM" : "RUN");
 
-        document.Items.Add(instruction);
-        instruction.Comments.Add("retained");
-
-        Assert.Same(instruction, document.Items.Last());
+        Assert.Throws<InvalidOperationException>(() => document.Items.Add(instruction));
+        Assert.Single(document.Items);
+        Assert.IsType<FromInstruction>(document.Items[0]);
         Assert.Contains(instruction.Tokens, token => ReferenceEquals(token, operand));
-        Assert.Equal(2, document.Items.Count);
-        DockerfileParseResult parsed = Dockerfile.TryParse(document.ToString());
-        Assert.True(parsed.Success);
-        Assert.Equal(2, parsed.Dockerfile!.Items.Count);
-        Assert.Equal(document.ToString(), parsed.Dockerfile.ToString());
     }
 
-    /// <summary>Inherited quote implementations and unrelated hidden members do not disqualify supported consumer subclasses.</summary>
+    /// <summary>Consumer-defined token subclasses are rejected even when they inherit built-in serialization.</summary>
     /// <param name="shadowMembers">Whether the subtype hides members without changing effective Token or interface dispatch.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void InheritedLiteralBehaviorSupportsTypedAndSemanticEdits(bool shadowMembers)
+    public void InheritedLiteralSubclassRejectsStructuralEditing(bool shadowMembers)
     {
         ExecFormCommand command = ExecFormCommand.Parse("[\"original\"]");
         LiteralToken candidate = shadowMembers ? new ShadowingLiteral("candidate") : new InheritedLiteral("candidate");
 
-        command.ValueTokens.Add(candidate);
-        command.Values[1] = "updated";
-        command.ValueTokens.Replace(0, new InheritedLiteral("first"));
-
-        Assert.Same(candidate, command.ValueTokens[1]);
-        Assert.Equal('"', ((IQuotableToken)candidate).QuoteChar);
-        Assert.Equal(new[] { "first", "updated" }, command.Values);
-        Assert.Equal("[\"first\", \"updated\"]", command.ToString());
-        Assert.Equal(command.Values, ExecFormCommand.Parse(command.ToString()).Values);
+        Assert.Throws<InvalidOperationException>(() => command.ValueTokens.Add(candidate));
+        Assert.Equal(new[] { "original" }, command.Values);
+        Assert.DoesNotContain(command.ValueTokens, token => ReferenceEquals(token, candidate));
     }
 
-    /// <summary>Identifier subclasses retain the built-in quote-interface implementation as well as their identity.</summary>
+    /// <summary>Consumer-defined identifiers are rejected for structural edits.</summary>
     [Fact]
-    public void InheritedIdentifierQuoteImplementationRemainsSupported()
+    public void ConsumerIdentifierSubclassRejectsStructuralEditing()
     {
         EnvInstruction instruction = EnvInstruction.Parse("ENV FIRST=one");
         InheritedVariable key = new("SECOND");
         InheritedLiteral value = new("two");
         KeyValueToken<Variable, LiteralToken> pair = new(key, value);
 
-        instruction.VariableTokens.Add(pair);
-
-        Assert.Same(pair, instruction.VariableTokens[1]);
-        Assert.Same(key, pair.KeyToken);
-        Assert.Same(value, pair.ValueToken);
-        Assert.Equal("ENV FIRST=one SECOND=two", instruction.ToString());
+        Assert.Throws<InvalidOperationException>(() => instruction.VariableTokens.Add(pair));
+        Assert.Single(instruction.VariableTokens);
     }
 
     /// <summary>Changes effective document serialization while leaving its stored item list unchanged.</summary>
