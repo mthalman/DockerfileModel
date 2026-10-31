@@ -49,6 +49,26 @@ public abstract class FileTransferInstructionTests<TInstruction>
         TestHelper.TestVariablesWithLiteral(() => instruction.SourceTokens[0], "var", canContainVariables: true);
     }
 
+    [Theory]
+    [InlineData("source file", @"C:\work")]
+    [InlineData(@"C:\source file", "dest")]
+    public void ConstructorRetainsLegacyJsonOperandsAndTheirEdits(string source, string destination)
+    {
+        TInstruction instruction = create(new[] { source }, destination, "root", "0644", '\\');
+        Assert.Equal(new[] { source }, instruction.Sources);
+        Assert.Equal(destination, instruction.Destination);
+        Assert.Equal($"{instructionName} --chown=root --chmod=0644 [\"{source}\", \"{destination}\"]", instruction.ToString());
+
+        instruction.Sources.Add("extra source");
+
+        Assert.Equal(new[] { source, "extra source" }, instruction.Sources);
+        Assert.Equal(destination, instruction.Destination);
+        Assert.Equal("root", instruction.ChangeOwner);
+        Assert.Equal("0644", instruction.Permissions);
+        Assert.Contains(instruction.Tokens, token => token is SymbolToken);
+        Assert.DoesNotContain(parse(instruction.ToString(), '\\').Tokens, token => token is SymbolToken);
+    }
+
     [Fact]
     public void Destination()
     {

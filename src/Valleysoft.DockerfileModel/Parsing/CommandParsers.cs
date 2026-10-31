@@ -113,21 +113,23 @@ internal static class CommandParsers
     /// set to double-quote is returned directly.
     /// </summary>
     private static IEnumerable<Token> CreateJsonArrayElementLiteral(IEnumerable<Token> tokens,
-        bool canContainVariables, char escapeChar)
+        bool canContainVariables, char escapeChar, bool useJsonStringSyntax)
     {
         var materializedTokens = tokens.ToList();
         if (!materializedTokens.Any())
         {
             return new Token[]
             {
-                new LiteralToken(Enumerable.Empty<Token>(), canContainVariables, escapeChar)
+                new LiteralToken(Enumerable.Empty<Token>(), canContainVariables, escapeChar,
+                    useJsonStringSyntax: useJsonStringSyntax)
                 {
                     QuoteChar = StringParsers.DoubleQuote
                 }
             };
         }
 
-        return StringParsers.CollapseLiteralTokens(materializedTokens, canContainVariables, escapeChar, StringParsers.DoubleQuote);
+        return StringParsers.CollapseLiteralTokens(materializedTokens, canContainVariables, escapeChar,
+            StringParsers.DoubleQuote, useJsonStringSyntax);
     }
 
     /// <summary>
@@ -202,15 +204,20 @@ internal static class CommandParsers
     private static TextParser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables,
         bool useJsonStringSyntax, bool consumeLeadingWhitespace = true)
     {
-        TextParser<LiteralToken> literalParser = canContainVariables ?
-            VariableParsers.LiteralWithVariables(escapeChar, new char[] { StringParsers.DoubleQuote }) :
-            StringParsers.LiteralToken(escapeChar, new char[] { StringParsers.DoubleQuote });
-
-        TextParser<IEnumerable<Token>> contentParser = useJsonStringSyntax
-            ? JsonStringTokens(escapeChar, canContainVariables)
-            : InstructionParsers.ArgTokens(literalParser.AsEnumerable(),
+        TextParser<IEnumerable<Token>> contentParser;
+        if (useJsonStringSyntax)
+        {
+            contentParser = JsonStringTokens(escapeChar, canContainVariables);
+        }
+        else
+        {
+            TextParser<LiteralToken> literalParser = canContainVariables ?
+                VariableParsers.LiteralWithVariables(escapeChar, new char[] { StringParsers.DoubleQuote }) :
+                StringParsers.LiteralToken(escapeChar, new char[] { StringParsers.DoubleQuote });
+            contentParser = InstructionParsers.ArgTokens(literalParser.AsEnumerable(),
                 escapeChar, excludeLeadingWhitespace: true).Try()
                 .Or(BasicParsers.Whitespace().Where(tokens => tokens.Any()));
+        }
 
         if (consumeLeadingWhitespace)
         {
@@ -222,7 +229,7 @@ internal static class CommandParsers
                 from trailing in InstructionParsers.ArgTrailingWhitespace(escapeChar)
                 select TokenSequences.ConcatTokens(
                     leading,
-                    CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
+                    CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar, useJsonStringSyntax),
                     trailing);
         }
 
@@ -232,11 +239,11 @@ internal static class CommandParsers
             from closingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
             from trailing in InstructionParsers.ArgTrailingWhitespace(escapeChar)
             select TokenSequences.ConcatTokens(
-                CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
+                CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar, useJsonStringSyntax),
                 trailing);
     }
 
-    private static TextParser<IEnumerable<Token>> JsonStringTokens(char escapeChar, bool canContainVariables)
+    internal static TextParser<IEnumerable<Token>> JsonStringTokens(char escapeChar, bool canContainVariables)
     {
         TextParser<IEnumerable<Token>> literalParser =
             from text in Character.Matching(ch =>

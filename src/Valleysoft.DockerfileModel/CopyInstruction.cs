@@ -149,12 +149,16 @@ public class CopyInstruction : FileTransferInstruction
     internal static CopyInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
         new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
+    internal static CopyInstruction ParseForEditing(string text, char escapeChar) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, allowLegacyJsonOperands: true).AtEnd()), escapeChar);
+
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null,
+        bool allowLegacyJsonOperands = false) =>
         GetInnerParser(escapeChar, Name,
             ArgTokens(FromFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)
                 .Try().Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
                 .Try().Or(ArgTokens(ParentsFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Try().Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context);
+                .Try().Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context, allowLegacyJsonOperands);
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
         string? fromStageName, string? changeOwner, string? permissions, bool link, bool parents,
@@ -168,6 +172,6 @@ public class CopyInstruction : FileTransferInstruction
             : "";
         string trailingFlags = $"{linkFlag}{parentsFlag}{excludeFlags}";
         string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, fromFlag, trailingFlags);
-        return GetTokens(text, GetInnerParser(escapeChar));
+        return GetTokens(text, GetInnerParser(escapeChar, allowLegacyJsonOperands: true));
     }
 }

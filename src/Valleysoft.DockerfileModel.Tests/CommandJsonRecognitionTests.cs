@@ -5,6 +5,122 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class CommandJsonRecognitionTests
 {
+    public static IEnumerable<object[]> JsonCommandEditCases()
+    {
+        foreach (string prefix in new[] { "RUN", "CMD", "ENTRYPOINT", "HEALTHCHECK CMD", "ONBUILD RUN", "SHELL" })
+        {
+            yield return new object[] { prefix, "[\"\\\necho\", \"x\"]", '\\' };
+            yield return new object[] { prefix, "[\"\\\n\", \"x\"]", '\\' };
+            yield return new object[] { prefix, "[\"echo`\", \"x\"]", '`' };
+            yield return new object[] { prefix, "[\"a\\\"b\", \"x\"]", '`' };
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(JsonCommandEditCases))]
+    public void ParsedJsonCommandsSupportCollectionEdits(string prefix, string arguments, char escapeChar)
+    {
+        ExecFormCommand command = Assert.IsType<ExecFormCommand>(
+            GetCommand(ParseInstruction(prefix + " " + arguments + "\n", escapeChar)));
+        LiteralToken original = command.ValueTokens[0];
+        string body = original.ToString();
+        string value = original.Value;
+
+        command.Values.Add("y");
+
+        Assert.Equal(new[] { value, "x", "y" }, command.Values);
+        Assert.Same(original, command.ValueTokens[0]);
+        Assert.Equal(body, original.ToString());
+        string before = command.ToString();
+        command.ValueTokens.Replace(0, original);
+        Assert.Equal(before, command.ToString());
+        command.ValueTokens.Move(0, 1);
+        Assert.Equal(new[] { "x", value, "y" }, command.Values);
+        Assert.Equal(body, original.ToString());
+        command.ValueTokens.RemoveAt(1, TriviaDisposition.Discard);
+        Assert.Equal(new[] { "x", "y" }, command.Values);
+    }
+
+    [Theory]
+    [InlineData("RUN")]
+    [InlineData("CMD")]
+    [InlineData("ENTRYPOINT")]
+    [InlineData("HEALTHCHECK CMD")]
+    [InlineData("ONBUILD RUN")]
+    [InlineData("SHELL")]
+    [InlineData("COPY")]
+    [InlineData("ADD")]
+    [InlineData("VOLUME")]
+    public void ParsedJsonLiteralUpdatesRetainJsonEscapeSyntax(string prefix)
+    {
+        string text = prefix + " [\"echo`\", \"dest\"]\n";
+        Instruction instruction = ParseInstruction(text, '`');
+        IEnumerable<Token> tokens = instruction is FileTransferInstruction or VolumeInstruction
+            ? instruction.Tokens
+            : Assert.IsType<ExecFormCommand>(GetCommand(instruction)).Tokens;
+        LiteralToken literal = tokens.OfType<LiteralToken>().First();
+
+        literal.Value = literal.Value;
+
+        Assert.Equal(text, instruction.ToString());
+        literal.Value = "a\\\"b`";
+        Assert.Equal("a\\\"b`", literal.Value);
+        Assert.Equal(prefix + " [\"a\\\"b`\", \"dest\"]\n", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData("RUN")]
+    [InlineData("COPY")]
+    [InlineData("ADD")]
+    [InlineData("VOLUME")]
+    public void AdoptedJsonLiteralsRetainTheirGrammarForLaterValueUpdates(string prefix)
+    {
+        Instruction instruction = ParseInstruction(prefix + " [\"old\", \"dest\"]", '`');
+        EditableList<LiteralToken> tokens = instruction switch
+        {
+            FileTransferInstruction transfer => transfer.SourceTokens,
+            VolumeInstruction volume => volume.PathTokens,
+            _ => Assert.IsType<ExecFormCommand>(GetCommand(instruction)).ValueTokens
+        };
+        LiteralToken incoming = new(new Token[] { new StringToken("incoming`") }, false, '`');
+
+        tokens.Add(incoming);
+        string before = instruction.ToString();
+        incoming.Value = incoming.Value;
+
+        Assert.Contains(incoming, tokens);
+        Assert.Equal(before, instruction.ToString());
+        Assert.Throws<ParseException>(() => incoming.Value = "unescaped\"quote");
+        Assert.Equal(before, instruction.ToString());
+    }
+
+    [Fact]
+    public void StrictJsonParserConstructionAvoidsTheLegacyVariableGrammar()
+    {
+        var strictParser = CommandParsers.JsonArray('\\', canContainVariables: true, allowEmpty: true,
+            useJsonStringSyntax: true);
+        var legacyParser = CommandParsers.JsonArray('\\', canContainVariables: true, allowEmpty: true);
+        TextSpan input = new("[]");
+        for (int i = 0; i < 20; i++)
+        {
+            Assert.True(strictParser(input).HasValue);
+            Assert.True(legacyParser(input).HasValue);
+        }
+        long strict = Allocated(strictParser, input);
+        long legacy = Allocated(legacyParser, input);
+        Assert.True(strict < legacy, $"Strict grammar allocated {strict} bytes; legacy grammar allocated {legacy} bytes.");
+
+        static long Allocated(TextParser<IEnumerable<Token>> parser, TextSpan input)
+        {
+            long start = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                parser(input);
+            }
+            return GC.GetAllocatedBytesForCurrentThread() - start;
+        }
+    }
+
     public static IEnumerable<object[]> JsonStringSyntaxCases()
     {
         (string Arguments, char EscapeChar, string[] Values)[] cases =
@@ -51,6 +167,13 @@ public class CommandJsonRecognitionTests
             : Assert.IsType<ExecFormCommand>(GetCommand(instruction)).Tokens;
         LiteralToken[] literals = tokens.OfType<LiteralToken>().ToArray();
         Assert.Equal(new[] { "$SRC`", "${DST:-default}\\\"tail" }, literals.Select(token => token.Value));
+        Assert.Equal(recognizeVariables ? 2 : 0,
+            literals.SelectMany(token => token.Tokens).OfType<VariableRefToken>().Count());
+        foreach (LiteralToken literal in literals)
+        {
+            literal.Value = literal.Value;
+        }
+        Assert.Equal(text, instruction.ToString());
         Assert.Equal(recognizeVariables ? 2 : 0,
             literals.SelectMany(token => token.Tokens).OfType<VariableRefToken>().Count());
     }

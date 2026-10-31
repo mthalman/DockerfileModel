@@ -92,6 +92,13 @@ decoding to argument-sequence constructors or editable value views.
 `ExecFormCommand.Parse` retains the legacy literal grammar for explicitly modeled
 operands; instruction form selection validates JSON independently.
 
+Commands parsed from instructions retain the JSON string grammar for collection
+edits and literal value updates. Explicit `ExecFormCommand` APIs keep their
+legacy grammar, including its existing limitations. `ADD` and `COPY` constructors
+also retain legacy operand syntax when their generated arguments are not valid
+JSON; collection edits preserve those existing operands without weakening the
+JSON checks for newly supplied tokens or instruction text.
+
 ## How updates are discovered
 
 Renovate watches published `dockerfile/X.Y.Z` releases in `moby/buildkit` and

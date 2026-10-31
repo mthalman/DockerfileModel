@@ -17,8 +17,9 @@ public class ExecFormCommand : Command
     {
     }
 
-    internal ExecFormCommand(IEnumerable<Token> tokens, char escapeChar) : base(tokens, escapeChar)
+    internal ExecFormCommand(IEnumerable<Token> tokens, char escapeChar, bool useJsonStringSyntax = false) : base(tokens, escapeChar)
     {
+        UseJsonStringSyntax = useJsonStringSyntax;
         ValueTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this);
         Values = InstructionCollectionEditing.Strings(ValueTokens, this);
     }
@@ -34,10 +35,17 @@ public class ExecFormCommand : Command
     public static ExecFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar).AtEnd()), escapeChar);
 
+    // Instruction-parsed commands retain their JSON grammar without widening explicit legacy command APIs.
+    internal bool UseJsonStringSyntax { get; }
+
+    internal ExecFormCommand ParseForEditing(string text) =>
+        new(GetTokens(text, GetInnerParser(EditingEscapeChar, UseJsonStringSyntax).AtEnd()),
+            EditingEscapeChar, UseJsonStringSyntax);
+
     internal static TextParser<ExecFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar,
         bool useJsonStringSyntax = false) =>
         from tokens in GetInnerParser(escapeChar, useJsonStringSyntax)
-        select new ExecFormCommand(tokens, escapeChar);
+        select new ExecFormCommand(tokens, escapeChar, useJsonStringSyntax);
 
     /// <summary>Gets the live editable argument value view.</summary>
     /// <remarks>

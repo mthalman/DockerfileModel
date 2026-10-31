@@ -580,7 +580,9 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         {
             parsed = owner switch
             {
-                ExecFormCommand => ExecFormCommand.Parse(text, owner.EditingEscapeChar),
+                ExecFormCommand command => command.ParseForEditing(text),
+                CopyInstruction when IsJson => CopyInstruction.ParseForEditing(text, owner.EditingEscapeChar),
+                AddInstruction when IsJson => AddInstruction.ParseForEditing(text, owner.EditingEscapeChar),
                 UnknownInstruction => throw new InvalidOperationException("Unknown instruction arguments are opaque."),
                 GenericInstruction => GenericInstruction.Parse(text, owner.EditingEscapeChar),
                 Instruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar),
@@ -610,7 +612,21 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         {
             throw new InvalidOperationException("The edit changes operand boundaries or values.");
         }
+        // Newly adopted literals inherit the parsed grammar; existing legacy literals keep their contract.
+        HashSet<T>? existing = IsJson ? new(Select(owner), ReferenceComparer<T>.Instance) : null;
         plan.Commit();
+        if (existing is not null)
+        {
+            List<T> committed = Select(owner);
+            for (int index = 0; index < committed.Count; index++)
+            {
+                if (!existing.Contains(committed[index]) && committed[index] is LiteralToken literal &&
+                    actual[index] is LiteralToken parsedLiteral)
+                {
+                    literal.UseJsonStringSyntax = parsedLiteral.UseJsonStringSyntax;
+                }
+            }
+        }
     }
 
     private bool SameValue(T left, T right, TokenEditPlan plan)

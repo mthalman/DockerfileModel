@@ -22,14 +22,18 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         QuoteChar = tokensInfo.QuoteChar;
     }
 
-    internal LiteralToken(IEnumerable<Token> tokens, bool canContainVariables, char escapeChar, bool preserveRawValue = false)
+    internal LiteralToken(IEnumerable<Token> tokens, bool canContainVariables, char escapeChar, bool preserveRawValue = false,
+        bool useJsonStringSyntax = false)
         : base(tokens)
     {
         this.canContainVariables = canContainVariables;
         this.escapeChar = escapeChar;
         EditingEscapeChar = escapeChar;
         this.preserveRawValue = preserveRawValue;
+        UseJsonStringSyntax = useJsonStringSyntax;
     }
+
+    internal bool UseJsonStringSyntax { get; set; }
 
     /// <summary>Gets text without quote wrappers, continuations, comments, or newlines; sets the literal's inner contents.</summary>
     /// <remarks>
@@ -54,8 +58,22 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         set => quoteChar = value;
     }
 
-    protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
-        preserveRawValue ? new Token[] { new StringToken(value) } : GetTokens(value, canContainVariables, escapeChar).Tokens;
+    protected virtual IEnumerable<Token> GetInnerTokens(string value)
+    {
+        if (preserveRawValue)
+        {
+            return new Token[] { new StringToken(value) };
+        }
+        if (UseJsonStringSyntax)
+        {
+            IEnumerable<Token> tokens = CommandParsers.JsonStringTokens(escapeChar, canContainVariables)
+                .Try().Many().Flatten().AtEnd().Parse(value);
+            return TokenHelper.CollapseTokens(tokens,
+                token => token is StringToken || token.GetType() == typeof(WhitespaceToken),
+                text => new StringToken(text));
+        }
+        return GetTokens(value, canContainVariables, escapeChar).Tokens;
+    }
 
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)
     {
