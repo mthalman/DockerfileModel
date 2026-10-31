@@ -144,7 +144,7 @@ public class HealthCheckInstruction : Instruction
     }
 
     /// <summary>Gets or sets the command, or null for HEALTHCHECK NONE.</summary>
-    /// <remarks>Assigning null replaces CMD and its command with NONE; assigning a command to NONE restores CMD.</remarks>
+    /// <remarks>Assigning null replaces CMD and its command with NONE while retaining terminal trivia; assigning a command to NONE restores CMD.</remarks>
     public Command? Command
     {
         get => Tokens.OfType<Command>().FirstOrDefault();
@@ -166,6 +166,8 @@ public class HealthCheckInstruction : Instruction
                         // preserving any trailing tokens (comments, newlines) after the command.
                         if (cmdKeywordIndex >= 0 && commandIndex >= cmdKeywordIndex)
                         {
+                            List<Token> trailingTrivia = DetachTrailingCommandTrivia(current);
+
                             // Also remove the whitespace token immediately before the CMD keyword
                             int removeStart = cmdKeywordIndex;
                             if (removeStart > 0 && TokenList[removeStart - 1] is WhitespaceToken)
@@ -183,6 +185,7 @@ public class HealthCheckInstruction : Instruction
                             // (e.g. after the last flag or after the instruction keyword's whitespace)
                             TokenList.Insert(removeStart, new WhitespaceToken(" "));
                             TokenList.Insert(removeStart + 1, new KeywordToken("NONE", escapeChar));
+                            TokenList.InsertRange(removeStart + 2, trailingTrivia);
                         }
                     }
                 }
@@ -215,6 +218,43 @@ public class HealthCheckInstruction : Instruction
                 }
             }
         }
+    }
+
+    private static List<Token> DetachTrailingCommandTrivia(AggregateToken owner)
+    {
+        List<Token> trivia = new();
+        while (owner.TokenList.Count > 0)
+        {
+            Token last = owner.TokenList[owner.TokenList.Count - 1];
+            if (last is WhitespaceToken or LineContinuationToken or CommentToken)
+            {
+                owner.TokenList.RemoveAt(owner.TokenList.Count - 1);
+                trivia.Add(last);
+            }
+            else
+            {
+                // Shell-form framing is nested in an unquoted literal, unlike exec-form framing.
+                if (last is LiteralToken { QuoteChar: null } literal)
+                {
+                    owner = literal;
+                    continue;
+                }
+                else if (last is StringToken text &&
+                    GetTrailingWhitespaceToken(text.Value) is WhitespaceToken whitespace)
+                {
+                    text.Value = text.Value.Substring(0, text.Value.Length - whitespace.Value.Length);
+                    trivia.Add(whitespace);
+                    if (text.Value.Length == 0)
+                    {
+                        owner.TokenList.RemoveAt(owner.TokenList.Count - 1);
+                        continue;
+                    }
+                }
+                break;
+            }
+        }
+        trivia.Reverse();
+        return trivia;
     }
 
     /// <summary>Parses a standalone HEALTHCHECK instruction, preserving its form, formatting, and escape context.</summary>
