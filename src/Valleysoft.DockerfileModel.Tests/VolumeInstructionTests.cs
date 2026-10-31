@@ -31,6 +31,126 @@ public class VolumeInstructionTests
             path => Assert.Equal("/data", path));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolveVariables_JsonPaths(bool updateInline)
+    {
+        const string text = "FROM scratch\nARG ROOT=/srv\nVOLUME [\"$ROOT/data\", \"${ROOT}/logs\"]";
+        const string expected = "VOLUME [\"/srv/data\", \"/srv/logs\"]";
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+        VolumeInstruction instruction = Assert.Single(dockerfile.Items.OfType<VolumeInstruction>());
+        LiteralToken[] paths = instruction.PathTokens.ToArray();
+
+        Assert.All(paths, path => Assert.Single(path.Tokens.OfType<VariableRefToken>()));
+        Assert.Equal(text, dockerfile.ToString());
+        Assert.Equal(expected, dockerfile.ResolveVariables(instruction,
+            options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(updateInline ? expected : "VOLUME [\"$ROOT/data\", \"${ROOT}/logs\"]",
+            instruction.ToString());
+        Assert.Equal(updateInline ? new[] { "/srv/data", "/srv/logs" } : new[] { "$ROOT/data", "${ROOT}/logs" },
+            instruction.Paths);
+        Assert.Equal(paths, instruction.PathTokens);
+        Assert.Equal(updateInline ? text.Replace("VOLUME [\"$ROOT/data\", \"${ROOT}/logs\"]", expected) : text,
+            dockerfile.ToString());
+    }
+
+    [Theory]
+    [InlineData("${ROOT:-/fallback}", "/srv")]
+    [InlineData("${MISSING:-/fallback}", "/fallback")]
+    [InlineData("${ROOT-/fallback}", "/srv")]
+    [InlineData("${MISSING-/fallback}", "/fallback")]
+    [InlineData("${ROOT:+/alternate}", "/alternate")]
+    [InlineData("${MISSING:+/alternate}", "")]
+    [InlineData("${ROOT+/alternate}", "/alternate")]
+    [InlineData("${MISSING+/alternate}", "")]
+    [InlineData("${ROOT:?required}", "/srv")]
+    [InlineData("${ROOT?required}", "/srv")]
+    public void ResolveVariables_JsonPathModifiers(string expression, string expected)
+    {
+        string text = $"VOLUME [\"{expression}/data\"]";
+        foreach (bool updateInline in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse(text);
+            Assert.Equal($"VOLUME [\"{expected}/data\"]", instruction.ResolveVariables('\\',
+                new Dictionary<string, string?> { ["ROOT"] = "/srv" },
+                new ResolutionOptions { UpdateInline = updateInline }));
+            Assert.Equal(updateInline ? $"VOLUME [\"{expected}/data\"]" : text, instruction.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData("${MISSING:?required}")]
+    [InlineData("${MISSING?required}")]
+    public void ResolveVariables_JsonPathRequiredModifierThrows(string expression)
+    {
+        string text = $"VOLUME [\"{expression}/data\"]";
+        foreach (bool updateInline in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse(text);
+            Assert.Throws<VariableSubstitutionException>(() => instruction.ResolveVariables('\\',
+                new Dictionary<string, string?>(), new ResolutionOptions { UpdateInline = updateInline }));
+            Assert.Equal(text, instruction.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData('\\', "VOLUME [\"$ROOT/a\\\"b\", \"$ROOT/c\\\\d\"]",
+        "VOLUME [\"/srv/a\\\"b\", \"/srv/c\\\\d\"]")]
+    [InlineData('\\', "VOLUME [\"$ROOT/data\", \\\n \"${ROOT}/logs\"]",
+        "VOLUME [\"/srv/data\", \\\n \"/srv/logs\"]")]
+    [InlineData('`', "VOLUME [\"$ROOT/data\", `\r\n \"${ROOT}/logs\"]",
+        "VOLUME [\"/srv/data\", `\r\n \"/srv/logs\"]")]
+    [InlineData('\\', "VOLUME [\"$ROOT/da\\\nta\"]", "VOLUME [\"/srv/da\\\nta\"]")]
+    [InlineData('`', "VOLUME [\"$ROOT/da`\r\nta\"]", "VOLUME [\"/srv/da`\r\nta\"]")]
+    public void ResolveVariables_JsonPathsPreserveSyntax(char escapeChar, string text, string expected)
+    {
+        foreach (bool updateInline in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse(text, escapeChar);
+            Assert.Equal(text, instruction.ToString());
+            Assert.Equal(expected, instruction.ResolveVariables(escapeChar,
+                new Dictionary<string, string?> { ["ROOT"] = "/srv" },
+                new ResolutionOptions { UpdateInline = updateInline }));
+            Assert.Equal(updateInline ? expected : text, instruction.ToString());
+            Assert.Equal(instruction.Paths, VolumeInstruction.Parse(instruction.ToString(), escapeChar).Paths);
+        }
+    }
+
+    [Fact]
+    public void Paths_JsonVariableEditsRemainExpandable()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT/data\", \"/logs\"]");
+        LiteralToken original = instruction.PathTokens[0];
+        original.Value = "${ROOT}/cache";
+        instruction.Paths[1] = "$ROOT/logs";
+        instruction.Paths.Add("${ROOT:-/fallback}/extra");
+        LiteralToken inserted = new("$ROOT/token", canContainVariables: true);
+        instruction.PathTokens.Add(inserted);
+
+        Assert.Same(original, instruction.PathTokens[0]);
+        Assert.Same(inserted, instruction.PathTokens[3]);
+        Assert.All(instruction.PathTokens, path =>
+        {
+            Assert.Equal('"', path.QuoteChar);
+            Assert.Single(path.Tokens.OfType<VariableRefToken>());
+        });
+        Assert.Equal("VOLUME [\"/srv/cache\", \"/srv/logs\", \"/srv/extra\", \"/srv/token\"]",
+            instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["ROOT"] = "/srv" }));
+        Assert.Equal(new[] { "${ROOT}/cache", "$ROOT/logs", "${ROOT:-/fallback}/extra", "$ROOT/token" },
+            instruction.Paths);
+    }
+
+    [Fact]
+    public void Create_JsonPathsRecognizeVariables()
+    {
+        VolumeInstruction instruction = new(new[] { "$ROOT/data", "${ROOT}/logs" });
+        Assert.All(instruction.PathTokens, path => Assert.Single(path.Tokens.OfType<VariableRefToken>()));
+        Assert.Equal("VOLUME [\"/srv/data\", \"/srv/logs\"]",
+            instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["ROOT"] = "/srv" }));
+        Assert.Equal("VOLUME [\"$ROOT/data\", \"${ROOT}/logs\"]", instruction.ToString());
+    }
+
     [Fact]
     public void Paths()
     {

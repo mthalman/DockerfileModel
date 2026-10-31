@@ -72,7 +72,7 @@ public class VolumeInstruction : Instruction
 
     private static TextParser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
         CommandParsers.MaybeJson(
-            JsonArray(escapeChar, canContainVariables: false, allowEmpty: true, useJsonStringSyntax: true),
+            JsonArray(escapeChar, canContainVariables: true, allowEmpty: true, useJsonStringSyntax: true),
             NonJsonPaths(escapeChar), escapeChar);
 
     private static TextParser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>

@@ -2054,6 +2054,29 @@ def testVolumeVariable : IO Unit := do
     assertTrue (inst.name == .volume) "volume instruction name"
   | none =>
     throw (IO.Error.userError "Parse failed: VOLUME variable should parse")
+  match parseVolume "VOLUME [\"$DATA_DIR/data\", \"${DATA_DIR:-/fallback}/logs\"]" with
+  | some inst =>
+    assertEqual (Token.toString inst.token)
+      "VOLUME [\"$DATA_DIR/data\", \"${DATA_DIR:-/fallback}/logs\"]"
+      "volume JSON variable round-trip"
+    match inst.token with
+    | .aggregate .instruction children _ =>
+      let paths := children.filter fun token =>
+        match token with
+        | .aggregate .literal _ _ => true
+        | _ => false
+      assertTrue (paths.length == 2) "volume JSON path count"
+      for path in paths do
+        match path with
+        | .aggregate .literal tokens _ =>
+          assertTrue (tokens.any fun token =>
+            match token with
+            | .aggregate .variableRef _ _ => true
+            | _ => false) "volume JSON path recognizes variables"
+        | _ => throw (IO.Error.userError "Expected volume path literal")
+    | _ => throw (IO.Error.userError "Expected volume instruction token")
+  | none =>
+    throw (IO.Error.userError "Parse failed: VOLUME JSON variables should parse")
 
 open DockerfileModel.Parser.Instructions.Volume in
 /-- Test: VOLUME exec form multiple -/

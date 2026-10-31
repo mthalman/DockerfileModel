@@ -65,10 +65,25 @@ def volumePathsParser (escapeChar : Char) : Parser (List Token) := do
 -- VOLUME args parser
 -- ============================================================
 
+/-- BuildKit's VolumeCommand.Expand expands JSON paths too. Validate JSON syntax
+    before recognizing variable references, without changing exec-command parsing. -/
+def jsonVolumePathsParser (escapeChar : Char) : Parser (List Token) := do
+  let tokens ← maybeJsonArrayParser (volumePathsParser escapeChar) escapeChar
+  if !tokens.any (fun token => token == Token.mkSymbol '[') then
+    return tokens
+  tokens.mapM fun token =>
+    match token with
+    | .aggregate .literal _ _ =>
+      match (literalWithVariablesQuoted escapeChar [] '"' .allowedInQuotes).tryParse
+          (Token.toString token) with
+      | some path => Parser.pure path
+      | none => Parser.fail "invalid variable-aware VOLUME path"
+    | _ => Parser.pure token
+
 /-- Parse the arguments of a VOLUME instruction: exec form or space-separated paths.
     Corresponds to VolumeInstruction.GetArgsParser() -/
 partial def volumeArgsParser (escapeChar : Char) : Parser (List Token) :=
-  argTokens (maybeJsonArrayParser (volumePathsParser escapeChar) escapeChar) escapeChar
+  argTokens (jsonVolumePathsParser escapeChar) escapeChar
     (excludeLeadingWhitespace := true)
 
 -- ============================================================

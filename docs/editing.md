@@ -139,6 +139,11 @@ policy; they do not rewrite existing operands or change shell-form editing.
 Existing operand grammar limits still apply: JSON `\"` escapes are not supported
 with a backtick Dockerfile escape directive.
 
+`VOLUME` paths recognize variable references and supported variable modifiers in
+both shell and JSON form, including paths created or updated through the editable
+views. `ResolveVariables()` preserves the original model unless
+`ResolutionOptions.UpdateInline` is `true`.
+
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's
 meaning. `ARG` distinguishes a missing value from an explicit empty value.
