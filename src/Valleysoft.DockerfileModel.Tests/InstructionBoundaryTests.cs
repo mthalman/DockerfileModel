@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel.Tests;
@@ -153,6 +154,39 @@ public class InstructionBoundaryTests
             Assert.Equal(delimiters, standalone.HeredocMarkerTokens.Select(marker => marker.DelimiterName));
             Assert.Equal(runText, standalone.ToString());
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LongHereStringsHaveBoundedScanningTime(bool withHeredoc)
+    {
+        string text = (withHeredoc ? "RUN <<EOF " : "RUN ") + new string('<', 16000) + "word\n" +
+            (withHeredoc ? "body\nEOF\n" : "");
+        DockerfileParser.ExtractHeredocDelimiters("RUN <<<warmup\n");
+        RunInstruction.Parse("RUN <<EOF <<<warmup\nbody\nEOF\n");
+
+        Stopwatch watch = Stopwatch.StartNew();
+        List<DockerfileParser.HeredocDelimiterInfo> delimiters =
+            DockerfileParser.ExtractHeredocDelimiters(text.Split('\n')[0]);
+        TimeSpan framingTime = watch.Elapsed;
+        Assert.Equal(withHeredoc ? 1 : 0, delimiters.Count);
+        Assert.True(framingTime < TimeSpan.FromSeconds(5), $"Framing scan took {framingTime}.");
+
+        watch.Restart();
+        RunInstruction instruction = RunInstruction.Parse(text);
+        TimeSpan tokenizationTime = watch.Elapsed;
+        Assert.Equal(withHeredoc ? 1 : 0, instruction.HeredocMarkerTokens.Count());
+        Assert.Equal(text, instruction.ToString());
+        Assert.True(tokenizationTime < TimeSpan.FromSeconds(5), $"Token scan took {tokenizationTime}.");
+    }
+
+    [Fact]
+    public void RejectedHereStringDoesNotHideLaterHeredoc()
+    {
+        List<DockerfileParser.HeredocDelimiterInfo> delimiters =
+            DockerfileParser.ExtractHeredocDelimiters("RUN <<<word <<EOF");
+        Assert.Equal("EOF", Assert.Single(delimiters).Delimiter);
     }
 
     private static Dockerfile[] ParseBoth(string text)

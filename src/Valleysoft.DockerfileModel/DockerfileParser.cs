@@ -8,8 +8,9 @@ internal static class DockerfileParser
 {
     // Matches heredoc markers: <<[-][QUOTE]DELIMITER[QUOTE]
     // Supports any non-whitespace for unquoted delimiters and any non-quote for quoted delimiters.
+    // Anchor each probe so rejected here-strings cannot repeatedly search the remaining suffix.
     private static readonly Regex HeredocDelimiterRegex = new(
-        @"(?<!<)<<(?!<)(-?)(?:(['""])(.+?)\2|([^\s'""]+))");
+        @"\G(?<!<)<<(?!<)(-?)(?:(['""])(.+?)\2|([^\s'""]+))");
 
     /// <summary>
     /// Represents a detected heredoc delimiter with its properties.
