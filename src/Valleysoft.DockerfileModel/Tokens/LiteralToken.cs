@@ -8,8 +8,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     private readonly bool preserveRawValue;
     private TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser;
     private char? quoteChar;
-    private Token[]? resolvedJsonTokens;
-    private string? resolvedJsonText;
+    private HashSet<Token>? resolvedJsonLiterals;
 
     /// <summary>Parses literal syntax using the supplied escape character and variable-recognition policy.</summary>
     /// <remarks>The escape context and variable policy are retained for later value updates.</remarks>
@@ -70,6 +69,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
                         new LiteralToken(parsed.Value.Tokens, canContainVariables, escapeChar).Value == expectedValue)
                     {
                         ReplaceWithTokens(contents);
+                        resolvedJsonLiterals = null;
                         QuoteChar = quote;
                         return;
                     }
@@ -77,6 +77,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
                 throw new ArgumentException("The value cannot be serialized as one operand without changing its contents.", nameof(value));
             }
             ReplaceWithTokens(contents);
+            resolvedJsonLiterals = null;
         }
     }
 
@@ -114,24 +115,26 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         {
             return base.ResolveVariables(escapeChar, variables, options);
         }
+        // Legacy constructors accept non-JSON strings; keep their token-based resolution.
+        if (!JsonStringValidation.IsValid(ToString(), escapeChar))
+        {
+            return base.ResolveVariables(escapeChar, variables, options);
+        }
         options ??= new ResolutionOptions();
         variables ??= new Dictionary<string, string?>();
-        // Inline substitution makes inserted dollars literal; subsequent edits re-enable recognition.
-        bool alreadyResolved = resolvedJsonTokens is not null &&
-            Tokens.SequenceEqual(resolvedJsonTokens, ReferenceComparer<Token>.Instance) &&
-            resolvedJsonText == ToString();
-        if (alreadyResolved && !options.RemoveEscapeCharacters)
-        {
-            return resolvedJsonText;
-        }
-        string result = JsonStringVariableResolver.Resolve(this, escapeChar, variables, options,
-            expandVariables: !alreadyResolved);
-        if (options.UpdateInline)
-        {
-            resolvedJsonTokens = Tokens.ToArray();
-            resolvedJsonText = result;
-        }
-        return result;
+        resolvedJsonLiterals?.IntersectWith(Tokens);
+        return JsonStringVariableResolver.Resolve(this, escapeChar, variables, options,
+            expandVariables: canContainVariables);
+    }
+
+    internal bool IsResolvedJsonLiteral(Token token) => resolvedJsonLiterals?.Contains(token) == true;
+
+    internal void RecordResolvedJsonLiterals(IEnumerable<Token> literals)
+    {
+        // Primitive edits must not reactivate dollars or quotes inserted by an earlier substitution.
+        resolvedJsonLiterals ??= new HashSet<Token>(ReferenceComparer<Token>.Instance);
+        resolvedJsonLiterals.IntersectWith(Tokens);
+        resolvedJsonLiterals.UnionWith(literals);
     }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value)

@@ -15,91 +15,202 @@ internal static class JsonStringVariableResolver
         {
             throw new InvalidOperationException("The JSON path contains unconsumed physical input.");
         }
-        using JsonDocument document = JsonDocument.Parse(logical);
-        string decoded = document.RootElement.GetString()!;
-        // Map decoded UTF-16 characters to physical spans so untouched escapes and trivia stay intact.
-        List<int> starts = new();
-        List<int> ends = new();
-        for (int index = 1; index < logical.Length - 1;)
-        {
-            int length = logical[index] == '\\' ? logical[index + 1] == 'u' ? 6 : 2 : 1;
-            starts.Add(offsets[index]);
-            ends.Add(offsets[index + length - 1] + 1);
-            index += length;
-        }
+        string decoded = Decode(logical, offsets, out List<int> starts, out List<int> ends);
+        (Token Token, string Text)[] source = path.Tokens.Select(token => (token, token.ToString())).ToArray();
 
-        List<(int Start, int End, string Value)> replacements = new();
+        List<(int Start, int End, string Value, bool Inline)> replacements = new();
         ResolutionOptions valueOptions = new() { RemoveEscapeCharacters = options.RemoveEscapeCharacters };
-        for (int index = 0; index < decoded.Length;)
+        TextParser<VariableRefToken> variableParser = VariableRefToken.GetParser(escapeChar);
+        TextSpan input = new(decoded);
+        int tokenIndex = 0;
+        int tokenStart = 1;
+        char? quote = null;
+        while (!input.IsAtEnd)
         {
-            if (decoded[index] == escapeChar && index + 1 < decoded.Length)
+            int index = input.Position.Absolute;
+            while (tokenIndex < source.Length && tokenStart + source[tokenIndex].Text.Length <= starts[index])
+            {
+                tokenStart += source[tokenIndex].Text.Length;
+                tokenIndex++;
+            }
+            if (tokenIndex < source.Length && path.IsResolvedJsonLiteral(source[tokenIndex].Token))
+            {
+                int end = index + 1;
+                int tokenEnd = tokenStart + source[tokenIndex].Text.Length;
+                while (end < decoded.Length && starts[end] < tokenEnd)
+                {
+                    end++;
+                }
+                if (options.RemoveEscapeCharacters)
+                {
+                    string literal = decoded.Substring(index, end - index);
+                    string formatted = options.FormatValue(escapeChar, literal);
+                    if (formatted != literal)
+                    {
+                        replacements.Add((starts[index], ends[end - 1], Encode(formatted), false));
+                    }
+                }
+                input = input.Skip(end - index);
+                continue;
+            }
+            char current = decoded[index];
+            if (quote == '\'')
+            {
+                if (current == '\'')
+                {
+                    quote = null;
+                }
+                input = input.Skip(1);
+                continue;
+            }
+            if (current == escapeChar && index + 1 < decoded.Length)
             {
                 if (options.RemoveEscapeCharacters)
                 {
-                    replacements.Add((starts[index], ends[index + 1], Encode(decoded[index + 1].ToString())));
+                    replacements.Add((starts[index], ends[index + 1], Encode(decoded[index + 1].ToString()), false));
                 }
-                index += 2;
+                input = input.Skip(2);
                 continue;
             }
-            if (expandVariables && decoded[index] == '$')
+            if (current == '"' || (current == '\'' && quote is null))
             {
-                Result<VariableRefToken> variable = VariableRefToken.GetParser(escapeChar)
-                    .TryParse(decoded.Substring(index));
+                quote = quote == current ? null : current;
+            }
+            if (expandVariables && current == '$')
+            {
+                Result<VariableRefToken> variable = variableParser(input);
                 if (variable.HasValue)
                 {
-                    int length = variable.Remainder.Position.Absolute;
+                    int end = variable.Remainder.Position.Absolute;
                     string value = variable.Value.ResolveVariables(escapeChar, variables, valueOptions) ?? string.Empty;
-                    replacements.Add((starts[index], ends[index + length - 1], Encode(value)));
-                    index += length;
+                    replacements.Add((starts[index], ends[end - 1], Encode(value), true));
+                    input = variable.Remainder;
                     continue;
                 }
                 if (index + 1 < decoded.Length && decoded[index + 1] == '{')
                 {
-                    VariableRefToken.Parse(decoded.Substring(index), escapeChar);
+                    VariableRefToken.Parse(input.ToString(), escapeChar);
                 }
             }
-            index++;
+            input = input.Skip(1);
         }
 
-        List<Token> tokens = new();
-        int position = 1;
-        foreach ((int start, int end, string value) in replacements)
+        if (replacements.Count == 0)
         {
-            CopyUnchanged(path, position, start, tokens);
-            tokens.Add(new StringToken(value));
-            position = end;
+            return physical;
         }
-        CopyUnchanged(path, position, physical.Length - 1, tokens);
+        List<Token> substitutions = new();
+        bool inlineOnly = replacements.All(replacement => replacement.Inline);
+        List<Token> tokens = BuildTokens(source, replacements, physical.Length - 1,
+            options.UpdateInline && inlineOnly ? substitutions : null);
         string result = "\"" + string.Concat(tokens.Select(token => token.ToString())) + "\"";
-        if (options.UpdateInline)
+        if (options.UpdateInline && replacements.Any(replacement => replacement.Inline))
         {
-            path.ReplaceWithTokens(TokenHelper.CollapseStringTokens(tokens));
+            path.ReplaceWithTokens(inlineOnly
+                ? tokens
+                : BuildTokens(source, replacements.Where(replacement => replacement.Inline), physical.Length - 1,
+                    substitutions));
+            path.RecordResolvedJsonLiterals(substitutions);
         }
         return result;
     }
 
+    private static string Decode(string logical, List<int> offsets, out List<int> starts, out List<int> ends)
+    {
+        List<char> decoded = new();
+        // Physical spans keep untouched JSON escapes and Dockerfile trivia intact.
+        List<int> characterStarts = new();
+        List<int> characterEnds = new();
+        void AddCharacter(char value, int index, int length)
+        {
+            decoded.Add(value);
+            characterStarts.Add(offsets[index]);
+            characterEnds.Add(offsets[index + length - 1] + 1);
+        }
+
+        for (int index = 1; index < logical.Length - 1;)
+        {
+            int length = logical[index] == '\\' ? logical[index + 1] == 'u' ? 6 : 2 : 1;
+            char value = length == 1 ? logical[index] : logical[index + 1] switch
+            {
+                'u' => (char)Convert.ToInt32(logical.Substring(index + 2, 4), 16),
+                'b' => '\b',
+                'f' => '\f',
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                _ => logical[index + 1]
+            };
+            if (char.IsHighSurrogate(value))
+            {
+                int next = index + length;
+                int nextLength = length == 6 && next + 6 < logical.Length &&
+                    logical[next] == '\\' && logical[next + 1] == 'u' ? 6 : length == 1 ? 1 : 0;
+                char low = nextLength == 6
+                    ? (char)Convert.ToInt32(logical.Substring(next + 2, 4), 16)
+                    : next < logical.Length - 1 ? logical[next] : '\0';
+                if (nextLength > 0 && char.IsLowSurrogate(low))
+                {
+                    AddCharacter(value, index, length);
+                    AddCharacter(low, next, nextLength);
+                    index = next + nextLength;
+                    continue;
+                }
+            }
+            // BuildKit uses Go's JSON decoder, which replaces unmatched surrogates rather than rejecting them.
+            AddCharacter(char.IsSurrogate(value) ? '\uFFFD' : value, index, length);
+            index += length;
+        }
+        starts = characterStarts;
+        ends = characterEnds;
+        return new string(decoded.ToArray());
+    }
+
     private static string Encode(string value) => JsonEncodedText.Encode(value).ToString();
 
-    private static void CopyUnchanged(LiteralToken path, int start, int end, List<Token> destination)
+    private static List<Token> BuildTokens((Token Token, string Text)[] source,
+        IEnumerable<(int Start, int End, string Value, bool Inline)> replacements, int end,
+        List<Token>? substitutions = null)
     {
-        int position = 1;
-        foreach (Token token in path.Tokens)
+        List<Token> tokens = new();
+        int tokenIndex = 0;
+        int tokenStart = 1;
+        void CopyUnchanged(int start, int stop)
         {
-            string text = token.ToString();
-            int first = Math.Max(start - position, 0);
-            int last = Math.Min(end - position, text.Length);
-            if (first < last)
+            while (tokenIndex < source.Length && tokenStart < stop)
             {
-                destination.Add(first == 0 && last == text.Length &&
-                    token is LineContinuationToken or CommentToken or WhitespaceToken
-                    ? token
-                    : new StringToken(text.Substring(first, last - first)));
-            }
-            position += text.Length;
-            if (position >= end)
-            {
-                break;
+                (Token token, string text) = source[tokenIndex];
+                int tokenEnd = tokenStart + text.Length;
+                int first = Math.Max(start - tokenStart, 0);
+                int last = Math.Min(stop - tokenStart, text.Length);
+                if (first < last)
+                {
+                    tokens.Add(first == 0 && last == text.Length
+                        ? token
+                        : new StringToken(text.Substring(first, last - first)));
+                }
+                if (tokenEnd > stop)
+                {
+                    break;
+                }
+                tokenStart = tokenEnd;
+                tokenIndex++;
             }
         }
+
+        int position = 1;
+        foreach ((int start, int finish, string value, bool inline) in replacements)
+        {
+            CopyUnchanged(position, start);
+            StringToken substitution = new(value);
+            tokens.Add(substitution);
+            if (inline)
+            {
+                substitutions?.Add(substitution);
+            }
+            position = finish;
+        }
+        CopyUnchanged(position, end);
+        return tokens;
     }
 }

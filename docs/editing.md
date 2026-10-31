@@ -141,13 +141,24 @@ with a backtick Dockerfile escape directive.
 
 `VOLUME` paths recognize variable references and supported variable modifiers in
 both shell and JSON form, including paths created or updated through the editable
-views. `ResolveVariables()` preserves the original model unless
-`ResolutionOptions.UpdateInline` is `true`.
+views. Typed `LiteralToken` paths retain their variable-recognition policy.
+`ResolveVariables()` preserves the original model unless
+`ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
+references but retains untouched child tokens.
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
-retained. A decoded Dockerfile escape character protects the following dollar
-sign from expansion. Inline substitutions are not recursively expanded; editing
-the path value makes new references eligible for resolution again.
+retained. Decoded single quotes protect their contents from expansion; quote
+spelling is retained rather than shell-unquoted. A decoded Dockerfile escape
+character protects the following dollar sign from expansion. Unmatched Unicode
+surrogates decode to U+FFFD, matching BuildKit's JSON decoder, while untouched
+escape spelling remains intact. Legacy parser-accepted paths that are not valid
+JSON strings retain token-based resolution.
+
+`RemoveEscapeCharacters` affects returned JSON text without rewriting untouched
+path contents, even when `UpdateInline` is `true`. Inline substitutions stay
+literal across later primitive-token edits. Assigning the path's `Value` or
+updating it through `Paths` reparses its contents and makes new references
+eligible for resolution again.
 
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's
