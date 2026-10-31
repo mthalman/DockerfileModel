@@ -1,0 +1,9 @@
+{
+  "id": "local-run-json-trailing-text",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIFsiZWNobyJdIHRyYWlsaW5n",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

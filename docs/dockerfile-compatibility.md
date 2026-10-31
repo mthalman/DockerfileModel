@@ -70,6 +70,23 @@ signature. New differences, changed signatures, unexpected passes, stale entries
 and infrastructure errors fail the run. Expected failures are reported separately
 from passes. Imported inputs cannot be minimized or promoted as local regressions.
 
+## JSON instruction forms
+
+`RUN`, `CMD`, `ENTRYPOINT`, and `HEALTHCHECK CMD` select exec form only when the
+complete logical argument is a JSON array of strings. Dockerfile continuations
+and continuation-line comments are folded before this check; ordinary trailing
+text is not discarded. Missing commas, invalid JSON escapes, and text after an
+array select shell form and retain the original source. A valid JSON array with
+non-string elements is an error, not a shell fallback.
+
+`ADD`, `COPY`, and `VOLUME` use the same recognition rule, but their fallback is
+the instruction's non-JSON operand grammar. `SHELL` requires JSON form and does
+not fall back. `ExecFormCommand.Parse` and `ShellInstruction.Parse` also reject
+unconsumed input. These syntax checks do not add general JSON escaping or
+decoding to argument-sequence constructors or editable value views.
+`ExecFormCommand.Parse` retains the legacy literal grammar for explicitly modeled
+operands; instruction form selection validates JSON independently.
+
 ## How updates are discovered
 
 Renovate watches published `dockerfile/X.Y.Z` releases in `moby/buildkit` and

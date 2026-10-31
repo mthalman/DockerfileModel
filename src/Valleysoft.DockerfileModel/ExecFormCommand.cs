@@ -32,7 +32,7 @@ public class ExecFormCommand : Command
 
     /// <summary>Parses JSON command syntax without an instruction keyword, preserving its formatting.</summary>
     public static ExecFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
+        new(GetTokens(text, GetInnerParser(escapeChar).AtEnd()), escapeChar);
 
     internal static TextParser<ExecFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)

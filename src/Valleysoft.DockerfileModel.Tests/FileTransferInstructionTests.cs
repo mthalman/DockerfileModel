@@ -499,13 +499,14 @@ public abstract class FileTransferInstructionTests<TInstruction>
                 {
                     token => ValidateKeyword(token, instructionName),
                     token => ValidateWhitespace(token, " "),
-                    token => ValidateSymbol(token, '['),
-                    token => ValidateQuotableAggregate<LiteralToken>(token, "$src", StringParsers.DoubleQuote,
+                    token => ValidateAggregate<LiteralToken>(token, "[\"$src\"",
+                        token => ValidateString(token, "[\""),
                         token => ValidateAggregate<VariableRefToken>(token, "$src",
-                            token => ValidateString(token, "src"))),
+                            token => ValidateString(token, "src")),
+                        token => ValidateString(token, "\"")),
                     token => ValidateWhitespace(token, " "),
                     token => ValidateLiteral(token, "dst", StringParsers.DoubleQuote),
-                    token => ValidateSymbol(token, ']')
+                    token => ValidateLiteral(token, "]")
                 }
             },
             new ParseTestScenario<TInstruction>

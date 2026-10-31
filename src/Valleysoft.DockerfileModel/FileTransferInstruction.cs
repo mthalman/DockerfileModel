@@ -199,11 +199,12 @@ public abstract partial class FileTransferInstruction : Instruction
         select ConcatTokens(flags, whitespace, files);
 
     private static TextParser<IEnumerable<Token>> FileArgs(char escapeChar) =>
-        ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar)
-            .Try().Or(from literals in ArgTokens(
+        CommandParsers.MaybeJson(
+            ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar),
+            from literals in ArgTokens(
                     LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
                     escapeChar).Try().Many()
-                select literals.Flatten());
+                select literals.Flatten(), escapeChar);
 
     private static TextParser<IEnumerable<Token>> FlagOption(char escapeChar, TextParser<IEnumerable<Token>>? optionalFlagParser)
     {

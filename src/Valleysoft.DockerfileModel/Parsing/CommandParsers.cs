@@ -1,9 +1,53 @@
+using System.Text.Json;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel.Parsing;
 
 internal static class CommandParsers
 {
+    private enum JsonArrayKind
+    {
+        Invalid,
+        StringArray,
+        NonStringArray
+    }
+
+    internal static TextParser<T> MaybeJson<T>(TextParser<T> jsonParser, TextParser<T> fallbackParser, char escapeChar) =>
+        input => GetJsonArrayKind(input, escapeChar) == JsonArrayKind.Invalid
+            ? fallbackParser(input)
+            : jsonParser(input);
+
+    internal static TextParser<T> RequireJson<T>(TextParser<T> parser, char escapeChar) =>
+        input =>
+        {
+            Result<T> result = parser(input);
+            return result.HasValue && GetJsonArrayKind(input, escapeChar) != JsonArrayKind.StringArray
+                ? Result.Empty<T>(input, "JSON array of strings")
+                : result;
+        };
+
+    private static JsonArrayKind GetJsonArrayKind(TextSpan input, char escapeChar)
+    {
+        // Recognition uses the whole logical header; token parsers still consume physical prefixes.
+        string logical = ConstructReader.FoldHeader(input.Source!, input.Position.Absolute, escapeChar, out _);
+        if (!logical.TrimStart().StartsWith("[", StringComparison.Ordinal))
+        {
+            return JsonArrayKind.Invalid;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(logical);
+            return document.RootElement.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String)
+                ? JsonArrayKind.StringArray
+                : JsonArrayKind.NonStringArray;
+        }
+        catch (JsonException)
+        {
+            return JsonArrayKind.Invalid;
+        }
+    }
+
     /// <summary>
     /// Parses a set of argument literals.
     /// </summary>
@@ -42,7 +86,7 @@ internal static class CommandParsers
         // at the opening quote, preventing backtracking to the empty-array case.
         // This matches the Lean/BuildKit parser structure, which parses
         // interElementSpace before attempting the optional first element.
-        from leadingWs in BasicParsers.OptionalWhitespaceOrLineContinuation(escapeChar)
+        from leadingWs in InstructionParsers.ArgTrailingWhitespace(escapeChar)
         from execFormArgs in JsonArrayElements(escapeChar, canContainVariables, allowEmpty)
         from closingBracket in BasicParsers.Symbol(']').AsEnumerable()
         select TokenSequences.ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
@@ -120,10 +164,9 @@ internal static class CommandParsers
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
     private static TextParser<IEnumerable<Token>> JsonArrayElementDelimiter(char escapeChar) =>
-        from leading in BasicParsers.OptionalWhitespaceOrLineContinuation(escapeChar)
-        from comma in BasicParsers.Symbol(',').AsEnumerable().Try()
-            .OptionalOrDefault(Enumerable.Empty<SymbolToken>())
-        from trailing in BasicParsers.OptionalWhitespaceOrLineContinuation(escapeChar)
+        from leading in InstructionParsers.ArgTrailingWhitespace(escapeChar)
+        from comma in BasicParsers.Symbol(',').AsEnumerable()
+        from trailing in InstructionParsers.ArgTrailingWhitespace(escapeChar)
         select TokenSequences.ConcatTokens(
             leading,
             comma,
@@ -144,14 +187,18 @@ internal static class CommandParsers
             VariableParsers.LiteralWithVariables(escapeChar, new char[] { StringParsers.DoubleQuote }) :
             StringParsers.LiteralToken(escapeChar, new char[] { StringParsers.DoubleQuote });
 
+        TextParser<IEnumerable<Token>> contentParser = InstructionParsers.ArgTokens(literalParser.AsEnumerable(),
+            escapeChar, excludeLeadingWhitespace: true).Try()
+            .Or(BasicParsers.Whitespace().Where(tokens => tokens.Any()));
+
         if (consumeLeadingWhitespace)
         {
             return
-                from leading in BasicParsers.OptionalWhitespaceOrLineContinuation(escapeChar)
+                from leading in InstructionParsers.ArgTrailingWhitespace(escapeChar)
                 from openingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
-                from argValue in InstructionParsers.ArgTokens(literalParser.AsEnumerable(), escapeChar).Try().Many()
+                from argValue in contentParser.Try().Many()
                 from closingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
-                from trailing in BasicParsers.OptionalWhitespaceOrLineContinuation(escapeChar)
+                from trailing in InstructionParsers.ArgTrailingWhitespace(escapeChar)
                 select TokenSequences.ConcatTokens(
                     leading,
                     CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
@@ -160,9 +207,9 @@ internal static class CommandParsers
 
         return
             from openingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
-            from argValue in InstructionParsers.ArgTokens(literalParser.AsEnumerable(), escapeChar).Try().Many()
+            from argValue in contentParser.Try().Many()
             from closingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
-            from trailing in BasicParsers.OptionalWhitespaceOrLineContinuation(escapeChar)
+            from trailing in InstructionParsers.ArgTrailingWhitespace(escapeChar)
             select TokenSequences.ConcatTokens(
                 CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
