@@ -53,7 +53,10 @@ public abstract class AggregateToken : Token
     /// <param name="variables">Variable values, or null for an empty environment.</param>
     /// <param name="options">Substitution options, or null for non-mutating defaults.</param>
     /// <returns>Resolved token text, including surrounding quotes when present; a variable token may resolve to null.</returns>
-    /// <remarks>Command instructions can suppress expansion, and raw command text may contain no variable-reference tokens. Use document resolution when ARG scope matters.</remarks>
+    /// <remarks>
+    /// Single-quoted literal contents and command instructions suppress expansion without removing reference tokens.
+    /// Quotes are preserved in returned text. Use document resolution when ARG scope matters.
+    /// </remarks>
     public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
     {
         variables ??= new Dictionary<string, string?>();
@@ -168,12 +171,15 @@ public abstract class AggregateToken : Token
     private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
     {
         StringBuilder builder = new();
+        bool[]? suppressExpansion = this is LiteralToken literal
+            ? literal.GetExpansionSuppression(escapeChar)
+            : null;
 
         for (int i = TokenList.Count - 1; i >= 0; i--)
         {
             Token token = TokenList[i];
             string? value;
-            if (token is AggregateToken aggregateToken)
+            if (token is AggregateToken aggregateToken && suppressExpansion?[i] != true)
             {
                 value = aggregateToken.ResolveVariables(escapeChar, variables, options);
                 if (token is VariableRefToken && options.UpdateInline)

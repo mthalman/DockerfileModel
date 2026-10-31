@@ -48,6 +48,10 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     }
 
     /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
+    /// <remarks>
+    /// Single quotes suppress variable resolution but retain reference children, allowing later quote changes
+    /// to re-enable resolution without reparsing the value.
+    /// </remarks>
     public virtual char? QuoteChar
     {
         get => quoteChar;
@@ -56,6 +60,55 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
         preserveRawValue ? new Token[] { new StringToken(value) } : GetTokens(value, canContainVariables, escapeChar).Tokens;
+
+    internal bool[] GetExpansionSuppression(char escapeChar)
+    {
+        bool[] suppressed = new bool[TokenList.Count];
+        char? quote = QuoteChar;
+        bool escaped = false;
+
+        // Keep reference children intact so changing QuoteChar can enable expansion later.
+        // Raw quotes also occur in literals such as legacy LABEL values.
+        for (int i = 0; i < TokenList.Count; i++)
+        {
+            Token token = TokenList[i];
+            suppressed[i] = quote == '\'' || escaped;
+            if (token is LineContinuationToken or CommentToken or NewLineToken ||
+                (token is VariableRefToken && !suppressed[i]))
+            {
+                continue;
+            }
+
+            foreach (char character in token.ToString())
+            {
+                if (escaped)
+                {
+                    escaped = false;
+                }
+                else if (quote == '\'')
+                {
+                    if (character == '\'')
+                    {
+                        quote = null;
+                    }
+                }
+                else if (character == escapeChar)
+                {
+                    escaped = true;
+                }
+                else if (character == quote)
+                {
+                    quote = null;
+                }
+                else if (!quote.HasValue && character is '\'' or '"')
+                {
+                    quote = character;
+                }
+            }
+        }
+
+        return suppressed;
+    }
 
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)
     {
