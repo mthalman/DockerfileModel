@@ -338,4 +338,38 @@ public class ArgResolutionTests
             Assert.Equal(text, dockerfile.ToString());
         }
     }
+
+    [Theory]
+    [InlineData('\'', "\"quoted\"")]
+    [InlineData('"', "quoted")]
+    public void ResolveVariables_QuoteEditsDoNotInvalidateOtherOwners(char quote, string expectedAliasValue)
+    {
+        Dockerfile source = Dockerfile.Parse(
+            "ARG X=default\nARG Y=$X\nFROM alpine\nARG Y\nENV RESULT=$Y");
+        Dictionary<string, string?> overrides = new() { ["X"] = "\"quoted\"" };
+        source.ResolveVariables(source.Items.OfType<FromInstruction>().Single(),
+            overrides, new ResolutionOptions { UpdateInline = true });
+        Token shared = Assert.Single(source.Items.OfType<ArgInstruction>()
+            .ElementAt(1).ArgTokens[0].ValueToken!.Tokens);
+        TokenBuilder builder = new();
+        builder.Literal(contents => contents.Tokens.Add(shared), canContainVariables: true);
+        LiteralToken alias = Assert.IsType<LiteralToken>(Assert.Single(builder.Tokens));
+        Dockerfile other = Dockerfile.Parse("ARG Z=placeholder\nFROM alpine\nARG Z\nENV RESULT=$Z");
+        other.Items.OfType<ArgInstruction>().First().ArgTokens[0].ValueToken = alias;
+        string originalSource = source.ToString();
+        Assert.Equal("ENV RESULT=\"quoted\"", source.ResolveVariables(overrides));
+
+        alias.QuoteChar = quote;
+
+        Assert.Same(shared, Assert.Single(alias.Tokens));
+        Assert.Equal(originalSource, source.ToString());
+        Assert.Equal("ENV RESULT=\"quoted\"", source.ResolveVariables(overrides));
+        Assert.Equal($"ENV RESULT={expectedAliasValue}", other.ResolveVariables());
+        Assert.Equal("ENV RESULT=\"quoted\"", source.ResolveVariables(overrides));
+
+        alias.QuoteChar = null;
+
+        Assert.Equal("ENV RESULT=\"quoted\"", other.ResolveVariables());
+        Assert.Equal("ENV RESULT=\"quoted\"", source.ResolveVariables(overrides));
+    }
 }

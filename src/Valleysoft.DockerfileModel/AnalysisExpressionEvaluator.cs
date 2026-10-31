@@ -133,6 +133,7 @@ internal static class AnalysisExpressionEvaluator
         private readonly Func<VariableRefToken, string>? resolveVariable;
         private readonly StringBuilder text = new();
         private readonly List<string> unresolvedVariables = new();
+        private readonly List<LiteralToken> literalScopes = new();
         private AnalysisValue? failure;
         private char? quote;
         private bool escaped;
@@ -152,7 +153,8 @@ internal static class AnalysisExpressionEvaluator
                 return;
             }
 
-            if (token is ResolvedStringToken resolved && resolved.HasValidSemanticValue)
+            if (token is ResolvedStringToken resolved && resolved.HasValidSemanticValue &&
+                !literalScopes.Any(literal => literal.IsSemanticValueInvalidated(resolved)))
             {
                 text.Append(resolved.SemanticValue);
                 return;
@@ -174,6 +176,11 @@ internal static class AnalysisExpressionEvaluator
             }
 
             char? wrappingQuote = (token as IQuotableToken)?.QuoteChar;
+            LiteralToken? literalScope = token as LiteralToken;
+            if (literalScope is not null)
+            {
+                literalScopes.Add(literalScope);
+            }
             if (wrappingQuote.HasValue)
             {
                 AppendCharacter(wrappingQuote.Value);
@@ -199,6 +206,10 @@ internal static class AnalysisExpressionEvaluator
             if (wrappingQuote.HasValue)
             {
                 AppendCharacter(wrappingQuote.Value);
+            }
+            if (literalScope is not null)
+            {
+                literalScopes.RemoveAt(literalScopes.Count - 1);
             }
         }
 

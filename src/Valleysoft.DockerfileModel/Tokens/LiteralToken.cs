@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
@@ -8,6 +9,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     private readonly char escapeChar;
     private readonly bool preserveRawValue;
     private char? quoteChar;
+    // Quote edits affect this owner, not shared children; weak keys do not retain removed substitutions.
+    private ConditionalWeakTable<ResolvedStringToken, QuoteContext>? originalQuoteContexts;
 
     /// <summary>Parses literal syntax using the supplied escape character and variable-recognition policy.</summary>
     /// <remarks>The escape context and variable policy are retained for later value updates.</remarks>
@@ -55,14 +58,28 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         {
             if (quoteChar != value)
             {
+                char? originalQuote = quoteChar;
                 quoteChar = value;
                 foreach (ResolvedStringToken token in InstructionCollectionEditing.Descendants(this)
                     .OfType<ResolvedStringToken>())
                 {
-                    token.InvalidateSemanticValue();
+                    originalQuoteContexts ??= new();
+                    if (!originalQuoteContexts.TryGetValue(token, out _))
+                    {
+                        originalQuoteContexts.Add(token, new QuoteContext(originalQuote));
+                    }
                 }
             }
         }
+    }
+
+    internal bool IsSemanticValueInvalidated(ResolvedStringToken token) =>
+        originalQuoteContexts is not null && originalQuoteContexts.TryGetValue(token, out QuoteContext? context) &&
+        context.QuoteChar != quoteChar;
+
+    private sealed class QuoteContext(char? quote)
+    {
+        public char? QuoteChar { get; } = quote;
     }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
