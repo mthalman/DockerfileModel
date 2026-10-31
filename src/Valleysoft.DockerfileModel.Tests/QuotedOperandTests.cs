@@ -114,6 +114,49 @@ public class QuotedOperandTests
         Assert.Equal("# escape=`\nCOPY <<EOF \"/mydir \"suffix\nbody\nEOF\n", model.ToString());
     }
 
+    [Theory]
+    [InlineData("foo\"bar")]
+    [InlineData("foo'bar")]
+    [InlineData("\"foo\"bar\"baz")]
+    [InlineData("'foo'bar'baz")]
+    [InlineData("\\conf\\\\\"")]
+    public void UnmatchedOperandFragmentsCannotReturnTruncatedInstructions(string operand)
+    {
+        foreach (string name in new[] { "COPY", "ADD" })
+        {
+            string text = $"{name} {operand} /dest";
+            AssertFileTransferModels(text, instruction =>
+            {
+                Assert.Equal(operand, Assert.Single(instruction.SourceTokens).ToString());
+                Assert.Equal("/dest", instruction.Destination);
+            });
+        }
+    }
+
+    [Theory]
+    [InlineData("COPY")]
+    [InlineData("ADD")]
+    public void HeredocBodyCannotCloseADestinationQuote(string name)
+    {
+        string text = $"{name} <<EOF \"/dest\nbody\"\nEOF\n";
+        Assert.Throws<ParseException>(() => name == "COPY"
+            ? (FileTransferInstruction)CopyInstruction.Parse(text)
+            : AddInstruction.Parse(text));
+        Assert.False(Dockerfile.TryParse(text).Success);
+    }
+
+    [Fact]
+    public void HeredocOperandTokenizationPreservesManySources()
+    {
+        string[] sources = Enumerable.Range(0, 300).Select(index => $"\"source {index}\"suffix").ToArray();
+        string text = $"COPY <<EOF {string.Join("\t", sources)}\t\"/dir name\"\nbody\nEOF\n";
+        AssertFileTransferModels(text, instruction =>
+        {
+            Assert.Equal(Enumerable.Range(0, 300).Select(index => $"source {index}suffix"), instruction.Sources);
+            Assert.Equal("/dir name", instruction.Destination);
+        });
+    }
+
     private static void AssertFileTransferModels(string text, Action<FileTransferInstruction> assert)
     {
         FileTransferInstruction standalone = text.StartsWith("COPY", StringComparison.Ordinal)

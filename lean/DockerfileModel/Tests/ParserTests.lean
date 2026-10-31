@@ -2356,6 +2356,31 @@ def testQuotedOperandFragments : IO Unit := do
         "heredoc destination retains quote context"
     | none => throw (IO.Error.userError s!"Quoted heredoc destination failed: {name}")
 
+def testHeredocDestinationCannotConsumeBody : IO Unit := do
+  let malformed := "<<EOF \"/dest\nbody\"\nEOF\n"
+  match Parser.Parser.run (Parser.Heredoc.heredocWithDestination '\\') malformed with
+  | .ok _ _ => throw (IO.Error.userError "Heredoc body closed an unmatched destination quote")
+  | .error _ _ => pure ()
+  assertTrue ((Copy.parseCopy ("COPY " ++ malformed)).isNone)
+    "COPY must not fall back to operands that consume a heredoc body"
+  assertTrue ((Add.parseAdd ("ADD " ++ malformed)).isNone)
+    "ADD must not fall back to operands that consume a heredoc body"
+  assertTrue ((Copy.parseCopy "COPY <<EOF /dest").isSome)
+    "COPY retains raw marker operands without a header newline"
+  assertTrue ((Add.parseAdd "ADD <<EOF /dest").isSome)
+    "ADD retains raw marker operands without a header newline"
+
+def testUnmatchedOperandFragmentsCannotTruncate : IO Unit := do
+  for operand in ["foo\"bar", "foo'bar", "\"foo\"bar\"baz", "'foo'bar'baz", "\\conf\\\\\""] do
+    for name in ["COPY", "ADD"] do
+      let text := name ++ " " ++ operand ++ " /dest"
+      let parsed := if name == "COPY" then Copy.parseCopy text else Add.parseAdd text
+      match parsed with
+      | some instruction =>
+        assertTrue (instruction.token.toString == text)
+          "Unmatched operand fragments must not truncate an instruction"
+      | none => throw (IO.Error.userError s!"Legacy raw operand was rejected: {text}")
+
 open DockerfileModel.Parser.Instructions.Copy in
 /-- Test: COPY --from=builder /app /app — with from flag -/
 def testCopyWithFrom : IO Unit := do
@@ -3312,6 +3337,8 @@ def runParserTests_PhaseD : IO Unit := do
   IO.println ""
   testCopyBasic
   testQuotedOperandFragments
+  testHeredocDestinationCannotConsumeBody
+  testUnmatchedOperandFragmentsCannotTruncate
   testCopyWithFrom
   testCopyWithFromLineContinuation
   testCopyWithChown

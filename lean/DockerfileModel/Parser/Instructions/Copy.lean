@@ -74,6 +74,7 @@ private def copyFlagParser (escapeChar : Char) : Parser (List Token) :=
 private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List Token) := do
   -- Parse at least one literal argument
   let first ← literalWithVariables escapeChar (whitespaceMode := .allowedInQuotes)
+    (allowUnmatchedQuoteFragments := true)
   -- Parse additional space-separated arguments
   let rest ← many (do
     let ws ← whitespace
@@ -84,6 +85,7 @@ private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List To
                        let w ← whitespace
                        Parser.pure w
     let arg ← literalWithVariables escapeChar (whitespaceMode := .allowedInQuotes)
+      (allowUnmatchedQuoteFragments := true)
     Parser.pure (concatTokens [ws, lc, wsAfterLc, [arg]]))
   Parser.pure (concatTokens [[first], rest.flatten])
 
@@ -100,7 +102,11 @@ partial def copyArgsParser (escapeChar : Char) : Parser (List Token) := do
   -- Then parse file args: heredoc with destination, exec form, or space-separated
   let fileArgs ← argTokens
     (or' (heredocWithDestination escapeChar)
-      (or' (jsonArrayParser escapeChar) (spaceSeparatedFileArgs escapeChar)))
+      (except (or' (jsonArrayParser escapeChar) (spaceSeparatedFileArgs escapeChar))
+        (do
+          let _ ← heredocMarkerParser
+          let _ ← many (satisfy (fun c => !isLineTerminator c) "header char")
+          lineEnd)))
     escapeChar
   Parser.pure (concatTokens [flags.flatten, fileArgs])
 
@@ -111,7 +117,7 @@ partial def copyArgsParser (escapeChar : Char) : Parser (List Token) := do
 /-- Parse a complete COPY instruction.
     Corresponds to CopyInstruction.GetInnerParser() -/
 def copyInstructionParser (escapeChar : Char) : Parser (List Token) :=
-  instructionParser "COPY" escapeChar (copyArgsParser escapeChar)
+  parseEnd (instructionParser "COPY" escapeChar (copyArgsParser escapeChar))
 
 /-- Parse a COPY instruction and produce an Instruction value. -/
 def parseCopyInstruction (escapeChar : Char := '\\') : Parser Instruction := do

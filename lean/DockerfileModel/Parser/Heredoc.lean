@@ -262,16 +262,23 @@ partial def heredocWithDestination (escapeChar : Char := '\\') : Parser (List To
   let wsChars ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
   let wsTokens := if wsChars.isEmpty then []
     else [Token.mkWhitespace (String.ofList wsChars)]
-  let destTokens ← many (do
-    let destination ← literalWithVariables escapeChar [] .allowedInQuotes
-    let trailing ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
-    Parser.pure ([destination] ++
-      if trailing.isEmpty then [] else [Token.mkWhitespace (String.ofList trailing)]))
+  let restOfLine ← many (satisfy (fun c => !isLineTerminator c) "destination char")
+  let destinationParser := do
+    let destinations ← many (do
+      let destination ← literalWithVariables escapeChar [] .allowedInQuotes
+        (allowUnmatchedQuoteFragments := true)
+      let trailing ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
+      Parser.pure ([destination] ++
+        if trailing.isEmpty then [] else [Token.mkWhitespace (String.ofList trailing)]))
+    Parser.pure destinations.flatten
+  let destTokens ← match (parseEnd destinationParser).run (String.ofList restOfLine) with
+    | .ok tokens _ => Parser.pure tokens
+    | .error message _ => Parser.fail message
   -- Consume newline
   let nl ← lineEnd
   let nlToken := Token.mkNewLine nl
   -- Parse heredoc body
   let bodyToken ← heredocBodyParser delimiter chomp
-  Parser.pure ([markerToken] ++ wsTokens ++ destTokens.flatten ++ [nlToken, bodyToken])
+  Parser.pure ([markerToken] ++ wsTokens ++ destTokens ++ [nlToken, bodyToken])
 
 end DockerfileModel.Parser.Heredoc

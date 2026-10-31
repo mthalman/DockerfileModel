@@ -467,7 +467,8 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
     fragments while retaining their quote context. Freeform values keep their grammar.
     Corresponds to VariableParsers.LiteralWithVariables() -/
 def literalWithVariables (escapeChar : Char) (excludedChars : List Char := [])
-    (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token := do
+    (whitespaceMode : WhitespaceMode := .disallowed)
+    (allowUnmatchedQuoteFragments : Bool := false) : Parser Token := do
   let singleFragment := excludedChars.contains '"' || whitespaceMode == .allowed
   let unquotedExcluded := if singleFragment then excludedChars
     else '\'' :: '"' :: excludedChars
@@ -477,7 +478,11 @@ def literalWithVariables (escapeChar : Char) (excludedChars : List Char := [])
   if singleFragment then
     fragment
   else
-    let fragments ← many1 fragment
+    let first ← fragment
+    let rest ← many (if allowUnmatchedQuoteFragments then
+      or' fragment (literalWithVariablesUnquoted escapeChar excludedChars whitespaceMode)
+      else fragment)
+    let fragments := first :: rest
     match fragments with
     | [single] => Parser.pure single
     | _ =>
