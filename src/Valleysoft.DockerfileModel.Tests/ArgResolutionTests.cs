@@ -185,4 +185,100 @@ public class ArgResolutionTests
             Assert.Equal(text, dockerfile.ToString());
         }
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolveVariables_QuotedModifierDefaultRetainsEmptyBinding(bool quoteBearingToken)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "ARG X=${UNSET:-\"\"}\nFROM alpine AS first\nFROM alpine${X:+-wrong}");
+        if (quoteBearingToken)
+        {
+            dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!.Tokens
+                .OfType<VariableRefToken>().Single().ModifierValueToken = new LiteralToken("")
+                {
+                    QuoteChar = '"'
+                };
+        }
+        FromInstruction[] stages = dockerfile.Items.OfType<FromInstruction>().ToArray();
+
+        Assert.Equal("FROM alpine", dockerfile.ResolveVariables(stages[1]));
+        Assert.Equal("FROM alpine AS first\n", dockerfile.ResolveVariables(
+            stages[0], options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal("ARG X=\"\"\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal("FROM alpine", dockerfile.ResolveVariables(stages[1]));
+        Assert.Equal("FROM alpine", dockerfile.ResolveVariables(stages[1],
+            options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal("FROM alpine", Dockerfile.Parse(dockerfile.ToString()).ResolveVariables());
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void ResolveVariables_ContinuedDefaultHasNoSemanticNewline(
+        bool stageScope, bool updateInline, bool removeEscapes)
+    {
+        string text = stageScope
+            ? "FROM alpine\nARG X=\"al\\\npine\"\nENV RESULT=$X"
+            : "ARG X=\"al\\\npine\"\nFROM $X";
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+
+        Assert.Equal(stageScope ? "ENV RESULT=alpine" : "FROM alpine",
+            dockerfile.ResolveVariables(options: new ResolutionOptions
+            {
+                UpdateInline = updateInline,
+                RemoveEscapeCharacters = removeEscapes
+            }));
+        Assert.Equal("ARG X=\"al\\\npine\"\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        if (!updateInline)
+        {
+            Assert.Equal(text, dockerfile.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false, "\"quoted\"")]
+    [InlineData(true, "\"quoted\"")]
+    [InlineData(false, "$UNSET")]
+    [InlineData(true, "$UNSET")]
+    [InlineData(false, "\\path")]
+    [InlineData(true, "\\path")]
+    public void ResolveVariables_SubstitutedDefaultValuesAreNotReinterpreted(bool stageScope, string overrideValue)
+    {
+        string text = stageScope
+            ? "FROM alpine\nARG X=default\nARG Y=$X\nENV RESULT=$Y"
+            : "ARG X=default\nARG Y=$X\nFROM alpine AS first\nFROM prefix$Y";
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+        Dictionary<string, string?> overrides = new() { ["X"] = overrideValue };
+        Instruction target = stageScope
+            ? dockerfile.Items.OfType<ArgInstruction>().Last()
+            : dockerfile.Items.OfType<FromInstruction>().First();
+
+        dockerfile.ResolveVariables(target, overrides, new ResolutionOptions { UpdateInline = true });
+
+        string expected = stageScope ? $"ENV RESULT={overrideValue}" : $"FROM prefix{overrideValue}";
+        Assert.Equal(expected, dockerfile.ResolveVariables(overrides));
+        Assert.Equal(expected, dockerfile.ResolveVariables(overrides, new ResolutionOptions { UpdateInline = true }));
+    }
+
+    [Fact]
+    public void ResolveVariables_EditingSubstitutedDefaultDiscardsOldSemanticValue()
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "ARG X=${UNSET:-\"\"}\nFROM alpine AS first\nFROM prefix$X");
+        FromInstruction[] stages = dockerfile.Items.OfType<FromInstruction>().ToArray();
+        dockerfile.ResolveVariables(stages[0], options: new ResolutionOptions { UpdateInline = true });
+        StringToken substituted = Assert.IsAssignableFrom<StringToken>(
+            Assert.Single(dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!.Tokens));
+        substituted.Value = "\"edited\"";
+
+        Assert.Equal("FROM prefixedited", dockerfile.ResolveVariables(stages[1]));
+    }
 }

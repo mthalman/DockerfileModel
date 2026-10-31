@@ -195,7 +195,7 @@ public class VariableRefToken : AggregateToken
                 case '-':
                     if (!isVariableSet)
                     {
-                        value = ModifierValueToken!.ResolveVariables(escapeChar, variables, options);
+                        value = ResolveModifierValue(escapeChar, variables, options);
                     }
                     break;
                 case '+':
@@ -205,13 +205,13 @@ public class VariableRefToken : AggregateToken
                     }
                     else
                     {
-                        value = ModifierValueToken!.ResolveVariables(escapeChar, variables, options);
+                        value = ResolveModifierValue(escapeChar, variables, options);
                     }
                     break;
                 case '?':
                     if (!isVariableSet)
                     {
-                        string? errorDetail = ModifierValueToken!.ResolveVariables(escapeChar, variables, options);
+                        string? errorDetail = ResolveModifierValue(escapeChar, variables, options);
                         throw new VariableSubstitutionException(
                             $"Variable '{variableName}' is not set. Error detail: '{errorDetail ?? "<empty>"}'.");
                     }
@@ -237,6 +237,12 @@ public class VariableRefToken : AggregateToken
 
         return value;
     }
+
+    private string? ResolveModifierValue(char escapeChar, IDictionary<string, string?> variables,
+        ResolutionOptions options) =>
+        options.ModifierValueResolver is not null
+            ? options.ModifierValueResolver(ModifierValueToken!)
+            : ModifierValueToken!.ResolveVariables(escapeChar, variables, options);
 
     public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);

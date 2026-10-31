@@ -59,7 +59,7 @@ public abstract class AggregateToken : Token
         variables ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
 
-        if (!options.ExcludeQuoteWrappers && this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
+        if (this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
         {
             return $"{quotableToken.QuoteChar}{ResolveVariablesCore(escapeChar, variables, options)}{quotableToken.QuoteChar}";
         }
@@ -175,6 +175,8 @@ public abstract class AggregateToken : Token
             string? value;
             if (token is AggregateToken aggregateToken)
             {
+                string? semanticValue = token is VariableRefToken variable
+                    ? options.SemanticValueResolver?.Invoke(variable) : null;
                 value = aggregateToken.ResolveVariables(escapeChar, variables, options);
                 if (token is VariableRefToken && options.UpdateInline)
                 {
@@ -184,7 +186,8 @@ public abstract class AggregateToken : Token
                     }
                     else
                     {
-                        TokenList[i] = new StringToken(value);
+                        TokenList[i] = semanticValue is null
+                            ? new StringToken(value) : new ResolvedStringToken(value, semanticValue);
                     }
                 }
             }

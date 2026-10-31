@@ -62,6 +62,19 @@ internal static class AnalysisExpressionEvaluator
         return evaluation.GetResult();
     }
 
+    internal static string ResolveVariables(Token token, char escapeChar,
+        Func<VariableRefToken, string> resolveVariable)
+    {
+        Evaluation evaluation = new(new Dictionary<string, AnalysisValue>(), escapeChar, resolveVariable);
+        evaluation.Visit(token);
+        AnalysisValue result = evaluation.GetResult();
+        if (!result.IsKnown)
+        {
+            throw new InvalidOperationException(result.Message);
+        }
+        return result.Value!;
+    }
+
     private static AnalysisValue EvaluateVariable(
         VariableRefToken token, IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar)
     {
@@ -117,22 +130,31 @@ internal static class AnalysisExpressionEvaluator
     {
         private readonly IReadOnlyDictionary<string, AnalysisValue> variables;
         private readonly char escapeChar;
+        private readonly Func<VariableRefToken, string>? resolveVariable;
         private readonly StringBuilder text = new();
         private readonly List<string> unresolvedVariables = new();
         private AnalysisValue? failure;
         private char? quote;
         private bool escaped;
 
-        public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar)
+        public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar,
+            Func<VariableRefToken, string>? resolveVariable = null)
         {
             this.variables = variables;
             this.escapeChar = escapeChar;
+            this.resolveVariable = resolveVariable;
         }
 
         public void Visit(Token token)
         {
             if (token is LineContinuationToken or CommentToken or NewLineToken)
             {
+                return;
+            }
+
+            if (token is ResolvedStringToken resolved && resolved.HasOriginalSyntax)
+            {
+                text.Append(resolved.SemanticValue);
                 return;
             }
 
@@ -144,7 +166,9 @@ internal static class AnalysisExpressionEvaluator
                 }
                 else
                 {
-                    AppendValue(EvaluateVariable(variable, variables, escapeChar));
+                    AppendValue(resolveVariable is null
+                        ? EvaluateVariable(variable, variables, escapeChar)
+                        : AnalysisValue.Known(resolveVariable(variable)));
                 }
                 return;
             }

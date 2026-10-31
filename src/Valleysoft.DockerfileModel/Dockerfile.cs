@@ -158,8 +158,8 @@ public class Dockerfile : IConstructContainer
     /// <remarks>
     /// Global ARGs supply FROM values; each stage starts a fresh local ARG scope. Stage declarations without
     /// defaults can import global values, otherwise they retain an existing local binding.
-    /// Explicit empty assignments are set; null overrides are unset. Defaults contribute their
-    /// contents, not their syntax quote wrappers. Runtime command expansion is not performed.
+    /// Explicit empty assignments are set; null overrides are unset. Defaults contribute shell-decoded
+    /// contents, excluding syntax quotes and continuation/comment trivia. Runtime command expansion is not performed.
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
     /// </remarks>
     public string ResolveVariables(IDictionary<string, string?>? variableOverrides = null, ResolutionOptions? options = null) =>
@@ -253,15 +253,17 @@ public class Dockerfile : IConstructContainer
             ? instruction
             : ArgInstruction.Parse(instruction.ToString(), escapeChar);
 
-        foreach (ArgDeclaration arg in resolvedInstruction.ArgTokens)
+        for (int i = 0; i < instruction.ArgTokens.Count; i++)
         {
+            ArgDeclaration arg = instruction.ArgTokens[i];
             if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
             {
                 SetArgBinding(stageArgs, arg.Name, overrideArgValue);
             }
             else if (arg.HasAssignmentOperator)
             {
-                stageArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, stageArgs, inlineOptions);
+                stageArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, stageArgs, inlineOptions,
+                    resolvedInstruction.ArgTokens[i]);
             }
             else if (globalArgs.TryGetValue(arg.Name, out string? globalArg) && globalArg is not null)
             {
@@ -304,25 +306,34 @@ public class Dockerfile : IConstructContainer
     }
 
     private static string ResolveArgDefault(ArgDeclaration arg, char escapeChar,
-        IDictionary<string, string?> bindings, ResolutionOptions options)
+        IDictionary<string, string?> bindings, ResolutionOptions options, ArgDeclaration? syntaxArg = null)
     {
         if (arg.ValueToken is not LiteralToken valueToken)
         {
             return String.Empty;
         }
 
-        // Evaluate before inline substitution so inserted values are never mistaken for quote syntax.
-        string value = valueToken.ResolveVariables(escapeChar, bindings, new ResolutionOptions
-        {
-            ExcludeQuoteWrappers = true,
-            RemoveEscapeCharacters = options.RemoveEscapeCharacters
-        }) ?? String.Empty;
+        string value = ResolveArgValue(valueToken, escapeChar, bindings, options);
 
         if (options.UpdateInline)
         {
-            valueToken.ResolveVariables(escapeChar, bindings, options);
+            (syntaxArg?.ValueToken ?? valueToken).ResolveVariables(escapeChar, bindings, new ResolutionOptions
+            {
+                UpdateInline = true,
+                RemoveEscapeCharacters = options.RemoveEscapeCharacters,
+                SemanticValueResolver = variable => ResolveArgValue(variable, escapeChar, bindings, options)
+            });
         }
 
         return value;
     }
+
+    private static string ResolveArgValue(Token token, char escapeChar,
+        IDictionary<string, string?> bindings, ResolutionOptions options) =>
+        AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, variable =>
+            variable.ResolveVariables(escapeChar, bindings, new ResolutionOptions
+            {
+                RemoveEscapeCharacters = options.RemoveEscapeCharacters,
+                ModifierValueResolver = modifier => ResolveArgValue(modifier, escapeChar, bindings, options)
+            }) ?? String.Empty);
 }
