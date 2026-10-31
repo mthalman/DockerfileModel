@@ -115,6 +115,73 @@ public class SingleQuoteVariableResolutionTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Literal_OuterQuoteMutationAppliesToNestedFragments(bool updateInline)
+    {
+        LiteralToken child = new("'$VALUE'", canContainVariables: true);
+        LiteralToken parent = new(new Token[] { new StringToken("prefix"), child },
+            canContainVariables: true, '\\');
+        parent.QuoteChar = '"';
+        string original = parent.ToString();
+        Assert.Equal("\"prefix'$VALUE'\"", original);
+        AnalysisValue analysis = AnalysisExpressionEvaluator.Evaluate(parent,
+            new Dictionary<string, AnalysisValue> { ["VALUE"] = AnalysisValue.Known("expanded") }, '\\');
+
+        Assert.True(analysis.IsKnown);
+        Assert.Equal("prefix'expanded'", analysis.Value);
+        Assert.Equal("\"prefix'expanded'\"", parent.ResolveVariables('\\', Variables,
+            new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(updateInline ? "\"prefix'expanded'\"" : original, parent.ToString());
+        Assert.Equal(updateInline ? "'expanded'" : "'$VALUE'", child.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Literal_QuoteContextCanChangeWithinNestedFragment(bool updateInline)
+    {
+        LiteralToken child = new("$VALUE'-$VALUE", canContainVariables: true);
+        LiteralToken parent = new(new Token[] { new StringToken("'prefix"), child },
+            canContainVariables: true, '\\');
+        string original = parent.ToString();
+
+        Assert.Equal("'prefix$VALUE'-expanded", parent.ResolveVariables('\\', Variables,
+            new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(updateInline ? "'prefix$VALUE'-expanded" : original, parent.ToString());
+        Assert.IsType<VariableRefToken>(child.Tokens.First());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Literal_InsertedValuesDoNotChangeFollowingQuoteContext(bool updateInline)
+    {
+        LiteralToken token = new("$VALUE '$VALUE'", canContainVariables: true);
+        Dictionary<string, string?> variables = new() { ["VALUE"] = "'$OTHER\\" };
+
+        Assert.Equal("'$OTHER\\ '$VALUE'", token.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(updateInline ? "'$OTHER\\ '$VALUE'" : "$VALUE '$VALUE'", token.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Literal_ReferenceFreeLeavesAreSerializedOnce(bool nested)
+    {
+        CountingToken leaf = new();
+        LiteralToken token = new(new Token[] { leaf }, canContainVariables: false, '\\');
+        if (nested)
+        {
+            token = new LiteralToken(new Token[] { token }, canContainVariables: false, '\\');
+        }
+
+        Assert.Equal("plain", token.ResolveVariables('\\'));
+        Assert.Equal(1, leaf.SerializationCount);
+    }
+
+    [Theory]
     [InlineData("ENV key='$VALUE'")]
     [InlineData("ENV key '$VALUE'")]
     [InlineData("LABEL key='$VALUE'")]
@@ -189,6 +256,17 @@ public class SingleQuoteVariableResolutionTests
             Assert.Equal(expected, dockerfile.ResolveVariables(instruction,
                 options: new ResolutionOptions { UpdateInline = updateInline }));
             Assert.Equal(updateInline ? expected : text, instruction.ToString());
+        }
+    }
+
+    private sealed class CountingToken : Token
+    {
+        public int SerializationCount { get; private set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            SerializationCount++;
+            return "plain";
         }
     }
 }

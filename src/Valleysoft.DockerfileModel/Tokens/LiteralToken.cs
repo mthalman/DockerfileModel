@@ -1,3 +1,4 @@
+using System.Text;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
@@ -49,8 +50,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 
     /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
     /// <remarks>
-    /// Single quotes suppress variable resolution but retain reference children, allowing later quote changes
-    /// to re-enable resolution without reparsing the value.
+    /// Single quotes suppress variable resolution outside an enclosing double-quoted context.
+    /// Reference children are retained so later quote changes can re-enable resolution without reparsing the value.
     /// </remarks>
     public virtual char? QuoteChar
     {
@@ -61,53 +62,69 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
         preserveRawValue ? new Token[] { new StringToken(value) } : GetTokens(value, canContainVariables, escapeChar).Tokens;
 
-    internal bool[] GetExpansionSuppression(char escapeChar)
+    public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+        ResolutionOptions? options = null)
     {
-        bool[] suppressed = new bool[TokenList.Count];
-        char? quote = QuoteChar;
-        bool escaped = false;
+        ShellQuoteContext context = new();
+        return ResolveVariablesInContext(escapeChar, variables ?? new Dictionary<string, string?>(),
+            options ?? new ResolutionOptions(), ref context);
+    }
 
-        // Keep reference children intact so changing QuoteChar can enable expansion later.
-        // Raw quotes also occur in literals such as legacy LABEL values.
+    internal string ResolveVariablesInContext(char escapeChar, IDictionary<string, string?> variables,
+        ResolutionOptions options, ref ShellQuoteContext context)
+    {
+        StringBuilder builder = new();
+        char? wrapper = QuoteChar;
+        if (wrapper.HasValue)
+        {
+            context.Consume(wrapper.Value, escapeChar, out _);
+            builder.Append(wrapper.Value);
+        }
+
         for (int i = 0; i < TokenList.Count; i++)
         {
             Token token = TokenList[i];
-            suppressed[i] = quote == '\'' || escaped;
-            if (token is LineContinuationToken or CommentToken or NewLineToken ||
-                (token is VariableRefToken && !suppressed[i]))
+            if (token is LiteralToken literal)
             {
+                builder.Append(literal.ResolveVariablesInContext(escapeChar, variables, options, ref context));
                 continue;
             }
 
-            foreach (char character in token.ToString())
+            if (token is AggregateToken aggregate && !context.SuppressExpansion)
             {
-                if (escaped)
+                string? resolved = aggregate.ResolveVariables(escapeChar, variables, options);
+                if (token is VariableRefToken && options.UpdateInline)
                 {
-                    escaped = false;
-                }
-                else if (quote == '\'')
-                {
-                    if (character == '\'')
+                    if (resolved is null)
                     {
-                        quote = null;
+                        TokenList.RemoveAt(i--);
+                    }
+                    else
+                    {
+                        TokenList[i] = new StringToken(resolved);
                     }
                 }
-                else if (character == escapeChar)
+                builder.Append(resolved);
+                continue;
+            }
+
+            string raw = token.ToString();
+            if (token is not (LineContinuationToken or CommentToken or NewLineToken))
+            {
+                foreach (char character in raw)
                 {
-                    escaped = true;
-                }
-                else if (character == quote)
-                {
-                    quote = null;
-                }
-                else if (!quote.HasValue && character is '\'' or '"')
-                {
-                    quote = character;
+                    context.Consume(character, escapeChar, out _);
                 }
             }
+            builder.Append(options.FormatValue(escapeChar, raw));
         }
 
-        return suppressed;
+        if (wrapper.HasValue)
+        {
+            context.Consume(wrapper.Value, escapeChar, out _);
+            builder.Append(wrapper.Value);
+        }
+        return builder.ToString();
     }
 
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)

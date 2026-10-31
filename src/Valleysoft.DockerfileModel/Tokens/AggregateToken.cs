@@ -171,15 +171,11 @@ public abstract class AggregateToken : Token
     private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
     {
         StringBuilder builder = new();
-        bool[]? suppressExpansion = this is LiteralToken literal
-            ? literal.GetExpansionSuppression(escapeChar)
-            : null;
-
         for (int i = TokenList.Count - 1; i >= 0; i--)
         {
             Token token = TokenList[i];
             string? value;
-            if (token is AggregateToken aggregateToken && suppressExpansion?[i] != true)
+            if (token is AggregateToken aggregateToken)
             {
                 value = aggregateToken.ResolveVariables(escapeChar, variables, options);
                 if (token is VariableRefToken && options.UpdateInline)
