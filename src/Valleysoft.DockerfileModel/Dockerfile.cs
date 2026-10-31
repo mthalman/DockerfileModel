@@ -253,9 +253,12 @@ public class Dockerfile : IConstructContainer
             ? instruction
             : ArgInstruction.Parse(instruction.ToString(), escapeChar);
 
-        for (int i = 0; i < instruction.ArgTokens.Count; i++)
+        ArgDeclaration[] args = instruction.ArgTokens.ToArray();
+        ArgDeclaration[] resolvedArgs = resolvedInstruction == instruction
+            ? args : resolvedInstruction.ArgTokens.ToArray();
+        for (int i = 0; i < args.Length; i++)
         {
-            ArgDeclaration arg = instruction.ArgTokens[i];
+            ArgDeclaration arg = args[i];
             if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
             {
                 SetArgBinding(stageArgs, arg.Name, overrideArgValue);
@@ -263,7 +266,7 @@ public class Dockerfile : IConstructContainer
             else if (arg.HasAssignmentOperator)
             {
                 stageArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, stageArgs, inlineOptions,
-                    resolvedInstruction.ArgTokens[i]);
+                    resolvedArgs[i]);
             }
             else if (globalArgs.TryGetValue(arg.Name, out string? globalArg) && globalArg is not null)
             {

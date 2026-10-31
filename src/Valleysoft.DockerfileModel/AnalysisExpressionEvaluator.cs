@@ -152,7 +152,7 @@ internal static class AnalysisExpressionEvaluator
                 return;
             }
 
-            if (token is ResolvedStringToken resolved && resolved.HasOriginalSyntax)
+            if (token is ResolvedStringToken resolved && resolved.HasValidSemanticValue)
             {
                 text.Append(resolved.SemanticValue);
                 return;

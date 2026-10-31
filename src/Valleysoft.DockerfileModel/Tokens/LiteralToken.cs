@@ -51,7 +51,18 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     public virtual char? QuoteChar
     {
         get => quoteChar;
-        set => quoteChar = value;
+        set
+        {
+            if (quoteChar != value)
+            {
+                quoteChar = value;
+                foreach (ResolvedStringToken token in InstructionCollectionEditing.Descendants(this)
+                    .OfType<ResolvedStringToken>())
+                {
+                    token.InvalidateSemanticValue();
+                }
+            }
+        }
     }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>

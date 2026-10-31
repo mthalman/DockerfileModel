@@ -281,4 +281,61 @@ public class ArgResolutionTests
 
         Assert.Equal("FROM prefixedited", dockerfile.ResolveVariables(stages[1]));
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolveVariables_QuoteEditsInvalidateSubstitutedDefaultSemantics(bool nested)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "ARG X=${UNSET:-\"value\"}\nFROM alpine\nARG X\nENV RESULT=$X");
+        FromInstruction from = dockerfile.Items.OfType<FromInstruction>().Single();
+        dockerfile.ResolveVariables(from, options: new ResolutionOptions { UpdateInline = true });
+        ArgDeclaration declaration = dockerfile.Items.OfType<ArgInstruction>().First().ArgTokens[0];
+        LiteralToken value = declaration.ValueToken!;
+        StringToken substituted = Assert.IsAssignableFrom<StringToken>(Assert.Single(value.Tokens));
+        if (nested)
+        {
+            declaration.ValueToken = new LiteralToken(new Token[] { value },
+                canContainVariables: true, Dockerfile.DefaultEscapeChar);
+            value = declaration.ValueToken!;
+        }
+        value.QuoteChar = '\'';
+
+        Assert.Same(substituted, Assert.Single(nested
+            ? Assert.IsType<LiteralToken>(Assert.Single(value.Tokens)).Tokens
+            : value.Tokens));
+        Assert.Equal("ENV RESULT=\"value\"", dockerfile.ResolveVariables());
+        Assert.Equal("ENV RESULT=\"value\"", dockerfile.ResolveVariables(
+            options: new ResolutionOptions { UpdateInline = true }));
+    }
+
+    [Fact]
+    public void ResolveVariables_UnchangedQuoteRetainsSubstitutedDefaultSemantics()
+    {
+        Dockerfile dockerfile = Dockerfile.Parse("ARG X=default\nARG Y=$X\nFROM alpine\nARG Y\nENV RESULT=$Y");
+        Dictionary<string, string?> overrides = new() { ["X"] = "\"quoted\"" };
+        dockerfile.ResolveVariables(dockerfile.Items.OfType<FromInstruction>().Single(),
+            overrides, new ResolutionOptions { UpdateInline = true });
+        LiteralToken value = dockerfile.Items.OfType<ArgInstruction>().ElementAt(1).ArgTokens[0].ValueToken!;
+        value.QuoteChar = value.QuoteChar;
+
+        Assert.Equal("ENV RESULT=\"quoted\"", dockerfile.ResolveVariables(overrides));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolveVariables_MultipleDeclarationsRetainLeftToRightBindings(bool updateInline)
+    {
+        const string text = "FROM alpine\nARG X=first X=$X-next Y=$X\nENV RESULT=$Y";
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+
+        Assert.Equal("ENV RESULT=first-next", dockerfile.ResolveVariables(
+            options: new ResolutionOptions { UpdateInline = updateInline }));
+        if (!updateInline)
+        {
+            Assert.Equal(text, dockerfile.ToString());
+        }
+    }
 }
