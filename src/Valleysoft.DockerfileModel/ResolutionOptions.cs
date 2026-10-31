@@ -5,6 +5,8 @@ namespace Valleysoft.DockerfileModel;
 /// <summary>Controls variable substitution and the formatting of returned resolved text.</summary>
 public class ResolutionOptions
 {
+    internal bool ExcludeQuoteWrappers { get; set; }
+
     /// <summary>Gets or sets whether resolved variable-reference tokens are replaced in the model. Defaults to false.</summary>
     /// <remarks>
     /// Document resolution may also process preceding ARG declarations. This does not write supplied overrides

@@ -1,4 +1,5 @@
 using System.Text;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -156,7 +157,9 @@ public class Dockerfile : IConstructContainer
     /// <returns>The last processed instruction's text, or an empty string if no stage instruction was processed. This is not the complete Dockerfile.</returns>
     /// <remarks>
     /// Global ARGs supply FROM values; each stage starts a fresh local ARG scope. Stage declarations without
-    /// defaults can import global values. Runtime command expansion is not performed.
+    /// defaults can import global values, otherwise they retain an existing local binding.
+    /// Explicit empty assignments are set; null overrides are unset. Defaults contribute their
+    /// contents, not their syntax quote wrappers. Runtime command expansion is not performed.
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
     /// </remarks>
     public string ResolveVariables(IDictionary<string, string?>? variableOverrides = null, ResolutionOptions? options = null) =>
@@ -252,20 +255,17 @@ public class Dockerfile : IConstructContainer
 
         foreach (ArgDeclaration arg in resolvedInstruction.ArgTokens)
         {
-            // If this is just an arg declaration and a value has been provided from a global arg
-            if (arg.Value is null && globalArgs.TryGetValue(arg.Name, out string? globalArg))
+            if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
+            {
+                SetArgBinding(stageArgs, arg.Name, overrideArgValue);
+            }
+            else if (arg.HasAssignmentOperator)
+            {
+                stageArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, stageArgs, inlineOptions);
+            }
+            else if (globalArgs.TryGetValue(arg.Name, out string? globalArg) && globalArg is not null)
             {
                 stageArgs[arg.Name] = globalArg;
-            }
-            // If an arg override exists for this arg
-            else if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
-            {
-                stageArgs[arg.Name] = overrideArgValue;
-            }
-            else
-            {
-                string? resolvedArgValue = arg.ValueToken?.ResolveVariables(escapeChar, stageArgs, inlineOptions);
-                stageArgs[arg.Name] = resolvedArgValue;
             }
         }
 
@@ -276,19 +276,53 @@ public class Dockerfile : IConstructContainer
         ResolutionOptions options)
     {
         Dictionary<string, string?> globalArgs = new();
-        foreach (ArgDeclaration arg in stagesView.GlobalArgs.SelectMany(inst => inst.Args))
+        foreach (ArgDeclaration arg in stagesView.GlobalArgs.SelectMany(inst => inst.ArgTokens))
         {
             if (variables.TryGetValue(arg.Name, out string? overridenValue))
             {
-                globalArgs.Add(arg.Name, overridenValue);
+                SetArgBinding(globalArgs, arg.Name, overridenValue);
             }
-            else
+            else if (arg.HasAssignmentOperator)
             {
-                string? resolvedValue = arg.ValueToken?.ResolveVariables(escapeChar, globalArgs, options);
-                globalArgs.Add(arg.Name, resolvedValue);
+                globalArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, globalArgs, options);
             }
         }
 
         return globalArgs;
+    }
+
+    private static void SetArgBinding(Dictionary<string, string?> bindings, string name, string? value)
+    {
+        if (value is null)
+        {
+            bindings.Remove(name);
+        }
+        else
+        {
+            bindings[name] = value;
+        }
+    }
+
+    private static string ResolveArgDefault(ArgDeclaration arg, char escapeChar,
+        IDictionary<string, string?> bindings, ResolutionOptions options)
+    {
+        if (arg.ValueToken is not LiteralToken valueToken)
+        {
+            return String.Empty;
+        }
+
+        // Evaluate before inline substitution so inserted values are never mistaken for quote syntax.
+        string value = valueToken.ResolveVariables(escapeChar, bindings, new ResolutionOptions
+        {
+            ExcludeQuoteWrappers = true,
+            RemoveEscapeCharacters = options.RemoveEscapeCharacters
+        }) ?? String.Empty;
+
+        if (options.UpdateInline)
+        {
+            valueToken.ResolveVariables(escapeChar, bindings, options);
+        }
+
+        return value;
     }
 }

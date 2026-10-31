@@ -59,7 +59,7 @@ public abstract class AggregateToken : Token
         variables ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
 
-        if (this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
+        if (!options.ExcludeQuoteWrappers && this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
         {
             return $"{quotableToken.QuoteChar}{ResolveVariablesCore(escapeChar, variables, options)}{quotableToken.QuoteChar}";
         }
