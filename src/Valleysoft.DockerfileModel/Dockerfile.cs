@@ -316,15 +316,29 @@ public class Dockerfile : IConstructContainer
             return String.Empty;
         }
 
-        string value = ResolveArgValue(valueToken, escapeChar, bindings, options);
+        Dictionary<VariableRefToken, (char? QuoteChar, bool Escaped)>? contexts = options.UpdateInline
+            ? new(ReferenceComparer<VariableRefToken>.Instance) : null;
+        string value = ResolveArgValue(valueToken, escapeChar, bindings, options, contexts);
 
-        if (options.UpdateInline)
+        if (contexts is not null)
         {
-            (syntaxArg?.ValueToken ?? valueToken).ResolveVariables(escapeChar, bindings, new ResolutionOptions
+            LiteralToken syntaxValue = syntaxArg?.ValueToken ?? valueToken;
+            if (syntaxValue != valueToken)
+            {
+                // Reparsed copies have distinct variable tokens and need their own context snapshots.
+                ResolveArgValue(syntaxValue, escapeChar, bindings, options, contexts);
+            }
+            syntaxValue.ResolveVariables(escapeChar, bindings, new ResolutionOptions
             {
                 UpdateInline = true,
                 RemoveEscapeCharacters = options.RemoveEscapeCharacters,
-                SemanticValueResolver = variable => ResolveArgValue(variable, escapeChar, bindings, options)
+                SemanticValueResolver = variable =>
+                {
+                    var context = contexts[variable];
+                    string semanticValue = context.QuoteChar == '\'' || context.Escaped
+                        ? variable.ToString() : ResolveArgValue(variable, escapeChar, bindings, options);
+                    return (semanticValue, context.QuoteChar, context.Escaped);
+                }
             });
         }
 
@@ -332,11 +346,13 @@ public class Dockerfile : IConstructContainer
     }
 
     private static string ResolveArgValue(Token token, char escapeChar,
-        IDictionary<string, string?> bindings, ResolutionOptions options) =>
+        IDictionary<string, string?> bindings, ResolutionOptions options,
+        Dictionary<VariableRefToken, (char? QuoteChar, bool Escaped)>? contexts = null) =>
         AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, variable =>
             variable.ResolveVariables(escapeChar, bindings, new ResolutionOptions
             {
                 RemoveEscapeCharacters = options.RemoveEscapeCharacters,
-                ModifierValueResolver = modifier => ResolveArgValue(modifier, escapeChar, bindings, options)
-            }) ?? String.Empty);
+                ModifierValueResolver = modifier => ResolveArgValue(modifier, escapeChar, bindings, options, contexts)
+            }) ?? String.Empty,
+            contexts is null ? null : (variable, quote, escaped) => contexts[variable] = (quote, escaped));
 }

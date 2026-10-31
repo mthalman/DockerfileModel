@@ -63,9 +63,10 @@ internal static class AnalysisExpressionEvaluator
     }
 
     internal static string ResolveVariables(Token token, char escapeChar,
-        Func<VariableRefToken, string> resolveVariable)
+        Func<VariableRefToken, string> resolveVariable,
+        Action<VariableRefToken, char?, bool>? recordContext = null)
     {
-        Evaluation evaluation = new(new Dictionary<string, AnalysisValue>(), escapeChar, resolveVariable);
+        Evaluation evaluation = new(new Dictionary<string, AnalysisValue>(), escapeChar, resolveVariable, recordContext);
         evaluation.Visit(token);
         AnalysisValue result = evaluation.GetResult();
         if (!result.IsKnown)
@@ -131,19 +132,21 @@ internal static class AnalysisExpressionEvaluator
         private readonly IReadOnlyDictionary<string, AnalysisValue> variables;
         private readonly char escapeChar;
         private readonly Func<VariableRefToken, string>? resolveVariable;
+        private readonly Action<VariableRefToken, char?, bool>? recordContext;
         private readonly StringBuilder text = new();
         private readonly List<string> unresolvedVariables = new();
-        private readonly List<LiteralToken> literalScopes = new();
         private AnalysisValue? failure;
         private char? quote;
         private bool escaped;
 
         public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar,
-            Func<VariableRefToken, string>? resolveVariable = null)
+            Func<VariableRefToken, string>? resolveVariable = null,
+            Action<VariableRefToken, char?, bool>? recordContext = null)
         {
             this.variables = variables;
             this.escapeChar = escapeChar;
             this.resolveVariable = resolveVariable;
+            this.recordContext = recordContext;
         }
 
         public void Visit(Token token)
@@ -153,15 +156,16 @@ internal static class AnalysisExpressionEvaluator
                 return;
             }
 
-            if (token is ResolvedStringToken resolved && resolved.HasValidSemanticValue &&
-                !literalScopes.Any(literal => literal.IsSemanticValueInvalidated(resolved)))
+            if (token is ResolvedStringToken resolved && resolved.MatchesContext(quote, escaped))
             {
                 text.Append(resolved.SemanticValue);
+                escaped = false;
                 return;
             }
 
             if (token is VariableRefToken variable)
             {
+                recordContext?.Invoke(variable, quote, escaped);
                 if (quote == '\'' || escaped)
                 {
                     AppendText(variable.ToString());
@@ -176,11 +180,6 @@ internal static class AnalysisExpressionEvaluator
             }
 
             char? wrappingQuote = (token as IQuotableToken)?.QuoteChar;
-            LiteralToken? literalScope = token as LiteralToken;
-            if (literalScope is not null)
-            {
-                literalScopes.Add(literalScope);
-            }
             if (wrappingQuote.HasValue)
             {
                 AppendCharacter(wrappingQuote.Value);
@@ -206,10 +205,6 @@ internal static class AnalysisExpressionEvaluator
             if (wrappingQuote.HasValue)
             {
                 AppendCharacter(wrappingQuote.Value);
-            }
-            if (literalScope is not null)
-            {
-                literalScopes.RemoveAt(literalScopes.Count - 1);
             }
         }
 

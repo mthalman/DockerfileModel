@@ -5,7 +5,7 @@ namespace Valleysoft.DockerfileModel;
 /// <summary>Controls variable substitution and the formatting of returned resolved text.</summary>
 public class ResolutionOptions
 {
-    internal Func<Tokens.VariableRefToken, string>? SemanticValueResolver { get; set; }
+    internal Func<Tokens.VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? SemanticValueResolver { get; set; }
 
     internal Func<Tokens.LiteralToken, string>? ModifierValueResolver { get; set; }
 

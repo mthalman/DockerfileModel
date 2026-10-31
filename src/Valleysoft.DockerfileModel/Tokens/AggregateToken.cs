@@ -175,10 +175,13 @@ public abstract class AggregateToken : Token
             string? value;
             if (token is AggregateToken aggregateToken)
             {
-                string? semanticValue = token is VariableRefToken variable
+                (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken variable
                     ? options.SemanticValueResolver?.Invoke(variable) : null;
-                value = aggregateToken.ResolveVariables(escapeChar, variables, options);
-                if (token is VariableRefToken && options.UpdateInline)
+                bool suppressExpansion = semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped);
+                value = suppressExpansion
+                    ? options.FormatValue(escapeChar, token.ToString())
+                    : aggregateToken.ResolveVariables(escapeChar, variables, options);
+                if (token is VariableRefToken && options.UpdateInline && !suppressExpansion)
                 {
                     if (value is null)
                     {
@@ -186,8 +189,9 @@ public abstract class AggregateToken : Token
                     }
                     else
                     {
-                        TokenList[i] = semanticValue is null
-                            ? new StringToken(value) : new ResolvedStringToken(value, semanticValue);
+                        TokenList[i] = semanticValue is { } semantic
+                            ? new ResolvedStringToken(value, semantic.Value, semantic.QuoteChar, semantic.Escaped)
+                            : new StringToken(value);
                     }
                 }
             }

@@ -372,4 +372,72 @@ public class ArgResolutionTests
         Assert.Equal("ENV RESULT=\"quoted\"", other.ResolveVariables());
         Assert.Equal("ENV RESULT=\"quoted\"", source.ResolveVariables(overrides));
     }
+
+    [Theory]
+    [InlineData('\'', "\"value\"")]
+    [InlineData('"', "value")]
+    public void ResolveVariables_ReembeddedSubstitutionUsesCurrentLexicalContext(char quote, string expected)
+    {
+        Dockerfile source = Dockerfile.Parse(
+            "ARG X=${UNSET:-\"value\"}\nFROM alpine\nARG X\nENV RESULT=$X");
+        source.ResolveVariables(source.Items.OfType<FromInstruction>().Single(),
+            options: new ResolutionOptions { UpdateInline = true });
+        Token shared = Assert.Single(source.Items.OfType<ArgInstruction>()
+            .First().ArgTokens[0].ValueToken!.Tokens);
+        TokenBuilder builder = new();
+        builder.Literal(contents =>
+        {
+            contents.Tokens.Add(new StringToken(quote.ToString()));
+            contents.Tokens.Add(shared);
+            contents.Tokens.Add(new StringToken(quote.ToString()));
+        }, canContainVariables: true);
+        Dockerfile other = Dockerfile.Parse("ARG Z=placeholder\nFROM alpine\nARG Z\nENV RESULT=$Z");
+        other.Items.OfType<ArgInstruction>().First().ArgTokens[0].ValueToken =
+            Assert.IsType<LiteralToken>(Assert.Single(builder.Tokens));
+
+        Assert.Equal($"ENV RESULT={expected}", other.ResolveVariables());
+        Assert.Equal("ENV RESULT=value", source.ResolveVariables());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_DefaultContextPreservesSuppressedReferences(bool stageScope, bool updateInline)
+    {
+        string text = stageScope
+            ? "FROM alpine\nARG X='${UNSET?boom}'\nENV RESULT=$X"
+            : "ARG X='${UNSET?boom}'\nFROM alpine\nARG X\nENV RESULT=$X";
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+
+        Assert.Equal("ENV RESULT=${UNSET?boom}", dockerfile.ResolveVariables(
+            options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("ARG X='${UNSET?boom}'\n", dockerfile.Items.OfType<ArgInstruction>().First().ToString());
+        if (!updateInline)
+        {
+            Assert.Equal(text, dockerfile.ToString());
+        }
+    }
+
+    [Fact]
+    public void ResolveVariables_ReembeddedQuotedSubstitutionDoesNotUseItsOriginalContext()
+    {
+        Dockerfile source = Dockerfile.Parse(
+            "ARG X=default\nARG Y=\"$X\"\nFROM alpine\nARG Y\nENV RESULT=$Y");
+        Dictionary<string, string?> overrides = new() { ["X"] = "\"quoted\"" };
+        source.ResolveVariables(source.Items.OfType<FromInstruction>().Single(),
+            overrides, new ResolutionOptions { UpdateInline = true });
+        Token shared = Assert.Single(source.Items.OfType<ArgInstruction>()
+            .ElementAt(1).ArgTokens[0].ValueToken!.Tokens);
+        TokenBuilder builder = new();
+        builder.Literal(contents => contents.Tokens.Add(shared), canContainVariables: true);
+        Dockerfile other = Dockerfile.Parse("ARG Z=placeholder\nFROM alpine\nARG Z\nENV RESULT=$Z");
+        other.Items.OfType<ArgInstruction>().First().ArgTokens[0].ValueToken =
+            Assert.IsType<LiteralToken>(Assert.Single(builder.Tokens));
+
+        Assert.Equal("ENV RESULT=\"quoted\"", source.ResolveVariables(overrides));
+        Assert.Equal("ENV RESULT=quoted", other.ResolveVariables());
+        Assert.Equal("ENV RESULT=\"quoted\"", source.ResolveVariables(overrides));
+    }
 }
