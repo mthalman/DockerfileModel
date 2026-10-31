@@ -92,6 +92,13 @@ by syntax version. See [Parser directives and frontend metadata](parser-directiv
 
 ## Recovery boundaries and heredocs
 
+Both `Parse` and `TryParse` follow BuildKit's continuation boundary rule:
+the last non-space/tab character on a physical line continues the instruction
+only if it is the active escape character and is not immediately preceded by
+another escape character. Two or more adjacent terminal escape characters do
+not continue the instruction, even when their count is odd. Shell here-strings
+such as `RUN <<<word` do not open heredocs or consume following instructions.
+
 Recovery boundaries account for line continuations, the active escape
 directive, comments in continued instructions, quoted text, and heredocs.
 `TryParse` recognizes heredocs in `RUN`, `COPY`, and `ADD`, including their
