@@ -2077,6 +2077,23 @@ def testVolumeVariable : IO Unit := do
     | _ => throw (IO.Error.userError "Expected volume instruction token")
   | none =>
     throw (IO.Error.userError "Parse failed: VOLUME JSON variables should parse")
+  for text in ["VOLUME [\"${ROOT:-}/data\"]",
+      "VOLUME [\"${ROOT:-prefix${OTHER}}/data\"]", "VOLUME [\"/$_ROOT/data\"]"] do
+    match parseVolume text with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text "volume JSON variable edge-case round-trip"
+      match inst.token with
+      | .aggregate .instruction children _ =>
+        assertTrue (children.any fun token =>
+          match token with
+          | .aggregate .literal tokens _ =>
+            tokens.any fun child =>
+              match child with
+              | .aggregate .variableRef _ _ => true
+              | _ => false
+          | _ => false) "volume JSON variable edge case is recognized"
+      | _ => throw (IO.Error.userError "Expected volume instruction token")
+    | none => throw (IO.Error.userError s!"VOLUME JSON variable edge case failed: {text}")
 
 open DockerfileModel.Parser.Instructions.Volume in
 /-- Test: VOLUME exec form multiple -/

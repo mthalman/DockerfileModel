@@ -632,6 +632,10 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
             adoptedLiteral.RetainWordContext(parsedJsonLiteral);
             adoptedLiteral.UseJsonStringSyntax |= parsedJsonLiteral.UseJsonStringSyntax;
         }
+        if (owner is VolumeInstruction volume)
+        {
+            volume.ConfigurePathResolution();
+        }
     }
 
     private bool SameValue(T left, T right, Func<Token, string> render)

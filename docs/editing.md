@@ -143,6 +143,11 @@ with a backtick Dockerfile escape directive.
 both shell and JSON form, including paths created or updated through the editable
 views. `ResolveVariables()` preserves the original model unless
 `ResolutionOptions.UpdateInline` is `true`.
+JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
+substituted values. Unchanged JSON spelling and Dockerfile continuations are
+retained. A decoded Dockerfile escape character protects the following dollar
+sign from expansion. Inline substitutions are not recursively expanded; editing
+the path value makes new references eligible for resolution again.
 
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's

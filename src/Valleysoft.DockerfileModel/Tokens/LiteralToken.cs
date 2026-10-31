@@ -8,6 +8,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     private readonly bool preserveRawValue;
     private TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser;
     private char? quoteChar;
+    private Token[]? resolvedJsonTokens;
+    private string? resolvedJsonText;
 
     /// <summary>Parses literal syntax using the supplied escape character and variable-recognition policy.</summary>
     /// <remarks>The escape context and variable policy are retained for later value updates.</remarks>
@@ -101,6 +103,35 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
             }
             quoteChar = value;
         }
+    }
+
+    internal bool ResolveAsJsonString { get; set; }
+
+    public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+        ResolutionOptions? options = null)
+    {
+        if (!ResolveAsJsonString || QuoteChar != '"')
+        {
+            return base.ResolveVariables(escapeChar, variables, options);
+        }
+        options ??= new ResolutionOptions();
+        variables ??= new Dictionary<string, string?>();
+        // Inline substitution makes inserted dollars literal; subsequent edits re-enable recognition.
+        bool alreadyResolved = resolvedJsonTokens is not null &&
+            Tokens.SequenceEqual(resolvedJsonTokens, ReferenceComparer<Token>.Instance) &&
+            resolvedJsonText == ToString();
+        if (alreadyResolved && !options.RemoveEscapeCharacters)
+        {
+            return resolvedJsonText;
+        }
+        string result = JsonStringVariableResolver.Resolve(this, escapeChar, variables, options,
+            expandVariables: !alreadyResolved);
+        if (options.UpdateInline)
+        {
+            resolvedJsonTokens = Tokens.ToArray();
+            resolvedJsonText = result;
+        }
+        return result;
     }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value)

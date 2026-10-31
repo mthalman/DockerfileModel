@@ -19,6 +19,16 @@ public class VolumeInstruction : Instruction
     {
         PathTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this);
         Paths = InstructionCollectionEditing.Strings(PathTokens, this);
+        ConfigurePathResolution();
+    }
+
+    internal void ConfigurePathResolution()
+    {
+        bool json = InstructionCollectionEditing.IsJson(this);
+        foreach (LiteralToken path in PathTokens)
+        {
+            path.ResolveAsJsonString = json;
+        }
     }
 
     /// <summary>Gets the live editable volume path value view.</summary>
