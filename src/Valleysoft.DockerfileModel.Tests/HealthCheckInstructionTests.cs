@@ -314,6 +314,146 @@ public class HealthCheckInstructionTests
         Assert.Equal("HEALTHCHECK --interval=30s --timeout=10s NONE", instruction.ToString());
     }
 
+    [Theory]
+    [InlineData("true", "\n")]
+    [InlineData("[\"true\"]", "\n")]
+    [InlineData("true", "\r\n")]
+    [InlineData("[\"true\"]", "\r\n")]
+    public void CommandProperty_DisablePreservesFollowingInstruction(string command, string newline)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            $"FROM alpine{newline}HEALTHCHECK CMD {command}{newline}RUN echo ok{newline}");
+        HealthCheckInstruction instruction = dockerfile.Items.OfType<HealthCheckInstruction>().Single();
+
+        instruction.Command = null;
+
+        string expected = $"FROM alpine{newline}HEALTHCHECK NONE{newline}RUN echo ok{newline}";
+        Assert.Equal(expected, dockerfile.ToString());
+        Assert.Equal(expected, Dockerfile.Parse(dockerfile.ToString()).ToString());
+    }
+
+    [Theory]
+    [MemberData(nameof(CommandTransitionInputs))]
+    public void CommandProperty_TransitionsRetainTerminalTrivia(
+        string command, string flags, string suffix, char escapeChar)
+    {
+        HealthCheckInstruction instruction = HealthCheckInstruction.Parse(
+            $"HEALTHCHECK {flags}CMD {command}{suffix}", escapeChar);
+        Command original = instruction.Command!;
+        Token[] flagTokens = instruction.Tokens.Where(token =>
+            token is IntervalFlag or TimeoutFlag or StartPeriodFlag or StartIntervalFlag or RetriesFlag).ToArray();
+
+        for (int i = 0; i < 2; i++)
+        {
+            instruction.Command = null;
+            Assert.Null(instruction.Command);
+            Assert.Equal($"HEALTHCHECK {flags}NONE{suffix}", instruction.ToString());
+            Assert.Equal(instruction.ToString(), HealthCheckInstruction.Parse(instruction.ToString(), escapeChar).ToString());
+            AssertUniqueTokenTree(instruction);
+
+            instruction.Command = null;
+            Assert.Equal($"HEALTHCHECK {flags}NONE{suffix}", instruction.ToString());
+
+            instruction.Command = original;
+            Assert.Same(original, instruction.Command);
+            Assert.Equal($"HEALTHCHECK {flags}CMD {command}{suffix}", instruction.ToString());
+            Assert.Equal(flagTokens, instruction.Tokens.Where(token =>
+                token is IntervalFlag or TimeoutFlag or StartPeriodFlag or StartIntervalFlag or RetriesFlag));
+            AssertUniqueTokenTree(instruction);
+        }
+
+        instruction.Command = null;
+        instruction.Command = new ShellFormCommand("restored", escapeChar);
+        Assert.Equal($"HEALTHCHECK {flags}CMD restored{suffix}", instruction.ToString());
+        instruction.Command = null;
+        instruction.Command = new ExecFormCommand(new[] { "restored" }, escapeChar);
+        Assert.Equal($"HEALTHCHECK {flags}CMD [\"restored\"]{suffix}", instruction.ToString());
+        AssertUniqueTokenTree(instruction);
+    }
+
+    public static IEnumerable<object[]> CommandTransitionInputs()
+    {
+        foreach (string newline in new[] { "\n", "\r\n" })
+        foreach (char escapeChar in new[] { '\\', '`' })
+        foreach (string command in new[]
+        {
+            "true",
+            "[\"true\"]",
+            "echo " + escapeChar + newline + "  ok",
+            "[\"echo\"," + escapeChar + newline + " \"ok\"]"
+        })
+        foreach (string flags in new[]
+        {
+            "",
+            "--interval=30s --timeout=10s --start-period=5s --start-interval=1s --retries=3 "
+        })
+        foreach (string suffix in new[] { "", " \t", newline, " \t" + newline, " " + escapeChar + newline + "# terminal comment" + newline })
+        {
+            yield return new object[] { command, flags, suffix, escapeChar };
+        }
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \t")]
+    [InlineData("\n")]
+    [InlineData(" \t\r\n")]
+    [InlineData("\\\n# terminal comment\n")]
+    public void CommandProperty_ParsedNoneRetainsTerminalTrivia(string suffix)
+    {
+        HealthCheckInstruction instruction = HealthCheckInstruction.Parse($"HEALTHCHECK NONE{suffix}");
+
+        instruction.Command = new ShellFormCommand("true");
+        Assert.Equal($"HEALTHCHECK CMD true{suffix}", instruction.ToString());
+        instruction.Command = null;
+        Assert.Equal($"HEALTHCHECK NONE{suffix}", instruction.ToString());
+
+        instruction.Command = new ExecFormCommand(new[] { "true" });
+        Assert.Equal($"HEALTHCHECK CMD [\"true\"]{suffix}", instruction.ToString());
+        instruction.Command = null;
+        Assert.Equal($"HEALTHCHECK NONE{suffix}", instruction.ToString());
+        AssertUniqueTokenTree(instruction);
+    }
+
+    [Theory]
+    [InlineData(" \t")]
+    [InlineData(" \t\n")]
+    [InlineData(" \t\r\n")]
+    public void CommandProperty_ExecFormRetainsTerminalWhitespace(string suffix)
+    {
+        HealthCheckInstruction instruction = HealthCheckInstruction.Parse(
+            $"HEALTHCHECK CMD [\"true\"]{suffix}");
+
+        instruction.Command = null;
+
+        Assert.Equal($"HEALTHCHECK NONE{suffix}", instruction.ToString());
+        AssertUniqueTokenTree(instruction);
+    }
+
+    private static void AssertUniqueTokenTree(AggregateToken root)
+    {
+        HashSet<Token> seen = new(ReferenceEqualityComparer.Instance);
+        Visit(root);
+
+        void Visit(Token token)
+        {
+            Assert.True(seen.Add(token), "A token must not occur twice in the live tree.");
+            if (token is AggregateToken aggregate)
+            {
+                string contents = string.Concat(aggregate.Tokens.Select(child => child.ToString()));
+                if (aggregate is IQuotableToken quotable)
+                {
+                    contents = $"{quotable.QuoteChar}{contents}{quotable.QuoteChar}";
+                }
+                Assert.Equal(contents, aggregate.ToString());
+                foreach (Token child in aggregate.Tokens)
+                {
+                    Visit(child);
+                }
+            }
+        }
+    }
+
     [Fact]
     public void CommandProperty_SetNullWithSingleFlag()
     {
