@@ -315,15 +315,16 @@ public class HealthCheckInstructionTests
     }
 
     [Theory]
-    [InlineData("true", "\n")]
-    [InlineData("[\"true\"]", "\n")]
-    [InlineData("true", "\r\n")]
-    [InlineData("[\"true\"]", "\r\n")]
-    public void CommandProperty_DisablePreservesFollowingInstruction(string command, string newline)
+    [InlineData("true", "\n", typeof(ShellFormCommand))]
+    [InlineData("[\"true\"]", "\n", typeof(ExecFormCommand))]
+    [InlineData("true", "\r\n", typeof(ShellFormCommand))]
+    [InlineData("[\"true\"]", "\r\n", typeof(ExecFormCommand))]
+    public void CommandProperty_DisablePreservesFollowingInstruction(string command, string newline, Type commandType)
     {
         Dockerfile dockerfile = Dockerfile.Parse(
             $"FROM alpine{newline}HEALTHCHECK CMD {command}{newline}RUN echo ok{newline}");
         HealthCheckInstruction instruction = dockerfile.Items.OfType<HealthCheckInstruction>().Single();
+        Assert.IsType(commandType, instruction.Command);
 
         instruction.Command = null;
 
@@ -335,11 +336,12 @@ public class HealthCheckInstructionTests
     [Theory]
     [MemberData(nameof(CommandTransitionInputs))]
     public void CommandProperty_TransitionsRetainTerminalTrivia(
-        string command, string flags, string suffix, char escapeChar)
+        string command, string flags, string suffix, char escapeChar, Type commandType)
     {
         HealthCheckInstruction instruction = HealthCheckInstruction.Parse(
             $"HEALTHCHECK {flags}CMD {command}{suffix}", escapeChar);
         Command original = instruction.Command!;
+        Assert.IsType(commandType, original);
         Token[] flagTokens = instruction.Tokens.Where(token =>
             token is IntervalFlag or TimeoutFlag or StartPeriodFlag or StartIntervalFlag or RetriesFlag).ToArray();
 
@@ -375,12 +377,12 @@ public class HealthCheckInstructionTests
     {
         foreach (string newline in new[] { "\n", "\r\n" })
         foreach (char escapeChar in new[] { '\\', '`' })
-        foreach (string command in new[]
+        foreach ((string command, Type commandType) in new[]
         {
-            "true",
-            "[\"true\"]",
-            "echo " + escapeChar + newline + "  ok",
-            "[\"echo\"," + escapeChar + newline + " \"ok\"]"
+            ("true", typeof(ShellFormCommand)),
+            ("[\"true\"]", typeof(ExecFormCommand)),
+            ("echo " + escapeChar + newline + "  ok", typeof(ShellFormCommand)),
+            ("[\"echo\"," + escapeChar + newline + " \"ok\"]", typeof(ExecFormCommand))
         })
         foreach (string flags in new[]
         {
@@ -389,7 +391,7 @@ public class HealthCheckInstructionTests
         })
         foreach (string suffix in new[] { "", " \t", newline, " \t" + newline, " " + escapeChar + newline + "# terminal comment" + newline })
         {
-            yield return new object[] { command, flags, suffix, escapeChar };
+            yield return new object[] { command, flags, suffix, escapeChar, commandType };
         }
     }
 
@@ -423,10 +425,35 @@ public class HealthCheckInstructionTests
     {
         HealthCheckInstruction instruction = HealthCheckInstruction.Parse(
             $"HEALTHCHECK CMD [\"true\"]{suffix}");
+        Assert.IsType<ExecFormCommand>(instruction.Command);
 
         instruction.Command = null;
 
         Assert.Equal($"HEALTHCHECK NONE{suffix}", instruction.ToString());
+        AssertUniqueTokenTree(instruction);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CommandProperty_LongTerminalTriviaRetainsOrderAndIdentity(bool nested)
+    {
+        Token[] trivia = Enumerable.Range(0, 4096)
+            .Select(index => (Token)new LineContinuationToken(index % 2 == 0 ? "\n" : "\r\n"))
+            .Append(new NewLineToken("\n"))
+            .ToArray();
+        Token[] contents = new Token[] { new StringToken("true") };
+        ShellFormCommand command = nested
+            ? new ShellFormCommand(new Token[] { new LiteralToken(contents.Concat(trivia), false, '\\') })
+            : new ShellFormCommand(new Token[] { new LiteralToken(contents, false, '\\') }.Concat(trivia));
+        HealthCheckInstruction instruction = new("placeholder");
+        instruction.Command = command;
+
+        instruction.Command = null;
+
+        Assert.Equal(trivia, instruction.Tokens.Skip(3));
+        Assert.Equal("HEALTHCHECK NONE" + string.Concat(trivia.Select(token => token.ToString())), instruction.ToString());
+        Assert.Equal("true", command.ToString());
         AssertUniqueTokenTree(instruction);
     }
 

@@ -229,20 +229,21 @@ public class HealthCheckInstruction : Instruction
             if (last is WhitespaceToken or LineContinuationToken or CommentToken)
             {
                 owner.TokenList.RemoveAt(owner.TokenList.Count - 1);
-                trivia.Insert(0, last);
+                trivia.Add(last);
             }
             else
             {
                 // Shell-form framing is nested in an unquoted literal, unlike exec-form framing.
                 if (last is LiteralToken { QuoteChar: null } literal)
                 {
-                    trivia.InsertRange(0, DetachTrailingCommandTrivia(literal));
+                    owner = literal;
+                    continue;
                 }
                 else if (last is StringToken text &&
                     GetTrailingWhitespaceToken(text.Value) is WhitespaceToken whitespace)
                 {
                     text.Value = text.Value.Substring(0, text.Value.Length - whitespace.Value.Length);
-                    trivia.Insert(0, whitespace);
+                    trivia.Add(whitespace);
                     if (text.Value.Length == 0)
                     {
                         owner.TokenList.RemoveAt(owner.TokenList.Count - 1);
@@ -252,6 +253,7 @@ public class HealthCheckInstruction : Instruction
                 break;
             }
         }
+        trivia.Reverse();
         return trivia;
     }
 
