@@ -479,7 +479,10 @@ def literalWithVariables (escapeChar : Char) (excludedChars : List Char := [])
     fragment
   else
     let first ← fragment
-    let rest ← many (if allowUnmatchedQuoteFragments then
+    let unquotedStart := match first with
+      | .aggregate .literal _ none => true
+      | _ => false
+    let rest ← many (if allowUnmatchedQuoteFragments || unquotedStart then
       or' fragment (literalWithVariablesUnquoted escapeChar excludedChars whitespaceMode)
       else fragment)
     let fragments := first :: rest

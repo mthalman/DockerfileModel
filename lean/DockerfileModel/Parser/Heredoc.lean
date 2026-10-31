@@ -134,6 +134,14 @@ def heredocMarkerParser : Parser (String × Bool × Option Char × Token) := do
   let markerToken := Token.mkConstruct markerChildren
   Parser.pure (delim, chomp, quoteChar, markerToken)
 
+/-- Recognize a header independently of destination validity, preventing a malformed
+    heredoc destination from falling back to ordinary file operands. -/
+def heredocHeaderParser : Parser Unit := do
+  let _ ← heredocMarkerParser
+  let _ ← many (satisfy (fun c => !isLineTerminator c) "header char")
+  let _ ← lineEnd
+  Parser.pure ()
+
 -- ============================================================
 -- Heredoc body parser: consume lines until closing delimiter
 -- ============================================================
@@ -259,7 +267,7 @@ partial def heredocInstructionArg : Parser (List Token) := do
 partial def heredocWithDestination (escapeChar : Char := '\\') : Parser (List Token) := do
   let (delimiter, chomp, _quoteChar, markerToken) ← heredocMarkerParser
   -- Parse whitespace before destination
-  let wsChars ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
+  let wsChars ← many whitespaceChar
   let wsTokens := if wsChars.isEmpty then []
     else [Token.mkWhitespace (String.ofList wsChars)]
   let restOfLine ← many (satisfy (fun c => !isLineTerminator c) "destination char")
@@ -267,7 +275,7 @@ partial def heredocWithDestination (escapeChar : Char := '\\') : Parser (List To
     let destinations ← many (do
       let destination ← literalWithVariables escapeChar [] .allowedInQuotes
         (allowUnmatchedQuoteFragments := true)
-      let trailing ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
+      let trailing ← many whitespaceChar
       Parser.pure ([destination] ++
         if trailing.isEmpty then [] else [Token.mkWhitespace (String.ofList trailing)]))
     Parser.pure destinations.flatten

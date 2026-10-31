@@ -100,10 +100,7 @@ partial def addArgsParser (escapeChar : Char) : Parser (List Token) := do
   let fileArgs ← argTokens
     (or' (heredocWithDestination escapeChar)
       (except (or' (jsonArrayParser escapeChar) (spaceSeparatedFileArgs escapeChar))
-        (do
-          let _ ← heredocMarkerParser
-          let _ ← many (satisfy (fun c => !isLineTerminator c) "header char")
-          lineEnd)))
+        heredocHeaderParser))
     escapeChar
   Parser.pure (concatTokens [flags.flatten, fileArgs])
 

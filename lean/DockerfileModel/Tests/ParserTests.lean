@@ -2381,6 +2381,27 @@ def testUnmatchedOperandFragmentsCannotTruncate : IO Unit := do
           "Unmatched operand fragments must not truncate an instruction"
       | none => throw (IO.Error.userError s!"Legacy raw operand was rejected: {text}")
 
+def testNonFileEmbeddedQuotesCannotTruncate : IO Unit := do
+  for text in ["ENV name=foo\"bar", "ENV name=foo'bar", "LABEL name=foo\"bar",
+      "USER foo\"bar", "VOLUME foo\"bar"] do
+    let parsed := if text.startsWith "ENV " then Env.parseEnv text
+      else if text.startsWith "LABEL " then Label.parseLabel text
+      else if text.startsWith "USER " then User.parseUser text
+      else Volume.parseVolume text
+    match parsed with
+    | some instruction => assertRoundTrip instruction.token text "non-file embedded quote"
+    | none => throw (IO.Error.userError s!"Legacy raw operand was rejected: {text}")
+
+def testHeredocHorizontalWhitespace : IO Unit := do
+  for operands in ["\x0C\"/dir name\"", "\"/dir name\"\x0C",
+      "\"source name\"\x0C\"/dir name\""] do
+    for name in ["COPY", "ADD"] do
+      let text := name ++ " <<EOF " ++ operands ++ "\nbody\nEOF\n"
+      let parsed := if name == "COPY" then Copy.parseCopy text else Add.parseAdd text
+      match parsed with
+      | some instruction => assertRoundTrip instruction.token text "heredoc horizontal whitespace"
+      | none => throw (IO.Error.userError s!"Heredoc whitespace was rejected: {text}")
+
 open DockerfileModel.Parser.Instructions.Copy in
 /-- Test: COPY --from=builder /app /app — with from flag -/
 def testCopyWithFrom : IO Unit := do
@@ -3339,6 +3360,8 @@ def runParserTests_PhaseD : IO Unit := do
   testQuotedOperandFragments
   testHeredocDestinationCannotConsumeBody
   testUnmatchedOperandFragmentsCannotTruncate
+  testNonFileEmbeddedQuotesCannotTruncate
+  testHeredocHorizontalWhitespace
   testCopyWithFrom
   testCopyWithFromLineContinuation
   testCopyWithChown

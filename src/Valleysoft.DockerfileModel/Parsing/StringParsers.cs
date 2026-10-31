@@ -212,13 +212,15 @@ internal static class StringParsers
     /// Enumerates the tokens while extracting the contents of any literal tokens encountered.
     /// </summary>
     /// <param name="tokens">Tokens to enumerate.</param>
-    private static IEnumerable<Token> ExtractLiteralTokenContents(IEnumerable<Token> tokens)
+    /// <param name="getChildren">Reads staged fragment children when supplied; otherwise reads live children.</param>
+    internal static IEnumerable<Token> ExtractLiteralTokenContents(IEnumerable<Token> tokens,
+        Func<LiteralToken, IEnumerable<Token>>? getChildren = null)
     {
         foreach (Token token in tokens)
         {
             if (token is LiteralToken literal)
             {
-                foreach (Token literalItem in literal.Tokens)
+                foreach (Token literalItem in getChildren is null ? literal.Tokens : getChildren(literal))
                 {
                     yield return literalItem;
                 }

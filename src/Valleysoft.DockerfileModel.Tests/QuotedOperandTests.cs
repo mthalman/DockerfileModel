@@ -134,6 +134,87 @@ public class QuotedOperandTests
     }
 
     [Theory]
+    [InlineData("ENV name=foo\"bar")]
+    [InlineData("ENV name=foo'bar")]
+    [InlineData("LABEL name=foo\"bar")]
+    [InlineData("USER foo\"bar")]
+    [InlineData("VOLUME foo\"bar")]
+    public void NonFileOperandsRetainUnmatchedEmbeddedQuotes(string text)
+    {
+        Instruction standalone = text.Split(' ')[0] switch
+        {
+            "ENV" => EnvInstruction.Parse(text),
+            "LABEL" => LabelInstruction.Parse(text),
+            "USER" => UserInstruction.Parse(text),
+            "VOLUME" => VolumeInstruction.Parse(text),
+            _ => throw new InvalidOperationException()
+        };
+        Assert.Equal(text, standalone.ToString());
+        Assert.Equal(text, Dockerfile.Parse(text).ToString());
+        DockerfileParseResult result = Dockerfile.TryParse(text);
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Equal(text, result.Dockerfile!.ToString());
+    }
+
+    [Theory]
+    [InlineData("foo\"bar")]
+    [InlineData("foo'bar")]
+    [InlineData("\"foo\"bar\"baz")]
+    public void HeredocOperandsRetainUnmatchedFragmentsInAllParserModes(string operand)
+    {
+        foreach (string name in new[] { "COPY", "ADD" })
+        {
+            AssertFileTransferModels($"{name} <<EOF {operand}\nbody\nEOF\n", instruction =>
+            {
+                Assert.Equal(operand, instruction.DestinationToken!.ToString());
+                Assert.Empty(instruction.Sources);
+            });
+        }
+    }
+
+    [Theory]
+    [InlineData("foo\" bar\"", "foo bar", '"')]
+    [InlineData("foo\" bar\"", "foo bar", '\'')]
+    [InlineData("\"foo bar\"baz", "foo barbaz", '"')]
+    public void RequotingMixedOperandsPreservesTheirValueAndBoundary(string operand, string value, char quote)
+    {
+        CopyInstruction instruction = CopyInstruction.Parse($"COPY {operand} /dest");
+        LiteralToken source = Assert.Single(instruction.SourceTokens);
+        source.QuoteChar = source.QuoteChar;
+        Assert.Equal(operand, source.ToString());
+        source.QuoteChar = quote;
+        Assert.Equal(value, source.Value);
+        Assert.Equal($"{quote}{value}{quote}", source.ToString());
+        CopyInstruction reparsed = CopyInstruction.Parse(instruction.ToString());
+        Assert.Equal(new[] { value }, reparsed.Sources);
+        Assert.Equal("/dest", reparsed.Destination);
+    }
+
+    [Fact]
+    public void RequotingMixedOperandsRetainsVariableReferences()
+    {
+        CopyInstruction instruction = CopyInstruction.Parse("COPY prefix\"${ROOT} suffix\" /dest");
+        LiteralToken source = Assert.Single(instruction.SourceTokens);
+        source.QuoteChar = '"';
+        Assert.Equal("\"prefix${ROOT} suffix\"", source.ToString());
+        Assert.Equal("\"prefixvalue suffix\"", source.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "value" }));
+        Assert.Equal(new[] { "prefix${ROOT} suffix" }, CopyInstruction.Parse(instruction.ToString()).Sources);
+    }
+
+    [Fact]
+    public void StagedRequotingMixedOperandsMatchesCommittedSyntax()
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse("COPY foo\" bar\" /dest").SourceTokens);
+        CopyInstruction target = CopyInstruction.Parse("COPY [\"old\", \"/dest\"]");
+        target.SourceTokens.Add(source);
+        Assert.Same(source, target.SourceTokens[1]);
+        Assert.Equal("\"foo bar\"", source.ToString());
+        Assert.Equal(new[] { "old", "foo bar" }, target.Sources);
+        Assert.Equal(new[] { "old", "foo bar" }, CopyInstruction.Parse(target.ToString()).Sources);
+    }
+
+    [Theory]
     [InlineData("COPY")]
     [InlineData("ADD")]
     public void HeredocBodyCannotCloseADestinationQuote(string name)

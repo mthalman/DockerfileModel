@@ -48,10 +48,21 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     }
 
     /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
+    /// <remarks>
+    /// Changing a mixed word's quote unwraps its fragment quotes while retaining variable-reference children.
+    /// Assigning the existing quote preserves the original fragment syntax.
+    /// </remarks>
     public virtual char? QuoteChar
     {
         get => quoteChar;
-        set => quoteChar = value;
+        set
+        {
+            if (quoteChar != value && Tokens.OfType<LiteralToken>().Any())
+            {
+                ReplaceWithTokens(TokenHelper.CollapseStringTokens(StringParsers.ExtractLiteralTokenContents(Tokens)));
+            }
+            quoteChar = value;
+        }
     }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>

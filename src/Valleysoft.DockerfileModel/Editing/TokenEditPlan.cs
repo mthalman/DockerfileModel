@@ -65,6 +65,11 @@ internal sealed class TokenEditPlan
         {
             IEnumerable<Token> children = replacements.TryGetValue(aggregate, out List<Token>? edited)
                 ? edited : aggregate.Tokens;
+            if (token is LiteralToken literal && quotes.TryGetValue(literal, out char? newQuote) &&
+                newQuote != literal.QuoteChar)
+            {
+                children = StringParsers.ExtractLiteralTokenContents(children, fragment => Tokens(fragment));
+            }
             text = string.Concat(children.Select(child => Render(child, path)));
             if (token is VariableRefToken)
             {

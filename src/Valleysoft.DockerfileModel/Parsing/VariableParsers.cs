@@ -22,7 +22,7 @@ internal static class VariableParsers
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="excludedChars">Characters to exclude from parsing.</param>
     /// <param name="whitespaceMode">Where whitespace may occur within the literal.</param>
-    /// <param name="allowUnmatchedQuoteFragments">Retain legacy file operand syntax with unmatched embedded quotes.</param>
+    /// <param name="allowUnmatchedQuoteFragments">Retain unmatched trailing fragments even after a leading quote wrapper.</param>
     /// <returns>A parsed aggregate token.</returns>
     internal static TextParser<LiteralToken> LiteralWithVariables(
         char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed,
@@ -48,7 +48,7 @@ internal static class VariableParsers
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="excludedChars">Characters to exclude from parsing.</param>
     /// <param name="whitespaceMode">Where whitespace may occur within the literal.</param>
-    /// <param name="allowUnmatchedQuoteFragments">Retain legacy file operand syntax with unmatched embedded quotes.</param>
+    /// <param name="allowUnmatchedQuoteFragments">Retain unmatched trailing fragments even after a leading quote wrapper.</param>
     /// <returns>A parsed aggregate token.</returns>
     internal static TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)> LiteralWithVariablesTokens(
         char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed,
@@ -62,21 +62,14 @@ internal static class VariableParsers
 
         TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)> fragment =
             LiteralWithVariablesFragment(escapeChar, excluded, whitespaceMode, separateQuotes: true);
-        if (!allowUnmatchedQuoteFragments)
-        {
-            return
-                from fragments in fragment.Try().AtLeastOnce()
-                select CombineFragments(fragments, escapeChar);
-        }
-
-        // Legacy unquoted words admit unmatched embedded quotes; retain their text instead of a successful prefix.
+        // Unquoted words historically include raw quotes; preserve them when a later quoted fragment is unmatched.
         TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)> continuation =
             fragment.Try().Or(
                 from tokens in UnquotedLiteralWithVariablesTokens(escapeChar, excluded, whitespaceMode)
                 select (tokens, (char?)null));
         return
-            from first in fragment
-            from rest in continuation.Try().Many()
+            from first in fragment.Try()
+            from rest in (allowUnmatchedQuoteFragments || first.QuoteChar is null ? continuation : fragment).Try().Many()
             select CombineFragments(new[] { first }.Concat(rest).ToArray(), escapeChar);
     }
 
