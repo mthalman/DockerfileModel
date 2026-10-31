@@ -200,7 +200,7 @@ public abstract partial class FileTransferInstruction : Instruction
 
     private static TextParser<IEnumerable<Token>> FileArgs(char escapeChar) =>
         CommandParsers.MaybeJson(
-            ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar),
+            ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true, useJsonStringSyntax: true), escapeChar),
             from literals in ArgTokens(
                     LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
                     escapeChar).Try().Many()

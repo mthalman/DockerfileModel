@@ -34,8 +34,9 @@ public class ExecFormCommand : Command
     public static ExecFormCommand Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar).AtEnd()), escapeChar);
 
-    internal static TextParser<ExecFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        from tokens in GetInnerParser(escapeChar)
+    internal static TextParser<ExecFormCommand> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar,
+        bool useJsonStringSyntax = false) =>
+        from tokens in GetInnerParser(escapeChar, useJsonStringSyntax)
         select new ExecFormCommand(tokens, escapeChar);
 
     /// <summary>Gets the live editable argument value view.</summary>
@@ -56,6 +57,6 @@ public class ExecFormCommand : Command
 
     public override CommandType CommandType => CommandType.ExecForm;
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-        ArgTokens(JsonArray(escapeChar, canContainVariables: false, allowEmpty: true), escapeChar);
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool useJsonStringSyntax = false) =>
+        ArgTokens(JsonArray(escapeChar, canContainVariables: false, allowEmpty: true, useJsonStringSyntax), escapeChar);
 }

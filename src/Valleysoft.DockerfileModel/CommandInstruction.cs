@@ -61,7 +61,8 @@ public abstract class CommandInstruction : Instruction
 
     internal static TextParser<Command> GetCommandParser(char escapeChar, bool diagnostic)
     {
-        TextParser<Command> execFormParser = ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Command>();
+        TextParser<Command> execFormParser = ExecFormCommand.GetParser(escapeChar, useJsonStringSyntax: true)
+            .Cast<ExecFormCommand, Command>();
         TextParser<Command> shellFormParser = (diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar))
             .Cast<ShellFormCommand, Command>();
 

@@ -42,5 +42,6 @@ public class ShellInstruction : CommandInstruction
             GetArgsParser(escapeChar));
 
     private new static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
-        ArgTokens(CommandParsers.RequireJson(ExecFormCommand.GetParser(escapeChar), escapeChar).AsEnumerable(), escapeChar);
+        ArgTokens(CommandParsers.RequireJson(ExecFormCommand.GetParser(escapeChar, useJsonStringSyntax: true), escapeChar)
+            .AsEnumerable(), escapeChar);
 }

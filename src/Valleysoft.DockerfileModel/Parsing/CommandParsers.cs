@@ -28,8 +28,19 @@ internal static class CommandParsers
 
     private static JsonArrayKind GetJsonArrayKind(TextSpan input, char escapeChar)
     {
+        string source = input.Source!;
+        int first = input.Position.Absolute;
+        while (first < source.Length && char.IsWhiteSpace(source[first]) && source[first] is not ('\r' or '\n'))
+        {
+            first++;
+        }
+        if (first == source.Length || (source[first] != '[' && source[first] != escapeChar))
+        {
+            return JsonArrayKind.Invalid;
+        }
+
         // Recognition uses the whole logical header; token parsers still consume physical prefixes.
-        string logical = ConstructReader.FoldHeader(input.Source!, input.Position.Absolute, escapeChar, out _);
+        string logical = ConstructReader.FoldHeader(source, input.Position.Absolute, escapeChar, out _);
         if (!logical.TrimStart().StartsWith("[", StringComparison.Ordinal))
         {
             return JsonArrayKind.Invalid;
@@ -78,7 +89,10 @@ internal static class CommandParsers
     /// <param name="allowEmpty">When true, allows parsing an empty array (e.g. [] or [ ]). Defaults to false.
     /// VOLUME, COPY, ADD, and exec-form command parsers all pass true to match BuildKit behavior,
     /// which accepts empty JSON arrays as a no-op.</param>
-    internal static TextParser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false) =>
+    /// <param name="useJsonStringSyntax">Separates JSON backslash escapes from Dockerfile continuations.
+    /// False retains the historical operand grammar used by explicit command APIs and constructors.</param>
+    internal static TextParser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false,
+        bool useJsonStringSyntax = false) =>
         from openingBracket in BasicParsers.Symbol('[').AsEnumerable()
         // Consume optional whitespace after '[' at the array level (not inside
         // the element parser) so the empty-array fallback works correctly.
@@ -87,7 +101,7 @@ internal static class CommandParsers
         // This matches the Lean/BuildKit parser structure, which parses
         // interElementSpace before attempting the optional first element.
         from leadingWs in InstructionParsers.ArgTrailingWhitespace(escapeChar)
-        from execFormArgs in JsonArrayElements(escapeChar, canContainVariables, allowEmpty)
+        from execFormArgs in JsonArrayElements(escapeChar, canContainVariables, allowEmpty, useJsonStringSyntax)
         from closingBracket in BasicParsers.Symbol(']').AsEnumerable()
         select TokenSequences.ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
 
@@ -129,13 +143,16 @@ internal static class CommandParsers
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
     /// <param name="allowEmpty">A value indicating whether an empty array is allowed.</param>
-    private static TextParser<IEnumerable<Token>> JsonArrayElements(char escapeChar, bool canContainVariables, bool allowEmpty)
+    /// <param name="useJsonStringSyntax">Whether to use JSON backslash escapes independently of Dockerfile continuations.</param>
+    private static TextParser<IEnumerable<Token>> JsonArrayElements(char escapeChar, bool canContainVariables, bool allowEmpty,
+        bool useJsonStringSyntax)
     {
         var elements =
-            from firstArg in JsonArrayElement(escapeChar, canContainVariables, consumeLeadingWhitespace: false).AsEnumerable().Flatten()
+            from firstArg in JsonArrayElement(escapeChar, canContainVariables, useJsonStringSyntax,
+                consumeLeadingWhitespace: false).AsEnumerable().Flatten()
             from tail in (
                 from delimiter in JsonArrayElementDelimiter(escapeChar)
-                from nextArg in JsonArrayElement(escapeChar, canContainVariables)
+                from nextArg in JsonArrayElement(escapeChar, canContainVariables, useJsonStringSyntax)
                 select TokenSequences.ConcatTokens(delimiter, nextArg)).Try().Many()
             select TokenSequences.ConcatTokens(firstArg, tail.Flatten());
 
@@ -181,15 +198,19 @@ internal static class CommandParsers
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="canContainVariables">A value indicating whether the string can contain variables.</param>
     /// <param name="consumeLeadingWhitespace">Whether to consume leading whitespace before the element.</param>
-    private static TextParser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables, bool consumeLeadingWhitespace = true)
+    /// <param name="useJsonStringSyntax">Whether to use JSON backslash escapes independently of Dockerfile continuations.</param>
+    private static TextParser<IEnumerable<Token>> JsonArrayElement(char escapeChar, bool canContainVariables,
+        bool useJsonStringSyntax, bool consumeLeadingWhitespace = true)
     {
         TextParser<LiteralToken> literalParser = canContainVariables ?
             VariableParsers.LiteralWithVariables(escapeChar, new char[] { StringParsers.DoubleQuote }) :
             StringParsers.LiteralToken(escapeChar, new char[] { StringParsers.DoubleQuote });
 
-        TextParser<IEnumerable<Token>> contentParser = InstructionParsers.ArgTokens(literalParser.AsEnumerable(),
-            escapeChar, excludeLeadingWhitespace: true).Try()
-            .Or(BasicParsers.Whitespace().Where(tokens => tokens.Any()));
+        TextParser<IEnumerable<Token>> contentParser = useJsonStringSyntax
+            ? JsonStringTokens(escapeChar, canContainVariables)
+            : InstructionParsers.ArgTokens(literalParser.AsEnumerable(),
+                escapeChar, excludeLeadingWhitespace: true).Try()
+                .Or(BasicParsers.Whitespace().Where(tokens => tokens.Any()));
 
         if (consumeLeadingWhitespace)
         {
@@ -213,5 +234,41 @@ internal static class CommandParsers
             select TokenSequences.ConcatTokens(
                 CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar),
                 trailing);
+    }
+
+    private static TextParser<IEnumerable<Token>> JsonStringTokens(char escapeChar, bool canContainVariables)
+    {
+        TextParser<IEnumerable<Token>> literalParser =
+            from text in Character.Matching(ch =>
+                ch != StringParsers.DoubleQuote && ch != '\\' && ch != escapeChar &&
+                !char.IsWhiteSpace(ch) && (!canContainVariables || ch != '$'), "JSON string character")
+                .AtLeastOnce().Text()
+            select (IEnumerable<Token>)new Token[] { new StringToken(text) };
+
+        if (canContainVariables)
+        {
+            literalParser = VariableRefToken.GetParser(escapeChar).Cast<VariableRefToken, Token>().AsEnumerable()
+                .Try().Or(literalParser)
+                .Try().Or(BasicParsers.ToStringTokens(Character.EqualTo('$')));
+        }
+
+        TextParser<IEnumerable<Token>> jsonEscape =
+            from backslash in BasicParsers.ToStringTokens(Character.EqualTo('\\'))
+            from escaped in BasicParsers.CharWithOptionalLineContinuation(escapeChar,
+                Superpower.Parse.Not(NativeParsers.LineEnd).IgnoreThen(Character.AnyChar),
+                ch => new StringToken(ch.ToString()))
+            select TokenSequences.ConcatTokens(backslash, escaped);
+
+        TextParser<IEnumerable<Token>> contentParser = InstructionParsers.ArgTrailingWhitespace(escapeChar)
+            .Where(tokens => tokens.Any()).Try()
+            .Or(jsonEscape.Try())
+            .Or(literalParser);
+
+        if (escapeChar != '\\')
+        {
+            contentParser = contentParser.Try().Or(BasicParsers.ToStringTokens(Character.EqualTo(escapeChar)));
+        }
+
+        return contentParser;
     }
 }

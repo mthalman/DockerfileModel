@@ -79,6 +79,11 @@ text is not discarded. Missing commas, invalid JSON escapes, and text after an
 array select shell form and retain the original source. A valid JSON array with
 non-string elements is an error, not a shell fallback.
 
+Within JSON strings, backslash escapes follow JSON syntax even when an `escape`
+directive selects backtick for Dockerfile continuations. Continuations may appear
+before the first string character or in an empty string; parsing retains their
+physical source without including them in the literal value.
+
 `ADD`, `COPY`, and `VOLUME` use the same recognition rule, but their fallback is
 the instruction's non-JSON operand grammar. `SHELL` requires JSON form and does
 not fall back. `ExecFormCommand.Parse` and `ShellInstruction.Parse` also reject

@@ -1,9 +1,128 @@
+using Valleysoft.DockerfileModel.Parsing;
 using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel.Tests;
 
 public class CommandJsonRecognitionTests
 {
+    public static IEnumerable<object[]> JsonStringSyntaxCases()
+    {
+        (string Arguments, char EscapeChar, string[] Values)[] cases =
+        {
+            ("[\"a\\\"b\", \"dest\"]", '`', new[] { "a\\\"b", "dest" }),
+            ("[\"echo`\", \"dest\"]", '`', new[] { "echo`", "dest" }),
+            ("[\"\\\necho\", \"dest\"]", '\\', new[] { "echo", "dest" }),
+            ("[\"\\\n\", \"dest\"]", '\\', new[] { "", "dest" }),
+            ("[\"`\necho\", \"dest\"]", '`', new[] { "echo", "dest" }),
+            ("[\"`\n\", \"dest\"]", '`', new[] { "", "dest" }),
+            ("[\"\\\n# comment\n echo\", \"dest\"]", '\\', new[] { " echo", "dest" }),
+            ("[\"\\\r\n\\\r\necho\", \"dest\"]", '\\', new[] { "echo", "dest" }),
+            ("[\"ec`\nho\\\"there\", \"dest\"]", '`', new[] { "echo\\\"there", "dest" }),
+            ("[\"a\\`\n\"b\", \"dest\"]", '`', new[] { "a\\\"b", "dest" }),
+            ("[\"a\\\\b\\t\\u0020\", \"dest\"]", '`', new[] { "a\\\\b\\t\\u0020", "dest" })
+        };
+        foreach (string prefix in new[] { "RUN", "CMD", "ENTRYPOINT", "HEALTHCHECK CMD", "ONBUILD RUN",
+            "SHELL", "ADD", "COPY", "VOLUME" })
+        {
+            foreach (var scenario in cases)
+            {
+                yield return new object[] { prefix, scenario.Arguments, scenario.EscapeChar, scenario.Values };
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("RUN", false)]
+    [InlineData("CMD", false)]
+    [InlineData("ENTRYPOINT", false)]
+    [InlineData("HEALTHCHECK CMD", false)]
+    [InlineData("ONBUILD RUN", false)]
+    [InlineData("SHELL", false)]
+    [InlineData("ADD", true)]
+    [InlineData("COPY", true)]
+    [InlineData("VOLUME", false)]
+    public void JsonStringsRetainInstructionVariableRecognitionPolicy(string prefix, bool recognizeVariables)
+    {
+        string text = prefix + " [\"$SRC`\", \"${DST:-default}\\\"tail\"]\n";
+        Instruction instruction = ParseInstruction(text, '`');
+        Assert.Equal(text, instruction.ToString());
+        IEnumerable<Token> tokens = instruction is FileTransferInstruction or VolumeInstruction
+            ? instruction.Tokens
+            : Assert.IsType<ExecFormCommand>(GetCommand(instruction)).Tokens;
+        LiteralToken[] literals = tokens.OfType<LiteralToken>().ToArray();
+        Assert.Equal(new[] { "$SRC`", "${DST:-default}\\\"tail" }, literals.Select(token => token.Value));
+        Assert.Equal(recognizeVariables ? 2 : 0,
+            literals.SelectMany(token => token.Tokens).OfType<VariableRefToken>().Count());
+    }
+
+    [Theory]
+    [MemberData(nameof(JsonStringSyntaxCases))]
+    public void JsonStringsKeepJsonEscapesAndDockerfileContinuations(
+        string prefix, string arguments, char escapeChar, string[] values)
+    {
+        string text = prefix + " " + arguments + "\n";
+        AssertInstruction(ParseInstruction(text, escapeChar));
+        string documentText = (escapeChar == '`' ? "# escape=`\n" : "") + text + "RUN echo after\n";
+        AssertDocument(Dockerfile.Parse(documentText));
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            DockerfileParseResult result = Dockerfile.TryParse(documentText, new DockerfileParseOptions { Mode = mode });
+            Assert.True(result.Success);
+            Assert.Empty(result.Diagnostics);
+            AssertDocument(result.Dockerfile!);
+            SourceSpanTests.AssertPartition(documentText, result.Dockerfile!);
+        }
+
+        void AssertDocument(Dockerfile document)
+        {
+            Assert.Equal(documentText, document.ToString());
+            AssertInstruction(document.Items.OfType<Instruction>().First());
+            Assert.IsType<RunInstruction>(document.Items.OfType<Instruction>().Last());
+        }
+
+        void AssertInstruction(Instruction instruction)
+        {
+            Assert.Equal(text, instruction.ToString());
+            IEnumerable<Token> tokens = instruction is FileTransferInstruction or VolumeInstruction
+                ? instruction.Tokens
+                : Assert.IsType<ExecFormCommand>(GetCommand(instruction)).Tokens;
+            Assert.Contains(tokens, token => token is SymbolToken);
+            Assert.Equal(values, tokens.OfType<LiteralToken>().Select(token => token.Value));
+        }
+    }
+
+    [Theory]
+    [InlineData("echo ")]
+    [InlineData("  echo ")]
+    public void ShellRecognitionDoesNotAllocateProportionalToHeaderLength(string prefix)
+    {
+        var parser = CommandParsers.MaybeJson(Superpower.Parse.Return(true), Superpower.Parse.Return(false), '\\');
+        TextSpan input = new(prefix + new string('x', 100_000));
+        for (int i = 0; i < 20; i++)
+        {
+            Assert.False(parser(input).Value);
+        }
+
+        long start = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            parser(input);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
+        Assert.True(allocated < 1024, $"Recognition allocated {allocated} bytes for 100 shell headers.");
+    }
+
+    [Theory]
+    [InlineData("[\"echo\"]")]
+    [InlineData("  [\"echo\"]")]
+    [InlineData("\\\n [\"echo\"]")]
+    [InlineData(" \\\n# comment\n [\"echo\"]")]
+    public void JsonRecognitionIncludesLeadingContinuations(string text)
+    {
+        var parser = CommandParsers.MaybeJson(Superpower.Parse.Return(true), Superpower.Parse.Return(false), '\\');
+        Assert.True(parser(new TextSpan("prefix" + text).Skip(6)).Value);
+    }
+
     public static IEnumerable<object[]> ShellFallbackCases()
     {
         string[] arguments =
@@ -206,13 +325,17 @@ public class CommandJsonRecognitionTests
         _ => throw new ArgumentException(nameof(text))
     };
 
-    private static Instruction ParseInstruction(string text) => text.Split(' ')[0] switch
+    private static Instruction ParseInstruction(string text, char escapeChar = Dockerfile.DefaultEscapeChar) => text.Split(' ')[0] switch
     {
-        "RUN" => RunInstruction.Parse(text),
-        "CMD" => CmdInstruction.Parse(text),
-        "ENTRYPOINT" => EntrypointInstruction.Parse(text),
-        "HEALTHCHECK" => HealthCheckInstruction.Parse(text),
-        "ONBUILD" => OnBuildInstruction.Parse(text),
+        "RUN" => RunInstruction.Parse(text, escapeChar),
+        "CMD" => CmdInstruction.Parse(text, escapeChar),
+        "ENTRYPOINT" => EntrypointInstruction.Parse(text, escapeChar),
+        "HEALTHCHECK" => HealthCheckInstruction.Parse(text, escapeChar),
+        "ONBUILD" => OnBuildInstruction.Parse(text, escapeChar),
+        "SHELL" => ShellInstruction.Parse(text, escapeChar),
+        "ADD" => AddInstruction.Parse(text, escapeChar),
+        "COPY" => CopyInstruction.Parse(text, escapeChar),
+        "VOLUME" => VolumeInstruction.Parse(text, escapeChar),
         _ => throw new ArgumentException(nameof(text))
     };
 
