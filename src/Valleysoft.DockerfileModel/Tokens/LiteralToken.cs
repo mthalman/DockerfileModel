@@ -65,19 +65,12 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     {
         variables ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
-        LiteralResolutionPlan? plan = options.LiteralPlan;
-        if (plan?.Literal != this)
+        if (!TokenList.Any(token => token is AggregateToken))
         {
-            ShellQuoteContext context = new();
-            plan = new LiteralResolutionPlan(this, escapeChar, options, ref context);
+            return base.ResolveVariables(escapeChar, variables, options);
         }
-        else if (plan.IsResolved || plan.EscapeChar != escapeChar ||
-            plan.RemoveEscapeCharacters != options.RemoveEscapeCharacters)
-        {
-            ShellQuoteContext context = plan.InitialContext;
-            plan = new LiteralResolutionPlan(this, escapeChar, options, ref context);
-        }
-        return plan.Resolve(escapeChar, variables, options);
+        ShellQuoteContext context = LiteralResolutionScope.GetContext(this);
+        return new LiteralResolutionPlan(this, escapeChar, ref context).Resolve(escapeChar, variables, options);
     }
 
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)

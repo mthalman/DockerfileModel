@@ -4,117 +4,127 @@ namespace Valleysoft.DockerfileModel.Tokens;
 
 internal sealed class LiteralResolutionPlan
 {
-    private readonly string rawText;
+    private readonly LiteralToken literal;
+    private readonly char? wrapper;
     private readonly List<PendingResolution>? pending;
 
-    public LiteralResolutionPlan(LiteralToken literal, char escapeChar, ResolutionOptions options,
-        ref ShellQuoteContext context)
+    public LiteralResolutionPlan(LiteralToken literal, char escapeChar, ref ShellQuoteContext context)
     {
-        Literal = literal;
-        EscapeChar = escapeChar;
-        RemoveEscapeCharacters = options.RemoveEscapeCharacters;
-        InitialContext = context;
-        StringBuilder builder = new();
-        char? wrapper = literal.QuoteChar;
+        this.literal = literal;
+        wrapper = literal.QuoteChar;
         if (wrapper.HasValue)
         {
             context.Consume(wrapper.Value, escapeChar, out _);
-            builder.Append(wrapper.Value);
         }
 
         // Lexical context runs forward, but resolution must retain the original reverse error/mutation order.
         for (int i = 0; i < literal.TokenList.Count; i++)
         {
             Token token = literal.TokenList[i];
-            if (token is LiteralToken child)
+            if (token is AggregateToken)
             {
-                LiteralResolutionPlan childPlan = new(child, escapeChar, options, ref context);
-                (pending ??= new()).Add(new PendingResolution(i, builder.Length, child, childPlan));
+                (pending ??= new()).Add(new PendingResolution(i, context));
             }
-            else if (token is AggregateToken aggregate && !context.SuppressExpansion)
-            {
-                (pending ??= new()).Add(new PendingResolution(i, builder.Length, aggregate, null));
-            }
-            else
-            {
-                string raw = token.ToString();
-                if (token is not (LineContinuationToken or CommentToken or NewLineToken))
-                {
-                    foreach (char character in raw)
-                    {
-                        context.Consume(character, escapeChar, out _);
-                    }
-                }
-                builder.Append(options.FormatValue(escapeChar, raw));
-            }
+            ConsumeSyntax(token, escapeChar, ref context);
         }
-
-        if (wrapper.HasValue)
-        {
-            context.Consume(wrapper.Value, escapeChar, out _);
-            builder.Append(wrapper.Value);
-        }
-        rawText = builder.ToString();
     }
 
-    public LiteralToken Literal { get; }
+    private static void ConsumeSyntax(Token token, char escapeChar, ref ShellQuoteContext context)
+    {
+        // Inspect stored syntax only; consumer serialization must retain its reverse evaluation order.
+        if (token is LineContinuationToken or CommentToken or NewLineToken ||
+            (token is VariableRefToken && !context.SuppressExpansion))
+        {
+            return;
+        }
 
-    public char EscapeChar { get; }
-
-    public bool RemoveEscapeCharacters { get; }
-
-    public ShellQuoteContext InitialContext { get; }
-
-    public bool IsResolved { get; private set; }
+        if (token is PrimitiveToken primitive)
+        {
+            foreach (char character in primitive.Value)
+            {
+                context.Consume(character, escapeChar, out _);
+            }
+        }
+        else if (token is AggregateToken aggregate && (token is LiteralToken || context.SuppressExpansion))
+        {
+            char? quote = (token as IQuotableToken)?.QuoteChar;
+            if (quote.HasValue)
+            {
+                context.Consume(quote.Value, escapeChar, out _);
+            }
+            if (token is VariableRefToken)
+            {
+                context.Consume('$', escapeChar, out _);
+            }
+            foreach (Token child in aggregate.Tokens)
+            {
+                ConsumeSyntax(child, escapeChar, ref context);
+            }
+            if (quote.HasValue)
+            {
+                context.Consume(quote.Value, escapeChar, out _);
+            }
+        }
+    }
 
     public string Resolve(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
     {
-        IsResolved = true;
-        if (pending is null)
+        StringBuilder builder = new();
+        int pendingIndex = (pending?.Count ?? 0) - 1;
+        for (int i = literal.TokenList.Count - 1; i >= 0; i--)
         {
-            return rawText;
-        }
-
-        StringBuilder builder = new(rawText);
-        for (int i = pending.Count - 1; i >= 0; i--)
-        {
-            PendingResolution operation = pending[i];
-            ResolutionOptions childOptions = operation.ChildPlan is null
-                ? options
-                : options.WithLiteralPlan(operation.ChildPlan);
-            string? value = operation.Token.ResolveVariables(escapeChar, variables, childOptions);
-            if (operation.Token is VariableRefToken && options.UpdateInline)
+            Token token = literal.TokenList[i];
+            ShellQuoteContext context = new();
+            if (pendingIndex >= 0 && pending![pendingIndex].TokenIndex == i)
             {
-                if (value is null)
+                context = pending[pendingIndex--].Context;
+            }
+
+            string? value;
+            if (token is LiteralToken child)
+            {
+                using LiteralResolutionScope scope = new(child, context);
+                value = child.ResolveVariables(escapeChar, variables, options);
+            }
+            else if (token is AggregateToken aggregate && !context.SuppressExpansion)
+            {
+                value = aggregate.ResolveVariables(escapeChar, variables, options);
+                if (token is VariableRefToken && options.UpdateInline)
                 {
-                    Literal.TokenList.RemoveAt(operation.TokenIndex);
-                }
-                else
-                {
-                    Literal.TokenList[operation.TokenIndex] = new StringToken(value);
+                    if (value is null)
+                    {
+                        literal.TokenList.RemoveAt(i);
+                    }
+                    else
+                    {
+                        literal.TokenList[i] = new StringToken(value);
+                    }
                 }
             }
-            builder.Insert(operation.OutputOffset, value);
+            else
+            {
+                value = options.FormatValue(escapeChar, token.ToString());
+            }
+            builder.Insert(0, value);
+        }
+        if (wrapper.HasValue)
+        {
+            builder.Insert(0, wrapper.Value);
+            builder.Append(wrapper.Value);
         }
         return builder.ToString();
     }
 
     private readonly struct PendingResolution
     {
-        public PendingResolution(int tokenIndex, int outputOffset, AggregateToken token, LiteralResolutionPlan? childPlan)
+        public PendingResolution(int tokenIndex, ShellQuoteContext context)
         {
             TokenIndex = tokenIndex;
-            OutputOffset = outputOffset;
-            Token = token;
-            ChildPlan = childPlan;
+            Context = context;
         }
 
         public int TokenIndex { get; }
 
-        public int OutputOffset { get; }
-
-        public AggregateToken Token { get; }
-
-        public LiteralResolutionPlan? ChildPlan { get; }
+        public ShellQuoteContext Context { get; }
     }
 }

@@ -19,15 +19,6 @@ public class ResolutionOptions
     /// </remarks>
     public bool RemoveEscapeCharacters { get; set; }
 
-    internal Tokens.LiteralResolutionPlan? LiteralPlan { get; private set; }
-
-    internal ResolutionOptions WithLiteralPlan(Tokens.LiteralResolutionPlan plan)
-    {
-        ResolutionOptions copy = (ResolutionOptions)MemberwiseClone();
-        copy.LiteralPlan = plan;
-        return copy;
-    }
-
     internal string FormatValue(char escapeChar, string value)
     {
         if (RemoveEscapeCharacters)

@@ -211,7 +211,7 @@ public class SingleQuoteVariableResolutionTests
 
         Assert.Equal("\"prefixcustom:'expanded'\"", parent.ResolveVariables('\\', Variables, options));
         Assert.Equal(updateInline ? "'expanded'" : "'$VALUE'", child.ToString());
-        Assert.Null(options.LiteralPlan);
+        Assert.Equal(updateInline, options.UpdateInline);
     }
 
     [Theory]
@@ -237,6 +237,126 @@ public class SingleQuoteVariableResolutionTests
             () => token.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
         Assert.Contains("SECOND", exception.Message);
         Assert.Equal("${FIRST:?first} ${SECOND:?second}", token.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Literal_SharedChildrenUseCurrentTokens(bool updateInline)
+    {
+        LiteralToken child = new("$VALUE", canContainVariables: true);
+        LiteralToken parent = new(new Token[] { child, child }, canContainVariables: true, '\\');
+
+        Assert.Equal("expandedexpanded", parent.ResolveVariables('\\', Variables,
+            new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(updateInline ? "expanded" : "$VALUE", child.ToString());
+        Assert.Equal(updateInline ? "expandedexpanded" : "$VALUE$VALUE", parent.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Literal_OverrideEditsAreSeenByBaseResolution(bool updateInline, bool changeQuotes)
+    {
+        EditingResolutionLiteral child = new(changeQuotes);
+        LiteralToken parent = new(new Token[] { new StringToken("prefix"), child },
+            canContainVariables: true, '\\');
+
+        Assert.Equal(changeQuotes ? "prefix'$VALUE'" : "prefixchanged",
+            parent.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(changeQuotes ? "'$VALUE'" : "changed", child.ToString());
+    }
+
+    [Fact]
+    public void Literal_OverrideOptionChangesReachCallerAndEarlierReferences()
+    {
+        DisablingInlineLiteral child = new();
+        LiteralToken parent = new(new Token[] { new VariableRefToken("VALUE"), new StringToken(" "), child },
+            canContainVariables: true, '\\');
+        ResolutionOptions options = new() { UpdateInline = true };
+
+        Assert.Equal("expanded custom", parent.ResolveVariables('\\', Variables, options));
+        Assert.Same(options, child.Options);
+        Assert.False(options.UpdateInline);
+        Assert.Equal("$VALUE $VALUE", parent.ToString());
+    }
+
+    [Fact]
+    public void Literal_RightmostFailurePrecedesLeftSerialization()
+    {
+        ThrowingSerializationToken token = new();
+        LiteralToken parent = new(new Token[]
+        {
+            token, new StringToken(" "), new VariableRefToken("MISSING", "?", "required")
+        }, canContainVariables: true, '\\');
+
+        Assert.Throws<VariableSubstitutionException>(() => parent.ResolveVariables('\\', Variables));
+        Assert.Equal(0, token.SerializationCount);
+    }
+
+    [Fact]
+    public void Literal_RightSerializationFailurePrecedesLeftResolution()
+    {
+        ThrowingSerializationToken token = new();
+        VariableRefToken reference = new("VALUE");
+        LiteralToken parent = new(new Token[] { reference, new StringToken(" "), token },
+            canContainVariables: true, '\\');
+
+        Assert.Throws<InvalidOperationException>(() => parent.ResolveVariables('\\', Variables,
+            new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal(1, token.SerializationCount);
+        Assert.Equal("$VALUE", reference.ToString());
+    }
+
+    [Fact]
+    public void Literal_NestedFailureRestoresIndependentQuoteContext()
+    {
+        ThrowOnceResolutionLiteral child = new();
+        LiteralToken parent = new(new Token[] { child }, canContainVariables: true, '\\')
+        {
+            QuoteChar = '"'
+        };
+
+        Assert.Throws<InvalidOperationException>(() => parent.ResolveVariables('\\', Variables));
+        Assert.Equal("'$VALUE'", child.ResolveVariables('\\', Variables));
+        Assert.Equal("\"'expanded'\"", parent.ResolveVariables('\\', Variables));
+        Assert.Equal("'$VALUE'", child.ResolveVariables('\\', Variables));
+    }
+
+    [Fact]
+    public void Literal_NestedFailureRestoresEnclosingScope()
+    {
+        ThrowOnceResolutionLiteral failing = new();
+        RecoveringResolutionLiteral child = new(failing);
+        LiteralToken parent = new(new Token[] { child }, canContainVariables: true, '\\')
+        {
+            QuoteChar = '"'
+        };
+
+        Assert.Equal("\"'expanded'\"", parent.ResolveVariables('\\', Variables));
+        Assert.Equal("'$VALUE'", child.ResolveVariables('\\', Variables));
+    }
+
+    [Fact]
+    public async Task Literal_IndependentThreadDoesNotInheritQuoteContext()
+    {
+        LiteralToken child = new("'$VALUE'", canContainVariables: true);
+        ShellQuoteContext context = new();
+        context.Consume('"', '\\', out _);
+        Task<string?> independentResolution;
+
+        using (new LiteralResolutionScope(child, context))
+        {
+            Assert.Equal("'expanded'", child.ResolveVariables('\\', Variables));
+            independentResolution = Task.Factory.StartNew(
+                () => child.ResolveVariables('\\', Variables), CancellationToken.None,
+                TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            Assert.Equal("'expanded'", child.ResolveVariables('\\', Variables));
+        }
+        Assert.Equal("'$VALUE'", child.ResolveVariables('\\', Variables));
+        Assert.Equal("'$VALUE'", await independentResolution);
     }
 
     [Theory]
@@ -349,6 +469,101 @@ public class SingleQuoteVariableResolutionTests
 
     private sealed class CustomResolutionOptions : ResolutionOptions
     {
+    }
+
+    private sealed class EditingResolutionLiteral : LiteralToken
+    {
+        private readonly bool changeQuotes;
+
+        public EditingResolutionLiteral(bool changeQuotes) : base("$VALUE", canContainVariables: true)
+        {
+            this.changeQuotes = changeQuotes;
+        }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            if (changeQuotes)
+            {
+                QuoteChar = '\'';
+            }
+            else
+            {
+                Value = "changed";
+            }
+            return base.ResolveVariables(escapeChar, variables, options);
+        }
+    }
+
+    private sealed class DisablingInlineLiteral : LiteralToken
+    {
+        public DisablingInlineLiteral() : base("$VALUE", canContainVariables: true)
+        {
+        }
+
+        public ResolutionOptions? Options { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            Options = options;
+            options!.UpdateInline = false;
+            return "custom";
+        }
+    }
+
+    private sealed class ThrowingSerializationToken : Token
+    {
+        public int SerializationCount { get; private set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            SerializationCount++;
+            throw new InvalidOperationException("Serialization failed.");
+        }
+    }
+
+    private sealed class ThrowOnceResolutionLiteral : LiteralToken
+    {
+        private bool shouldThrow = true;
+
+        public ThrowOnceResolutionLiteral() : base("'$VALUE'", canContainVariables: true)
+        {
+        }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            if (shouldThrow)
+            {
+                shouldThrow = false;
+                throw new InvalidOperationException("Resolution failed.");
+            }
+            return base.ResolveVariables(escapeChar, variables, options);
+        }
+    }
+
+    private sealed class RecoveringResolutionLiteral : LiteralToken
+    {
+        private readonly LiteralToken failing;
+        private bool hasRecovered;
+
+        public RecoveringResolutionLiteral(LiteralToken failing) : base("'$VALUE'", canContainVariables: true)
+        {
+            this.failing = failing;
+        }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            if (!hasRecovered)
+            {
+                LiteralToken parent = new(new Token[] { failing }, canContainVariables: true, escapeChar);
+                Assert.Throws<InvalidOperationException>(() => parent.ResolveVariables(escapeChar, variables, options));
+                hasRecovered = true;
+            }
+            return base.ResolveVariables(escapeChar, variables, options);
+        }
     }
 
     private sealed class DelegatingResolutionLiteral : LiteralToken
