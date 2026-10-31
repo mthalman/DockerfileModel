@@ -1,0 +1,9 @@
+{
+  "id": "local-copy-quoted-heredoc-destination",
+  "instructionType": "COPY",
+  "inputBase64": "Q09QWSA8PEVPRiAiL2RpciBuYW1lIgpib2R5CkVPRgo=",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

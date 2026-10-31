@@ -463,14 +463,29 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
   let tokens := collapseStringTokens tokenLists.flatten
   Parser.pure (Token.mkLiteral tokens (some ⟨quoteChar⟩))
 
-/-- Parse a literal with variables, optionally wrapped in quotes.
-    Returns a LiteralToken.
+/-- Parse a literal with variables, composing adjacent quoted and unquoted word
+    fragments while retaining their quote context. Freeform values keep their grammar.
     Corresponds to VariableParsers.LiteralWithVariables() -/
 def literalWithVariables (escapeChar : Char) (excludedChars : List Char := [])
-    (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token :=
-  or' (literalWithVariablesQuoted escapeChar excludedChars '\'' whitespaceMode)
+    (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token := do
+  let singleFragment := excludedChars.contains '"' || whitespaceMode == .allowed
+  let unquotedExcluded := if singleFragment then excludedChars
+    else '\'' :: '"' :: excludedChars
+  let fragment := or' (literalWithVariablesQuoted escapeChar excludedChars '\'' whitespaceMode)
     (or' (literalWithVariablesQuoted escapeChar excludedChars '"' whitespaceMode)
-         (literalWithVariablesUnquoted escapeChar excludedChars whitespaceMode))
+         (literalWithVariablesUnquoted escapeChar unquotedExcluded whitespaceMode))
+  if singleFragment then
+    fragment
+  else
+    let fragments ← many1 fragment
+    match fragments with
+    | [single] => Parser.pure single
+    | _ =>
+      let children := fragments.flatMap fun token =>
+        match token with
+        | .aggregate .literal children none => children
+        | _ => [token]
+      Parser.pure (Token.mkLiteral (collapseStringTokens children))
 
 -- ============================================================
 -- Identifier parsers

@@ -281,12 +281,15 @@ internal static class HeredocParsers
             }
             else
             {
-                int start = i;
-                while (i < text.Length && !char.IsWhiteSpace(text[i]))
+                TextSpan input = new TextSpan(text).Skip(i);
+                Result<LiteralToken> result = VariableParsers.LiteralWithVariables(
+                    escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes)(input);
+                if (!result.HasValue)
                 {
-                    i++;
+                    throw new ParseException(result.ToString(), result.ErrorPosition);
                 }
-                tokens.Add(new LiteralToken(text.Substring(start, i - start), canContainVariables: true, escapeChar));
+                tokens.Add(result.Value);
+                i = result.Remainder.Position.Absolute;
             }
         }
     }

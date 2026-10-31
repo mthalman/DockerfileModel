@@ -2331,6 +2331,31 @@ def testCopyBasic : IO Unit := do
   | none =>
     throw (IO.Error.userError "Parse failed: COPY basic should parse")
 
+def testQuotedOperandFragments : IO Unit := do
+  let expected := Token.mkLiteral [
+    Token.mkLiteral [Token.mkString "foo"] (some ⟨'"'⟩),
+    Token.mkString "bar"
+  ]
+  match Parser.Parser.run (Parser.literalWithVariables '\\' [] .allowedInQuotes) "\"foo\"bar" with
+  | .ok token position =>
+    assertTrue (token == expected) "adjacent quoted and unquoted fragments are one literal"
+    assertTrue position.atEnd "quoted operand consumes all fragments"
+    assertRoundTrip token "\"foo\"bar" "quoted operand fragments"
+  | .error msg _ => throw (IO.Error.userError s!"Quoted operand failed: {msg}")
+  for name in ["COPY", "ADD"] do
+    let text := name ++ " <<EOF \"/dir name\"\nbody\nEOF\n"
+    let parsed := if name == "COPY" then Copy.parseCopy text else Add.parseAdd text
+    match parsed with
+    | some instruction =>
+      assertRoundTrip instruction.token text "quoted heredoc destination"
+      let operands := instruction.token.children.filter fun token =>
+        match token with
+        | .aggregate .literal _ _ => true
+        | _ => false
+      assertTrue (operands == [Token.mkLiteral [Token.mkString "/dir name"] (some ⟨'"'⟩)])
+        "heredoc destination retains quote context"
+    | none => throw (IO.Error.userError s!"Quoted heredoc destination failed: {name}")
+
 open DockerfileModel.Parser.Instructions.Copy in
 /-- Test: COPY --from=builder /app /app — with from flag -/
 def testCopyWithFrom : IO Unit := do
@@ -3286,6 +3311,7 @@ def runParserTests_PhaseD : IO Unit := do
   IO.println "=== COPY Instruction Tests ==="
   IO.println ""
   testCopyBasic
+  testQuotedOperandFragments
   testCopyWithFrom
   testCopyWithFromLineContinuation
   testCopyWithChown

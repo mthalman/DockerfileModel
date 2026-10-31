@@ -1,0 +1,140 @@
+using Valleysoft.DockerfileModel.Tokens;
+
+namespace Valleysoft.DockerfileModel.Tests;
+
+public class QuotedOperandTests
+{
+    [Theory]
+    [InlineData("\"foo\"bar", "foobar")]
+    [InlineData("foo\"bar\"", "foobar")]
+    [InlineData("\"foo\"\"bar\"", "foobar")]
+    [InlineData("'foo'\"bar\"", "foobar")]
+    [InlineData("\"foo bar\"baz", "foo barbaz")]
+    [InlineData("\"foo\"bar\" baz\"", "foobar baz")]
+    [InlineData("foo\\ bar\"baz\"", "foo\\ barbaz")]
+    [InlineData("\"\"bar", "bar")]
+    [InlineData("foo\"\"bar", "foobar")]
+    public void AdjacentFragmentsAreOneFileOperand(string operand, string value)
+    {
+        foreach (string name in new[] { "COPY", "ADD" })
+        {
+            string text = $"{name} {operand} /dest";
+            AssertFileTransferModels(text, instruction =>
+            {
+                Assert.Equal(new[] { value }, instruction.Sources);
+                Assert.Equal("/dest", instruction.Destination);
+                LiteralToken source = Assert.Single(instruction.SourceTokens);
+                Assert.Equal(operand, source.ToString());
+                Assert.Null(source.QuoteChar);
+            });
+        }
+    }
+
+    [Theory]
+    [InlineData("\"/dir name\"", "/dir name", '"')]
+    [InlineData("'/dir name'", "/dir name", '\'')]
+    [InlineData("\"/dir \"name", "/dir name", null)]
+    [InlineData("/dir\" name\"", "/dir name", null)]
+    public void HeredocDestinationIsOneQuotedWord(string operand, string value, char? quote)
+    {
+        foreach (string name in new[] { "COPY", "ADD" })
+        {
+            string text = $"{name} <<EOF {operand}\nbody\nEOF\n";
+            AssertFileTransferModels(text, instruction =>
+            {
+                Assert.Empty(instruction.Sources);
+                Assert.Equal(value, instruction.Destination);
+                Assert.Equal(quote, instruction.DestinationToken!.QuoteChar);
+                Assert.Single(instruction.HeredocMarkerTokens);
+                Assert.Equal("body\nEOF\n", Assert.Single(instruction.HeredocBodyTokens).ToString());
+                instruction.Destination = "/updated";
+                Assert.Equal("/updated", instruction.Destination);
+                Assert.Equal($"{name} <<EOF {quote}/updated{quote}\nbody\nEOF\n", instruction.ToString());
+            });
+        }
+    }
+
+    [Theory]
+    [InlineData("\"$ROOT\"suffix")]
+    [InlineData("prefix\"${ROOT}\"suffix")]
+    [InlineData("\"${ROOT}\"\"suffix\"")]
+    public void VariableFragmentsPreserveSyntaxAndResolve(string operand)
+    {
+        string text = $"COPY {operand} /dest";
+        AssertFileTransferModels(text, instruction =>
+        {
+            LiteralToken source = Assert.Single(instruction.SourceTokens);
+            Assert.Contains(source.Tokens.OfType<LiteralToken>(),
+                fragment => fragment.Tokens.OfType<VariableRefToken>().Any());
+            Dictionary<string, string?> variables = new() { ["ROOT"] = "value" };
+            string resolved = source.ResolveVariables(Dockerfile.DefaultEscapeChar, variables)!;
+            Assert.Equal(operand.Replace("${ROOT}", "value").Replace("$ROOT", "value"), resolved);
+            Assert.Equal(text, instruction.ToString());
+            source.ResolveVariables(Dockerfile.DefaultEscapeChar, variables, new ResolutionOptions { UpdateInline = true });
+            Assert.Equal(resolved, source.ToString());
+            Assert.DoesNotContain("$", source.Value);
+            source.Value = "replacement";
+            Assert.Null(source.QuoteChar);
+            Assert.Equal("COPY replacement /dest", instruction.ToString());
+        });
+    }
+
+    [Fact]
+    public void FreeformLiteralsRetainEmbeddedApostrophes()
+    {
+        const string text = "MAINTAINER Jean O'Brien";
+        MaintainerInstruction instruction = MaintainerInstruction.Parse(text);
+        Assert.Equal("Jean O'Brien", instruction.Maintainer);
+        Assert.Equal(text, instruction.ToString());
+        Assert.Equal(text, Dockerfile.Parse(text).ToString());
+        Assert.Equal(text, Dockerfile.TryParse(text).Dockerfile!.ToString());
+    }
+
+    [Fact]
+    public void WhitespaceStillSeparatesQuotedOperands()
+    {
+        AssertFileTransferModels("COPY \"foo\" \"bar\" /dest", instruction =>
+        {
+            Assert.Equal(new[] { "foo", "bar" }, instruction.Sources);
+            Assert.All(instruction.SourceTokens, source => Assert.Equal('"', source.QuoteChar));
+        });
+    }
+
+    [Fact]
+    public void MixedDestinationKeepsCustomEscapeAndVariables()
+    {
+        const string text = "# escape=`\nCOPY <<EOF \"/${DIR} \"suffix\nbody\nEOF\n";
+        Dockerfile model = Dockerfile.Parse(text);
+        Assert.Equal(text, model.ToString());
+        CopyInstruction instruction = Assert.Single(model.Items.OfType<CopyInstruction>());
+        Assert.Equal("/${DIR} suffix", instruction.Destination);
+        instruction.DestinationToken!.ResolveVariables('`', new Dictionary<string, string?> { ["DIR"] = "mydir" },
+            new ResolutionOptions { UpdateInline = true });
+        Assert.Equal("/mydir suffix", instruction.Destination);
+        Assert.Equal("# escape=`\nCOPY <<EOF \"/mydir \"suffix\nbody\nEOF\n", model.ToString());
+    }
+
+    private static void AssertFileTransferModels(string text, Action<FileTransferInstruction> assert)
+    {
+        FileTransferInstruction standalone = text.StartsWith("COPY", StringComparison.Ordinal)
+            ? CopyInstruction.Parse(text)
+            : AddInstruction.Parse(text);
+        Assert.Equal(text, standalone.ToString());
+        assert(standalone);
+        AssertModel(Dockerfile.Parse(text));
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            DockerfileParseResult result = Dockerfile.TryParse(text, new DockerfileParseOptions { Mode = mode });
+            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+            Assert.Empty(result.Diagnostics);
+            AssertModel(result.Dockerfile!);
+        }
+
+        void AssertModel(Dockerfile model)
+        {
+            Assert.Equal(text, model.ToString());
+            SourceSpanTests.AssertPartition(text, model);
+            assert(Assert.IsAssignableFrom<FileTransferInstruction>(Assert.Single(model.Items)));
+        }
+    }
+}

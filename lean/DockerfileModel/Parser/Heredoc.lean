@@ -67,6 +67,7 @@
 import DockerfileModel.Token
 import DockerfileModel.Parser.Basic
 import DockerfileModel.Parser.Combinators
+import DockerfileModel.Parser.DockerfileParsers
 
 namespace DockerfileModel.Parser.Heredoc
 
@@ -255,21 +256,22 @@ partial def heredocInstructionArg : Parser (List Token) := do
     followed by the heredoc body.
 
     Returns a flat list of tokens. -/
-partial def heredocWithDestination : Parser (List Token) := do
+partial def heredocWithDestination (escapeChar : Char := '\\') : Parser (List Token) := do
   let (delimiter, chomp, _quoteChar, markerToken) ← heredocMarkerParser
   -- Parse whitespace before destination
   let wsChars ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
   let wsTokens := if wsChars.isEmpty then []
     else [Token.mkWhitespace (String.ofList wsChars)]
-  -- Parse destination path (rest of line)
-  let destChars ← many (satisfy (fun c => !isLineTerminator c) "destination char")
-  let destTokens := if destChars.isEmpty then []
-    else [Token.mkLiteral [Token.mkString (String.ofList destChars)]]
+  let destTokens ← many (do
+    let destination ← literalWithVariables escapeChar [] .allowedInQuotes
+    let trailing ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
+    Parser.pure ([destination] ++
+      if trailing.isEmpty then [] else [Token.mkWhitespace (String.ofList trailing)]))
   -- Consume newline
   let nl ← lineEnd
   let nlToken := Token.mkNewLine nl
   -- Parse heredoc body
   let bodyToken ← heredocBodyParser delimiter chomp
-  Parser.pure ([markerToken] ++ wsTokens ++ destTokens ++ [nlToken, bodyToken])
+  Parser.pure ([markerToken] ++ wsTokens ++ destTokens.flatten ++ [nlToken, bodyToken])
 
 end DockerfileModel.Parser.Heredoc
