@@ -154,32 +154,48 @@ internal static class EditValidation
         }
     }
 
-    /// <summary>Parses one complete instruction using diagnostic framing and its effective escape context.</summary>
+    /// <summary>Parses one complete instruction in its owner's representation and effective escape context.</summary>
     /// <param name="text">The prospective instruction serialization.</param>
     /// <param name="escapeChar">The owner's effective escape character.</param>
+    /// <param name="generic">Whether to retain a generic owner's argument-line representation.</param>
     /// <returns>The parsed instruction for further role, count, and value comparisons.</returns>
     /// <remarks>
     /// Diagnostic framing detects heredoc markers throughout a continued header and rejects
     /// missing terminators. Parsing success alone does not prove an edit preserves operand
     /// meaning; adapters compare the returned roles and heredoc associations before committing.
+    /// Generic representation callers must also validate the diagnostic interpretation separately.
     /// </remarks>
-    public static Instruction ParseInstruction(string text, char escapeChar)
+    public static Instruction ParseInstruction(string text, char escapeChar, bool generic = false)
     {
+        bool bom = text.StartsWith("\uFEFF", StringComparison.Ordinal);
+        string content = bom ? text.Substring(1) : text;
         Instruction parsed;
         try
         {
-            ConstructReader.Region region = ConstructReader.Read(text, 0, escapeChar);
-            if (region.UnterminatedMarker.HasValue || region.End != text.Length)
+            if (generic)
             {
-                throw new InvalidOperationException("The edit would not form one complete instruction.");
+                parsed = GenericInstruction.Parse(content, escapeChar);
             }
-            string name = Instruction.InstructionNameParser(escapeChar).Parse(text);
-            parsed = Instruction.CreateDiagnosticInstruction(name, text, escapeChar,
-                new InstructionParseContext(region, 0));
+            else
+            {
+                ConstructReader.Region region = ConstructReader.Read(content, 0, escapeChar);
+                if (region.UnterminatedMarker.HasValue || region.End != content.Length)
+                {
+                    throw new InvalidOperationException("The edit would not form one complete instruction.");
+                }
+                string name = Instruction.InstructionNameParser(escapeChar).Parse(content);
+                parsed = Instruction.CreateDiagnosticInstruction(name, content, escapeChar,
+                    new InstructionParseContext(region, 0));
+            }
         }
         catch (ParseException exception)
         {
             throw new InvalidOperationException("The edit would produce an invalid instruction.", exception);
+        }
+        if (bom)
+        {
+            // Document parsers keep the BOM outside instruction grammar, but inside its token tree.
+            parsed.TokenList.Insert(0, new StringToken("\uFEFF"));
         }
         if (parsed.ToString() != text)
         {
