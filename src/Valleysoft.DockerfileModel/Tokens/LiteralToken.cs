@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Valleysoft.DockerfileModel.Tokens;
 
 /// <summary>A literal with optional quote syntax, continuations, and recognized variable-reference children.</summary>
@@ -65,66 +63,21 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
         ResolutionOptions? options = null)
     {
-        ShellQuoteContext context = new();
-        return ResolveVariablesInContext(escapeChar, variables ?? new Dictionary<string, string?>(),
-            options ?? new ResolutionOptions(), ref context);
-    }
-
-    internal string ResolveVariablesInContext(char escapeChar, IDictionary<string, string?> variables,
-        ResolutionOptions options, ref ShellQuoteContext context)
-    {
-        StringBuilder builder = new();
-        char? wrapper = QuoteChar;
-        if (wrapper.HasValue)
+        variables ??= new Dictionary<string, string?>();
+        options ??= new ResolutionOptions();
+        LiteralResolutionPlan? plan = options.LiteralPlan;
+        if (plan?.Literal != this)
         {
-            context.Consume(wrapper.Value, escapeChar, out _);
-            builder.Append(wrapper.Value);
+            ShellQuoteContext context = new();
+            plan = new LiteralResolutionPlan(this, escapeChar, options, ref context);
         }
-
-        for (int i = 0; i < TokenList.Count; i++)
+        else if (plan.IsResolved || plan.EscapeChar != escapeChar ||
+            plan.RemoveEscapeCharacters != options.RemoveEscapeCharacters)
         {
-            Token token = TokenList[i];
-            if (token is LiteralToken literal)
-            {
-                builder.Append(literal.ResolveVariablesInContext(escapeChar, variables, options, ref context));
-                continue;
-            }
-
-            if (token is AggregateToken aggregate && !context.SuppressExpansion)
-            {
-                string? resolved = aggregate.ResolveVariables(escapeChar, variables, options);
-                if (token is VariableRefToken && options.UpdateInline)
-                {
-                    if (resolved is null)
-                    {
-                        TokenList.RemoveAt(i--);
-                    }
-                    else
-                    {
-                        TokenList[i] = new StringToken(resolved);
-                    }
-                }
-                builder.Append(resolved);
-                continue;
-            }
-
-            string raw = token.ToString();
-            if (token is not (LineContinuationToken or CommentToken or NewLineToken))
-            {
-                foreach (char character in raw)
-                {
-                    context.Consume(character, escapeChar, out _);
-                }
-            }
-            builder.Append(options.FormatValue(escapeChar, raw));
+            ShellQuoteContext context = plan.InitialContext;
+            plan = new LiteralResolutionPlan(this, escapeChar, options, ref context);
         }
-
-        if (wrapper.HasValue)
-        {
-            context.Consume(wrapper.Value, escapeChar, out _);
-            builder.Append(wrapper.Value);
-        }
-        return builder.ToString();
+        return plan.Resolve(escapeChar, variables, options);
     }
 
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)

@@ -182,6 +182,64 @@ public class SingleQuoteVariableResolutionTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Literal_NestedConsumerOverrideIsCalled(bool updateInline)
+    {
+        CustomResolutionLiteral child = new();
+        LiteralToken parent = new(new Token[] { new StringToken("prefix"), child },
+            canContainVariables: true, '\\');
+
+        Assert.Equal("prefixcustom", parent.ResolveVariables('\\', Variables,
+            new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(1, child.CallCount);
+        Assert.Equal(updateInline, child.UpdateInline);
+        Assert.Equal("$VALUE", child.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Literal_NestedOverrideCanDelegateToBase(bool updateInline, bool repeat)
+    {
+        DelegatingResolutionLiteral child = new(repeat);
+        LiteralToken parent = new(new Token[] { new StringToken("prefix"), child },
+            canContainVariables: true, '\\') { QuoteChar = '"' };
+        CustomResolutionOptions options = new() { UpdateInline = updateInline };
+
+        Assert.Equal("\"prefixcustom:'expanded'\"", parent.ResolveVariables('\\', Variables, options));
+        Assert.Equal(updateInline ? "'expanded'" : "'$VALUE'", child.ToString());
+        Assert.Null(options.LiteralPlan);
+    }
+
+    [Theory]
+    [InlineData("$VALUE ${MISSING:?required}", "$VALUE ${MISSING:?required}")]
+    [InlineData("${MISSING:?required} $VALUE", "${MISSING:?required} expanded")]
+    public void Literal_InlineFailurePreservesReverseMutationOrder(string text, string expected)
+    {
+        LiteralToken token = new(text, canContainVariables: true);
+
+        Assert.Throws<VariableSubstitutionException>(() => token.ResolveVariables('\\', Variables,
+            new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal(expected, token.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Literal_RightmostRequiredFailureIsReportedFirst(bool updateInline)
+    {
+        LiteralToken token = new("${FIRST:?first} ${SECOND:?second}", canContainVariables: true);
+
+        VariableSubstitutionException exception = Assert.Throws<VariableSubstitutionException>(
+            () => token.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Contains("SECOND", exception.Message);
+        Assert.Equal("${FIRST:?first} ${SECOND:?second}", token.ToString());
+    }
+
+    [Theory]
     [InlineData("ENV key='$VALUE'")]
     [InlineData("ENV key '$VALUE'")]
     [InlineData("LABEL key='$VALUE'")]
@@ -267,6 +325,51 @@ public class SingleQuoteVariableResolutionTests
         {
             SerializationCount++;
             return "plain";
+        }
+    }
+
+    private sealed class CustomResolutionLiteral : LiteralToken
+    {
+        public CustomResolutionLiteral() : base("$VALUE", canContainVariables: true)
+        {
+        }
+
+        public int CallCount { get; private set; }
+
+        public bool? UpdateInline { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            CallCount++;
+            UpdateInline = options?.UpdateInline;
+            return "custom";
+        }
+    }
+
+    private sealed class CustomResolutionOptions : ResolutionOptions
+    {
+    }
+
+    private sealed class DelegatingResolutionLiteral : LiteralToken
+    {
+        private readonly bool repeat;
+
+        public DelegatingResolutionLiteral(bool repeat) : base("'$VALUE'", canContainVariables: true)
+        {
+            this.repeat = repeat;
+        }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            Assert.IsType<CustomResolutionOptions>(options);
+            string? result = base.ResolveVariables(escapeChar, variables, options);
+            if (repeat)
+            {
+                Assert.Equal(result, base.ResolveVariables(escapeChar, variables, options));
+            }
+            return $"custom:{result}";
         }
     }
 }
