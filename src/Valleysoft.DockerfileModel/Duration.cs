@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Valleysoft.DockerfileModel;
@@ -41,6 +42,11 @@ public class Duration
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Parses a complete duration using optional hours, minutes, seconds, and milliseconds,
+    /// in that order. Numeric values use an invariant decimal point; empty text represents zero.
+    /// </summary>
+    /// <exception cref="ParseException">The text does not match the supported duration grammar.</exception>
     public static Duration Parse(string text)
     {
         TextParser<TimeSpan> parser =
@@ -54,11 +60,12 @@ public class Duration
                 TimeSpan.FromSeconds(sec ?? 0) +
                 TimeSpan.FromMilliseconds(ms ?? 0);
 
-        return new Duration(parser.Parse(text));
+        return new Duration(parser.AtEnd().Parse(text));
     }
 
     private static TextParser<double> DurationSegment(string unit) =>
         from val in NativeParsers.Identifier(Character.Digit, Character.Digit.Try().Or(Character.EqualTo('.')))
         from unitParser in Span.EqualTo(unit)
-        select double.Parse(val);
+        from unitEnd in Superpower.Parse.Not(Character.Letter)
+        select double.Parse(val, CultureInfo.InvariantCulture);
 }
