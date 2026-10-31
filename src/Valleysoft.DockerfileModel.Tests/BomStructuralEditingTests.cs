@@ -1,4 +1,5 @@
 using Valleysoft.DockerfileModel.Tokens;
+using static Valleysoft.DockerfileModel.InstructionCollectionEditing;
 
 namespace Valleysoft.DockerfileModel.Tests;
 
@@ -300,19 +301,41 @@ public class BomStructuralEditingTests
         return result.Dockerfile!;
     }
 
-    private static IEnumerable<Token> Descendants(Token token)
+    [Theory]
+    [InlineData("RUNecho ok\n")]
+    [InlineData("RUN#argument\n")]
+    [InlineData("RUN.echo ok\n")]
+    public void MalformedInstructionNamesRejectHeredocWrites(string text)
     {
-        yield return token;
-        if (token is AggregateToken aggregate)
-        {
-            foreach (Token child in aggregate.Tokens)
-            {
-                foreach (Token descendant in Descendants(child))
-                {
-                    yield return descendant;
-                }
-            }
-        }
+        RunInstruction run = RunInstruction.Parse(text);
+        Token[] tokens = Descendants(run).ToArray();
+        Heredoc incoming = new("EOF", "body\n");
+        Token[] incomingTokens = Descendants(incoming.Marker).Concat(Descendants(incoming.Body)).ToArray();
+        Assert.False(Dockerfile.TryParse(text).Success);
+
+        run.Heredocs.Clear();
+        Assert.Throws<InvalidOperationException>(() => run.Heredocs.Add(incoming));
+
+        Assert.Equal(text, run.ToString());
+        Assert.Empty(run.Heredocs);
+        Assert.Equal(tokens.Length, Descendants(run).Count());
+        Assert.All(tokens.Zip(Descendants(run)), pair => Assert.Same(pair.First, pair.Second));
+        Assert.All(incomingTokens.Zip(Descendants(incoming.Marker).Concat(Descendants(incoming.Body))),
+            pair => Assert.Same(pair.First, pair.Second));
+        Assert.Equal("body\n", incoming.RawContent);
+    }
+
+    [Theory]
+    [InlineData("RUNecho ok\n", false)]
+    [InlineData("RUNecho ok\n", true)]
+    [InlineData("\uFEFFRUNecho ok\n", false)]
+    [InlineData("\uFEFFRUNecho ok\n", true)]
+    [InlineData("RUN#argument\n", false)]
+    [InlineData("RUN#argument\n", true)]
+    public void InstructionValidationRejectsUnknownNamesAndMissingBoundaries(string text, bool generic)
+    {
+        Assert.Throws<InvalidOperationException>(
+            () => EditValidation.ParseInstruction(text, '\\', generic));
     }
 
     private sealed class PairValue : IKeyValuePair

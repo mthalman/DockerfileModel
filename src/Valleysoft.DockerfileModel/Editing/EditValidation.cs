@@ -172,6 +172,16 @@ internal static class EditValidation
         Instruction parsed;
         try
         {
+            TextParser<KeywordToken> nameParser =
+                from leading in Whitespace()
+                from keyword in KeywordToken.GetParser(escapeChar)
+                select keyword;
+            Result<KeywordToken> name = nameParser.TryParse(content);
+            if (!name.HasValue || !Instruction.IsKnownInstruction(name.Value.Value) ||
+                (name.Remainder.Length > 0 && !char.IsWhiteSpace(name.Remainder[0])))
+            {
+                throw new InvalidOperationException("The edit would produce an invalid instruction name or boundary.");
+            }
             if (generic)
             {
                 parsed = GenericInstruction.Parse(content, escapeChar);
@@ -183,8 +193,7 @@ internal static class EditValidation
                 {
                     throw new InvalidOperationException("The edit would not form one complete instruction.");
                 }
-                string name = Instruction.InstructionNameParser(escapeChar).Parse(content);
-                parsed = Instruction.CreateDiagnosticInstruction(name, content, escapeChar,
+                parsed = Instruction.CreateDiagnosticInstruction(name.Value.Value, content, escapeChar,
                     new InstructionParseContext(region, 0));
             }
         }
