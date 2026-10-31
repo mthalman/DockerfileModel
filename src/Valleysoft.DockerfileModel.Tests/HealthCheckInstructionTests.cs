@@ -8,6 +8,26 @@ namespace Valleysoft.DockerfileModel.Tests;
 public class HealthCheckInstructionTests
 {
     [Fact]
+    public void MillisecondDurationsRoundTrip()
+    {
+        const string text = "HEALTHCHECK --interval=1ms --timeout=2ms --start-period=3ms --start-interval=4ms CMD check";
+        HealthCheckInstruction instruction = HealthCheckInstruction.Parse(text);
+
+        Assert.Equal(text, instruction.ToString());
+        Assert.Equal(TimeSpan.FromMilliseconds(1), Duration.Parse(instruction.Interval!).TimeSpan);
+        Assert.Equal(TimeSpan.FromMilliseconds(2), Duration.Parse(instruction.Timeout!).TimeSpan);
+        Assert.Equal(TimeSpan.FromMilliseconds(3), Duration.Parse(instruction.StartPeriod!).TimeSpan);
+        Assert.Equal(TimeSpan.FromMilliseconds(4), Duration.Parse(instruction.StartInterval!).TimeSpan);
+
+        HealthCheckInstruction constructed = new("check",
+            interval: new Duration(TimeSpan.FromMilliseconds(1)).ToString(),
+            timeout: new Duration(TimeSpan.FromMilliseconds(2)).ToString(),
+            startPeriod: new Duration(TimeSpan.FromMilliseconds(3)).ToString(),
+            startInterval: new Duration(TimeSpan.FromMilliseconds(4)).ToString());
+        Assert.Equal(text, constructed.ToString());
+    }
+
+    [Fact]
     public void Parse_JsonArrayWithLineContinuationAndNonStringElementRejects()
     {
         Assert.Throws<ParseException>(() => HealthCheckInstruction.Parse("HEALTHCHECK CMD [\"echo\", \\\n 1]"));
