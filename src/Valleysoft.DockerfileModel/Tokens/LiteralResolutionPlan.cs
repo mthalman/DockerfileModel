@@ -1,130 +1,179 @@
-using System.Text;
+using System.Runtime.ExceptionServices;
 
 namespace Valleysoft.DockerfileModel.Tokens;
 
 internal sealed class LiteralResolutionPlan
 {
-    private readonly LiteralToken literal;
-    private readonly char? wrapper;
-    private readonly List<PendingResolution>? pending;
+    private readonly AggregateToken token;
+    private readonly char escapeChar;
+    private readonly ShellQuoteContext initialContext;
+    private readonly Entry[] entries;
+    private readonly ExceptionDispatchInfo? quoteFailure;
+    private bool consumed;
 
-    public LiteralResolutionPlan(LiteralToken literal, char escapeChar, ref ShellQuoteContext context)
+    public LiteralResolutionPlan(AggregateToken token, char escapeChar, ref ShellQuoteContext context)
     {
-        this.literal = literal;
-        wrapper = literal.QuoteChar;
-        if (wrapper.HasValue)
-        {
-            context.Consume(wrapper.Value, escapeChar, out _);
-        }
+        this.token = token;
+        this.escapeChar = escapeChar;
+        initialContext = context;
+        QuoteChar = ReadQuote(token, out quoteFailure);
+        ConsumeQuote(QuoteChar, escapeChar, ref context);
 
-        // Lexical context runs forward, but resolution must retain the original reverse error/mutation order.
-        for (int i = 0; i < literal.TokenList.Count; i++)
+        // Scan each subtree once, then share its plan through the original reverse virtual calls.
+        entries = new Entry[token.TokenList.Count];
+        for (int i = 0; i < entries.Length; i++)
         {
-            Token token = literal.TokenList[i];
-            if (token is AggregateToken)
+            Token child = token.TokenList[i];
+            ShellQuoteContext childContext = context;
+            LiteralResolutionPlan? childPlan = null;
+            ExceptionDispatchInfo? childFailure = null;
+            if (child is not (LineContinuationToken or CommentToken or NewLineToken))
             {
-                (pending ??= new()).Add(new PendingResolution(i, context));
+                if (child is VariableRefToken)
+                {
+                    if (context.SuppressExpansion)
+                    {
+                        ConsumeRawSyntax(child, escapeChar, ref context, out childFailure);
+                    }
+                }
+                else if (child is AggregateToken aggregate)
+                {
+                    childPlan = new LiteralResolutionPlan(aggregate, escapeChar, ref context);
+                }
+                else if (child is PrimitiveToken primitive)
+                {
+                    char? quote = ReadQuote(child, out childFailure);
+                    ConsumeQuote(quote, escapeChar, ref context);
+                    ConsumeText(primitive.Value, escapeChar, ref context);
+                    ConsumeQuote(quote, escapeChar, ref context);
+                }
             }
-            ConsumeSyntax(token, escapeChar, ref context);
+            entries[i] = new Entry(child, childContext, childPlan, childFailure);
+        }
+        ConsumeQuote(QuoteChar, escapeChar, ref context);
+    }
+
+    public char? QuoteChar { get; }
+
+    public LiteralResolutionPlan ForInvocation(char escapeChar)
+    {
+        quoteFailure?.Throw();
+        Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolver = token.ResolveVariables;
+        bool hasOverride = resolver.Method.DeclaringType != typeof(AggregateToken);
+        // Overrides can edit descendants before delegating; only the shared, non-overridden path reuses a subtree.
+        if (consumed || this.escapeChar != escapeChar || hasOverride || !MatchesCurrentSyntax())
+        {
+            ShellQuoteContext context = initialContext;
+            return new LiteralResolutionPlan(token, escapeChar, ref context);
+        }
+        return this;
+    }
+
+    public void BeginResolution()
+    {
+        quoteFailure?.Throw();
+        consumed = true;
+    }
+
+    public ShellQuoteContext GetContext(int index) => entries[index].Context;
+
+    public LiteralResolutionPlan? GetChildPlan(int index) => entries[index].Plan;
+
+    public void ThrowDeferredFailure(int index) => entries[index].Failure?.Throw();
+
+    private bool MatchesCurrentSyntax()
+    {
+        if (QuoteChar != (token as IQuotableToken)?.QuoteChar || entries.Length != token.TokenList.Count)
+        {
+            return false;
+        }
+        for (int i = 0; i < entries.Length; i++)
+        {
+            Token child = token.TokenList[i];
+            if (!ReferenceEquals(child, entries[i].Token) ||
+                (child is PrimitiveToken primitive && primitive.Value != entries[i].PrimitiveValue))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static char? ReadQuote(Token token, out ExceptionDispatchInfo? failure)
+    {
+        failure = null;
+        try
+        {
+            return (token as IQuotableToken)?.QuoteChar;
+        }
+        catch (Exception exception)
+        {
+            // Metadata failures are rethrown at their reverse-resolution position, not during lexical scanning.
+            failure = ExceptionDispatchInfo.Capture(exception);
+            return null;
         }
     }
 
-    private static void ConsumeSyntax(Token token, char escapeChar, ref ShellQuoteContext context)
+    private static void ConsumeRawSyntax(Token token, char escapeChar, ref ShellQuoteContext context,
+        out ExceptionDispatchInfo? failure)
     {
-        // Inspect stored syntax only; consumer serialization must retain its reverse evaluation order.
-        if (token is LineContinuationToken or CommentToken or NewLineToken ||
-            (token is VariableRefToken && !context.SuppressExpansion))
+        failure = null;
+        if (token is LineContinuationToken or CommentToken or NewLineToken)
         {
             return;
         }
-
-        if (token is PrimitiveToken primitive)
+        char? quote = ReadQuote(token, out failure);
+        ConsumeQuote(quote, escapeChar, ref context);
+        if (token is VariableRefToken)
         {
-            foreach (char character in primitive.Value)
-            {
-                context.Consume(character, escapeChar, out _);
-            }
+            context.Consume('$', escapeChar, out _);
         }
-        else if (token is AggregateToken aggregate && (token is LiteralToken || context.SuppressExpansion))
+        if (token is AggregateToken aggregate)
         {
-            char? quote = (token as IQuotableToken)?.QuoteChar;
-            if (quote.HasValue)
-            {
-                context.Consume(quote.Value, escapeChar, out _);
-            }
-            if (token is VariableRefToken)
-            {
-                context.Consume('$', escapeChar, out _);
-            }
             foreach (Token child in aggregate.Tokens)
             {
-                ConsumeSyntax(child, escapeChar, ref context);
+                ConsumeRawSyntax(child, escapeChar, ref context, out ExceptionDispatchInfo? childFailure);
+                failure ??= childFailure;
             }
-            if (quote.HasValue)
-            {
-                context.Consume(quote.Value, escapeChar, out _);
-            }
+        }
+        else if (token is PrimitiveToken primitive)
+        {
+            ConsumeText(primitive.Value, escapeChar, ref context);
+        }
+        ConsumeQuote(quote, escapeChar, ref context);
+    }
+
+    private static void ConsumeQuote(char? quote, char escapeChar, ref ShellQuoteContext context)
+    {
+        if (quote.HasValue)
+        {
+            context.Consume(quote.Value, escapeChar, out _);
         }
     }
 
-    public string Resolve(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
+    private static void ConsumeText(string text, char escapeChar, ref ShellQuoteContext context)
     {
-        StringBuilder builder = new();
-        int pendingIndex = (pending?.Count ?? 0) - 1;
-        for (int i = literal.TokenList.Count - 1; i >= 0; i--)
+        foreach (char character in text)
         {
-            Token token = literal.TokenList[i];
-            ShellQuoteContext context = new();
-            if (pendingIndex >= 0 && pending![pendingIndex].TokenIndex == i)
-            {
-                context = pending[pendingIndex--].Context;
-            }
-
-            string? value;
-            if (token is LiteralToken child)
-            {
-                using LiteralResolutionScope scope = new(child, context);
-                value = child.ResolveVariables(escapeChar, variables, options);
-            }
-            else if (token is AggregateToken aggregate && !context.SuppressExpansion)
-            {
-                value = aggregate.ResolveVariables(escapeChar, variables, options);
-                if (token is VariableRefToken && options.UpdateInline)
-                {
-                    if (value is null)
-                    {
-                        literal.TokenList.RemoveAt(i);
-                    }
-                    else
-                    {
-                        literal.TokenList[i] = new StringToken(value);
-                    }
-                }
-            }
-            else
-            {
-                value = options.FormatValue(escapeChar, token.ToString());
-            }
-            builder.Insert(0, value);
+            context.Consume(character, escapeChar, out _);
         }
-        if (wrapper.HasValue)
-        {
-            builder.Insert(0, wrapper.Value);
-            builder.Append(wrapper.Value);
-        }
-        return builder.ToString();
     }
 
-    private readonly struct PendingResolution
+    private readonly struct Entry
     {
-        public PendingResolution(int tokenIndex, ShellQuoteContext context)
+        public Entry(Token token, ShellQuoteContext context, LiteralResolutionPlan? plan, ExceptionDispatchInfo? failure)
         {
-            TokenIndex = tokenIndex;
+            Token = token;
             Context = context;
+            Plan = plan;
+            Failure = failure;
+            PrimitiveValue = (token as PrimitiveToken)?.Value;
         }
 
-        public int TokenIndex { get; }
-
+        public Token Token { get; }
         public ShellQuoteContext Context { get; }
+        public LiteralResolutionPlan? Plan { get; }
+        public ExceptionDispatchInfo? Failure { get; }
+        public string? PrimitiveValue { get; }
     }
 }

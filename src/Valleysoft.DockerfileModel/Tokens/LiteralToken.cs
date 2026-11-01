@@ -60,19 +60,6 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
         preserveRawValue ? new Token[] { new StringToken(value) } : GetTokens(value, canContainVariables, escapeChar).Tokens;
 
-    public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
-        ResolutionOptions? options = null)
-    {
-        variables ??= new Dictionary<string, string?>();
-        options ??= new ResolutionOptions();
-        if (!TokenList.Any(token => token is AggregateToken))
-        {
-            return base.ResolveVariables(escapeChar, variables, options);
-        }
-        ShellQuoteContext context = LiteralResolutionScope.GetContext(this);
-        return new LiteralResolutionPlan(this, escapeChar, ref context).Resolve(escapeChar, variables, options);
-    }
-
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)
     {
         Guard.NotNull(value, nameof(value));

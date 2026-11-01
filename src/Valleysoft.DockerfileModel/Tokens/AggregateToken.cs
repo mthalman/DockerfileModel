@@ -62,6 +62,18 @@ public abstract class AggregateToken : Token
         variables ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
 
+        LiteralResolutionScope? scope = LiteralResolutionScope.GetScope(this);
+        if (this is LiteralToken || scope is not null)
+        {
+            ShellQuoteContext context = LiteralResolutionScope.GetContext(this);
+            LiteralResolutionPlan plan = scope?.Plan is LiteralResolutionPlan prepared
+                ? prepared.ForInvocation(escapeChar)
+                : new LiteralResolutionPlan(this, escapeChar, ref context);
+            plan.BeginResolution();
+            string? value = ResolveVariablesCore(escapeChar, variables, options, plan);
+            return $"{plan.QuoteChar}{value}{plan.QuoteChar}";
+        }
+
         if (this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
         {
             return $"{quotableToken.QuoteChar}{ResolveVariablesCore(escapeChar, variables, options)}{quotableToken.QuoteChar}";
@@ -168,16 +180,26 @@ public abstract class AggregateToken : Token
         TokenList.AddRange(tokens);
     }
 
-    private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
+    private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options,
+        LiteralResolutionPlan? plan = null)
     {
         StringBuilder builder = new();
         for (int i = TokenList.Count - 1; i >= 0; i--)
         {
             Token token = TokenList[i];
             string? value;
-            if (token is AggregateToken aggregateToken)
+            ShellQuoteContext context = plan?.GetContext(i) ?? new ShellQuoteContext();
+            if (token is AggregateToken aggregateToken && !(token is VariableRefToken && plan is not null && context.SuppressExpansion))
             {
-                value = aggregateToken.ResolveVariables(escapeChar, variables, options);
+                if (plan is not null && token is not VariableRefToken)
+                {
+                    using LiteralResolutionScope scope = new(aggregateToken, context, plan.GetChildPlan(i));
+                    value = aggregateToken.ResolveVariables(escapeChar, variables, options);
+                }
+                else
+                {
+                    value = aggregateToken.ResolveVariables(escapeChar, variables, options);
+                }
                 if (token is VariableRefToken && options.UpdateInline)
                 {
                     if (value is null)
@@ -192,6 +214,7 @@ public abstract class AggregateToken : Token
             }
             else
             {
+                plan?.ThrowDeferredFailure(i);
                 value = options.FormatValue(escapeChar, token.ToString());
             }
 

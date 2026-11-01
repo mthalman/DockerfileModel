@@ -350,9 +350,12 @@ public class SingleQuoteVariableResolutionTests
         using (new LiteralResolutionScope(child, context))
         {
             Assert.Equal("'expanded'", child.ResolveVariables('\\', Variables));
-            independentResolution = Task.Factory.StartNew(
-                () => child.ResolveVariables('\\', Variables), CancellationToken.None,
-                TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            using (ExecutionContext.SuppressFlow())
+            {
+                independentResolution = Task.Factory.StartNew(
+                    () => child.ResolveVariables('\\', Variables), CancellationToken.None,
+                    TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            }
             Assert.Equal("'expanded'", child.ResolveVariables('\\', Variables));
         }
         Assert.Equal("'$VALUE'", child.ResolveVariables('\\', Variables));

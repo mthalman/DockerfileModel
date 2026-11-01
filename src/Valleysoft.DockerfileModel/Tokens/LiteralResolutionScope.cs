@@ -2,24 +2,29 @@ namespace Valleysoft.DockerfileModel.Tokens;
 
 internal sealed class LiteralResolutionScope : IDisposable
 {
-    // Synchronous virtual calls inherit lexical context without cloning or modifying the caller's options.
-    [ThreadStatic]
-    private static LiteralResolutionScope? current;
+    // Execution-context flow preserves delegation across threads without changing the caller's options.
+    private static readonly AsyncLocal<LiteralResolutionScope?> current = new();
 
     private readonly LiteralResolutionScope? previous;
-    private readonly LiteralToken literal;
+    private readonly AggregateToken token;
     private readonly ShellQuoteContext context;
 
-    public LiteralResolutionScope(LiteralToken literal, ShellQuoteContext context)
+    public LiteralResolutionScope(AggregateToken token, ShellQuoteContext context, LiteralResolutionPlan? plan = null)
     {
-        this.literal = literal;
+        this.token = token;
         this.context = context;
-        previous = current;
-        current = this;
+        Plan = plan;
+        previous = current.Value;
+        current.Value = this;
     }
 
-    public static ShellQuoteContext GetContext(LiteralToken literal) =>
-        current?.literal == literal ? current.context : new ShellQuoteContext();
+    public LiteralResolutionPlan? Plan { get; }
 
-    public void Dispose() => current = previous;
+    public static LiteralResolutionScope? GetScope(AggregateToken token) =>
+        ReferenceEquals(current.Value?.token, token) ? current.Value : null;
+
+    public static ShellQuoteContext GetContext(AggregateToken token) =>
+        GetScope(token)?.context ?? new ShellQuoteContext();
+
+    public void Dispose() => current.Value = previous;
 }
