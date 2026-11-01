@@ -440,4 +440,84 @@ public class ArgResolutionTests
         Assert.Equal("ENV RESULT=quoted", other.ResolveVariables());
         Assert.Equal("ENV RESULT=\"quoted\"", source.ResolveVariables(overrides));
     }
+
+    [Theory]
+    [InlineData(false, false, "${A?left}${B?right}")]
+    [InlineData(false, true, "${A?left}${B?right}")]
+    [InlineData(true, false, "${A?left}${B?right}")]
+    [InlineData(true, true, "${A?left}${B?right}")]
+    [InlineData(false, false, "${UNSET:-${A?left}${B?right}}")]
+    [InlineData(false, true, "${UNSET:-${A?left}${B?right}}")]
+    [InlineData(true, false, "${UNSET:-${A?left}${B?right}}")]
+    [InlineData(true, true, "${UNSET:-${A?left}${B?right}}")]
+    public void ResolveVariables_ArgDefaultsPreserveRightmostRequiredError(
+        bool stageScope, bool updateInline, string expression)
+    {
+        string text = stageScope
+            ? $"FROM alpine\nARG X={expression}\nENV RESULT=$X"
+            : $"ARG X={expression}\nFROM prefix$X";
+        Dockerfile dockerfile = Dockerfile.Parse(text);
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'B' is not set. Error detail: 'right'.", error.Message);
+        Assert.Equal(text, dockerfile.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false, 8)]
+    [InlineData(false, true, 8)]
+    [InlineData(true, false, 8)]
+    [InlineData(true, true, 8)]
+    [InlineData(false, false, 16)]
+    [InlineData(false, true, 16)]
+    [InlineData(true, false, 16)]
+    [InlineData(true, true, 16)]
+    [InlineData(false, false, 32)]
+    [InlineData(false, true, 32)]
+    [InlineData(true, false, 32)]
+    [InlineData(true, true, 32)]
+    public void ResolveVariables_NestedArgDefaultsRequireLinearEvaluations(
+        bool stageScope, bool updateInline, int depth)
+    {
+        List<CountingVariableRefToken> variables = new();
+        LiteralToken value = new("end", canContainVariables: true);
+        for (int i = 0; i < depth; i++)
+        {
+            CountingVariableRefToken variable = new() { ModifierValueToken = value };
+            variables.Add(variable);
+            TokenBuilder builder = new();
+            builder.Literal(contents => contents.Tokens.Add(variable), canContainVariables: true);
+            value = Assert.IsType<LiteralToken>(Assert.Single(builder.Tokens));
+        }
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? "FROM alpine\nARG X=placeholder\nENV RESULT=$X"
+            : "ARG X=placeholder\nFROM prefix$X");
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken = value;
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=end" : "FROM prefixend",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.InRange(variables.Sum(variable => variable.ResolutionCount), depth, 2 * depth);
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    private sealed class CountingVariableRefToken : VariableRefToken
+    {
+        public CountingVariableRefToken() : base("UNSET", ":-", "end") { }
+
+        public int ResolutionCount { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            ResolutionCount++;
+            return base.ResolveVariables(escapeChar, variables, options);
+        }
+    }
 }

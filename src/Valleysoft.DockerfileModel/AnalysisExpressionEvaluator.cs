@@ -64,9 +64,26 @@ internal static class AnalysisExpressionEvaluator
 
     internal static string ResolveVariables(Token token, char escapeChar,
         Func<VariableRefToken, string> resolveVariable,
-        Action<VariableRefToken, char?, bool>? recordContext = null)
+        Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null)
     {
-        Evaluation evaluation = new(new Dictionary<string, AnalysisValue>(), escapeChar, resolveVariable, recordContext);
+        Dictionary<string, AnalysisValue> variables = new();
+        List<VariableRefToken> references = new();
+        Evaluation scan = new(variables, escapeChar, variable =>
+        {
+            references.Add(variable);
+            return String.Empty;
+        });
+        scan.Visit(token);
+
+        // Quote state flows forward, but public resolution gives rightmost references error precedence.
+        string[] values = new string[references.Count];
+        for (int i = references.Count - 1; i >= 0; i--)
+        {
+            values[i] = resolveVariable(references[i]);
+        }
+
+        int valueIndex = 0;
+        Evaluation evaluation = new(variables, escapeChar, _ => values[valueIndex++], recordResolution);
         evaluation.Visit(token);
         AnalysisValue result = evaluation.GetResult();
         if (!result.IsKnown)
@@ -132,7 +149,7 @@ internal static class AnalysisExpressionEvaluator
         private readonly IReadOnlyDictionary<string, AnalysisValue> variables;
         private readonly char escapeChar;
         private readonly Func<VariableRefToken, string>? resolveVariable;
-        private readonly Action<VariableRefToken, char?, bool>? recordContext;
+        private readonly Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution;
         private readonly StringBuilder text = new();
         private readonly List<string> unresolvedVariables = new();
         private AnalysisValue? failure;
@@ -141,12 +158,12 @@ internal static class AnalysisExpressionEvaluator
 
         public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar,
             Func<VariableRefToken, string>? resolveVariable = null,
-            Action<VariableRefToken, char?, bool>? recordContext = null)
+            Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null)
         {
             this.variables = variables;
             this.escapeChar = escapeChar;
             this.resolveVariable = resolveVariable;
-            this.recordContext = recordContext;
+            this.recordResolution = recordResolution;
         }
 
         public void Visit(Token token)
@@ -165,16 +182,22 @@ internal static class AnalysisExpressionEvaluator
 
             if (token is VariableRefToken variable)
             {
-                recordContext?.Invoke(variable, quote, escaped);
                 if (quote == '\'' || escaped)
                 {
-                    AppendText(variable.ToString());
+                    string syntax = variable.ToString();
+                    recordResolution?.Invoke(variable, (syntax, quote, escaped));
+                    AppendText(syntax);
                 }
                 else
                 {
-                    AppendValue(resolveVariable is null
+                    AnalysisValue value = resolveVariable is null
                         ? EvaluateVariable(variable, variables, escapeChar)
-                        : AnalysisValue.Known(resolveVariable(variable)));
+                        : AnalysisValue.Known(resolveVariable(variable));
+                    if (value.IsKnown)
+                    {
+                        recordResolution?.Invoke(variable, (value.Value ?? String.Empty, quote, escaped));
+                    }
+                    AppendValue(value);
                 }
                 return;
             }
