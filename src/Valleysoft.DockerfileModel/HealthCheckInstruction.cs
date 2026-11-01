@@ -20,14 +20,16 @@ public class HealthCheckInstruction : Instruction
     /// <summary>Creates HEALTHCHECK CMD using the supplied JSON exec-form elements.</summary>
     public HealthCheckInstruction(IEnumerable<string> defaultArgs, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(ValidateAndFormatAsJson(defaultArgs, nameof(defaultArgs)), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
+        : this(GetTokens(ValidateAndFormatAsJson(defaultArgs, nameof(defaultArgs)), interval, timeout, startPeriod, startInterval,
+            retries, escapeChar, constructedExecForm: true), escapeChar)
     {
     }
 
     /// <summary>Creates HEALTHCHECK CMD in JSON exec form with the command followed by its arguments.</summary>
     public HealthCheckInstruction(string command, IEnumerable<string> args, string? interval = null, string? timeout = null,
         string? startPeriod = null, string? startInterval = null, string? retries = null, char escapeChar = Dockerfile.DefaultEscapeChar)
-        : this(GetTokens(ValidateAndFormatAsJson(command, args), interval, timeout, startPeriod, startInterval, retries, escapeChar), escapeChar)
+        : this(GetTokens(ValidateAndFormatAsJson(command, args), interval, timeout, startPeriod, startInterval,
+            retries, escapeChar, constructedExecForm: true), escapeChar)
     {
     }
 
@@ -266,11 +268,12 @@ public class HealthCheckInstruction : Instruction
         select new HealthCheckInstruction(tokens, escapeChar);
 
     private static IEnumerable<Token> GetTokens(string commandBody, string? interval, string? timeout,
-        string? startPeriod, string? startInterval, string? retries, char escapeChar)
+        string? startPeriod, string? startInterval, string? retries, char escapeChar, bool constructedExecForm = false)
     {
         Guard.NotNullOrEmpty(commandBody, nameof(commandBody));
         return GetTokens(
-            $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, startInterval, retries, escapeChar)}CMD {commandBody}", GetInnerParser(escapeChar));
+            $"HEALTHCHECK {GetOptionArgs(interval, timeout, startPeriod, startInterval, retries, escapeChar)}CMD {commandBody}",
+            GetInnerParser(escapeChar, constructedExecForm: constructedExecForm));
     }
 
     private static string GetOptionArgs(string? interval, string? timeout, string? startPeriod, string? startInterval, string? retries, char escapeChar)
@@ -303,20 +306,22 @@ public class HealthCheckInstruction : Instruction
     internal static HealthCheckInstruction ParseDiagnostic(string text, char escapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false,
+        bool constructedExecForm = false) =>
         Instruction("HEALTHCHECK", escapeChar,
-            GetArgsParser(escapeChar, diagnostic));
+            GetArgsParser(escapeChar, diagnostic, constructedExecForm));
 
-    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar, bool diagnostic) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar, bool diagnostic, bool constructedExecForm) =>
         from options in Options(escapeChar)
-        from command in CmdTokens(escapeChar, diagnostic)
+        from command in CmdTokens(escapeChar, diagnostic, constructedExecForm)
             .Try().Or(ArgTokens(KeywordToken.GetParser("NONE", escapeChar).AsEnumerable(), escapeChar))
         select ConcatTokens(options, command);
 
-    private static TextParser<IEnumerable<Token>> CmdTokens(char escapeChar, bool diagnostic) =>
+    private static TextParser<IEnumerable<Token>> CmdTokens(char escapeChar, bool diagnostic, bool constructedExecForm) =>
         from cmdKeyword in ArgTokens(KeywordToken.GetParser("CMD", escapeChar).AsEnumerable(), escapeChar)
         from cmd in ArgTokens(
-            CommandInstruction.GetCommandParser(escapeChar, diagnostic)
+            (constructedExecForm ? CommandInstruction.GetConstructedExecFormParser(escapeChar)
+                : CommandInstruction.GetCommandParser(escapeChar, diagnostic))
                 .Cast<Command, Token>()
                 .AsEnumerable(), escapeChar)
         select ConcatTokens(cmdKeyword, cmd);

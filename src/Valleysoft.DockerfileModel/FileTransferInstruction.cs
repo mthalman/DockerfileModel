@@ -148,13 +148,17 @@ public abstract partial class FileTransferInstruction : Instruction
 
     private protected static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
         TextParser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context) =>
-        Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser, context));
+        GetInnerParser(escapeChar, instructionName, optionalFlagParser, context, allowLegacyJsonOperands: false);
+
+    private protected static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
+        TextParser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context, bool allowLegacyJsonOperands) =>
+        Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser, context, allowLegacyJsonOperands));
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
         string? changeOwner, string? permissions, char escapeChar, string instructionName)
     {
         string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, instructionName, null);
-        return GetTokens(text, GetInnerParser(escapeChar, instructionName));
+        return GetTokens(text, GetInnerParser(escapeChar, instructionName, null, null, allowLegacyJsonOperands: true));
     }
 
     protected static string CreateInstructionString(IEnumerable<string> sources, string destination,
@@ -188,22 +192,32 @@ public abstract partial class FileTransferInstruction : Instruction
     }
 
     private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar,
-        TextParser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context) =>
+        TextParser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context, bool allowLegacyJsonOperands) =>
         from flags in FlagOption(escapeChar, optionalFlagParser).Try().Many().Flatten()
         from whitespace in Whitespace()
         from files in context is { HasHeredocs: true }
             ? context.HeredocParser(escapeChar, canContainVariables: true)
             : context is null
-                ? HeredocTokenParser(escapeChar).Try().Or(FileArgs(escapeChar))
-                : FileArgs(escapeChar)
+                ? HeredocTokenParser(escapeChar).Try().Or(FileArgs(escapeChar, allowLegacyJsonOperands))
+                : FileArgs(escapeChar, allowLegacyJsonOperands)
         select ConcatTokens(flags, whitespace, files);
 
-    private static TextParser<IEnumerable<Token>> FileArgs(char escapeChar) =>
-        ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar)
-            .Try().Or(from literals in ArgTokens(
+    private static TextParser<IEnumerable<Token>> FileArgs(char escapeChar, bool allowLegacyJsonOperands)
+    {
+        TextParser<IEnumerable<Token>> fallback =
+            from literals in ArgTokens(
                     LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
                     escapeChar).Try().Many()
-                select literals.Flatten());
+            select literals.Flatten();
+        if (allowLegacyJsonOperands)
+        {
+            fallback = ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true), escapeChar)
+                .Try().Or(fallback);
+        }
+        return CommandParsers.MaybeJson(
+            ArgTokens(JsonArray(escapeChar, canContainVariables: true, allowEmpty: true, useJsonStringSyntax: true), escapeChar),
+            fallback, escapeChar);
+    }
 
     private static TextParser<IEnumerable<Token>> FlagOption(char escapeChar, TextParser<IEnumerable<Token>>? optionalFlagParser)
     {

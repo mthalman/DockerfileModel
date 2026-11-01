@@ -46,20 +46,22 @@ public class EntrypointInstruction : CommandInstruction
     {
         Guard.NotNull(execArgs, nameof(execArgs));
 
-        return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(execArgs)}", GetInnerParser(escapeChar));
+        return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(execArgs)}", GetInnerParser(escapeChar, constructedExecForm: true));
     }
 
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)
     {
         Guard.NotNullOrEmpty(command, nameof(command));
         Guard.NotNull(args, nameof(args));
-        return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
+        return GetTokens($"ENTRYPOINT {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}",
+            GetInnerParser(escapeChar, constructedExecForm: true));
     }
 
     internal static EntrypointInstruction ParseDiagnostic(string text, char escapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar, bool diagnostic = false) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar,
+        bool diagnostic = false, bool constructedExecForm = false) =>
         Instruction("ENTRYPOINT", escapeChar,
-            GetArgsParser(escapeChar, diagnostic));
+            constructedExecForm ? GetConstructedExecFormArgsParser(escapeChar) : GetArgsParser(escapeChar, diagnostic));
 }

@@ -240,7 +240,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         PrepareItem(plan, item);
         Insert(tokens, expected, index, item);
         expected.Insert(index, item);
-        ValidateAndCommit(plan, expected);
+        ValidateAndCommit(plan, expected, adoptedIndex: index);
     }
 
     public void Replace(int index, T item, TriviaDisposition trivia)
@@ -259,7 +259,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         PrepareItem(plan, item);
         tokens[ReferenceList.IndexOf(tokens, current)] = item;
         expected[index] = item;
-        ValidateAndCommit(plan, expected);
+        ValidateAndCommit(plan, expected, adoptedIndex: index);
     }
 
     public void Remove(IReadOnlyList<int> indices, TriviaDisposition trivia)
@@ -571,7 +571,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
 
     /// <summary>Requires complete grammar consumption and the expected role values before publishing a plan.</summary>
     /// <remarks>Generic argument-line edits also validate the underlying known instruction grammar.</remarks>
-    private void ValidateAndCommit(TokenEditPlan plan, List<T> expected)
+    private void ValidateAndCommit(TokenEditPlan plan, List<T> expected, int adoptedIndex = -1)
     {
         EditValidation.ValidateTree(owner);
         string text = plan.Render(owner);
@@ -580,7 +580,9 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         {
             parsed = owner switch
             {
-                ExecFormCommand => ExecFormCommand.Parse(text, owner.EditingEscapeChar),
+                ExecFormCommand command => command.ParseForEditing(text),
+                FileTransferInstruction when IsJson => EditValidation.ParseInstruction(text, owner.EditingEscapeChar,
+                    allowLegacyJsonOperands: true),
                 UnknownInstruction => throw new InvalidOperationException("Unknown instruction arguments are opaque."),
                 GenericInstruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar, generic: true),
                 Instruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar),
@@ -611,6 +613,11 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
             throw new InvalidOperationException("The edit changes operand boundaries or values.");
         }
         plan.Commit();
+        if (adoptedIndex >= 0 && IsJson && expected[adoptedIndex] is LiteralToken literal &&
+            actual[adoptedIndex] is LiteralToken parsedLiteral)
+        {
+            literal.UseJsonStringSyntax |= parsedLiteral.UseJsonStringSyntax;
+        }
     }
 
     private bool SameValue(T left, T right, TokenEditPlan plan)

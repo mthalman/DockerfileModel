@@ -56,7 +56,12 @@ public class VolumeInstruction : Instruction
         string args = useShellForm
             ? pathArray[0]
             : StringHelper.FormatAsJson(pathArray);
-        return GetTokens($"VOLUME {args}", GetInnerParser(escapeChar));
+        // Explicit constructor operands retain the legacy literal grammar without form detection.
+        TextParser<IEnumerable<Token>> parser = useShellForm
+            ? GetInnerParser(escapeChar)
+            : Instruction("VOLUME", escapeChar,
+                ArgTokens(JsonArray(escapeChar, canContainVariables: false, allowEmpty: true), escapeChar));
+        return GetTokens($"VOLUME {args}", parser);
     }
 
     private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
@@ -66,8 +71,9 @@ public class VolumeInstruction : Instruction
             whitespace, paths);
 
     private static TextParser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
-        JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
-             .Or(NonJsonPaths(escapeChar));
+        CommandParsers.MaybeJson(
+            JsonArray(escapeChar, canContainVariables: false, allowEmpty: true, useJsonStringSyntax: true),
+            NonJsonPaths(escapeChar), escapeChar);
 
     private static TextParser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
         ArgTokens(

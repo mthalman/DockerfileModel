@@ -190,8 +190,9 @@ internal static class StringParsers
     /// <param name="canContainVariables">Whether later literal value updates recognize variable references.</param>
     /// <param name="escapeChar">The escape context retained by the resulting literal.</param>
     /// <param name="quoteChar">The quote character associated with the literal.</param>
+    /// <param name="useJsonStringSyntax">Whether value updates retain the JSON string grammar used for parsing.</param>
     internal static IEnumerable<Token> CollapseLiteralTokens(IEnumerable<Token> tokens,
-        bool canContainVariables, char escapeChar, char? quoteChar = null)
+        bool canContainVariables, char escapeChar, char? quoteChar = null, bool useJsonStringSyntax = false)
     {
         Guard.NotNullEmptyOrNullElements(tokens, nameof(tokens));
         return new Token[]
@@ -201,7 +202,8 @@ internal static class StringParsers
                     token => token is StringToken || token.GetType() == typeof(WhitespaceToken),
                     val => new StringToken(val)),
                 canContainVariables,
-                escapeChar)
+                escapeChar,
+                useJsonStringSyntax: useJsonStringSyntax)
             {
                 QuoteChar = quoteChar
             }

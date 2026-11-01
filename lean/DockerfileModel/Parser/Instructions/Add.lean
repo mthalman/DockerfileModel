@@ -97,7 +97,7 @@ partial def addArgsParser (escapeChar : Char) : Parser (List Token) := do
   let flags ← many (addFlagParser escapeChar)
   let fileArgs ← argTokens
     (or' heredocWithDestination
-      (or' (jsonArrayParser escapeChar) (spaceSeparatedFileArgs escapeChar)))
+      (maybeJsonArrayParser (spaceSeparatedFileArgs escapeChar) escapeChar))
     escapeChar
   Parser.pure (concatTokens [flags.flatten, fileArgs])
 
