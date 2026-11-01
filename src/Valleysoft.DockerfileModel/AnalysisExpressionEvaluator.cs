@@ -65,7 +65,7 @@ internal static class AnalysisExpressionEvaluator
     internal static string ResolveVariables(Token token, char escapeChar,
         Func<VariableRefToken, string> resolveVariable,
         Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null,
-        Func<LiteralToken, string>? resolveLiteral = null)
+        Func<LiteralToken, string>? resolveLiteral = null, Func<int>? getCustomResolutionVersion = null)
     {
         Dictionary<string, AnalysisValue> variables = new();
         List<AggregateToken> references = new();
@@ -74,16 +74,60 @@ internal static class AnalysisExpressionEvaluator
             references.Add(reference);
             return String.Empty;
         }
-        Evaluation scan = new(variables, escapeChar, CollectReference, collectText: false,
-            resolveLiteral: resolveLiteral is null ? null : CollectReference);
-        scan.Visit(token);
+        void Scan()
+        {
+            references.Clear();
+            Evaluation scan = new(variables, escapeChar, CollectReference, collectText: false,
+                resolveLiteral: resolveLiteral is null ? null : CollectReference);
+            scan.Visit(token);
+        }
+        Scan();
 
         // Quote state flows forward, but public resolution gives rightmost references error precedence.
         string[] values = new string[references.Count];
+        bool[] completed = new bool[references.Count];
+        Dictionary<AggregateToken, List<string>>? resolvedOccurrences = getCustomResolutionVersion is null
+            ? null : new(ReferenceComparer<AggregateToken>.Instance);
         for (int i = references.Count - 1; i >= 0; i--)
         {
+            if (completed[i])
+            {
+                continue;
+            }
+            int version = getCustomResolutionVersion?.Invoke() ?? 0;
             values[i] = references[i] is VariableRefToken variable
                 ? resolveVariable(variable) : resolveLiteral!((LiteralToken)references[i]);
+            completed[i] = true;
+            if (resolvedOccurrences is not null)
+            {
+                if (!resolvedOccurrences.TryGetValue(references[i], out List<string>? occurrences))
+                {
+                    occurrences = new List<string>();
+                    resolvedOccurrences.Add(references[i], occurrences);
+                }
+                occurrences.Add(values[i]);
+            }
+            if (getCustomResolutionVersion is not null && version != getCustomResolutionVersion())
+            {
+                // Custom callbacks can reparse pending literals; keep resolved occurrences without calling them again.
+                Scan();
+                values = new string[references.Count];
+                completed = new bool[references.Count];
+                Dictionary<AggregateToken, int> occurrenceIndices = new(ReferenceComparer<AggregateToken>.Instance);
+                for (int j = references.Count - 1; j >= 0; j--)
+                {
+                    AggregateToken reference = references[j];
+                    occurrenceIndices.TryGetValue(reference, out int occurrence);
+                    occurrenceIndices[reference] = occurrence + 1;
+                    if (resolvedOccurrences!.TryGetValue(reference, out List<string>? occurrences) &&
+                        occurrence < occurrences.Count)
+                    {
+                        values[j] = occurrences[occurrence];
+                        completed[j] = true;
+                    }
+                }
+                i = references.Count;
+            }
         }
 
         int valueIndex = 0;
@@ -232,7 +276,8 @@ internal static class AnalysisExpressionEvaluator
             }
             else if (token is PrimitiveToken primitive)
             {
-                AppendText(primitive.Value);
+                AppendText(resolveVariable is null
+                    ? primitive.Value : primitive.ToString(new TokenStringOptions(excludeQuotes: true)));
             }
             else
             {

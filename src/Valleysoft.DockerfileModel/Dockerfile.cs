@@ -319,7 +319,7 @@ public class Dockerfile : IConstructContainer
 
         Dictionary<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? resolutions = options.UpdateInline
             ? new(ReferenceComparer<VariableRefToken>.Instance) : null;
-        Dictionary<AggregateToken, string?>? customValues = options.UpdateInline
+        Dictionary<AggregateToken, Queue<string?>>? customValues = options.UpdateInline
             ? new(ReferenceComparer<AggregateToken>.Instance) : null;
         bool updateCustomInline = options.UpdateInline && (syntaxArg is null || syntaxArg == arg);
         string value = ResolveArgValue(valueToken, escapeChar, bindings, options, resolutions,
@@ -340,7 +340,7 @@ public class Dockerfile : IConstructContainer
                     UpdateInline = true,
                     RemoveEscapeCharacters = options.RemoveEscapeCharacters,
                     SemanticValueResolver = variable => resolutions[variable],
-                    CustomValueResolver = token => customValues![token]
+                    CustomValueResolver = token => customValues![token].Dequeue()
                 });
             }
         }
@@ -351,8 +351,16 @@ public class Dockerfile : IConstructContainer
     private static string ResolveArgValue(Token token, char escapeChar,
         IDictionary<string, string?> bindings, ResolutionOptions options,
         Dictionary<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? resolutions = null,
-        Dictionary<AggregateToken, string?>? customValues = null, bool updateCustomInline = false)
+        Dictionary<AggregateToken, Queue<string?>>? customValues = null, bool updateCustomInline = false,
+        Action? onCustomResolution = null)
     {
+        int customResolutionVersion = 0;
+        void RecordCustomResolution()
+        {
+            customResolutionVersion++;
+            onCustomResolution?.Invoke();
+        }
+
         string ResolveToken(AggregateToken aggregate)
         {
             string? value = aggregate.ResolveVariables(escapeChar, bindings, new ResolutionOptions
@@ -360,17 +368,26 @@ public class Dockerfile : IConstructContainer
                 UpdateInline = aggregate.UsesCustomResolution && updateCustomInline,
                 RemoveEscapeCharacters = options.RemoveEscapeCharacters,
                 ModifierValueResolver = modifier => ResolveArgValue(modifier, escapeChar, bindings, options,
-                    resolutions, customValues, updateCustomInline)
+                    resolutions, customValues, updateCustomInline, RecordCustomResolution)
             });
-            if (aggregate.UsesCustomResolution && customValues is not null)
+            if (aggregate.UsesCustomResolution)
             {
-                customValues[aggregate] = value;
+                RecordCustomResolution();
+                if (customValues is not null)
+                {
+                    if (!customValues.TryGetValue(aggregate, out Queue<string?>? values))
+                    {
+                        values = new Queue<string?>();
+                        customValues.Add(aggregate, values);
+                    }
+                    values.Enqueue(value);
+                }
             }
             return value ?? String.Empty;
         }
 
         return AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, ResolveToken,
             resolutions is null ? null : (variable, resolution) => resolutions[variable] = resolution,
-            ResolveToken);
+            ResolveToken, () => customResolutionVersion);
     }
 }

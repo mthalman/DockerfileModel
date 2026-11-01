@@ -684,4 +684,178 @@ public class ArgResolutionTests
             Assert.Equal(original, dockerfile.ToString());
         }
     }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_SharedCustomModifierKeepsOccurrenceResults(bool stageScope, bool updateInline)
+    {
+        ChangingModifierLiteral shared = new();
+        VariableRefToken left = new("UNSET", ":-", "placeholder") { ModifierValueToken = shared };
+        VariableRefToken right = new("UNSET", ":-", "placeholder") { ModifierValueToken = shared };
+        Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=secondfirst" : "FROM prefixsecondfirst",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal(2, shared.ResolutionCount);
+        Assert.Equal(updateInline ? "ARG X=secondfirst\n" : "ARG X=${UNSET:-placeholder}${UNSET:-placeholder}\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false, "${A:-a}${B:-b}", "abright")]
+    [InlineData(false, true, "${A:-a}${B:-b}", "abright")]
+    [InlineData(true, false, "${A:-a}${B:-b}", "abright")]
+    [InlineData(true, true, "${A:-a}${B:-b}", "abright")]
+    [InlineData(false, false, "edited", "editedright")]
+    [InlineData(false, true, "edited", "editedright")]
+    [InlineData(true, false, "edited", "editedright")]
+    [InlineData(true, true, "edited", "editedright")]
+    public void ResolveVariables_CustomResolverCanEditPendingLiteral(
+        bool stageScope, bool updateInline, string edit, string expected)
+    {
+        LiteralToken left = new("$LEFT", canContainVariables: true);
+        EditingVariableRefToken right = new(left, edit);
+        Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
+
+        Assert.Equal(stageScope ? $"ENV RESULT={expected}" : $"FROM prefix{expected}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal(1, right.ResolutionCount);
+        Assert.Equal(updateInline ? $"ARG X={expected}\n" : $"ARG X={edit}$RIGHT\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolveVariables_CustomResolverEditsRetainRightmostErrors(bool updateInline)
+    {
+        LiteralToken left = new("$LEFT", canContainVariables: true);
+        EditingVariableRefToken right = new(left, "${A?left}${B?right}");
+        Dockerfile dockerfile = CreateCustomDefault(false, left, right);
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'B' is not set. Error detail: 'right'.", error.Message);
+        Assert.Equal(1, right.ResolutionCount);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_CustomModifierCanEditPendingLiteral(bool stageScope, bool updateInline)
+    {
+        LiteralToken left = new("$LEFT", canContainVariables: true);
+        EditingModifierLiteral modifier = new(left);
+        VariableRefToken right = new("UNSET", ":-", "placeholder") { ModifierValueToken = modifier };
+        Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
+
+        Assert.Equal(stageScope ? "ENV RESULT=abright" : "FROM prefixabright",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal(1, modifier.ResolutionCount);
+        Assert.Equal(updateInline ? "ARG X=abright\n" : "ARG X=${A:-a}${B:-b}${UNSET:-placeholder}\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_CustomPrimitiveUsesSerializedText(bool stageScope, bool updateInline)
+    {
+        Dockerfile dockerfile = CreateCustomDefault(stageScope, new SerializedStringToken());
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=computed" : "FROM prefixcomputed",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("ARG X=computed\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    private static Dockerfile CreateCustomDefault(bool stageScope, params Token[] tokens)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? "FROM alpine\nARG X=placeholder\nENV RESULT=$X"
+            : "ARG X=placeholder\nFROM prefix$X");
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken =
+            new LiteralToken(tokens, canContainVariables: true, Dockerfile.DefaultEscapeChar);
+        return dockerfile;
+    }
+
+    private sealed class ChangingModifierLiteral : LiteralToken
+    {
+        public ChangingModifierLiteral() : base("placeholder", canContainVariables: true) { }
+
+        public int ResolutionCount { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null) => ++ResolutionCount == 1 ? "first" : "second";
+    }
+
+    private sealed class EditingVariableRefToken : VariableRefToken
+    {
+        private readonly LiteralToken literal;
+        private readonly string edit;
+
+        public EditingVariableRefToken(LiteralToken literal, string edit) : base("RIGHT")
+        {
+            this.literal = literal;
+            this.edit = edit;
+        }
+
+        public int ResolutionCount { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            ResolutionCount++;
+            literal.Value = edit;
+            return "right";
+        }
+    }
+
+    private sealed class SerializedStringToken : StringToken
+    {
+        public SerializedStringToken() : base("placeholder") { }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => "computed";
+    }
+
+    private sealed class EditingModifierLiteral : LiteralToken
+    {
+        private readonly LiteralToken literal;
+
+        public EditingModifierLiteral(LiteralToken literal) : base("placeholder", canContainVariables: true)
+        {
+            this.literal = literal;
+        }
+
+        public int ResolutionCount { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            ResolutionCount++;
+            literal.Value = "${A:-a}${B:-b}";
+            return "right";
+        }
+    }
 }
