@@ -149,7 +149,11 @@ JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
 retained. Decoded single quotes protect their contents from expansion; quote
 spelling is retained rather than shell-unquoted. A decoded Dockerfile escape
-character protects the following dollar sign from expansion. Unmatched Unicode
+character protects the following dollar sign from expansion. These rules also
+apply inside modifier values, which may contain decoded newline characters.
+Protected malformed reference text remains literal; active malformed references
+are diagnosed during resolution rather than during JSON string tokenization.
+Unmatched Unicode
 surrogates decode to U+FFFD, matching BuildKit's JSON decoder, while untouched
 escape spelling remains intact. Legacy parser-accepted paths that are not valid
 JSON strings retain token-based resolution.
@@ -159,6 +163,8 @@ path contents, even when `UpdateInline` is `true`. Inline substitutions stay
 literal across later primitive-token edits. Assigning the path's `Value` or
 updating it through `Paths` reparses its contents and makes new references
 eligible for resolution again.
+Syntax-aware adoption into a non-VOLUME owner clears the VOLUME JSON-resolution
+context; the receiving instruction retains its own resolution behavior.
 
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's

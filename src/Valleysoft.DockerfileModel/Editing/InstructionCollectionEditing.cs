@@ -636,6 +636,13 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         {
             volume.ConfigurePathResolution();
         }
+        else
+        {
+            foreach (LiteralToken literal in InstructionCollectionEditing.Descendants(owner).OfType<LiteralToken>())
+            {
+                literal.ResolveAsJsonString = false;
+            }
+        }
     }
 
     private bool SameValue(T left, T right, Func<Token, string> render)

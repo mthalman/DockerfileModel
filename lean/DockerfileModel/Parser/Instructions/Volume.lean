@@ -74,10 +74,13 @@ def jsonVolumePathsParser (escapeChar : Char) : Parser (List Token) := do
   tokens.mapM fun token =>
     match token with
     | .aggregate .literal _ _ =>
-      match (literalWithVariablesQuoted escapeChar [] '"' .allowedInQuotes).tryParse
+      match (literalWithVariablesQuoted escapeChar [] '"' .allowedInQuotes
+          (allowMalformedVariableText := true)).run
           (Token.toString token) with
-      | some path => Parser.pure path
-      | none => Parser.fail "invalid variable-aware VOLUME path"
+      | .ok path remaining =>
+        if remaining.atEnd then Parser.pure path
+        else Parser.fail "unconsumed variable-aware VOLUME path"
+      | .error _ _ => Parser.fail "invalid variable-aware VOLUME path"
     | _ => Parser.pure token
 
 /-- Parse the arguments of a VOLUME instruction: exec form or space-separated paths.

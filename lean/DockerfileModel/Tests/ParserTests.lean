@@ -2094,6 +2094,13 @@ def testVolumeVariable : IO Unit := do
           | _ => false) "volume JSON variable edge case is recognized"
       | _ => throw (IO.Error.userError "Expected volume instruction token")
     | none => throw (IO.Error.userError s!"VOLUME JSON variable edge case failed: {text}")
+  for text in ["VOLUME [\"\\\\${BROKEN\"]",
+      "VOLUME [\"prefix'${BROKEN'/data/$ROOT\"]"] do
+    match parseVolume text with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text
+        "volume JSON malformed variable text remains lossless"
+    | none => throw (IO.Error.userError s!"VOLUME JSON literal variable text failed: {text}")
 
 open DockerfileModel.Parser.Instructions.Volume in
 /-- Test: VOLUME exec form multiple -/

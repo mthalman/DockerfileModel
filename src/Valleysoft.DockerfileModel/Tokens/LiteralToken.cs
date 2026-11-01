@@ -115,15 +115,18 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         {
             return base.ResolveVariables(escapeChar, variables, options);
         }
+        string physical = ToString();
+        List<int> offsets = new();
+        string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out int consumed, offsets);
         // Legacy constructors accept non-JSON strings; keep their token-based resolution.
-        if (!JsonStringValidation.IsValid(ToString(), escapeChar))
+        if (consumed != physical.Length || !JsonStringValidation.IsValidLogical(logical))
         {
             return base.ResolveVariables(escapeChar, variables, options);
         }
         options ??= new ResolutionOptions();
         variables ??= new Dictionary<string, string?>();
         resolvedJsonLiterals?.IntersectWith(Tokens);
-        return JsonStringVariableResolver.Resolve(this, escapeChar, variables, options,
+        return JsonStringVariableResolver.Resolve(this, physical, logical, offsets, escapeChar, variables, options,
             expandVariables: canContainVariables);
     }
 
@@ -142,6 +145,15 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         if (preserveRawValue)
         {
             return new Token[] { new StringToken(value) };
+        }
+        if (ResolveAsJsonString && canContainVariables &&
+            JsonStringValidation.IsValid($"\"{value}\"", escapeChar))
+        {
+            LiteralToken raw = new(new Token[] { new StringToken(value) }, canContainVariables: false, escapeChar)
+            {
+                QuoteChar = '"'
+            };
+            return JsonStringVariableResolver.Tokenize(raw, escapeChar).Tokens;
         }
         if (UseJsonStringSyntax)
         {

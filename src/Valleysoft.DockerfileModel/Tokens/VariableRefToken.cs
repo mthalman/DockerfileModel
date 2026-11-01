@@ -11,7 +11,7 @@ public class VariableRefToken : AggregateToken
     // ResolveVariables. The POSIX modifiers ("##", "#", "%%", "%", "//", "/") are accepted for
     // parsing but not resolved, since Dockerfile variable resolution is limited compared to full
     // bash — see ResolveVariables for details.
-    private static readonly string[] ValidModifiers = new string[] { ":-", ":+", ":?", "-", "+", "?", "##", "#", "%%", "%", "//", "/" };
+    internal static readonly string[] ValidModifiers = new string[] { ":-", ":+", ":?", "-", "+", "?", "##", "#", "%%", "%", "//", "/" };
 
     /// <summary>
     /// Parsers for all of the variable substitution modifiers.

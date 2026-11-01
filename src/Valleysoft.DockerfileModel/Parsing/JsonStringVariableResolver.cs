@@ -5,22 +5,74 @@ namespace Valleysoft.DockerfileModel.Parsing;
 
 internal static class JsonStringVariableResolver
 {
-    internal static string Resolve(LiteralToken path, char escapeChar,
-        IDictionary<string, string?> variables, ResolutionOptions options, bool expandVariables)
+    internal static LiteralToken Tokenize(LiteralToken path, char escapeChar)
     {
         string physical = path.ToString();
-        List<int> offsets = new();
-        string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out int consumed, offsets);
-        if (consumed != physical.Length)
+        (Token Token, string Text)[] source = path.Tokens.Select(token => (token, token.ToString())).ToArray();
+        List<(int Start, int End, Token Token, bool Inline)> references = new();
+        TextParser<VariableRefToken> parser = VariableRefToken.GetParser(escapeChar);
+        TextSpan input = new TextSpan(physical).Skip(1);
+        while (input.Position.Absolute < physical.Length - 1)
         {
-            throw new InvalidOperationException("The JSON path contains unconsumed physical input.");
+            int start = input.Position.Absolute;
+            if (physical[start] == escapeChar && start + 1 < physical.Length - 1)
+            {
+                input = input.Skip(2);
+                continue;
+            }
+            if (physical[start] == '$')
+            {
+                Result<VariableRefToken> reference = parser(input);
+                if (reference.HasValue && reference.Remainder.Position.Absolute < physical.Length)
+                {
+                    references.Add((start, reference.Remainder.Position.Absolute, reference.Value, false));
+                    input = reference.Remainder;
+                    continue;
+                }
+            }
+            input = input.Skip(1);
         }
+        // Encoded JSON may protect syntactically incomplete references; semantic validation happens after decoding.
+        return new LiteralToken(references.Count == 0 ? path.Tokens :
+            BuildTokens(source, references, physical.Length - 1), canContainVariables: true, escapeChar)
+        {
+            QuoteChar = path.QuoteChar
+        };
+    }
+
+    internal static string Resolve(LiteralToken path, string physical, string logical, List<int> offsets, char escapeChar,
+        IDictionary<string, string?> variables, ResolutionOptions options, bool expandVariables)
+    {
         string decoded = Decode(logical, offsets, out List<int> starts, out List<int> ends);
         (Token Token, string Text)[] source = path.Tokens.Select(token => (token, token.ToString())).ToArray();
+        int[] resolvedCounts = new int[decoded.Length + 1];
+        int sourceIndex = 0;
+        int sourceStart = 1;
+        for (int index = 0; index < decoded.Length; index++)
+        {
+            while (sourceIndex < source.Length && sourceStart + source[sourceIndex].Text.Length <= starts[index])
+            {
+                sourceStart += source[sourceIndex].Text.Length;
+                sourceIndex++;
+            }
+            resolvedCounts[index + 1] = resolvedCounts[index] +
+                (sourceIndex < source.Length && path.IsResolvedJsonLiteral(source[sourceIndex].Token) ? 1 : 0);
+        }
 
-        List<(int Start, int End, string Value, bool Inline)> replacements = new();
+        List<(int Start, int End, Token Token, bool Inline)> replacements = new();
         ResolutionOptions valueOptions = new() { RemoveEscapeCharacters = options.RemoveEscapeCharacters };
-        TextParser<VariableRefToken> variableParser = VariableRefToken.GetParser(escapeChar);
+        bool blocked = false;
+        TextParser<char> character = input =>
+        {
+            int index = input.Position.Absolute;
+            if (!input.IsAtEnd && resolvedCounts[index + 1] != resolvedCounts[index])
+            {
+                blocked = true;
+                return Result.Empty<char>(input, "unresolved source character");
+            }
+            return Character.AnyChar(input);
+        };
+        TextParser<VariableRefToken> variableParser = DecodedVariableParsers.Variable(escapeChar, character);
         TextSpan input = new(decoded);
         int tokenIndex = 0;
         int tokenStart = 1;
@@ -47,7 +99,7 @@ internal static class JsonStringVariableResolver
                     string formatted = options.FormatValue(escapeChar, literal);
                     if (formatted != literal)
                     {
-                        replacements.Add((starts[index], ends[end - 1], Encode(formatted), false));
+                        replacements.Add((starts[index], ends[end - 1], new StringToken(Encode(formatted)), false));
                     }
                 }
                 input = input.Skip(end - index);
@@ -65,11 +117,14 @@ internal static class JsonStringVariableResolver
             }
             if (current == escapeChar && index + 1 < decoded.Length)
             {
+                int length = char.IsHighSurrogate(decoded[index + 1]) &&
+                    index + 2 < decoded.Length && char.IsLowSurrogate(decoded[index + 2]) ? 2 : 1;
                 if (options.RemoveEscapeCharacters)
                 {
-                    replacements.Add((starts[index], ends[index + 1], Encode(decoded[index + 1].ToString()), false));
+                    replacements.Add((starts[index], ends[index + length],
+                        new StringToken(Encode(decoded.Substring(index + 1, length))), false));
                 }
-                input = input.Skip(2);
+                input = input.Skip(length + 1);
                 continue;
             }
             if (current == '"' || (current == '\'' && quote is null))
@@ -78,18 +133,20 @@ internal static class JsonStringVariableResolver
             }
             if (expandVariables && current == '$')
             {
+                blocked = false;
                 Result<VariableRefToken> variable = variableParser(input);
-                if (variable.HasValue)
+                if (variable.HasValue &&
+                    resolvedCounts[variable.Remainder.Position.Absolute] == resolvedCounts[index])
                 {
                     int end = variable.Remainder.Position.Absolute;
                     string value = variable.Value.ResolveVariables(escapeChar, variables, valueOptions) ?? string.Empty;
-                    replacements.Add((starts[index], ends[end - 1], Encode(value), true));
+                    replacements.Add((starts[index], ends[end - 1], new StringToken(Encode(value)), true));
                     input = variable.Remainder;
                     continue;
                 }
-                if (index + 1 < decoded.Length && decoded[index + 1] == '{')
+                if (!blocked && index + 1 < decoded.Length && decoded[index + 1] == '{')
                 {
-                    VariableRefToken.Parse(input.ToString(), escapeChar);
+                    throw new ParseException("Invalid variable reference in decoded JSON path.", variable.ErrorPosition);
                 }
             }
             input = input.Skip(1);
@@ -169,7 +226,7 @@ internal static class JsonStringVariableResolver
     private static string Encode(string value) => JsonEncodedText.Encode(value).ToString();
 
     private static List<Token> BuildTokens((Token Token, string Text)[] source,
-        IEnumerable<(int Start, int End, string Value, bool Inline)> replacements, int end,
+        IEnumerable<(int Start, int End, Token Token, bool Inline)> replacements, int end,
         List<Token>? substitutions = null)
     {
         List<Token> tokens = new();
@@ -199,10 +256,9 @@ internal static class JsonStringVariableResolver
         }
 
         int position = 1;
-        foreach ((int start, int finish, string value, bool inline) in replacements)
+        foreach ((int start, int finish, Token substitution, bool inline) in replacements)
         {
             CopyUnchanged(position, start);
-            StringToken substitution = new(value);
             tokens.Add(substitution);
             if (inline)
             {

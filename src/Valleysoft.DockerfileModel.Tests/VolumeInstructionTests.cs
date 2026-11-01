@@ -486,6 +486,167 @@ public class VolumeInstructionTests
         }
     }
 
+    [Theory]
+    [InlineData("VOLUME [\"\\\\${BROKEN\"]", '\\')]
+    [InlineData("VOLUME [\"`$\\u007bBROKEN\"]", '`')]
+    [InlineData("VOLUME [\"prefix'${BROKEN'\"]", '\\')]
+    public void JsonProtectedMalformedReferencesRemainLiteral(string text, char escapeChar)
+    {
+        foreach (bool inline in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse(text, escapeChar);
+            Assert.Equal(text, instruction.ToString());
+            Assert.Equal(text, instruction.ResolveVariables(escapeChar,
+                options: new ResolutionOptions { UpdateInline = inline }));
+            Assert.Equal(text, instruction.ToString());
+            instruction.PathTokens[0].Value = text.Substring(9, text.Length - 11);
+            Assert.Equal(text, instruction.ResolveVariables(escapeChar));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonResolutionCannotConsumePreviousSubstitutionsAcrossTokenBoundaries(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$${NAME}\"]");
+        Dictionary<string, string?> variables = new() { ["NAME"] = "ROOT", ["ROOT"] = "unexpected" };
+        const string expected = "VOLUME [\"$ROOT\"]";
+        Assert.Equal(expected, instruction.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal(expected, instruction.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(expected, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData("{ROOT}")]
+    [InlineData("{ROOT:-fallback}")]
+    public void JsonResolutionCannotConsumeSubstitutedBraces(string name)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$${NAME}\"]");
+        Dictionary<string, string?> variables = new() { ["NAME"] = name, ["ROOT"] = "unexpected" };
+        string expected = instruction.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = true })!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(expected.Substring(7));
+        Assert.Equal("$" + name, json.RootElement[0].GetString());
+        Assert.Equal(expected, instruction.ResolveVariables('\\', variables));
+    }
+
+    [Theory]
+    [InlineData("a\\nb", "a\nb")]
+    [InlineData("a\\rb", "a\rb")]
+    [InlineData("a\\u000Ab", "a\nb")]
+    public void JsonModifierValuesAllowDecodedLineTerminators(string content, string expected)
+    {
+        foreach (bool inline in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"${{MISSING:-{content}}}\"]");
+            string resolved = instruction.ResolveVariables('\\',
+                options: new ResolutionOptions { UpdateInline = inline })!;
+            using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(resolved.Substring(7));
+            Assert.Equal(expected, json.RootElement[0].GetString());
+        }
+    }
+
+    [Theory]
+    [InlineData("${MISSING:-'\\u0024ROOT'}", "'$ROOT'")]
+    [InlineData("${MISSING:-prefix'\\u0024ROOT'}", "prefix'$ROOT'")]
+    [InlineData("${MISSING:-${OTHER:-'\\u0024ROOT'}}", "'$ROOT'")]
+    [InlineData("${MISSING:-\\u0022'\\u0024ROOT'\\u0022}", "\"'/srv'\"")]
+    public void JsonModifierValuesHonorDecodedQuotes(string content, string expected)
+    {
+        foreach (bool inline in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"{content}\"]");
+            string resolved = instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["ROOT"] = "/srv" },
+                new ResolutionOptions { UpdateInline = inline })!;
+            using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(resolved.Substring(7));
+            Assert.Equal(expected, json.RootElement[0].GetString());
+        }
+    }
+
+    [Theory]
+    [InlineData("\\uD83D\\uDE80")]
+    [InlineData("\uD83D\uDE80")]
+    public void JsonEscapeRemovalPreservesSupplementaryCharacters(string content)
+    {
+        foreach (bool inline in new[] { false, true })
+        {
+            string text = $"VOLUME [\"\\\\{content}\"]";
+            VolumeInstruction instruction = VolumeInstruction.Parse(text);
+            string resolved = instruction.ResolveVariables('\\',
+                options: new ResolutionOptions { UpdateInline = inline, RemoveEscapeCharacters = true })!;
+            using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(resolved.Substring(7));
+            Assert.Equal("\uD83D\uDE80", json.RootElement[0].GetString());
+            Assert.Equal(text, instruction.ToString());
+        }
+    }
+
+    [Fact]
+    public void JsonResolutionContextDoesNotFollowPathsIntoShellCopy()
+    {
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME [\"\\u0024ROOT\"]");
+        LiteralToken path = volume.PathTokens[0];
+        volume.PathTokens.RemoveAt(0);
+        CopyInstruction copy = CopyInstruction.Parse("COPY /data /dest");
+        copy.SourceTokens.Add(path);
+        Assert.Equal("COPY /data \"\\u0024ROOT\" /dest", copy.ToString());
+        Assert.Equal(copy.ToString(), copy.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" }));
+    }
+
+    [Fact]
+    public void JsonResolutionContextDoesNotFollowPathsIntoCopyDestinations()
+    {
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME [\"\\u0024ROOT\"]");
+        LiteralToken path = volume.PathTokens[0];
+        volume.PathTokens.RemoveAt(0);
+        CopyInstruction copy = CopyInstruction.Parse("COPY /data /dest");
+        copy.DestinationToken = path;
+        Assert.Equal(copy.ToString(), copy.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" }));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonActiveMalformedReferencesStillFailWithoutMutatingPaths(bool inline)
+    {
+        const string text = "VOLUME [\"\\u0024{BROKEN\"]";
+        VolumeInstruction instruction = VolumeInstruction.Parse(text);
+        Assert.Throws<ParseException>(() => instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData("${MISSING:-'\\u0024{BROKEN'}", "'${BROKEN'")]
+    [InlineData("${MISSING:-a\\\\\\u0024ROOT}", "a\\$ROOT")]
+    [InlineData("${MISSING:-a\\nb${OTHER}}", "a\nbnested")]
+    public void JsonNestedModifiersRetainProtectionAndWhitespace(string content, string expected)
+    {
+        foreach (bool inline in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"{content}\"]");
+            string resolved = instruction.ResolveVariables('\\',
+                new Dictionary<string, string?> { ["OTHER"] = "nested", ["ROOT"] = "unexpected" },
+                new ResolutionOptions { UpdateInline = inline })!;
+            using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(resolved.Substring(7));
+            Assert.Equal(expected, json.RootElement[0].GetString());
+        }
+    }
+
+    [Fact]
+    public void JsonResolutionSerializesSourceTwice()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"/data\"]");
+        CountingStringToken source = new("/data");
+        instruction.PathTokens[0].ReplaceWithToken(source);
+        Assert.Equal("VOLUME [\"/data\"]", instruction.ResolveVariables('\\'));
+        Assert.Equal(2, source.RenderCount);
+    }
+
     [Fact]
     public void Paths()
     {
