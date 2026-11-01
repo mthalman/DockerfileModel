@@ -34,12 +34,14 @@ public class ShellInstruction : CommandInstruction
     {
         Guard.NotNull(command, nameof(command));
         Guard.NotNull(args, nameof(args));
-        return GetTokens($"SHELL {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
+        return GetTokens($"SHELL {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}",
+            GetInnerParser(escapeChar, constructedExecForm: true));
     }
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar = Dockerfile.DefaultEscapeChar,
+        bool constructedExecForm = false) =>
         Instruction("SHELL", escapeChar,
-            GetArgsParser(escapeChar));
+            constructedExecForm ? GetConstructedExecFormArgsParser(escapeChar) : GetArgsParser(escapeChar));
 
     private new static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
         ArgTokens(CommandParsers.RequireJson(ExecFormCommand.GetParser(escapeChar, useJsonStringSyntax: true), escapeChar)

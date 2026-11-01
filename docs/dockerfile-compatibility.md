@@ -83,6 +83,9 @@ Within JSON strings, backslash escapes follow JSON syntax even when an `escape`
 directive selects backtick for Dockerfile continuations. Continuations may appear
 before the first string character or in an empty string; parsing retains their
 physical source without including them in the literal value.
+Standalone instruction parsing and `Dockerfile.TryParse` also retain skipped
+blank lines and comments after a continuation without including their text or
+indentation in JSON string values.
 
 `ADD`, `COPY`, and `VOLUME` use the same recognition rule, but their fallback is
 the instruction's non-JSON operand grammar. `SHELL` requires JSON form and does
@@ -94,10 +97,12 @@ operands; instruction form selection validates JSON independently.
 
 Commands parsed from instructions retain the JSON string grammar for collection
 edits and literal value updates. Explicit `ExecFormCommand` APIs keep their
-legacy grammar, including its existing limitations. `ADD` and `COPY` constructors
-also retain legacy operand syntax when their generated arguments are not valid
-JSON; collection edits preserve those existing operands without weakening the
-JSON checks for newly supplied tokens or instruction text.
+legacy grammar, including its existing limitations. Argument-sequence constructors
+for `RUN`, `CMD`, `ENTRYPOINT`, `HEALTHCHECK CMD`, and `SHELL` retain exec form when
+their generated arguments require legacy operand syntax. `ADD` and `COPY`
+constructors also retain legacy JSON-form operands. These constructor paths do
+not add JSON escaping; collection edits preserve existing operands without
+weakening the JSON checks for newly supplied tokens or instruction text.
 
 ## How updates are discovered
 

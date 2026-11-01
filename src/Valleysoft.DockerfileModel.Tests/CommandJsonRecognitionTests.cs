@@ -5,6 +5,145 @@ namespace Valleysoft.DockerfileModel.Tests;
 
 public class CommandJsonRecognitionTests
 {
+    [Theory]
+    [InlineData("RUN")]
+    [InlineData("CMD")]
+    [InlineData("ENTRYPOINT")]
+    [InlineData("HEALTHCHECK")]
+    [InlineData("SHELL")]
+    public void ArgumentSequenceConstructorsRetainLegacyExecOperands(string kind)
+    {
+        Instruction instruction = kind switch
+        {
+            "RUN" => new RunInstruction(@"C:\work", new[] { "arg" }),
+            "CMD" => new CmdInstruction(@"C:\work", new[] { "arg" }),
+            "ENTRYPOINT" => new EntrypointInstruction(@"C:\work", new[] { "arg" }),
+            "HEALTHCHECK" => new HealthCheckInstruction(@"C:\work", new[] { "arg" }, interval: "5s"),
+            "SHELL" => new ShellInstruction(@"C:\work", new[] { "arg" }),
+            _ => throw new ArgumentException(nameof(kind))
+        };
+        ExecFormCommand command = Assert.IsType<ExecFormCommand>(GetCommand(instruction));
+        Assert.Equal(new[] { @"C:\work", "arg" }, command.Values);
+        Assert.Equal("[\"C:\\work\", \"arg\"]", command.ToString());
+        if (kind == "SHELL")
+        {
+            Assert.Throws<ParseException>(() => ParseInstruction(instruction.ToString()));
+        }
+        else
+        {
+            Assert.IsType<ShellFormCommand>(GetCommand(ParseInstruction(instruction.ToString())));
+        }
+
+        command.Values.Add("extra");
+
+        Assert.Equal(new[] { @"C:\work", "arg", "extra" }, command.Values);
+        if (instruction is HealthCheckInstruction healthCheck)
+        {
+            Assert.Equal("5s", healthCheck.Interval);
+        }
+    }
+
+    [Theory]
+    [InlineData("CMD")]
+    [InlineData("ENTRYPOINT")]
+    [InlineData("HEALTHCHECK")]
+    public void DefaultArgumentConstructorsRetainLegacyExecOperands(string kind)
+    {
+        string[] values = { @"C:\work", "arg" };
+        Instruction instruction = kind switch
+        {
+            "CMD" => new CmdInstruction(values),
+            "ENTRYPOINT" => new EntrypointInstruction(values),
+            "HEALTHCHECK" => new HealthCheckInstruction(values),
+            _ => throw new ArgumentException(nameof(kind))
+        };
+        Assert.Equal(values, Assert.IsType<ExecFormCommand>(GetCommand(instruction)).Values);
+    }
+
+    [Fact]
+    public void ExecConstructorRetainsRunFlagsAndShellOnlyCommand()
+    {
+        RunInstruction run = new(@"C:\work", new[] { "arg" }, Array.Empty<Mount>(),
+            network: "none", security: "sandbox");
+        Assert.Equal("none", run.Network);
+        Assert.Equal("sandbox", run.Security);
+        Assert.Equal(new[] { @"C:\work", "arg" }, Assert.IsType<ExecFormCommand>(run.Command).Values);
+        Assert.Equal(new[] { @"C:\work" },
+            Assert.IsType<ExecFormCommand>(new ShellInstruction(@"C:\work").Command).Values);
+    }
+
+    [Theory]
+    [InlineData("RUN")]
+    [InlineData("CMD")]
+    [InlineData("ENTRYPOINT")]
+    [InlineData("HEALTHCHECK")]
+    [InlineData("SHELL")]
+    public void ArgumentSequenceConstructorsKeepSupportedJsonStringSyntax(string kind)
+    {
+        const string value = "a\\\"b`";
+        Instruction instruction = kind switch
+        {
+            "RUN" => new RunInstruction(value, new[] { "arg" }, '`'),
+            "CMD" => new CmdInstruction(value, new[] { "arg" }, '`'),
+            "ENTRYPOINT" => new EntrypointInstruction(value, new[] { "arg" }, '`'),
+            "HEALTHCHECK" => new HealthCheckInstruction(value, new[] { "arg" }, escapeChar: '`'),
+            "SHELL" => new ShellInstruction(value, new[] { "arg" }, '`'),
+            _ => throw new ArgumentException(nameof(kind))
+        };
+        ExecFormCommand command = Assert.IsType<ExecFormCommand>(GetCommand(instruction));
+        Assert.Equal(new[] { value, "arg" }, command.Values);
+        string before = instruction.ToString();
+        command.ValueTokens[0].Value = command.ValueTokens[0].Value;
+        Assert.Equal(before, instruction.ToString());
+        command.Values.Add("extra");
+        Assert.Equal(new[] { value, "arg", "extra" }, command.Values);
+    }
+
+    [Fact]
+    public void ExplicitExecFormRetainsMultilineJsonWhitespace()
+    {
+        const string text = "[ \n\t\n\"a\", \n\n\"b\"\n\n]";
+        ExecFormCommand command = ExecFormCommand.Parse(text);
+        Assert.Equal(text, command.ToString());
+        Assert.Equal(new[] { "a", "b" }, command.Values);
+    }
+
+    [Theory]
+    [InlineData("self-replace")]
+    [InlineData("move")]
+    [InlineData("remove")]
+    public void EditsWithoutAdoptionDoNotReselectLiveJsonOperands(string operation)
+    {
+        ExecFormCommand command = Assert.IsType<ExecFormCommand>(RunInstruction.Parse("RUN [\"old\", \"other\"]").Command);
+        LiteralToken original = command.ValueTokens[0];
+        int liveSelections = 0;
+        InstructionTokenListAdapter<LiteralToken> adapter = new(command, tokens =>
+        {
+            if (tokens.Any(token => ReferenceEquals(token, original)))
+            {
+                liveSelections++;
+            }
+            return tokens;
+        });
+        switch (operation)
+        {
+            case "self-replace":
+                adapter.Replace(0, original, TriviaDisposition.Preserve);
+                break;
+            case "move":
+                adapter.Move(0, 1);
+                break;
+            case "remove":
+                adapter.Remove(new[] { 1 }, TriviaDisposition.Discard);
+                break;
+            default:
+                throw new ArgumentException(nameof(operation));
+        }
+        Assert.Equal(1, liveSelections);
+        Assert.Contains(original, command.ValueTokens);
+        Assert.True(original.UseJsonStringSyntax);
+    }
+
     public static IEnumerable<object[]> JsonCommandEditCases()
     {
         foreach (string prefix in new[] { "RUN", "CMD", "ENTRYPOINT", "HEALTHCHECK CMD", "ONBUILD RUN", "SHELL" })
@@ -144,6 +283,55 @@ public class CommandJsonRecognitionTests
             {
                 yield return new object[] { prefix, scenario.Arguments, scenario.EscapeChar, scenario.Values };
             }
+        }
+    }
+
+    public static IEnumerable<object[]> JsonContinuationTriviaCases()
+    {
+        (string Arguments, char EscapeChar, string[] Values)[] cases =
+        {
+            ("[\\\n\n\n\"a\", \"dest\"]", '\\', new[] { "a", "dest" }),
+            ("[\"a\", \\\n\n\n\"dest\"]", '\\', new[] { "a", "dest" }),
+            ("[\"a\"\\\n\n\n, \"dest\"]", '\\', new[] { "a", "dest" }),
+            ("[\"a\", \"dest\"\\\n\n\n]", '\\', new[] { "a", "dest" }),
+            ("[\"a\\\n\n\n# comment\nb\", \"dest\"]", '\\', new[] { "ab", "dest" }),
+            ("[\"a`\r\n\r\n\r\n # first\r\n\r\n# second\r\n b\", \"dest\"]", '`', new[] { "a b", "dest" })
+        };
+        foreach (string prefix in new[] { "RUN", "CMD", "ENTRYPOINT", "HEALTHCHECK CMD", "ONBUILD RUN",
+            "SHELL", "ADD", "COPY", "VOLUME" })
+        {
+            foreach (var scenario in cases)
+            {
+                yield return new object[] { prefix, scenario.Arguments, scenario.EscapeChar, scenario.Values };
+            }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(JsonContinuationTriviaCases))]
+    public void ContinuedJsonRetainsSkippedTrivia(string prefix, string arguments, char escapeChar, string[] values)
+    {
+        string text = prefix + " " + arguments + "\n";
+        AssertInstruction(ParseInstruction(text, escapeChar));
+        string documentText = (escapeChar == '`' ? "# escape=`\n" : "") + text + "RUN echo after\n";
+        foreach (DockerfileParseMode mode in Enum.GetValues<DockerfileParseMode>())
+        {
+            DockerfileParseResult result = Dockerfile.TryParse(documentText, new DockerfileParseOptions { Mode = mode });
+            Assert.True(result.Success);
+            Assert.Empty(result.Diagnostics);
+            Assert.Equal(documentText, result.Dockerfile!.ToString());
+            AssertInstruction(result.Dockerfile.Items.OfType<Instruction>().First());
+            Assert.IsType<RunInstruction>(result.Dockerfile.Items.OfType<Instruction>().Last());
+            SourceSpanTests.AssertPartition(documentText, result.Dockerfile);
+        }
+
+        void AssertInstruction(Instruction instruction)
+        {
+            Assert.Equal(text, instruction.ToString());
+            IEnumerable<Token> tokens = instruction is FileTransferInstruction or VolumeInstruction
+                ? instruction.Tokens
+                : Assert.IsType<ExecFormCommand>(GetCommand(instruction)).Tokens;
+            Assert.Equal(values, tokens.OfType<LiteralToken>().Select(token => token.Value));
         }
     }
 

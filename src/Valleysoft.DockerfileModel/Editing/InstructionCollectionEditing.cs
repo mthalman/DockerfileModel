@@ -240,7 +240,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         PrepareItem(plan, item);
         Insert(tokens, expected, index, item);
         expected.Insert(index, item);
-        ValidateAndCommit(plan, expected);
+        ValidateAndCommit(plan, expected, adoptedIndex: index);
     }
 
     public void Replace(int index, T item, TriviaDisposition trivia)
@@ -259,7 +259,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         PrepareItem(plan, item);
         tokens[ReferenceList.IndexOf(tokens, current)] = item;
         expected[index] = item;
-        ValidateAndCommit(plan, expected);
+        ValidateAndCommit(plan, expected, adoptedIndex: index);
     }
 
     public void Remove(IReadOnlyList<int> indices, TriviaDisposition trivia)
@@ -571,7 +571,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
 
     /// <summary>Requires complete grammar consumption and the expected role values before publishing a plan.</summary>
     /// <remarks>Generic argument-line edits also validate the underlying known instruction grammar.</remarks>
-    private void ValidateAndCommit(TokenEditPlan plan, List<T> expected)
+    private void ValidateAndCommit(TokenEditPlan plan, List<T> expected, int adoptedIndex = -1)
     {
         EditValidation.ValidateTree(owner);
         string text = plan.Render(owner);
@@ -612,20 +612,11 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         {
             throw new InvalidOperationException("The edit changes operand boundaries or values.");
         }
-        // Newly adopted literals inherit the parsed grammar; existing legacy literals keep their contract.
-        HashSet<T>? existing = IsJson ? new(Select(owner), ReferenceComparer<T>.Instance) : null;
         plan.Commit();
-        if (existing is not null)
+        if (adoptedIndex >= 0 && IsJson && expected[adoptedIndex] is LiteralToken literal &&
+            actual[adoptedIndex] is LiteralToken parsedLiteral)
         {
-            List<T> committed = Select(owner);
-            for (int index = 0; index < committed.Count; index++)
-            {
-                if (!existing.Contains(committed[index]) && committed[index] is LiteralToken literal &&
-                    actual[index] is LiteralToken parsedLiteral)
-                {
-                    literal.UseJsonStringSyntax = parsedLiteral.UseJsonStringSyntax;
-                }
-            }
+            literal.UseJsonStringSyntax = parsedLiteral.UseJsonStringSyntax;
         }
     }
 

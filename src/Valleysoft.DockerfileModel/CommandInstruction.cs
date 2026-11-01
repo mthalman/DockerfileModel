@@ -59,6 +59,14 @@ public abstract class CommandInstruction : Instruction
     protected static TextParser<Command> GetCommandParser(char escapeChar) =>
         GetCommandParser(escapeChar, false);
 
+    internal static TextParser<Command> GetConstructedExecFormParser(char escapeChar) =>
+        CommandParsers.MaybeJson(
+            ExecFormCommand.GetParser(escapeChar, useJsonStringSyntax: true).Cast<ExecFormCommand, Command>(),
+            ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Command>(), escapeChar);
+
+    private protected static TextParser<IEnumerable<Token>> GetConstructedExecFormArgsParser(char escapeChar) =>
+        ArgTokens(GetConstructedExecFormParser(escapeChar).AsEnumerable(), escapeChar);
+
     internal static TextParser<Command> GetCommandParser(char escapeChar, bool diagnostic)
     {
         TextParser<Command> execFormParser = ExecFormCommand.GetParser(escapeChar, useJsonStringSyntax: true)
