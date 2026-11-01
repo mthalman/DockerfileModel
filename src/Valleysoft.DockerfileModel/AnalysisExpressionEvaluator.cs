@@ -120,8 +120,7 @@ internal static class AnalysisExpressionEvaluator
         private readonly StringBuilder text = new();
         private readonly List<string> unresolvedVariables = new();
         private AnalysisValue? failure;
-        private char? quote;
-        private bool escaped;
+        private ShellQuoteContext quoteContext;
 
         public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar)
         {
@@ -138,7 +137,7 @@ internal static class AnalysisExpressionEvaluator
 
             if (token is VariableRefToken variable)
             {
-                if (quote == '\'' || escaped)
+                if (quoteContext.SuppressExpansion)
                 {
                     AppendText(variable.ToString());
                 }
@@ -180,7 +179,7 @@ internal static class AnalysisExpressionEvaluator
 
         public AnalysisValue GetResult()
         {
-            if (quote.HasValue)
+            if (quoteContext.QuoteChar.HasValue)
             {
                 AppendValue(AnalysisValue.Failure(AnalysisDiagnosticCode.UnsupportedEvaluation,
                     "The expression contains an unterminated quote."));
@@ -191,7 +190,7 @@ internal static class AnalysisExpressionEvaluator
                 return AnalysisValue.Failure(failure.DiagnosticCode!.Value, failure.Message!, unresolvedVariables);
             }
 
-            if (escaped)
+            if (quoteContext.Escaped)
             {
                 text.Append(escapeChar);
             }
@@ -224,40 +223,12 @@ internal static class AnalysisExpressionEvaluator
 
         private void AppendCharacter(char character)
         {
-            if (escaped)
+            if (quoteContext.Consume(character, escapeChar, out bool preserveEscape))
             {
-                if (quote == '"' && character != '$' && character != '"' && character != escapeChar)
+                if (preserveEscape)
                 {
                     text.Append(escapeChar);
                 }
-                text.Append(character);
-                escaped = false;
-            }
-            else if (quote == '\'')
-            {
-                if (character == '\'')
-                {
-                    quote = null;
-                }
-                else
-                {
-                    text.Append(character);
-                }
-            }
-            else if (character == escapeChar)
-            {
-                escaped = true;
-            }
-            else if (character == quote)
-            {
-                quote = null;
-            }
-            else if (!quote.HasValue && character is '\'' or '"')
-            {
-                quote = character;
-            }
-            else
-            {
                 text.Append(character);
             }
         }
