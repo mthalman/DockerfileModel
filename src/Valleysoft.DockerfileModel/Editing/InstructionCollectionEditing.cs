@@ -196,6 +196,7 @@ internal static class InstructionCollectionEditing
 /// owner-local aliasing; writes stage separators, quoting, and payloads, then reparse and compare
 /// operand counts and values before committing. JSON operands compare folded syntax rather than
 /// legacy value projections; incoming operands must independently form one valid JSON string.
+/// Adopted literals retain the validated owner's word grammar for later value updates.
 /// Required cardinality depends on the role.
 /// </remarks>
 internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> where T : Token
@@ -574,7 +575,8 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
     private void ValidateAndCommit(TokenEditPlan plan, List<T> expected)
     {
         EditValidation.ValidateTree(owner);
-        string text = plan.Render(owner);
+        Func<Token, string> render = plan.CreateRenderer();
+        string text = render(owner);
         AggregateToken parsed;
         try
         {
@@ -599,26 +601,34 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         {
             EditValidation.ParseInstruction(owner.ToString(), owner.EditingEscapeChar);
             Instruction diagnostic = EditValidation.ParseInstruction(text, owner.EditingEscapeChar);
-            EditValidation.ValidateHeredocAssociations(owner, diagnostic, plan);
+            EditValidation.ValidateHeredocAssociations(owner, diagnostic, plan, render);
         }
         else if (parsed is Instruction instruction)
         {
-            EditValidation.ValidateHeredocAssociations(owner, instruction, plan);
+            EditValidation.ValidateHeredocAssociations(owner, instruction, plan, render);
         }
         List<T> actual = Select(parsed);
-        if (actual.Count != expected.Count || actual.Where((token, index) => !SameValue(token, expected[index], plan)).Any())
+        if (actual.Count != expected.Count || actual.Where((token, index) => !SameValue(token, expected[index], render)).Any())
         {
             throw new InvalidOperationException("The edit changes operand boundaries or values.");
         }
         plan.Commit();
+        List<T> committed = Select(owner);
+        for (int index = 0; index < actual.Count; index++)
+        {
+            if (committed[index] is LiteralToken literal && actual[index] is LiteralToken parsedLiteral)
+            {
+                literal.RetainWordContext(parsedLiteral);
+            }
+        }
     }
 
-    private bool SameValue(T left, T right, TokenEditPlan plan)
+    private bool SameValue(T left, T right, Func<Token, string> render)
     {
         if (IsJson && left is LiteralToken && right is LiteralToken)
         {
             return ConstructReader.FoldHeader(left.ToString(), 0, owner.EditingEscapeChar, out _) ==
-                ConstructReader.FoldHeader(plan.Render(right), 0, owner.EditingEscapeChar, out _);
+                ConstructReader.FoldHeader(render(right), 0, owner.EditingEscapeChar, out _);
         }
         return (left, right) switch
         {

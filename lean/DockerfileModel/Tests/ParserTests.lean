@@ -2431,6 +2431,45 @@ def testContinuedHeredocDestination : IO Unit := do
           let parsed := if name == "COPY" then Copy.parseCopy text escapeChar else Add.parseAdd text escapeChar
           assertTrue parsed.isNone "repeated escapes cannot let body lines close destination quotes"
 
+def testHeredocTriviaBetweenOperands : IO Unit := do
+  for escapeChar in ['\\', '`'] do
+    let escape := String.ofList [escapeChar]
+    for newline in ["\n", "\r\n"] do
+      for trivia in [newline ++ newline, newline ++ "# comment" ++ newline ++ newline,
+          newline ++ "  " ++ newline ++ "\t" ++ newline] do
+        for name in ["COPY", "ADD"] do
+          let text := name ++ " <<EOF src " ++ escape ++ newline ++ trivia ++ " /dest" ++
+            newline ++ "body" ++ newline ++ "EOF" ++ newline
+          let parsed := if name == "COPY" then Copy.parseCopy text escapeChar else Add.parseAdd text escapeChar
+          match parsed with
+          | some instruction =>
+            assertRoundTrip instruction.token text "continued heredoc trivia between operands"
+            let literals := instruction.token.children.filter fun token =>
+              match token with
+              | .aggregate .literal _ _ => true
+              | _ => false
+            assertTrue (literals.map Token.toString == ["src", "/dest"]) "continued operands retain their boundaries"
+            assertTrue (instruction.token.children.getLast!.toString == "body" ++ newline ++ "EOF" ++ newline)
+              "intervening trivia stays outside the body"
+          | none => throw (IO.Error.userError s!"Heredoc operand trivia failed: {text}")
+
+def testHeredocInlineHashOperands : IO Unit := do
+  for name in ["COPY", "ADD"] do
+    for operands in ["src #destination", "\"src\" #destination", "#source /dest"] do
+      let text := name ++ " <<EOF " ++ operands ++ "\nbody\nEOF\n"
+      let parsed := if name == "COPY" then Copy.parseCopy text else Add.parseAdd text
+      match parsed with
+      | some instruction =>
+        assertRoundTrip instruction.token text "inline hash heredoc operands"
+        let literals := instruction.token.children.filter fun token =>
+          match token with
+          | .aggregate .literal _ _ => true
+          | _ => false
+        assertTrue (literals.length == 2) "inline hash text remains an operand, not a comment"
+        assertTrue (literals.getLast!.toString == if operands == "#source /dest" then "/dest" else "#destination")
+          "hash-prefixed destination retains its role"
+      | none => throw (IO.Error.userError s!"Inline hash heredoc operands failed: {text}")
+
 open DockerfileModel.Parser.Instructions.Copy in
 /-- Test: COPY --from=builder /app /app — with from flag -/
 def testCopyWithFrom : IO Unit := do
@@ -3392,6 +3431,8 @@ def runParserTests_PhaseD : IO Unit := do
   testNonFileEmbeddedQuotesCannotTruncate
   testHeredocHorizontalWhitespace
   testContinuedHeredocDestination
+  testHeredocTriviaBetweenOperands
+  testHeredocInlineHashOperands
   testCopyWithFrom
   testCopyWithFromLineContinuation
   testCopyWithChown

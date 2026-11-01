@@ -352,6 +352,97 @@ public class QuotedOperandTests
         Assert.Equal("/second dir", CopyInstruction.Parse(instruction.ToString()).Destination);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AdoptedOperandsRetainTheirWordContext(bool typed)
+    {
+        foreach (string name in new[] { "COPY", "ADD" })
+        {
+            FileTransferInstruction instruction = name == "COPY"
+                ? CopyInstruction.Parse("COPY src /dest") : AddInstruction.Parse("ADD src /dest");
+            LiteralToken incoming = new("new", canContainVariables: true);
+            if (typed)
+            {
+                instruction.SourceTokens.Add(incoming);
+                Assert.Same(incoming, instruction.SourceTokens[1]);
+            }
+            else
+            {
+                instruction.Sources.Add("new");
+            }
+            LiteralToken adopted = instruction.SourceTokens[1];
+            foreach (string value in new[] { "foo\"bar\"", "/first", "/second dir", "" })
+            {
+                adopted.Value = value;
+                Assert.Equal(value, adopted.Value);
+                FileTransferInstruction reparsed = name == "COPY"
+                    ? CopyInstruction.Parse(instruction.ToString()) : AddInstruction.Parse(instruction.ToString());
+                Assert.Equal(new[] { "src", value }, reparsed.Sources);
+                Assert.Equal("/dest", reparsed.Destination);
+            }
+        }
+    }
+
+    [Fact]
+    public void RejectedAdoptionDoesNotRetainTheOwnersWordContext()
+    {
+        LiteralToken incoming = new("new other", canContainVariables: true);
+        CopyInstruction instruction = CopyInstruction.Parse("COPY src /dest");
+        Assert.Throws<InvalidOperationException>(() => instruction.SourceTokens.Add(incoming));
+        incoming.Value = "freeform value";
+        Assert.Null(incoming.QuoteChar);
+        Assert.Equal("freeform value", incoming.ToString());
+        Assert.Equal("COPY src /dest", instruction.ToString());
+    }
+
+    [Fact]
+    public void AdoptingWordContextPreservesVariableRecognitionPolicy()
+    {
+        CopyInstruction instruction = CopyInstruction.Parse("COPY src /dest");
+        LiteralToken incoming = new("new", canContainVariables: false);
+        instruction.SourceTokens.Add(incoming);
+        incoming.Value = "$ROOT/dir name";
+        Assert.Equal("$ROOT/dir name", incoming.Value);
+        Assert.Empty(incoming.Tokens.OfType<VariableRefToken>());
+        Assert.Equal("\"$ROOT/dir name\"", incoming.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "expanded" }));
+        Assert.Equal(new[] { "src", "$ROOT/dir name" }, CopyInstruction.Parse(instruction.ToString()).Sources);
+    }
+
+    [Fact]
+    public void RenderingSeveralTokensSharesOneNormalizationSnapshot()
+    {
+        string operand = string.Concat(Enumerable.Repeat("\"$ROOT\"suffix", 1000));
+        LiteralToken source = Assert.Single(CopyInstruction.Parse($"COPY {operand} /dest").SourceTokens);
+        TokenEditPlan plan = new();
+        plan.SetQuote(source, '"');
+        Func<Token, string> render = plan.CreateRenderer();
+        StringToken unrelated = new("untouched");
+        Assert.Equal("untouched", render(unrelated));
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 100; index++)
+        {
+            Assert.Equal("untouched", render(unrelated));
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 200_000, $"Unrelated previews allocated {allocated} bytes.");
+        Assert.Equal(operand, source.ToString());
+    }
+
+    [Fact]
+    public void RenderingAVariableIncludesItsProposedParentNormalization()
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse("COPY \"$ROOT\"suffix /dest").SourceTokens);
+        VariableRefToken variable = Assert.Single(source.Tokens.OfType<LiteralToken>()
+            .SelectMany(fragment => fragment.Tokens).OfType<VariableRefToken>());
+        TokenEditPlan plan = new();
+        plan.SetQuote(source, '"');
+        Assert.Equal("${ROOT}", plan.Render(variable));
+        plan.Commit();
+        Assert.Equal("${ROOT}", variable.ToString());
+    }
+
     [Fact]
     public void ClearingAMixedSourceRetainsAnEmptyOperand()
     {

@@ -7,7 +7,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     private readonly bool canContainVariables;
     private readonly char escapeChar;
     private readonly bool preserveRawValue;
-    private readonly TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser;
+    private TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser;
     private char? quoteChar;
 
     /// <summary>Parses literal syntax using the supplied escape character and variable-recognition policy.</summary>
@@ -38,7 +38,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     /// <remarks>
     /// Setting preserves an existing quote wrapper and, except for raw-value literals,
     /// reparses the contents with the retained context.
-    /// For an unwrapped parsed word, assigning its current value preserves fragment syntax;
+    /// For an unwrapped parsed or structurally adopted word, assigning its current value preserves fragment syntax;
     /// replacements receive a quote wrapper when required to retain one operand and its contents.
     /// The value is not a general JSON-unescaped or shell-expanded string. Use <c>ToString()</c> for complete syntax.
     /// </remarks>
@@ -63,8 +63,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
                     if (parsed.HasValue &&
                         new LiteralToken(parsed.Value.Tokens, canContainVariables, escapeChar).Value == expectedValue)
                     {
-                        ReplaceWithTokens(parsed.Value.Tokens);
-                        QuoteChar = parsed.Value.QuoteChar;
+                        ReplaceWithTokens(contents);
+                        QuoteChar = quote;
                         return;
                     }
                 }
@@ -73,6 +73,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
             ReplaceWithTokens(contents);
         }
     }
+
+    internal void RetainWordContext(LiteralToken parsed) => wordParser = parsed.wordParser;
 
     /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
     /// <remarks>

@@ -50,8 +50,15 @@ internal sealed class TokenEditPlan
     /// <param name="token">The root of the prospective subtree to render.</param>
     /// <returns>The text that the staged subtree would serialize after commit.</returns>
     /// <remarks>Detects cycles during traversal; shared-node ownership still requires separate validation.</remarks>
-    public string Render(Token token) =>
-        Render(token, new HashSet<Token>(ReferenceComparer<Token>.Instance), EffectiveReplacements());
+    public string Render(Token token) => CreateRenderer()(token);
+
+    /// <summary>Shares final quote normalization across related previews without retaining it on the mutable plan.</summary>
+    /// <remarks>Use only while the staged lists, quote proposals, and live token objects remain unchanged.</remarks>
+    internal Func<Token, string> CreateRenderer()
+    {
+        Dictionary<AggregateToken, List<Token>> effective = EffectiveReplacements();
+        return token => Render(token, new HashSet<Token>(ReferenceComparer<Token>.Instance), effective);
+    }
 
     private Dictionary<AggregateToken, List<Token>> EffectiveReplacements()
     {

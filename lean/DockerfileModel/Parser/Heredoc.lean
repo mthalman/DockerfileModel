@@ -293,15 +293,15 @@ partial def heredocWithDestination (escapeChar : Char := '\\') : Parser (List To
           Parser.pure (String.ofList [c])))))
   let destinationParser := do
     let leading ← many continuedTrivia
-    let destinations ← many (argTokens (do
-      let leadingChars ← many whitespaceChar
+    let destinations ← many (do
       let destination ← literalWithVariables escapeChar [] .allowedInQuotes
         (allowUnmatchedQuoteFragments := true)
       let trailingChars ← many whitespaceChar
+      let continuations ← many continuedTrivia
       Parser.pure (
-        (if leadingChars.isEmpty then [] else [Token.mkWhitespace (String.ofList leadingChars)]) ++
         [destination] ++
-        (if trailingChars.isEmpty then [] else [Token.mkWhitespace (String.ofList trailingChars)]))) escapeChar)
+        (if trailingChars.isEmpty then [] else [Token.mkWhitespace (String.ofList trailingChars)]) ++
+        continuations.flatten))
     Parser.pure (leading.flatten ++ destinations.flatten)
   let destTokens ← match (parseEnd destinationParser).run (String.join headerPieces) with
     | .ok tokens _ => Parser.pure tokens
