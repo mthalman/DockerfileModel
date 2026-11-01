@@ -7,6 +7,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     private readonly bool canContainVariables;
     private readonly char escapeChar;
     private readonly bool preserveRawValue;
+    private readonly TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser;
     private char? quoteChar;
 
     /// <summary>Parses literal syntax using the supplied escape character and variable-recognition policy.</summary>
@@ -22,21 +23,23 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         QuoteChar = tokensInfo.QuoteChar;
     }
 
-    internal LiteralToken(IEnumerable<Token> tokens, bool canContainVariables, char escapeChar, bool preserveRawValue = false)
+    internal LiteralToken(IEnumerable<Token> tokens, bool canContainVariables, char escapeChar, bool preserveRawValue = false,
+        TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser = null)
         : base(tokens)
     {
         this.canContainVariables = canContainVariables;
         this.escapeChar = escapeChar;
         EditingEscapeChar = escapeChar;
         this.preserveRawValue = preserveRawValue;
+        this.wordParser = wordParser;
     }
 
     /// <summary>Gets text without quote wrappers, continuations, comments, or newlines; sets the literal's inner contents.</summary>
     /// <remarks>
-    /// Setting preserves the existing <see cref="QuoteChar"/> and, except for raw-value literals,
+    /// Setting preserves an existing quote wrapper and, except for raw-value literals,
     /// reparses the contents with the retained context.
-    /// For an unwrapped mixed word, assigning its current value preserves fragment syntax;
-    /// a replacement containing whitespace receives a quote wrapper to retain one operand.
+    /// For an unwrapped parsed word, assigning its current value preserves fragment syntax;
+    /// replacements receive a quote wrapper when required to retain one operand and its contents.
     /// The value is not a general JSON-unescaped or shell-expanded string. Use <c>ToString()</c> for complete syntax.
     /// </remarks>
     public string Value
@@ -45,34 +48,29 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         set
         {
             Guard.NotNull(value, nameof(value));
-            bool mixedWord = QuoteChar is null && Tokens.OfType<LiteralToken>().Any();
-            if (mixedWord && value == Value)
+            if (wordParser is not null && QuoteChar is null && value == Value)
             {
                 return;
             }
             Token[] contents = GetInnerTokens(value).ToArray();
-            char? replacementQuote = QuoteChar;
-            if (mixedWord && value.Any(char.IsWhiteSpace))
+            if (wordParser is not null && QuoteChar is null)
             {
-                LiteralToken replacement = new(contents, canContainVariables, escapeChar);
-                foreach (char quote in new[] { '"', '\'' })
+                string expectedValue = new LiteralToken(contents, canContainVariables, escapeChar).Value;
+                foreach (char? quote in new char?[] { null, '"', '\'' })
                 {
-                    replacement.QuoteChar = quote;
-                    Result<LiteralToken> parsed = LiteralWithVariables(escapeChar,
-                        whitespaceMode: WhitespaceMode.AllowedInQuotes).AtEnd().TryParse(replacement.ToString());
-                    if (parsed.HasValue && parsed.Value.Value == replacement.Value)
+                    string candidate = $"{quote}{string.Concat(contents.Select(token => token.ToString()))}{quote}";
+                    Result<(IEnumerable<Token> Tokens, char? QuoteChar)> parsed = wordParser.TryParse(candidate);
+                    if (parsed.HasValue &&
+                        new LiteralToken(parsed.Value.Tokens, canContainVariables, escapeChar).Value == expectedValue)
                     {
-                        replacementQuote = quote;
-                        break;
+                        ReplaceWithTokens(parsed.Value.Tokens);
+                        QuoteChar = parsed.Value.QuoteChar;
+                        return;
                     }
                 }
-                if (replacementQuote is null)
-                {
-                    throw new ArgumentException("The value cannot be quoted as one operand without changing its contents.", nameof(value));
-                }
+                throw new ArgumentException("The value cannot be serialized as one operand without changing its contents.", nameof(value));
             }
             ReplaceWithTokens(contents);
-            QuoteChar = replacementQuote;
         }
     }
 

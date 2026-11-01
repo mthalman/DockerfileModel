@@ -36,14 +36,6 @@ internal sealed class TokenEditPlan
     public void SetQuote(IQuotableToken token, char? quote)
     {
         EditValidation.ValidateSupportedQuote(token);
-        if (token is LiteralToken literal && quote != literal.QuoteChar &&
-            Tokens(literal).OfType<LiteralToken>().Any())
-        {
-            List<Token> contents = StringParsers.UnwrapLiteralFragments(Tokens(literal), Tokens, variable => Edit(variable));
-            List<Token> children = Edit(literal);
-            children.Clear();
-            children.AddRange(contents);
-        }
         quotes[token] = quote;
     }
 
@@ -58,9 +50,31 @@ internal sealed class TokenEditPlan
     /// <param name="token">The root of the prospective subtree to render.</param>
     /// <returns>The text that the staged subtree would serialize after commit.</returns>
     /// <remarks>Detects cycles during traversal; shared-node ownership still requires separate validation.</remarks>
-    public string Render(Token token) => Render(token, new HashSet<Token>(ReferenceComparer<Token>.Instance));
+    public string Render(Token token) =>
+        Render(token, new HashSet<Token>(ReferenceComparer<Token>.Instance), EffectiveReplacements());
 
-    private string Render(Token token, HashSet<Token> path)
+    private Dictionary<AggregateToken, List<Token>> EffectiveReplacements()
+    {
+        Dictionary<AggregateToken, List<Token>> effective = new(replacements, ReferenceComparer<AggregateToken>.Instance);
+        IReadOnlyList<Token> Read(AggregateToken owner) =>
+            effective.TryGetValue(owner, out List<Token>? children) ? children : owner.TokenList;
+        foreach (KeyValuePair<IQuotableToken, char?> change in quotes)
+        {
+            if (change.Key is LiteralToken literal && change.Value != literal.QuoteChar &&
+                Read(literal).OfType<LiteralToken>().Any())
+            {
+                effective[literal] = StringParsers.UnwrapLiteralFragments(Read(literal), Read, variable =>
+                {
+                    List<Token> children = Read(variable).ToList();
+                    effective[variable] = children;
+                    return children;
+                });
+            }
+        }
+        return effective;
+    }
+
+    private string Render(Token token, HashSet<Token> path, Dictionary<AggregateToken, List<Token>> effective)
     {
         EditValidation.ValidateSupportedToken(token);
         if (!path.Add(token))
@@ -71,9 +85,9 @@ internal sealed class TokenEditPlan
         string text;
         if (token is AggregateToken aggregate)
         {
-            IEnumerable<Token> children = replacements.TryGetValue(aggregate, out List<Token>? edited)
+            IEnumerable<Token> children = effective.TryGetValue(aggregate, out List<Token>? edited)
                 ? edited : aggregate.Tokens;
-            text = string.Concat(children.Select(child => Render(child, path)));
+            text = string.Concat(children.Select(child => Render(child, path, effective)));
             if (token is VariableRefToken)
             {
                 text = "$" + text;
@@ -100,15 +114,16 @@ internal sealed class TokenEditPlan
     /// </remarks>
     public void Commit()
     {
-        ValidatePublication();
-        foreach (KeyValuePair<AggregateToken, List<Token>> change in replacements)
+        Dictionary<AggregateToken, List<Token>> effective = EffectiveReplacements();
+        ValidatePublication(effective);
+        foreach (KeyValuePair<AggregateToken, List<Token>> change in effective)
         {
             if (change.Key.TokenList.Capacity < change.Value.Count)
             {
                 change.Key.TokenList.Capacity = change.Value.Count;
             }
         }
-        foreach (KeyValuePair<AggregateToken, List<Token>> change in replacements)
+        foreach (KeyValuePair<AggregateToken, List<Token>> change in effective)
         {
             change.Key.TokenList.Clear();
             change.Key.TokenList.AddRange(change.Value);
@@ -125,10 +140,10 @@ internal sealed class TokenEditPlan
     /// visits across overlapping edit roots are harmless; ownership and cycle checks belong to
     /// the caller's validation and rendering.
     /// </remarks>
-    private void ValidatePublication()
+    private void ValidatePublication(Dictionary<AggregateToken, List<Token>> effective)
     {
         HashSet<Token> visited = new(ReferenceComparer<Token>.Instance);
-        Stack<Token> pending = new(replacements.Keys);
+        Stack<Token> pending = new(effective.Keys);
         while (pending.Count > 0)
         {
             Token token = pending.Pop();
@@ -139,7 +154,7 @@ internal sealed class TokenEditPlan
             EditValidation.ValidateSupportedToken(token);
             if (token is AggregateToken aggregate)
             {
-                foreach (Token child in Tokens(aggregate))
+                foreach (Token child in effective.TryGetValue(aggregate, out List<Token>? children) ? children : aggregate.TokenList)
                 {
                     pending.Push(child);
                 }

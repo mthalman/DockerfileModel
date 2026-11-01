@@ -321,6 +321,101 @@ public class QuotedOperandTests
     }
 
     [Theory]
+    [InlineData("foo\"bar\"")]
+    [InlineData("foo'bar'")]
+    [InlineData("/new dir")]
+    public void UnquotedOperandUpdatesRetainTheirValueAfterReparsing(string replacement)
+    {
+        foreach (string name in new[] { "COPY", "ADD" })
+        {
+            AssertFileTransferModels($"{name} src /dest", instruction =>
+            {
+                instruction.Destination = replacement;
+                Assert.Equal(replacement, instruction.Destination);
+                FileTransferInstruction reparsed = name == "COPY"
+                    ? CopyInstruction.Parse(instruction.ToString()) : AddInstruction.Parse(instruction.ToString());
+                Assert.Equal(replacement, reparsed.Destination);
+                Assert.Equal(new[] { "src" }, reparsed.Sources);
+            });
+        }
+    }
+
+    [Fact]
+    public void MixedOperandUpdatesRetainTheirWordContextAcrossReplacements()
+    {
+        CopyInstruction instruction = CopyInstruction.Parse("COPY src /dir\" name\"");
+        LiteralToken destination = instruction.DestinationToken!;
+        instruction.Destination = "/first";
+        Assert.Null(destination.QuoteChar);
+        instruction.Destination = "/second dir";
+        Assert.Same(destination, instruction.DestinationToken);
+        Assert.Equal("/second dir", CopyInstruction.Parse(instruction.ToString()).Destination);
+    }
+
+    [Fact]
+    public void ClearingAMixedSourceRetainsAnEmptyOperand()
+    {
+        CopyInstruction instruction = CopyInstruction.Parse("COPY \"foo\"bar /dest");
+        LiteralToken source = Assert.Single(instruction.SourceTokens);
+        source.Value = "";
+        Assert.Equal("", source.Value);
+        Assert.Equal(new[] { "" }, CopyInstruction.Parse(instruction.ToString()).Sources);
+    }
+
+    [Theory]
+    [InlineData("foo\" bar\"")]
+    [InlineData("\"$ROOT\"suffix")]
+    public void ReplacingAStagedQuoteRestoresOriginalFragmentSyntax(string operand)
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse($"COPY {operand} /dest").SourceTokens);
+        Token[] originalChildren = source.Tokens.ToArray();
+        TokenEditPlan plan = new();
+        plan.SetQuote(source, '"');
+        Assert.NotEqual(operand, plan.Render(source));
+        Assert.Equal(operand, source.ToString());
+        plan.SetQuote(source, source.QuoteChar);
+        Assert.Equal(operand, plan.Render(source));
+        plan.Commit();
+        Assert.Equal(operand, source.ToString());
+        Assert.Equal(originalChildren, source.Tokens);
+    }
+
+    [Fact]
+    public void StagedFragmentEditsAreIncludedInTheFinalQuoteNormalization()
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse("COPY foo\" bar\" /dest").SourceTokens);
+        LiteralToken fragment = Assert.Single(source.Tokens.OfType<LiteralToken>());
+        TokenEditPlan plan = new();
+        plan.SetQuote(source, '"');
+        plan.Edit(fragment)[0] = new StringToken(" changed");
+        Assert.Equal("\"foo changed\"", plan.Render(source));
+        plan.Commit();
+        Assert.Equal("\"foo changed\"", source.ToString());
+    }
+
+    [Fact]
+    public void RepeatedQuotePreviewsDoNotChangeStagedVariableChildren()
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse("COPY \"$ROOT\"suffix /dest").SourceTokens);
+        LiteralToken fragment = Assert.Single(source.Tokens.OfType<LiteralToken>());
+        VariableRefToken variable = Assert.Single(fragment.Tokens.OfType<VariableRefToken>());
+        TokenEditPlan plan = new();
+        plan.SetQuote(source, '"');
+        Assert.Equal("\"${ROOT}suffix\"", plan.Render(source));
+        plan.Edit(variable)[0] = new StringToken("UPDATED");
+        Assert.Equal("\"${UPDATED}suffix\"", plan.Render(source));
+        Assert.Single(plan.Tokens(variable));
+        Assert.Equal("ROOT", variable.VariableName);
+        plan.SetQuote(source, null);
+        Assert.Equal("\"$UPDATED\"suffix", plan.Render(source));
+        plan.SetQuote(source, '\'');
+        Assert.Equal("'${UPDATED}suffix'", plan.Render(source));
+        plan.Commit();
+        Assert.Equal("'${UPDATED}suffix'", source.ToString());
+        Assert.Equal("UPDATED", variable.VariableName);
+    }
+
+    [Theory]
     [InlineData("COPY")]
     [InlineData("ADD")]
     public void HeredocBodyCannotCloseADestinationQuote(string name)

@@ -26,12 +26,20 @@ internal static class VariableParsers
     /// <returns>A parsed aggregate token.</returns>
     internal static TextParser<LiteralToken> LiteralWithVariables(
         char escapeChar, IEnumerable<char>? excludedChars = null, WhitespaceMode whitespaceMode = WhitespaceMode.Disallowed,
-        bool allowUnmatchedQuoteFragments = false) =>
-        from result in LiteralWithVariablesTokens(escapeChar, excludedChars, whitespaceMode, allowUnmatchedQuoteFragments)
-        select new LiteralToken(result.Tokens, canContainVariables: true, escapeChar)
-        {
-            QuoteChar = result.QuoteChar
-        };
+        bool allowUnmatchedQuoteFragments = false)
+    {
+        char[] excluded = excludedChars?.ToArray() ?? Array.Empty<char>();
+        TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)> parser =
+            LiteralWithVariablesTokens(escapeChar, excluded, whitespaceMode, allowUnmatchedQuoteFragments);
+        TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser =
+            whitespaceMode != WhitespaceMode.Allowed && !excluded.Contains(StringParsers.DoubleQuote)
+                ? parser.AtEnd() : null;
+        return from result in parser
+               select new LiteralToken(result.Tokens, canContainVariables: true, escapeChar, wordParser: wordParser)
+               {
+                   QuoteChar = result.QuoteChar
+               };
+    }
 
     /// <summary>
     /// Parses a literal without treating a leading quote as a wrapper. This handles syntax where quotes are part of a larger raw value.

@@ -2402,6 +2402,35 @@ def testHeredocHorizontalWhitespace : IO Unit := do
       | some instruction => assertRoundTrip instruction.token text "heredoc horizontal whitespace"
       | none => throw (IO.Error.userError s!"Heredoc whitespace was rejected: {text}")
 
+def testContinuedHeredocDestination : IO Unit := do
+  for escapeChar in ['\\', '`'] do
+    let escape := String.ofList [escapeChar]
+    for newline in ["\n", "\r\n"] do
+      for (operands, destination) in [
+          (escape ++ newline ++ " /destination", "/destination"),
+          (escape ++ newline ++ "# header comment" ++ newline ++ " /destination", "/destination"),
+          (escape ++ newline ++ newline ++ "# header comment" ++ newline ++ " /destination", "/destination"),
+          ("\"/dir" ++ escape ++ newline ++ " name\"", "\"/dir" ++ escape ++ newline ++ " name\"")] do
+        for name in ["COPY", "ADD"] do
+          let text := name ++ " <<EOF " ++ operands ++ newline ++ "body" ++ newline ++ "EOF" ++ newline
+          let parsed := if name == "COPY" then Copy.parseCopy text escapeChar else Add.parseAdd text escapeChar
+          match parsed with
+          | some instruction =>
+            assertRoundTrip instruction.token text "continued heredoc destination"
+            let literals := instruction.token.children.filter fun token =>
+              match token with
+              | .aggregate .literal _ _ => true
+              | _ => false
+            assertTrue (literals.map Token.toString == [destination]) "continued header retains its destination"
+            assertTrue (instruction.token.children.getLast!.toString == "body" ++ newline ++ "EOF" ++ newline)
+              "continued header text does not become body content"
+          | none => throw (IO.Error.userError s!"Continued heredoc destination failed: {text}")
+      for escapes in [escape ++ escape, escape ++ escape ++ escape] do
+        for name in ["COPY", "ADD"] do
+          let text := name ++ " <<EOF \"/dir" ++ escapes ++ newline ++ " body\"" ++ newline ++ "EOF" ++ newline
+          let parsed := if name == "COPY" then Copy.parseCopy text escapeChar else Add.parseAdd text escapeChar
+          assertTrue parsed.isNone "repeated escapes cannot let body lines close destination quotes"
+
 open DockerfileModel.Parser.Instructions.Copy in
 /-- Test: COPY --from=builder /app /app — with from flag -/
 def testCopyWithFrom : IO Unit := do
@@ -3362,6 +3391,7 @@ def runParserTests_PhaseD : IO Unit := do
   testUnmatchedOperandFragmentsCannotTruncate
   testNonFileEmbeddedQuotesCannotTruncate
   testHeredocHorizontalWhitespace
+  testContinuedHeredocDestination
   testCopyWithFrom
   testCopyWithFromLineContinuation
   testCopyWithChown

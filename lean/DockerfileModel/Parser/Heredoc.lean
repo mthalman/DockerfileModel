@@ -270,16 +270,40 @@ partial def heredocWithDestination (escapeChar : Char := '\\') : Parser (List To
   let wsChars ← many whitespaceChar
   let wsTokens := if wsChars.isEmpty then []
     else [Token.mkWhitespace (String.ofList wsChars)]
-  let restOfLine ← many (satisfy (fun c => !isLineTerminator c) "destination char")
+  let continuedTrivia := do
+    let continuation ← lineContinuationParser escapeChar
+    let trailing ← optional whitespaceOrComments
+    Parser.pure ([continuation] ++ trailing.getD [])
+  -- Bound quotes to the complete logical header, never to heredoc body lines.
+  let headerPieces ← many (or'
+    (do
+      let trivia ← continuedTrivia
+      Parser.pure (String.join (trivia.map Token.toString)))
+    (or'
+      (do
+        let escapes ← many1 (char escapeChar)
+        if escapes.length < 2 then Parser.fail "repeated escape characters"
+        Parser.pure (String.ofList escapes))
+      (or'
+        (do
+          let escaped ← escapedChar escapeChar
+          Parser.pure escaped.toString)
+        (do
+          let c ← satisfy (fun c => !isLineTerminator c) "destination char"
+          Parser.pure (String.ofList [c])))))
   let destinationParser := do
-    let destinations ← many (do
+    let leading ← many continuedTrivia
+    let destinations ← many (argTokens (do
+      let leadingChars ← many whitespaceChar
       let destination ← literalWithVariables escapeChar [] .allowedInQuotes
         (allowUnmatchedQuoteFragments := true)
-      let trailing ← many whitespaceChar
-      Parser.pure ([destination] ++
-        if trailing.isEmpty then [] else [Token.mkWhitespace (String.ofList trailing)]))
-    Parser.pure destinations.flatten
-  let destTokens ← match (parseEnd destinationParser).run (String.ofList restOfLine) with
+      let trailingChars ← many whitespaceChar
+      Parser.pure (
+        (if leadingChars.isEmpty then [] else [Token.mkWhitespace (String.ofList leadingChars)]) ++
+        [destination] ++
+        (if trailingChars.isEmpty then [] else [Token.mkWhitespace (String.ofList trailingChars)]))) escapeChar)
+    Parser.pure (leading.flatten ++ destinations.flatten)
+  let destTokens ← match (parseEnd destinationParser).run (String.join headerPieces) with
     | .ok tokens _ => Parser.pure tokens
     | .error message _ => Parser.fail message
   -- Consume newline
