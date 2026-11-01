@@ -8,8 +8,8 @@ internal static class JsonStringVariableResolver
 {
     internal static LiteralToken Tokenize(LiteralToken path, char escapeChar)
     {
-        string physical = path.ToString();
-        (Token Token, string Text)[] source = path.Tokens.Select(token => (token, token.ToString())).ToArray();
+        string physical = RenderToken(path);
+        (Token Token, string Text)[] source = path.Tokens.Select(token => (token, RenderToken(token))).ToArray();
         List<(int Start, int End, Token Token, bool Inline)> references = new();
         HashSet<int> completeBraces = FindCompleteBracedReferences(physical, escapeChar);
         Dictionary<int, Result<VariableRefToken>> parsed = new();
@@ -107,7 +107,7 @@ internal static class JsonStringVariableResolver
         string decoded = Decode(logical, offsets, out List<int> starts, out List<int> ends);
         Position PhysicalPosition(int decodedOffset) => new TextSpan(physical).Skip(
             decodedOffset < starts.Count ? starts[decodedOffset] : offsets[logical.Length - 1]).Position;
-        (Token Token, string Text)[] source = path.Tokens.Select(token => (token, token.ToString())).ToArray();
+        (Token Token, string Text)[] source = path.Tokens.Select(token => (token, RenderToken(token))).ToArray();
         int[] resolvedCounts = new int[decoded.Length + 1];
         int sourceIndex = 0;
         int sourceStart = 1;
@@ -134,8 +134,7 @@ internal static class JsonStringVariableResolver
             }
             return Character.AnyChar(input);
         };
-        TextParser<VariableRefToken> variableParser =
-            DecodedVariableParsers.Variable(escapeChar, character, decoded, () => blocked = true);
+        TextParser<VariableRefToken>? variableParser = null;
         TextSpan input = new(decoded);
         int tokenIndex = 0;
         int tokenStart = 1;
@@ -219,6 +218,8 @@ internal static class JsonStringVariableResolver
             if (expandVariables && current == '$')
             {
                 blocked = false;
+                variableParser ??= DecodedVariableParsers.Variable(escapeChar, character, decoded,
+                    () => blocked = true, index, quote);
                 Result<VariableRefToken> variable = variableParser(input);
                 if (variable.HasValue &&
                     resolvedCounts[variable.Remainder.Position.Absolute] == resolvedCounts[index])
@@ -254,7 +255,7 @@ internal static class JsonStringVariableResolver
         bool inlineOnly = replacements.All(replacement => replacement.Inline);
         List<Token> tokens = BuildTokens(source, replacements, physical.Length - 1,
             options.UpdateInline && inlineOnly ? substitutions : null);
-        string result = "\"" + string.Concat(tokens.Select(token => token.ToString())) + "\"";
+        string result = "\"" + string.Concat(tokens.Select(RenderToken)) + "\"";
         if (options.UpdateInline && replacements.Any(replacement => replacement.Inline))
         {
             path.ReplaceWithTokens(inlineOnly
@@ -266,10 +267,14 @@ internal static class JsonStringVariableResolver
         return result;
     }
 
-    private static string ResolveReference(VariableRefToken root, char escapeChar,
+    internal static string ResolveReference(VariableRefToken root, char escapeChar,
         IDictionary<string, string?> variables, ResolutionOptions options)
     {
-        Dictionary<VariableRefToken, string> resolved = new(ReferenceComparer<VariableRefToken>.Instance);
+        if (root.ModifierValueToken is null || root.GetRequiredModifierValue(variables) is null)
+        {
+            return root.ResolveVariables(escapeChar, variables, options) ?? string.Empty;
+        }
+        Dictionary<VariableRefToken, Expansion> resolved = new(ReferenceComparer<VariableRefToken>.Instance);
         Stack<(VariableRefToken Reference, bool Ready)> pending = new();
         pending.Push((root, false));
         while (pending.Count > 0)
@@ -281,13 +286,14 @@ internal static class JsonStringVariableResolver
             }
             if (VariableRefToken.IsPatternModifier(reference.Modifier))
             {
-                resolved.Add(reference, RenderReference(reference));
+                resolved.Add(reference, new Expansion(RenderToken(reference)));
                 continue;
             }
             LiteralToken? modifier = reference.GetRequiredModifierValue(variables);
             if (modifier is null)
             {
-                resolved.Add(reference, reference.ResolveVariables(escapeChar, variables, options) ?? string.Empty);
+                resolved.Add(reference, new Expansion(reference.ResolveVariables(escapeChar, variables, options)
+                    ?? string.Empty));
             }
             else if (!ready)
             {
@@ -299,38 +305,112 @@ internal static class JsonStringVariableResolver
             }
             else
             {
-                string value = string.Concat(modifier.Tokens.Select(token => token is VariableRefToken child
+                Expansion value = new(modifier.Tokens.Select(token => token is VariableRefToken child
                     ? resolved[child]
-                    : options.FormatValue(escapeChar, token.ToString())));
-                resolved.Add(reference, reference.ResolveWithModifierValue(escapeChar, variables, options, value)
-                    ?? string.Empty);
+                    : new Expansion(options.FormatValue(escapeChar, token.ToString()))).ToArray(),
+                    options.RemoveEscapeCharacters);
+                if (reference.Modifier!.Last() == '?')
+                {
+                    reference.ResolveWithModifierValue(escapeChar, variables, options,
+                        RenderExpansion(value, escapeChar, formatRoot: false));
+                }
+                resolved.Add(reference, value);
             }
         }
-        return resolved[root];
+        return RenderExpansion(resolved[root], escapeChar);
     }
 
-    private static string RenderReference(VariableRefToken reference)
+    private sealed class Expansion
+    {
+        internal Expansion(string text) => Text = text;
+        internal Expansion(Expansion[] children, bool format)
+        {
+            Children = children;
+            Format = format;
+        }
+        internal string? Text { get; }
+        internal Expansion[]? Children { get; }
+        internal bool Format { get; }
+    }
+
+    private static string RenderExpansion(Expansion root, char escapeChar, bool formatRoot = true)
+    {
+        StringBuilder builder = new();
+        List<bool> escapes = new();
+        Stack<(Expansion Value, bool Close, bool Format)> pending = new();
+        pending.Push((root, false, root.Format && formatRoot));
+        while (pending.Count > 0)
+        {
+            (Expansion value, bool close, bool format) = pending.Pop();
+            if (close)
+            {
+                escapes.RemoveAt(escapes.Count - 1);
+            }
+            else if (value.Text is string text)
+            {
+                if (escapes.Count == 0)
+                {
+                    builder.Append(text);
+                    continue;
+                }
+                foreach (char character in text)
+                {
+                    bool emit = true;
+                    for (int index = escapes.Count - 1; index >= 0; index--)
+                    {
+                        if (character == escapeChar && !escapes[index])
+                        {
+                            escapes[index] = true;
+                            emit = false;
+                            break;
+                        }
+                        escapes[index] = false;
+                    }
+                    if (emit)
+                    {
+                        builder.Append(character);
+                    }
+                }
+            }
+            else
+            {
+                if (format)
+                {
+                    escapes.Add(false);
+                    pending.Push((value, true, false));
+                }
+                foreach (Expansion child in value.Children!.Reverse())
+                {
+                    pending.Push((child, false, child.Format));
+                }
+            }
+        }
+        return builder.ToString();
+    }
+
+    internal static string RenderToken(Token token)
     {
         StringBuilder builder = new();
         Stack<(Token Token, bool Close)> pending = new();
-        pending.Push((reference, false));
+        pending.Push((token, false));
         while (pending.Count > 0)
         {
-            (Token token, bool close) = pending.Pop();
+            (Token current, bool close) = pending.Pop();
             if (close)
             {
-                builder.Append(((IQuotableToken)token).QuoteChar);
+                builder.Append(((IQuotableToken)current).QuoteChar);
             }
-            else if (token is AggregateToken aggregate)
+            else if ((current.GetType() == typeof(VariableRefToken) || current.GetType() == typeof(LiteralToken)) &&
+                current is AggregateToken aggregate)
             {
-                if (token is VariableRefToken)
+                if (current is VariableRefToken)
                 {
                     builder.Append('$');
                 }
-                if (token is IQuotableToken quotable && quotable.QuoteChar.HasValue)
+                if (current is IQuotableToken quotable && quotable.QuoteChar.HasValue)
                 {
                     builder.Append(quotable.QuoteChar);
-                    pending.Push((token, true));
+                    pending.Push((current, true));
                 }
                 foreach (Token child in aggregate.Tokens.Reverse())
                 {
@@ -339,7 +419,7 @@ internal static class JsonStringVariableResolver
             }
             else
             {
-                builder.Append(token.ToString());
+                builder.Append(current.ToString());
             }
         }
         return builder.ToString();

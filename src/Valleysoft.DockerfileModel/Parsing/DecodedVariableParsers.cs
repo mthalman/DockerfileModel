@@ -5,7 +5,7 @@ namespace Valleysoft.DockerfileModel.Parsing;
 internal static class DecodedVariableParsers
 {
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
-        string text, Action? onBlocked = null)
+        string text, Action? onBlocked = null, int start = 0, char? initialQuote = null)
     {
         Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
         bool blocked = false;
@@ -96,12 +96,46 @@ internal static class DecodedVariableParsers
                 (IEnumerable<Token>)new Token[] { new StringToken(identifier) }))
             select new VariableRefToken(tokens, escapeChar);
         List<TextSpan> candidates = new();
-        TextSpan remaining = new(text);
+        TextSpan remaining = new TextSpan(text).Skip(start);
+        char? quote = initialQuote;
+        Stack<char?> quotes = new();
         while (!remaining.IsAtEnd)
         {
-            if (text[remaining.Position.Absolute] == '$')
+            int index = remaining.Position.Absolute;
+            char current = text[index];
+            if (!sourceCharacter(remaining).HasValue)
+            {
+                remaining = remaining.Skip(1);
+                continue;
+            }
+            if (quote == '\'')
+            {
+                if (current == '\'')
+                {
+                    quote = null;
+                }
+            }
+            else if (current == escapeChar && index + 1 < text.Length)
+            {
+                remaining = remaining.Skip(2);
+                continue;
+            }
+            else if (current == '"' || current == '\'' && quote is null)
+            {
+                quote = quote == current ? null : current;
+            }
+            else if (current == '$')
             {
                 candidates.Add(remaining);
+                if (index + 1 < text.Length && text[index + 1] == '{')
+                {
+                    quotes.Push(quote);
+                    quote = null;
+                }
+            }
+            else if (current == '}' && quote is null && quotes.Count > 0)
+            {
+                quote = quotes.Pop();
             }
             remaining = remaining.Skip(1);
         }

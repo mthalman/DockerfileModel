@@ -115,7 +115,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         {
             return base.ResolveVariables(escapeChar, variables, options);
         }
-        string physical = ToString();
+        string physical = JsonStringVariableResolver.RenderToken(this);
         List<int> offsets = new();
         string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out int consumed, offsets);
         // Legacy constructors accept non-JSON strings; keep their token-based resolution.

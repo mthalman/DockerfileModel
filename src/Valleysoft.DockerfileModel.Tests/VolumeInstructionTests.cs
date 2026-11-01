@@ -966,6 +966,105 @@ public class VolumeInstructionTests
     }
 
     [Fact]
+    public void JsonSimpleReferencesAvoidEvaluationWorklistAllocations()
+    {
+        VariableRefToken reference = new("ROOT");
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "value" };
+        ResolutionOptions options = new();
+        JsonStringVariableResolver.ResolveReference(reference, '\\', variables, options);
+        long baselineStart = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1024; index++)
+        {
+            reference.ResolveVariables('\\', variables, options);
+        }
+        long baseline = GC.GetAllocatedBytesForCurrentThread() - baselineStart;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1024; index++)
+        {
+            JsonStringVariableResolver.ResolveReference(reference, '\\', variables, options);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(allocated - baseline < 150_000,
+            $"Simple evaluation allocated {allocated - baseline} bytes above token resolution.");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonDeepRawReferencesUseStackSafeResolutionSerialization(bool protectedText)
+    {
+        string content = string.Concat(Enumerable.Repeat("${X:-", 4096)) + "value" + new string('}', 4096);
+        if (protectedText)
+        {
+            content = "'" + content + "'";
+        }
+        string text = $"VOLUME [\"{content}\"]";
+        VolumeInstruction instruction = VolumeInstruction.Parse(text);
+        Token[] tokens = instruction.PathTokens[0].Tokens.ToArray();
+
+        Assert.Equal(protectedText ? text : "VOLUME [\"value\"]", instruction.ResolveVariables('\\'));
+        Assert.Equal(tokens, instruction.PathTokens[0].Tokens);
+    }
+
+    [Theory]
+    [InlineData(1, "\\")]
+    [InlineData(2, "")]
+    [InlineData(3, "")]
+    public void JsonDeferredFormattingPreservesCrossFragmentEscapePairs(int depth, string expected)
+    {
+        string content = string.Concat(Enumerable.Repeat("${X:-", depth)) + "${A}${B}" + new string('}', depth);
+        VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"{content}\"]");
+        string result = instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["A"] = "\\\\", ["B"] = "\\\\" },
+            new ResolutionOptions { RemoveEscapeCharacters = true })!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+
+        Assert.Equal(expected, json.RootElement[0].GetString());
+    }
+
+    [Fact]
+    public void JsonAccumulatingNestedModifiersHaveBoundedAllocations()
+    {
+        const int depth = 4096;
+        string content = string.Concat(Enumerable.Repeat("${X:-a", depth)) +
+            "value" + new string('}', depth);
+        VariableRefToken reference = DecodedVariableParsers.Variable('\\', Character.AnyChar, content).Parse(content);
+        Dictionary<string, string?> variables = new();
+        ResolutionOptions options = new();
+        JsonStringVariableResolver.ResolveReference(reference, '\\', variables, options);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        string result = JsonStringVariableResolver.ResolveReference(reference, '\\', variables, options);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal($"{new string('a', depth)}value", result);
+        Assert.True(allocated < 12_000_000, $"Accumulating modifiers allocated {allocated} bytes.");
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void JsonProtectedReferenceResolutionHasBoundedAllocations(bool variables, bool escaped)
+    {
+        string content = string.Concat(Enumerable.Repeat(escaped ? "`$ROOT/" : "$ROOT/", 1024));
+        if (variables && !escaped)
+        {
+            content = "'" + content + "'";
+        }
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME []", '`');
+        LiteralToken path = new(new[] { new StringToken(content) }, variables, '`') { QuoteChar = '"' };
+        instruction.PathTokens.Add(path);
+        path.ResolveVariables('`');
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        string? result = path.ResolveVariables('`');
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal($"\"{content}\"", result);
+        Assert.True(allocated < 500_000, $"Protected references allocated {allocated} bytes.");
+    }
+
+    [Fact]
     public void JsonOwnerResolutionOptionsReuseMatchingContexts()
     {
         ResolutionOptions options = new() { UpdateInline = true, RemoveEscapeCharacters = true };

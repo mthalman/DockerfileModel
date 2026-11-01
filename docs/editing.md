@@ -162,6 +162,9 @@ Unmatched Unicode
 surrogates decode to U+FFFD, matching BuildKit's JSON decoder, while untouched
 escape spelling remains intact. Legacy parser-accepted paths that are not valid
 JSON strings retain token-based resolution.
+JSON path resolution renders built-in literal and variable-reference trees
+iteratively. This does not change the recursion limits of general token
+`ToString()` calls.
 
 `RemoveEscapeCharacters` affects returned JSON text, including single-quoted
 contents and trailing escape characters, without rewriting untouched path
