@@ -64,26 +64,31 @@ internal static class AnalysisExpressionEvaluator
 
     internal static string ResolveVariables(Token token, char escapeChar,
         Func<VariableRefToken, string> resolveVariable,
-        Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null)
+        Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null,
+        Func<LiteralToken, string>? resolveLiteral = null)
     {
         Dictionary<string, AnalysisValue> variables = new();
-        List<VariableRefToken> references = new();
-        Evaluation scan = new(variables, escapeChar, variable =>
+        List<AggregateToken> references = new();
+        string CollectReference(AggregateToken reference)
         {
-            references.Add(variable);
+            references.Add(reference);
             return String.Empty;
-        });
+        }
+        Evaluation scan = new(variables, escapeChar, CollectReference, collectText: false,
+            resolveLiteral: resolveLiteral is null ? null : CollectReference);
         scan.Visit(token);
 
         // Quote state flows forward, but public resolution gives rightmost references error precedence.
         string[] values = new string[references.Count];
         for (int i = references.Count - 1; i >= 0; i--)
         {
-            values[i] = resolveVariable(references[i]);
+            values[i] = references[i] is VariableRefToken variable
+                ? resolveVariable(variable) : resolveLiteral!((LiteralToken)references[i]);
         }
 
         int valueIndex = 0;
-        Evaluation evaluation = new(variables, escapeChar, _ => values[valueIndex++], recordResolution);
+        Evaluation evaluation = new(variables, escapeChar, _ => values[valueIndex++], recordResolution,
+            resolveLiteral: resolveLiteral is null ? null : _ => values[valueIndex++]);
         evaluation.Visit(token);
         AnalysisValue result = evaluation.GetResult();
         if (!result.IsKnown)
@@ -149,8 +154,9 @@ internal static class AnalysisExpressionEvaluator
         private readonly IReadOnlyDictionary<string, AnalysisValue> variables;
         private readonly char escapeChar;
         private readonly Func<VariableRefToken, string>? resolveVariable;
+        private readonly Func<LiteralToken, string>? resolveLiteral;
         private readonly Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution;
-        private readonly StringBuilder text = new();
+        private readonly StringBuilder? text;
         private readonly List<string> unresolvedVariables = new();
         private AnalysisValue? failure;
         private char? quote;
@@ -158,12 +164,15 @@ internal static class AnalysisExpressionEvaluator
 
         public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar,
             Func<VariableRefToken, string>? resolveVariable = null,
-            Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null)
+            Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null,
+            bool collectText = true, Func<LiteralToken, string>? resolveLiteral = null)
         {
             this.variables = variables;
             this.escapeChar = escapeChar;
             this.resolveVariable = resolveVariable;
+            this.resolveLiteral = resolveLiteral;
             this.recordResolution = recordResolution;
+            text = collectText ? new StringBuilder() : null;
         }
 
         public void Visit(Token token)
@@ -175,7 +184,7 @@ internal static class AnalysisExpressionEvaluator
 
             if (token is ResolvedStringToken resolved && resolved.MatchesContext(quote, escaped))
             {
-                text.Append(resolved.SemanticValue);
+                text?.Append(resolved.SemanticValue);
                 escaped = false;
                 return;
             }
@@ -199,6 +208,12 @@ internal static class AnalysisExpressionEvaluator
                     }
                     AppendValue(value);
                 }
+                return;
+            }
+
+            if (token is LiteralToken literal && literal.UsesCustomResolution && resolveLiteral is not null)
+            {
+                AppendValue(AnalysisValue.Known(resolveLiteral(literal)));
                 return;
             }
 
@@ -246,16 +261,16 @@ internal static class AnalysisExpressionEvaluator
 
             if (escaped)
             {
-                text.Append(escapeChar);
+                text?.Append(escapeChar);
             }
-            return AnalysisValue.Known(text.ToString());
+            return AnalysisValue.Known(text?.ToString() ?? String.Empty);
         }
 
         private void AppendValue(AnalysisValue value)
         {
             if (value.IsKnown)
             {
-                text.Append(value.Value);
+                text?.Append(value.Value);
                 return;
             }
 
@@ -281,9 +296,9 @@ internal static class AnalysisExpressionEvaluator
             {
                 if (quote == '"' && character != '$' && character != '"' && character != escapeChar)
                 {
-                    text.Append(escapeChar);
+                    text?.Append(escapeChar);
                 }
-                text.Append(character);
+                text?.Append(character);
                 escaped = false;
             }
             else if (quote == '\'')
@@ -294,7 +309,7 @@ internal static class AnalysisExpressionEvaluator
                 }
                 else
                 {
-                    text.Append(character);
+                    text?.Append(character);
                 }
             }
             else if (character == escapeChar)
@@ -311,7 +326,7 @@ internal static class AnalysisExpressionEvaluator
             }
             else
             {
-                text.Append(character);
+                text?.Append(character);
             }
         }
     }

@@ -239,10 +239,19 @@ public class VariableRefToken : AggregateToken
     }
 
     private string? ResolveModifierValue(char escapeChar, IDictionary<string, string?> variables,
-        ResolutionOptions options) =>
-        options.ModifierValueResolver is not null
-            ? options.ModifierValueResolver(ModifierValueToken!)
-            : ModifierValueToken!.ResolveVariables(escapeChar, variables, options);
+        ResolutionOptions options)
+    {
+        LiteralToken modifier = ModifierValueToken!;
+        if (options.ModifierValueResolver is not null)
+        {
+            return options.ModifierValueResolver(modifier);
+        }
+        if (modifier.UsesCustomResolution && options.CustomValueResolver is not null)
+        {
+            return options.CustomValueResolver(modifier);
+        }
+        return modifier.ResolveVariables(escapeChar, variables, options);
+    }
 
     public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);

@@ -267,6 +267,22 @@ public class AnalysisExpressionEvaluatorTests
         return AnalysisExpressionEvaluator.Evaluate(token, variables, escapeChar);
     }
 
+    [Fact]
+    public void ResolutionScanDoesNotAllocateAnUnusedDecodedCopy()
+    {
+        const int length = 256 * 1024;
+        string expected = new('x', length);
+        LiteralToken token = new(expected, canContainVariables: true);
+        AnalysisExpressionEvaluator.ResolveVariables(token, '\\', _ => String.Empty);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        string result = AnalysisExpressionEvaluator.ResolveVariables(token, '\\', _ => String.Empty);
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(expected, result);
+        Assert.InRange(allocated, 0, 5L * length);
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);

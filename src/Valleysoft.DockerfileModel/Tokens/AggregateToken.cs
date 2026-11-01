@@ -36,6 +36,10 @@ public abstract class AggregateToken : Token
 
     internal char EditingEscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
 
+    internal bool UsesCustomResolution =>
+        this is LiteralToken && GetType() != typeof(LiteralToken) ||
+        this is VariableRefToken && GetType() != typeof(VariableRefToken);
+
     protected override string GetUnderlyingValue(TokenStringOptions options)
     {
         Guard.NotNull(options, nameof(options));
@@ -178,9 +182,18 @@ public abstract class AggregateToken : Token
                 (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken variable
                     ? options.SemanticValueResolver?.Invoke(variable) : null;
                 bool suppressExpansion = semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped);
-                value = suppressExpansion
-                    ? options.FormatValue(escapeChar, token.ToString())
-                    : aggregateToken.ResolveVariables(escapeChar, variables, options);
+                if (suppressExpansion)
+                {
+                    value = options.FormatValue(escapeChar, token.ToString());
+                }
+                else if (aggregateToken.UsesCustomResolution && options.CustomValueResolver is not null)
+                {
+                    value = options.CustomValueResolver(aggregateToken);
+                }
+                else
+                {
+                    value = aggregateToken.ResolveVariables(escapeChar, variables, options);
+                }
                 if (token is VariableRefToken && options.UpdateInline && !suppressExpansion)
                 {
                     if (value is null)

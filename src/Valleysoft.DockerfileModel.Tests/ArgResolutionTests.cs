@@ -520,4 +520,168 @@ public class ArgResolutionTests
             return base.ResolveVariables(escapeChar, variables, options);
         }
     }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_CustomVariableIsResolvedOnce(bool stageScope, bool updateInline)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? "FROM alpine\nARG X=placeholder\nENV RESULT=$X"
+            : "ARG X=placeholder\nFROM prefix$X");
+        ChangingVariableRefToken variable = new();
+        TokenBuilder builder = new();
+        builder.Literal(contents => contents.Tokens.Add(variable), canContainVariables: true);
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken =
+            Assert.IsType<LiteralToken>(Assert.Single(builder.Tokens));
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=first" : "FROM prefixfirst",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal(1, variable.ResolutionCount);
+        Assert.Equal(updateInline, variable.UpdateInline);
+        Assert.Equal(updateInline ? "ARG X=first\n" : "ARG X=$UNSET\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void ResolveVariables_CustomLiteralSuppliesArgBinding(
+        bool stageScope, bool updateInline, bool nested)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? "FROM alpine\nARG X=placeholder\nENV RESULT=$X"
+            : "ARG X=placeholder\nFROM prefix$X");
+        ComputingLiteralToken literal = new();
+        LiteralToken value = literal;
+        if (nested)
+        {
+            TokenBuilder builder = new();
+            builder.Literal(contents => contents.Tokens.Add(literal), canContainVariables: true);
+            value = Assert.IsType<LiteralToken>(Assert.Single(builder.Tokens));
+        }
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken = value;
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=computed" : "FROM prefixcomputed",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal(1, literal.ResolutionCount);
+        Assert.Equal(updateInline, literal.UpdateInline);
+        Assert.Equal(updateInline ? "ARG X=computed\n" : "ARG X=placeholder\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    private sealed class ChangingVariableRefToken : VariableRefToken
+    {
+        public ChangingVariableRefToken() : base("UNSET") { }
+
+        public int ResolutionCount { get; private set; }
+
+        public bool UpdateInline { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            UpdateInline = options?.UpdateInline ?? false;
+            return ++ResolutionCount == 1 ? "first" : "second";
+        }
+    }
+
+    private sealed class ComputingLiteralToken : LiteralToken
+    {
+        private readonly string? result;
+
+        public ComputingLiteralToken(string? result = "computed") : base("placeholder", canContainVariables: true)
+        {
+            this.result = result;
+        }
+
+        public int ResolutionCount { get; private set; }
+
+        public bool UpdateInline { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            ResolutionCount++;
+            UpdateInline = options?.UpdateInline ?? false;
+            if (UpdateInline)
+            {
+                Value = result ?? String.Empty;
+            }
+            return result;
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_CustomModifierLiteralPreservesReturnedData(
+        bool stageScope, bool updateInline)
+    {
+        const string result = "\"$UNSET\\path\"";
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? "FROM alpine\nARG X=${UNSET:-placeholder}\nENV RESULT=$X"
+            : "ARG X=${UNSET:-placeholder}\nFROM prefix$X");
+        ComputingLiteralToken literal = new(result);
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!.Tokens
+            .OfType<VariableRefToken>().Single().ModifierValueToken = literal;
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? $"ENV RESULT={result}" : $"FROM prefix{result}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal(1, literal.ResolutionCount);
+        Assert.Equal(updateInline, literal.UpdateInline);
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_CustomLiteralNullResultIsAnExplicitEmptyDefault(
+        bool stageScope, bool updateInline)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? "FROM alpine\nARG X=placeholder\nENV RESULT=${X+set}/${X:-empty}"
+            : "ARG X=placeholder\nFROM prefix${X+set}-${X:-empty}");
+        ComputingLiteralToken literal = new(null);
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken = literal;
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=set/empty" : "FROM prefixset-empty",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal(1, literal.ResolutionCount);
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
 }

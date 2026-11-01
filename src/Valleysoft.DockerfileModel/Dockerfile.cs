@@ -160,6 +160,7 @@ public class Dockerfile : IConstructContainer
     /// defaults can import global values, otherwise they retain an existing local binding.
     /// Explicit empty assignments are set; null overrides are unset. Defaults contribute shell-decoded
     /// contents, excluding syntax quotes and continuation/comment trivia. Runtime command expansion is not performed.
+    /// Custom literal tokens retain their public variable-resolution behavior.
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
     /// </remarks>
     public string ResolveVariables(IDictionary<string, string?>? variableOverrides = null, ResolutionOptions? options = null) =>
@@ -318,7 +319,11 @@ public class Dockerfile : IConstructContainer
 
         Dictionary<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? resolutions = options.UpdateInline
             ? new(ReferenceComparer<VariableRefToken>.Instance) : null;
-        string value = ResolveArgValue(valueToken, escapeChar, bindings, options, resolutions);
+        Dictionary<AggregateToken, string?>? customValues = options.UpdateInline
+            ? new(ReferenceComparer<AggregateToken>.Instance) : null;
+        bool updateCustomInline = options.UpdateInline && (syntaxArg is null || syntaxArg == arg);
+        string value = ResolveArgValue(valueToken, escapeChar, bindings, options, resolutions,
+            customValues, updateCustomInline);
 
         if (resolutions is not null)
         {
@@ -326,14 +331,18 @@ public class Dockerfile : IConstructContainer
             if (syntaxValue != valueToken)
             {
                 // Reparsed copies have distinct variable tokens and need their own context snapshots.
-                ResolveArgValue(syntaxValue, escapeChar, bindings, options, resolutions);
+                ResolveArgValue(syntaxValue, escapeChar, bindings, options, resolutions, customValues);
             }
-            syntaxValue.ResolveVariables(escapeChar, bindings, new ResolutionOptions
+            if (!syntaxValue.UsesCustomResolution)
             {
-                UpdateInline = true,
-                RemoveEscapeCharacters = options.RemoveEscapeCharacters,
-                SemanticValueResolver = variable => resolutions[variable]
-            });
+                syntaxValue.ResolveVariables(escapeChar, bindings, new ResolutionOptions
+                {
+                    UpdateInline = true,
+                    RemoveEscapeCharacters = options.RemoveEscapeCharacters,
+                    SemanticValueResolver = variable => resolutions[variable],
+                    CustomValueResolver = token => customValues![token]
+                });
+            }
         }
 
         return value;
@@ -341,12 +350,27 @@ public class Dockerfile : IConstructContainer
 
     private static string ResolveArgValue(Token token, char escapeChar,
         IDictionary<string, string?> bindings, ResolutionOptions options,
-        Dictionary<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? resolutions = null) =>
-        AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, variable =>
-            variable.ResolveVariables(escapeChar, bindings, new ResolutionOptions
+        Dictionary<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? resolutions = null,
+        Dictionary<AggregateToken, string?>? customValues = null, bool updateCustomInline = false)
+    {
+        string ResolveToken(AggregateToken aggregate)
+        {
+            string? value = aggregate.ResolveVariables(escapeChar, bindings, new ResolutionOptions
             {
+                UpdateInline = aggregate.UsesCustomResolution && updateCustomInline,
                 RemoveEscapeCharacters = options.RemoveEscapeCharacters,
-                ModifierValueResolver = modifier => ResolveArgValue(modifier, escapeChar, bindings, options, resolutions)
-            }) ?? String.Empty,
-            resolutions is null ? null : (variable, resolution) => resolutions[variable] = resolution);
+                ModifierValueResolver = modifier => ResolveArgValue(modifier, escapeChar, bindings, options,
+                    resolutions, customValues, updateCustomInline)
+            });
+            if (aggregate.UsesCustomResolution && customValues is not null)
+            {
+                customValues[aggregate] = value;
+            }
+            return value ?? String.Empty;
+        }
+
+        return AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, ResolveToken,
+            resolutions is null ? null : (variable, resolution) => resolutions[variable] = resolution,
+            ResolveToken);
+    }
 }
