@@ -9,7 +9,9 @@ internal static class DecodedVariableParsers
         TextParser<char> Symbol(char value) => character.Where(ch => ch == value, $"`{value}`");
         TextParser<string> name = character.Where(ch => char.IsLetterOrDigit(ch) || ch == '_',
             "variable name").AtLeastOnce().Text();
-        TextParser<VariableRefToken> nested = input => Variable(escapeChar, character)(input);
+        TextParser<VariableRefToken>? parser = null;
+        TextParser<VariableRefToken> nested = input =>
+            (parser ?? throw new InvalidOperationException("The reference parser is not initialized."))(input);
 
         TextParser<IEnumerable<Token>> Escaped() =>
             from escape in Symbol(escapeChar)
@@ -70,10 +72,11 @@ internal static class DecodedVariableParsers
             from close in Symbol('}')
             select ConcatTokens(new Token[] { new SymbolToken('{'), new StringToken(identifier) },
                 operation, new Token[] { new SymbolToken('}') });
-        return
+        parser =
             from dollar in Symbol('$')
             from tokens in braced.Try().Or(name.Select(identifier =>
                 (IEnumerable<Token>)new Token[] { new StringToken(identifier) }))
             select new VariableRefToken(tokens, escapeChar);
+        return parser;
     }
 }

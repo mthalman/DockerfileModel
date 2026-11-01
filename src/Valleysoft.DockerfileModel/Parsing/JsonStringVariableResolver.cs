@@ -12,19 +12,30 @@ internal static class JsonStringVariableResolver
         List<(int Start, int End, Token Token, bool Inline)> references = new();
         HashSet<int> completeBraces = FindCompleteBracedReferences(physical, escapeChar);
         Dictionary<int, Result<VariableRefToken>> parsed = new();
-        TextParser<VariableRefToken>? parser = null;
-        Result<VariableRefToken> ParseReference(TextSpan span)
-        {
-            // Cache recursive failures too, so malformed suffixes are not reparsed at each outer reference.
-            if (!parsed.TryGetValue(span.Position.Absolute, out Result<VariableRefToken> result))
-            {
-                result = (parser ?? throw new InvalidOperationException("The reference parser is not initialized."))(span);
-                parsed.Add(span.Position.Absolute, result);
-            }
-            return result;
-        }
-        parser = VariableRefToken.GetParser(escapeChar, ParseReference);
+        Result<VariableRefToken> ParseReference(TextSpan span) =>
+            parsed.TryGetValue(span.Position.Absolute, out Result<VariableRefToken> result)
+                ? result
+                : Result.Empty<VariableRefToken>(span, "variable reference");
+        TextParser<VariableRefToken> parser = VariableRefToken.GetParser(escapeChar, ParseReference);
+        List<TextSpan> candidates = new();
         TextSpan input = new TextSpan(physical).Skip(1);
+        while (input.Position.Absolute < physical.Length - 1)
+        {
+            int start = input.Position.Absolute;
+            if (physical[start] == '$' &&
+                (physical[start + 1] != '{' || completeBraces.Contains(start)))
+            {
+                candidates.Add(input);
+            }
+            input = input.Skip(1);
+        }
+        // Bottom-up parsing avoids CLR recursion even for balanced, deeply nested modifiers.
+        for (int index = candidates.Count - 1; index >= 0; index--)
+        {
+            TextSpan candidate = candidates[index];
+            parsed.Add(candidate.Position.Absolute, parser(candidate));
+        }
+        input = new TextSpan(physical).Skip(1);
         while (input.Position.Absolute < physical.Length - 1)
         {
             int start = input.Position.Absolute;
@@ -205,8 +216,11 @@ internal static class JsonStringVariableResolver
                     resolvedCounts[variable.Remainder.Position.Absolute] == resolvedCounts[index])
                 {
                     int end = variable.Remainder.Position.Absolute;
-                    string value = variable.Value.ResolveVariables(escapeChar, variables, valueOptions) ?? string.Empty;
-                    replacements.Add((starts[index], ends[end - 1], new StringToken(Encode(value)), true));
+                    if (!VariableRefToken.IsPatternModifier(variable.Value.Modifier))
+                    {
+                        string value = variable.Value.ResolveVariables(escapeChar, variables, valueOptions) ?? string.Empty;
+                        replacements.Add((starts[index], ends[end - 1], new StringToken(Encode(value)), true));
+                    }
                     input = variable.Remainder;
                     continue;
                 }
@@ -218,6 +232,10 @@ internal static class JsonStringVariableResolver
             input = input.Skip(1);
         }
 
+        if (expandVariables && quote is not null)
+        {
+            throw new ParseException("Unterminated quote in decoded JSON path.", input.Position);
+        }
         if (replacements.Count == 0)
         {
             return physical;

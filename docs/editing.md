@@ -153,6 +153,9 @@ character protects the following dollar sign from expansion. These rules also
 apply inside modifier values, which may contain decoded newline characters.
 Protected malformed reference text remains literal; active malformed references
 are diagnosed during resolution rather than during JSON string tokenization.
+Unterminated decoded quotes fail before substitutions are committed to that path.
+Pattern modifiers (`#`, `##`, `%`, `%%`, `/`, and `//`) remain unsupported;
+their unresolved references retain the original JSON spelling and token identity.
 Unmatched Unicode
 surrogates decode to U+FFFD, matching BuildKit's JSON decoder, while untouched
 escape spelling remains intact. Legacy parser-accepted paths that are not valid
@@ -168,6 +171,7 @@ Collection adoption and scalar token replacement bind direct token resolution
 to the receiving owner's context. Instruction resolution uses that instruction's
 context independently of the token's latest binding, so sharing a token with a
 non-VOLUME instruction does not change the original VOLUME's resolution policy.
+Document `ARG` evaluation uses the `ARG` context for defaults shared with `VOLUME`.
 The token and its contents remain shared mutable objects.
 
 Adding a second variable to a legacy `ENV name value` converts the affected

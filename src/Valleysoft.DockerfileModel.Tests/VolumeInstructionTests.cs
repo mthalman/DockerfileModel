@@ -95,8 +95,8 @@ public class VolumeInstructionTests
     }
 
     [Theory]
-    [InlineData('\\', "VOLUME [\"$ROOT/a\\\"b\", \"$ROOT/c\\\\d\"]",
-        "VOLUME [\"/srv/a\\\"b\", \"/srv/c\\\\d\"]")]
+    [InlineData('\\', "VOLUME [\"$ROOT/a\\\"b\\\"\", \"$ROOT/c\\\\d\"]",
+        "VOLUME [\"/srv/a\\\"b\\\"\", \"/srv/c\\\\d\"]")]
     [InlineData('\\', "VOLUME [\"$ROOT/data\", \\\n \"${ROOT}/logs\"]",
         "VOLUME [\"/srv/data\", \\\n \"/srv/logs\"]")]
     [InlineData('`', "VOLUME [\"$ROOT/data\", `\r\n \"${ROOT}/logs\"]",
@@ -744,6 +744,119 @@ public class VolumeInstructionTests
         VolumeInstruction instruction = VolumeInstruction.Parse(text);
         Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
         Assert.Equal(text, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(256)]
+    [InlineData(512)]
+    public void JsonProtectedBalancedReferencesParseWithoutRecursiveDescent(int depth)
+    {
+        string content = "'" + string.Concat(Enumerable.Repeat("${X:-", depth)) +
+            "value" + new string('}', depth) + "'";
+        string text = $"VOLUME [\"{content}\"]";
+        VolumeInstruction instruction = VolumeInstruction.Parse(text);
+
+        Assert.Equal(text, instruction.ToString());
+        Assert.Equal(text, instruction.ResolveVariables('\\'));
+        Assert.Equal(text, instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = true }));
+        VariableRefToken? reference = instruction.PathTokens[0].Tokens.OfType<VariableRefToken>().Single();
+        int actualDepth = 0;
+        while (reference is not null)
+        {
+            actualDepth++;
+            reference = reference.ModifierValueToken!.Tokens.OfType<VariableRefToken>().SingleOrDefault();
+        }
+        Assert.Equal(depth, actualDepth);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonSharedGlobalArgDefaultsRetainTheirDocumentResolutionContext(bool inline)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "ARG ROOT=alpine\nARG IMAGE=\"\\u0024ROOT\"\nFROM $IMAGE\nVOLUME []");
+        FromInstruction from = Assert.Single(dockerfile.Items.OfType<FromInstruction>());
+        string expected = dockerfile.ResolveVariables(from);
+        LiteralToken value = dockerfile.Items.OfType<ArgInstruction>().Last().ArgTokens[0].ValueToken!;
+        Assert.Single(dockerfile.Items.OfType<VolumeInstruction>()).PathTokens.Add(value);
+
+        Assert.Equal(expected, dockerfile.ResolveVariables(from,
+            options: new ResolutionOptions { UpdateInline = inline }));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonSharedStageArgDefaultsRetainTheirDocumentResolutionContext(bool inline)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "FROM scratch\nARG ROOT=/srv\nARG PATH=\"\\u0024ROOT\"\nVOLUME []\nWORKDIR $PATH");
+        WorkdirInstruction workdir = Assert.Single(dockerfile.Items.OfType<WorkdirInstruction>());
+        string expected = dockerfile.ResolveVariables(workdir);
+        LiteralToken value = dockerfile.Items.OfType<ArgInstruction>().Last().ArgTokens[0].ValueToken!;
+        Assert.Single(dockerfile.Items.OfType<VolumeInstruction>()).PathTokens.Add(value);
+
+        Assert.Equal(expected, dockerfile.ResolveVariables(workdir,
+            options: new ResolutionOptions { UpdateInline = inline }));
+    }
+
+    [Theory]
+    [InlineData("\\u0027$ROOT")]
+    [InlineData("\\u0022$ROOT")]
+    [InlineData("prefix'$ROOT")]
+    public void JsonUnmatchedDecodedQuotesFailWithoutMutatingPaths(string content)
+    {
+        foreach (bool inline in new[] { false, true })
+        {
+            string text = $"VOLUME [\"{content}\"]";
+            VolumeInstruction instruction = VolumeInstruction.Parse(text);
+            Assert.Throws<ParseException>(() => instruction.ResolveVariables('\\',
+                new Dictionary<string, string?> { ["ROOT"] = "/srv" },
+                new ResolutionOptions { UpdateInline = inline }));
+            Assert.Equal(text, instruction.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData("#")]
+    [InlineData("##")]
+    [InlineData("%")]
+    [InlineData("%%")]
+    [InlineData("/")]
+    [InlineData("//")]
+    public void JsonUnresolvedModifiersRetainSourceSpellingAndTokens(string modifier)
+    {
+        foreach (bool inline in new[] { false, true })
+        {
+            string expression = $"${{ROOT{modifier}\\u0061}}";
+            string text = $"VOLUME [\"{expression}/$OTHER\"]";
+            VolumeInstruction instruction = VolumeInstruction.Parse(text);
+            VariableRefToken unresolved = instruction.PathTokens[0].Tokens.OfType<VariableRefToken>().First();
+            string expected = $"VOLUME [\"{expression}/data\"]";
+
+            Assert.Equal(expected, instruction.ResolveVariables('\\',
+                new Dictionary<string, string?> { ["ROOT"] = "/srv", ["OTHER"] = "data" },
+                new ResolutionOptions { UpdateInline = inline }));
+            Assert.Equal(inline ? expected : text, instruction.ToString());
+            Assert.Contains(unresolved, instruction.PathTokens[0].Tokens);
+            Assert.Equal(expression, unresolved.ToString());
+        }
+    }
+
+    [Fact]
+    public void JsonDecodedReferenceParserBoundsNestedGraphAllocations()
+    {
+        TextParser<VariableRefToken> parser = DecodedVariableParsers.Variable('\\', Character.AnyChar);
+        string text = "${MISSING:-" + string.Concat(Enumerable.Repeat("$ROOT/", 128)) + "}";
+        parser.Parse("${MISSING:-$ROOT/}");
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        VariableRefToken variable = parser.Parse(text);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(text, variable.ToString());
+        Assert.True(allocated < 1_000_000, $"Nested reference parsing allocated {allocated} bytes.");
     }
 
     [Fact]

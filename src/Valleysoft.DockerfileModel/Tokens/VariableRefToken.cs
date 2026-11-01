@@ -13,6 +13,8 @@ public class VariableRefToken : AggregateToken
     // bash — see ResolveVariables for details.
     internal static readonly string[] ValidModifiers = new string[] { ":-", ":+", ":?", "-", "+", "?", "##", "#", "%%", "%", "//", "/" };
 
+    internal static bool IsPatternModifier(string? modifier) => modifier is "#" or "##" or "%" or "%%" or "/" or "//";
+
     /// <summary>
     /// Parsers for all of the variable substitution modifiers.
     /// </summary>
@@ -180,8 +182,7 @@ public class VariableRefToken : AggregateToken
         {
             // POSIX pattern modifiers (##, #, %%, %, //, /) require shell-level pattern
             // matching (glob patterns, substring removal/replacement) that goes beyond
-            // Dockerfile variable resolution capabilities. Since Docker/BuildKit does not
-            // support these modifiers, we return the raw variable reference text unchanged
+            // this library's variable resolution capabilities. Preserve the raw reference
             // rather than silently losing the modifier and its pattern.
             if (IsPatternModifier(modifier))
             {
