@@ -10,6 +10,7 @@ internal sealed class LiteralResolutionPlan
     private readonly Entry[] entries;
     private readonly ExceptionDispatchInfo? quoteFailure;
     private readonly Operation operation;
+    private readonly bool rawSyntax;
     private long validatedGeneration;
     private volatile bool consumed;
 
@@ -18,14 +19,21 @@ internal sealed class LiteralResolutionPlan
     {
     }
 
-    private LiteralResolutionPlan(AggregateToken token, char escapeChar, ref ShellQuoteContext context, Operation operation)
+    private LiteralResolutionPlan(AggregateToken token, char escapeChar, ref ShellQuoteContext context, Operation operation,
+        bool rawSyntax = false)
     {
         this.token = token;
         this.escapeChar = escapeChar;
         this.operation = operation;
+        this.rawSyntax = rawSyntax;
         initialContext = context;
         QuoteChar = ReadQuote(token, out quoteFailure);
         ConsumeQuote(QuoteChar, escapeChar, ref context);
+        if (rawSyntax && token is VariableRefToken reference)
+        {
+            operation.RegisterRawReference(reference);
+            context.Consume('$', escapeChar, out _);
+        }
 
         // Scan each subtree once, then share its plan through the original reverse virtual calls.
         entries = new Entry[token.TokenList.Count];
@@ -38,16 +46,17 @@ internal sealed class LiteralResolutionPlan
             char? childQuote = null;
             if (child is not (LineContinuationToken or CommentToken or NewLineToken))
             {
-                if (child is VariableRefToken)
+                if (child is VariableRefToken childReference)
                 {
-                    if (context.SuppressExpansion)
+                    if (rawSyntax || context.SuppressExpansion)
                     {
-                        ConsumeRawSyntax(child, escapeChar, ref context, out childFailure);
+                        childPlan = new LiteralResolutionPlan(childReference, escapeChar, ref context, operation,
+                            rawSyntax: true);
                     }
                 }
                 else if (child is AggregateToken aggregate)
                 {
-                    childPlan = new LiteralResolutionPlan(aggregate, escapeChar, ref context, operation);
+                    childPlan = new LiteralResolutionPlan(aggregate, escapeChar, ref context, operation, rawSyntax);
                 }
                 else if (child is PrimitiveToken primitive)
                 {
@@ -72,7 +81,7 @@ internal sealed class LiteralResolutionPlan
             !MatchesCurrentSyntax(recursive: Interlocked.Read(ref validatedGeneration) != operation.Generation))
         {
             ShellQuoteContext context = initialContext;
-            return new LiteralResolutionPlan(token, escapeChar, ref context, operation);
+            return new LiteralResolutionPlan(token, escapeChar, ref context, operation, rawSyntax);
         }
         return this;
     }
@@ -87,7 +96,8 @@ internal sealed class LiteralResolutionPlan
 
     public LiteralResolutionPlan? GetChildPlan(int index) => entries[index].Plan;
 
-    public void BeforeCallback(Token callbackToken) => operation.BeforeCallback(callbackToken);
+    public void BeforeCallback(Token callbackToken, IDictionary<string, string?> variables, ResolutionOptions options,
+        bool resolveVariables = true) => operation.BeforeCallback(callbackToken, variables, options, resolveVariables);
 
     private bool MatchesCurrentSyntax(bool recursive)
     {
@@ -141,35 +151,6 @@ internal sealed class LiteralResolutionPlan
         }
     }
 
-    private static void ConsumeRawSyntax(Token token, char escapeChar, ref ShellQuoteContext context,
-        out ExceptionDispatchInfo? failure)
-    {
-        failure = null;
-        if (token is LineContinuationToken or CommentToken or NewLineToken)
-        {
-            return;
-        }
-        char? quote = ReadQuote(token, out failure);
-        ConsumeQuote(quote, escapeChar, ref context);
-        if (token is VariableRefToken)
-        {
-            context.Consume('$', escapeChar, out _);
-        }
-        if (token is AggregateToken aggregate)
-        {
-            foreach (Token child in aggregate.Tokens)
-            {
-                ConsumeRawSyntax(child, escapeChar, ref context, out ExceptionDispatchInfo? childFailure);
-                failure ??= childFailure;
-            }
-        }
-        else if (token is PrimitiveToken primitive)
-        {
-            ConsumeText(primitive.Value, escapeChar, ref context);
-        }
-        ConsumeQuote(quote, escapeChar, ref context);
-    }
-
     private static void ConsumeQuote(char? quote, char escapeChar, ref ShellQuoteContext context)
     {
         if (quote.HasValue)
@@ -210,12 +191,43 @@ internal sealed class LiteralResolutionPlan
     private sealed class Operation
     {
         private readonly Dictionary<Type, bool> resolverOverrides = new();
+        private readonly HashSet<VariableRefToken> rawReferences = new();
         private long generation;
 
         public long Generation => Interlocked.Read(ref generation);
 
-        public void BeforeCallback(Token token)
+        public void RegisterRawReference(VariableRefToken reference)
         {
+            if (reference.GetType() == typeof(VariableRefToken))
+            {
+                lock (resolverOverrides)
+                {
+                    rawReferences.Add(reference);
+                }
+            }
+        }
+
+        public void BeforeCallback(Token token, IDictionary<string, string?> variables, ResolutionOptions options,
+            bool resolveVariables)
+        {
+            if (resolveVariables && token.GetType() == typeof(VariableRefToken) &&
+                token is VariableRefToken reference && reference.Modifier is null && IsBuiltInDictionary(variables))
+            {
+                // Plain lookups have no consumer callbacks; only shared raw syntax observes their inline mutation.
+                if (!options.UpdateInline)
+                {
+                    return;
+                }
+                lock (resolverOverrides)
+                {
+                    if (!rawReferences.Contains(reference))
+                    {
+                        return;
+                    }
+                }
+                Interlocked.Increment(ref generation);
+                return;
+            }
             if (token is AggregateToken aggregate)
             {
                 Type type = token.GetType();
@@ -240,5 +252,12 @@ internal sealed class LiteralResolutionPlan
                 Interlocked.Increment(ref generation);
             }
         }
+
+        private static bool IsBuiltInDictionary(IDictionary<string, string?> variables) =>
+            variables is Dictionary<string, string?> dictionary &&
+            dictionary.GetType() == typeof(Dictionary<string, string?>) &&
+            (ReferenceEquals(dictionary.Comparer, EqualityComparer<string>.Default) ||
+                ReferenceEquals(dictionary.Comparer, StringComparer.Ordinal) ||
+                ReferenceEquals(dictionary.Comparer, StringComparer.OrdinalIgnoreCase));
     }
 }

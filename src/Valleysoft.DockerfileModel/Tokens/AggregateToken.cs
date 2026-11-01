@@ -191,7 +191,7 @@ public abstract class AggregateToken : Token
             ShellQuoteContext context = plan?.GetContext(i) ?? new ShellQuoteContext();
             if (token is AggregateToken aggregateToken && !(token is VariableRefToken && plan is not null && context.SuppressExpansion))
             {
-                plan?.BeforeCallback(token);
+                plan?.BeforeCallback(token, variables, options);
                 if (plan is not null && token is not VariableRefToken)
                 {
                     using LiteralResolutionScope scope = new(aggregateToken, context, plan.GetChildPlan(i));
@@ -215,7 +215,7 @@ public abstract class AggregateToken : Token
             }
             else
             {
-                plan?.BeforeCallback(token);
+                plan?.BeforeCallback(token, variables, options, resolveVariables: false);
                 value = options.FormatValue(escapeChar, token.ToString());
             }
 
