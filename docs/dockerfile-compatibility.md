@@ -73,38 +73,14 @@ from passes. Imported inputs cannot be minimized or promoted as local regression
 ## JSON instruction forms
 
 `RUN`, `CMD`, `ENTRYPOINT`, and `HEALTHCHECK CMD` select exec form only when the
-complete logical argument is a JSON array of strings. Dockerfile continuations
-and continuation-line comments are folded before this check; ordinary trailing
-text is not discarded. Missing commas, invalid JSON escapes, and text after an
-array select shell form and retain the original source. A valid JSON array with
-non-string elements is an error, not a shell fallback.
+complete argument is a JSON array of strings. Malformed JSON or text after an
+array falls back to shell form without losing the original source. Valid arrays
+containing non-string elements are rejected.
 
-Within JSON strings, backslash escapes follow JSON syntax even when an `escape`
-directive selects backtick for Dockerfile continuations. Continuations may appear
-before the first string character or in an empty string; parsing retains their
-physical source without including them in the literal value.
-Standalone instruction parsing and `Dockerfile.TryParse` also retain skipped
-blank lines and comments after a continuation without including their text or
-indentation in JSON string values. This also applies to continuations between
-a JSON backslash and its escaped character. Whitespace on the resumed content
-line remains part of the JSON string and is not discarded.
-
-`ADD`, `COPY`, and `VOLUME` use the same recognition rule, but their fallback is
-the instruction's non-JSON operand grammar. `SHELL` requires JSON form and does
-not fall back. `ExecFormCommand.Parse` and `ShellInstruction.Parse` also reject
-unconsumed input. These syntax checks do not add general JSON escaping or
-decoding to argument-sequence constructors or editable value views.
-`ExecFormCommand.Parse` retains the legacy literal grammar for explicitly modeled
-operands; instruction form selection validates JSON independently.
-
-Commands parsed from instructions retain the JSON string grammar for collection
-edits and literal value updates. Explicit `ExecFormCommand` APIs keep their
-legacy grammar, including its existing limitations. Argument-sequence constructors
-for `RUN`, `CMD`, `ENTRYPOINT`, `HEALTHCHECK CMD`, and `SHELL` retain exec form when
-their generated arguments require legacy operand syntax. `ADD` and `COPY`
-constructors also retain legacy JSON-form operands. These constructor paths do
-not add JSON escaping; collection edits preserve existing operands without
-weakening the JSON checks for newly supplied tokens or instruction text.
+`ADD`, `COPY`, and `VOLUME` follow the same rule, falling back to their non-JSON
+operand syntax. `SHELL` requires a JSON array of strings and has no fallback.
+Parsing preserves the original Dockerfile text, including continuations and
+comments.
 
 ## How updates are discovered
 
