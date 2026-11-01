@@ -616,7 +616,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         if (adoptedIndex >= 0 && IsJson && expected[adoptedIndex] is LiteralToken literal &&
             actual[adoptedIndex] is LiteralToken parsedLiteral)
         {
-            literal.UseJsonStringSyntax = parsedLiteral.UseJsonStringSyntax;
+            literal.UseJsonStringSyntax |= parsedLiteral.UseJsonStringSyntax;
         }
     }
 

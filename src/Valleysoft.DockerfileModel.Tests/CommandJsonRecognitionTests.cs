@@ -233,8 +233,65 @@ public class CommandJsonRecognitionTests
         Assert.Equal(before, instruction.ToString());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyCommandAdoptionDoesNotDowngradeSharedJsonLiteralGrammar(bool replace)
+    {
+        ExecFormCommand donor = Assert.IsType<ExecFormCommand>(
+            RunInstruction.Parse("RUN [\"echo\"]", '`').Command);
+        LiteralToken shared = donor.ValueTokens[0];
+        ExecFormCommand receiver = ExecFormCommand.Parse("[\"other\"]", '`');
+
+        if (replace)
+        {
+            receiver.ValueTokens.Replace(0, shared);
+        }
+        else
+        {
+            receiver.ValueTokens.Add(shared);
+        }
+
+        Assert.Same(shared, donor.ValueTokens[0]);
+        Assert.Same(shared, receiver.ValueTokens[replace ? 0 : 1]);
+        Assert.True(shared.UseJsonStringSyntax);
+        Assert.False(receiver.UseJsonStringSyntax);
+        shared.Value = "echo`";
+        Assert.Equal("echo`", shared.Value);
+        Assert.Equal("[\"echo`\"]", donor.ToString());
+        Assert.Equal(replace ? "[\"echo`\"]" : "[\"other\", \"echo`\"]", receiver.ToString());
+    }
+
     [Fact]
-    public void StrictJsonParserConstructionAvoidsTheLegacyVariableGrammar()
+    public void LegacyCommandAdoptionKeepsLegacyLiteralGrammar()
+    {
+        ExecFormCommand receiver = ExecFormCommand.Parse("[\"other\"]", '`');
+        LiteralToken incoming = new("echo", escapeChar: '`');
+
+        receiver.ValueTokens.Add(incoming);
+
+        Assert.False(incoming.UseJsonStringSyntax);
+        Assert.False(receiver.UseJsonStringSyntax);
+    }
+
+    [Fact]
+    public void JsonStringParsingReusesContinuationParsers()
+    {
+        var parser = CommandParsers.JsonStringTokens('`', canContainVariables: false)
+            .Try().Many().Flatten().AtEnd();
+        string text = string.Concat(Enumerable.Repeat("a\\n ", 100));
+        for (int i = 0; i < 10; i++)
+        {
+            parser.Parse(text);
+        }
+        long start = GC.GetAllocatedBytesForCurrentThread();
+        parser.Parse(text);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
+        Assert.True(allocated < 1_000_000, $"Parsing 100 escaped segments allocated {allocated} bytes.");
+    }
+
+    [Fact]
+    public void JsonArrayParsingReusesElementParsers()
     {
         var strictParser = CommandParsers.JsonArray('\\', canContainVariables: true, allowEmpty: true,
             useJsonStringSyntax: true);
@@ -247,7 +304,8 @@ public class CommandJsonRecognitionTests
         }
         long strict = Allocated(strictParser, input);
         long legacy = Allocated(legacyParser, input);
-        Assert.True(strict < legacy, $"Strict grammar allocated {strict} bytes; legacy grammar allocated {legacy} bytes.");
+        Assert.True(strict < 500_000, $"Strict grammar allocated {strict} bytes for 100 empty arrays.");
+        Assert.True(legacy < 500_000, $"Legacy grammar allocated {legacy} bytes for 100 empty arrays.");
 
         static long Allocated(TextParser<IEnumerable<Token>> parser, TextSpan input)
         {

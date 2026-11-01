@@ -104,18 +104,25 @@ internal static class CommandParsers
     /// <param name="useJsonStringSyntax">Separates JSON backslash escapes from Dockerfile continuations.
     /// False retains the historical operand grammar used by explicit command APIs and constructors.</param>
     internal static TextParser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false,
-        bool useJsonStringSyntax = false) =>
-        from openingBracket in BasicParsers.Symbol('[').AsEnumerable()
-        // Consume optional whitespace after '[' at the array level (not inside
-        // the element parser) so the empty-array fallback works correctly.
-        // Without this, JsonArrayElement would consume whitespace and then fail
-        // at the opening quote, preventing backtracking to the empty-array case.
-        // This matches the Lean/BuildKit parser structure, which parses
-        // interElementSpace before attempting the optional first element.
-        from leadingWs in JsonWhitespace(escapeChar)
-        from execFormArgs in JsonArrayElements(escapeChar, canContainVariables, allowEmpty, useJsonStringSyntax)
-        from closingBracket in BasicParsers.Symbol(']').AsEnumerable()
-        select TokenSequences.ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
+        bool useJsonStringSyntax = false)
+    {
+        TextParser<IEnumerable<Token>> whitespace = JsonWhitespace(escapeChar);
+        TextParser<IEnumerable<Token>> elements =
+            JsonArrayElements(escapeChar, canContainVariables, allowEmpty, useJsonStringSyntax);
+        TextParser<IEnumerable<SymbolToken>> closingBracketParser = BasicParsers.Symbol(']').AsEnumerable();
+        return
+            from openingBracket in BasicParsers.Symbol('[').AsEnumerable()
+            // Consume optional whitespace after '[' at the array level (not inside
+            // the element parser) so the empty-array fallback works correctly.
+            // Without this, JsonArrayElement would consume whitespace and then fail
+            // at the opening quote, preventing backtracking to the empty-array case.
+            // This matches the Lean/BuildKit parser structure, which parses
+            // interElementSpace before attempting the optional first element.
+            from leadingWs in whitespace
+            from execFormArgs in elements
+            from closingBracket in closingBracketParser
+            select TokenSequences.ConcatTokens(openingBracket, leadingWs, execFormArgs, closingBracket);
+    }
 
     /// <summary>
     /// Creates a <see cref="Tokens.LiteralToken"/> for a JSON array element from its parsed tokens.
@@ -161,14 +168,17 @@ internal static class CommandParsers
     private static TextParser<IEnumerable<Token>> JsonArrayElements(char escapeChar, bool canContainVariables, bool allowEmpty,
         bool useJsonStringSyntax)
     {
+        TextParser<IEnumerable<Token>> firstElement =
+            JsonArrayElement(escapeChar, canContainVariables, useJsonStringSyntax, consumeLeadingWhitespace: false);
+        TextParser<IEnumerable<Token>> nextElement = JsonArrayElement(escapeChar, canContainVariables, useJsonStringSyntax);
+        TextParser<IEnumerable<Token>> tailElements = (
+            from delimiter in JsonArrayElementDelimiter(escapeChar)
+            from nextArg in nextElement
+            select TokenSequences.ConcatTokens(delimiter, nextArg)).Try().Many().Flatten();
         var elements =
-            from firstArg in JsonArrayElement(escapeChar, canContainVariables, useJsonStringSyntax,
-                consumeLeadingWhitespace: false).AsEnumerable().Flatten()
-            from tail in (
-                from delimiter in JsonArrayElementDelimiter(escapeChar)
-                from nextArg in JsonArrayElement(escapeChar, canContainVariables, useJsonStringSyntax)
-                select TokenSequences.ConcatTokens(delimiter, nextArg)).Try().Many()
-            select TokenSequences.ConcatTokens(firstArg, tail.Flatten());
+            from firstArg in firstElement
+            from tail in tailElements
+            select TokenSequences.ConcatTokens(firstArg, tail);
 
         if (allowEmpty)
         {
@@ -194,14 +204,16 @@ internal static class CommandParsers
     /// Parses a JSON array element delimiter (i.e. comma) with optional whitespace.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
-    private static TextParser<IEnumerable<Token>> JsonArrayElementDelimiter(char escapeChar) =>
-        from leading in JsonWhitespace(escapeChar)
-        from comma in BasicParsers.Symbol(',').AsEnumerable()
-        from trailing in JsonWhitespace(escapeChar)
-        select TokenSequences.ConcatTokens(
-            leading,
-            comma,
-            trailing);
+    private static TextParser<IEnumerable<Token>> JsonArrayElementDelimiter(char escapeChar)
+    {
+        TextParser<IEnumerable<Token>> whitespace = JsonWhitespace(escapeChar);
+        TextParser<IEnumerable<SymbolToken>> commaParser = BasicParsers.Symbol(',').AsEnumerable();
+        return
+            from leading in whitespace
+            from comma in commaParser
+            from trailing in whitespace
+            select TokenSequences.ConcatTokens(leading, comma, trailing);
+    }
 
     /// <summary>
     /// Parses a JSON array string element. When <paramref name="consumeLeadingWhitespace"/> is
@@ -231,27 +243,30 @@ internal static class CommandParsers
                 .Or(BasicParsers.Whitespace().Where(tokens => tokens.Any()));
         }
 
+        TextParser<IEnumerable<Token>> whitespace = JsonWhitespace(escapeChar);
+        TextParser<SymbolToken> quote = BasicParsers.Symbol(StringParsers.DoubleQuote);
+        TextParser<IEnumerable<Token>> contents = contentParser.Try().Many().Flatten();
         if (consumeLeadingWhitespace)
         {
             return
-                from leading in JsonWhitespace(escapeChar)
-                from openingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
-                from argValue in contentParser.Try().Many()
-                from closingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
-                from trailing in JsonWhitespace(escapeChar)
+                from leading in whitespace
+                from openingQuote in quote
+                from argValue in contents
+                from closingQuote in quote
+                from trailing in whitespace
                 select TokenSequences.ConcatTokens(
                     leading,
-                    CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar, useJsonStringSyntax),
+                    CreateJsonArrayElementLiteral(argValue, canContainVariables, escapeChar, useJsonStringSyntax),
                     trailing);
         }
 
         return
-            from openingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
-            from argValue in contentParser.Try().Many()
-            from closingQuote in BasicParsers.Symbol(StringParsers.DoubleQuote)
-            from trailing in JsonWhitespace(escapeChar)
+            from openingQuote in quote
+            from argValue in contents
+            from closingQuote in quote
+            from trailing in whitespace
             select TokenSequences.ConcatTokens(
-                CreateJsonArrayElementLiteral(argValue.Flatten(), canContainVariables, escapeChar, useJsonStringSyntax),
+                CreateJsonArrayElementLiteral(argValue, canContainVariables, escapeChar, useJsonStringSyntax),
                 trailing);
     }
 
@@ -271,11 +286,13 @@ internal static class CommandParsers
                 .Try().Or(BasicParsers.ToStringTokens(Character.EqualTo('$')));
         }
 
+        TextParser<IEnumerable<Token>> continuationsParser = JsonLineContinuation(escapeChar).Try().Many().Flatten();
+        TextParser<IEnumerable<Token>> escapedCharacter = BasicParsers.ToStringTokens(
+            Superpower.Parse.Not(NativeParsers.LineEnd).IgnoreThen(Character.AnyChar));
         TextParser<IEnumerable<Token>> jsonEscape =
             from backslash in BasicParsers.ToStringTokens(Character.EqualTo('\\'))
-            from continuations in JsonLineContinuation(escapeChar).Try().Many().Flatten()
-            from escaped in BasicParsers.ToStringTokens(
-                Superpower.Parse.Not(NativeParsers.LineEnd).IgnoreThen(Character.AnyChar))
+            from continuations in continuationsParser
+            from escaped in escapedCharacter
             select TokenSequences.ConcatTokens(backslash, continuations, escaped);
 
         TextParser<IEnumerable<Token>> contentParser = JsonWhitespace(escapeChar)
@@ -293,14 +310,18 @@ internal static class CommandParsers
 
     private static TextParser<IEnumerable<Token>> JsonWhitespace(char escapeChar)
     {
+        TextParser<WhitespaceToken?> horizontalWhitespace = BasicParsers.WhitespaceWithoutNewLine();
+        TextParser<IEnumerable<Token>> continuedParser = (
+            from continuation in JsonLineContinuation(escapeChar)
+            from horizontal in horizontalWhitespace
+            select TokenSequences.ConcatTokens(continuation, new Token?[] { horizontal }))
+            .Try().Many().Flatten();
+        TextParser<IEnumerable<Token>> trailingWhitespace =
+            BasicParsers.Whitespace().Where(tokens => tokens.Any()).Try().Many().Flatten();
         return
-            from leading in BasicParsers.WhitespaceWithoutNewLine()
-            from continued in (
-                from continuation in JsonLineContinuation(escapeChar)
-                from horizontal in BasicParsers.WhitespaceWithoutNewLine()
-                select TokenSequences.ConcatTokens(continuation, new Token?[] { horizontal }))
-                .Try().Many().Flatten()
-            from trailing in BasicParsers.Whitespace().Where(tokens => tokens.Any()).Try().Many().Flatten()
+            from leading in horizontalWhitespace
+            from continued in continuedParser
+            from trailing in trailingWhitespace
             select TokenSequences.ConcatTokens(new Token?[] { leading }, continued, trailing);
     }
 
@@ -310,17 +331,20 @@ internal static class CommandParsers
         TextParser<IEnumerable<Token>> blankLine =
             from text in Span.MatchedBy(BasicParsers.WhitespaceWithoutNewLine().IgnoreThen(NativeParsers.LineEnd)).Text()
             select (IEnumerable<Token>)new Token[] { new NewLineToken(text) };
+        TextParser<IEnumerable<Token>> commentParser = CommentToken.GetParser();
+        TextParser<NewLineToken> optionalNewLine = BasicParsers.OptionalNewLine();
         TextParser<IEnumerable<Token>> commentLine =
             from leading in BasicParsers.WhitespaceWithoutNewLine()
-            from comment in CommentToken.GetParser()
-            from newline in BasicParsers.OptionalNewLine()
+            from comment in commentParser
+            from newline in optionalNewLine
             select (IEnumerable<Token>)new Token[]
             {
                 new CommentToken(TokenSequences.ConcatTokens(new Token?[] { leading }, comment, new Token?[] { newline }))
             };
+        TextParser<IEnumerable<Token>> skippedLines = blankLine.Try().Or(commentLine).Try().Many().Flatten();
         return
             from continuation in LineContinuationToken.GetParser(escapeChar)
-            from skipped in blankLine.Try().Or(commentLine).Try().Many().Flatten()
+            from skipped in skippedLines
             select TokenSequences.ConcatTokens(new Token[] { continuation }, skipped);
     }
 }
