@@ -272,8 +272,13 @@ partial def heredocWithDestination (escapeChar : Char := '\\') : Parser (List To
     else [Token.mkWhitespace (String.ofList wsChars)]
   let continuedTrivia := do
     let continuation ← lineContinuationParser escapeChar
-    let trailing ← optional whitespaceOrComments
-    Parser.pure ([continuation] ++ trailing.getD [])
+    let trailing ← many (do
+      let horizontal ← many whitespaceChar
+      let trivia ← optional whitespaceOrComments
+      Parser.pure (
+        (if horizontal.isEmpty then [] else [Token.mkWhitespace (String.ofList horizontal)]) ++
+        trivia.getD []))
+    Parser.pure ([continuation] ++ trailing.flatten)
   -- Bound quotes to the complete logical header, never to heredoc body lines.
   let headerPieces ← many (or'
     (do

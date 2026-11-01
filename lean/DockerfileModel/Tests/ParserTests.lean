@@ -2408,6 +2408,9 @@ def testContinuedHeredocDestination : IO Unit := do
     for newline in ["\n", "\r\n"] do
       for (operands, destination) in [
           (escape ++ newline ++ " /destination", "/destination"),
+          (escape ++ newline ++ "\x0C/destination", "/destination"),
+          (escape ++ newline ++ "\x0C" ++ newline ++ " /destination", "/destination"),
+          (escape ++ newline ++ "\x0C# header comment" ++ newline ++ " /destination", "/destination"),
           (escape ++ newline ++ "# header comment" ++ newline ++ " /destination", "/destination"),
           (escape ++ newline ++ newline ++ "# header comment" ++ newline ++ " /destination", "/destination"),
           ("\"/dir" ++ escape ++ newline ++ " name\"", "\"/dir" ++ escape ++ newline ++ " name\"")] do
@@ -2436,6 +2439,7 @@ def testHeredocTriviaBetweenOperands : IO Unit := do
     let escape := String.ofList [escapeChar]
     for newline in ["\n", "\r\n"] do
       for trivia in [newline ++ newline, newline ++ "# comment" ++ newline ++ newline,
+          "\x0C", "\x0C" ++ newline, "\x0C# comment" ++ newline,
           newline ++ "  " ++ newline ++ "\t" ++ newline] do
         for name in ["COPY", "ADD"] do
           let text := name ++ " <<EOF src " ++ escape ++ newline ++ trivia ++ " /dest" ++

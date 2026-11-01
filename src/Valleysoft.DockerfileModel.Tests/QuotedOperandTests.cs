@@ -443,6 +443,82 @@ public class QuotedOperandTests
         Assert.Equal("${ROOT}", variable.ToString());
     }
 
+    [Theory]
+    [InlineData("render", false)]
+    [InlineData("render", true)]
+    [InlineData("renderer", false)]
+    [InlineData("renderer", true)]
+    [InlineData("commit", false)]
+    [InlineData("commit", true)]
+    public void QuoteNormalizationRejectsUnsupportedChildrenBeforeSerialization(string operation, bool staged)
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse("COPY foo\" bar\" /dest").SourceTokens);
+        LiteralToken fragment = Assert.Single(source.Tokens.OfType<LiteralToken>());
+        CountingStringToken unsupported = new();
+        TokenEditPlan plan = new();
+        if (staged)
+        {
+            plan.Edit(fragment)[0] = unsupported;
+        }
+        else
+        {
+            fragment.ReplaceWithToken(unsupported);
+        }
+        plan.SetQuote(source, '"');
+        Token[] sourceChildren = source.Tokens.ToArray();
+        Token[] fragmentChildren = fragment.Tokens.ToArray();
+
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            switch (operation)
+            {
+                case "render": plan.Render(source); break;
+                case "renderer": plan.CreateRenderer(); break;
+                case "commit": plan.Commit(); break;
+                default: throw new ArgumentOutOfRangeException(nameof(operation));
+            }
+        });
+
+        Assert.Equal(0, unsupported.SerializerCalls);
+        Assert.Null(source.QuoteChar);
+        Assert.Equal(sourceChildren, source.Tokens);
+        Assert.Equal(fragmentChildren, fragment.Tokens);
+        if (staged)
+        {
+            Assert.Same(unsupported, Assert.Single(plan.Tokens(fragment)));
+        }
+    }
+
+    [Fact]
+    public void QuoteNormalizationValidatesReplacementChildrenInsteadOfDiscardedLiveChildren()
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse("COPY foo\" bar\" /dest").SourceTokens);
+        LiteralToken fragment = Assert.Single(source.Tokens.OfType<LiteralToken>());
+        CountingStringToken unsupported = new();
+        fragment.ReplaceWithToken(unsupported);
+        TokenEditPlan plan = new();
+        plan.Edit(fragment)[0] = new StringToken(" replacement");
+        plan.SetQuote(source, '"');
+
+        Assert.Equal("\"foo replacement\"", plan.Render(source));
+        plan.Commit();
+
+        Assert.Equal(0, unsupported.SerializerCalls);
+        Assert.Equal("\"foo replacement\"", source.ToString());
+        Assert.Equal(" replacement", Assert.IsType<StringToken>(Assert.Single(fragment.Tokens)).Value);
+    }
+
+    private sealed class CountingStringToken() : StringToken("unsupported")
+    {
+        public int SerializerCalls { get; private set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            SerializerCalls++;
+            return base.GetUnderlyingValue(options);
+        }
+    }
+
     [Fact]
     public void ClearingAMixedSourceRetainsAnEmptyOperand()
     {

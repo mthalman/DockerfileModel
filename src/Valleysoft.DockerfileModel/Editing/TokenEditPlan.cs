@@ -62,6 +62,7 @@ internal sealed class TokenEditPlan
 
     private Dictionary<AggregateToken, List<Token>> EffectiveReplacements()
     {
+        ValidatePublication(replacements);
         Dictionary<AggregateToken, List<Token>> effective = new(replacements, ReferenceComparer<AggregateToken>.Instance);
         IReadOnlyList<Token> Read(AggregateToken owner) =>
             effective.TryGetValue(owner, out List<Token>? children) ? children : owner.TokenList;
@@ -151,6 +152,11 @@ internal sealed class TokenEditPlan
     {
         HashSet<Token> visited = new(ReferenceComparer<Token>.Instance);
         Stack<Token> pending = new(effective.Keys);
+        foreach (IQuotableToken token in quotes.Keys)
+        {
+            EditValidation.ValidateSupportedQuote(token);
+            pending.Push((Token)token);
+        }
         while (pending.Count > 0)
         {
             Token token = pending.Pop();
@@ -166,10 +172,6 @@ internal sealed class TokenEditPlan
                     pending.Push(child);
                 }
             }
-        }
-        foreach (IQuotableToken token in quotes.Keys)
-        {
-            EditValidation.ValidateSupportedQuote(token);
         }
     }
 }
