@@ -211,7 +211,8 @@ internal sealed class LiteralResolutionPlan
             bool resolveVariables)
         {
             if (resolveVariables && token.GetType() == typeof(VariableRefToken) &&
-                token is VariableRefToken reference && reference.Modifier is null && IsBuiltInDictionary(variables))
+                token is VariableRefToken reference &&
+                !reference.ModifierTokens.Any(modifier => modifier.Value.Length != 0) && IsBuiltInDictionary(variables))
             {
                 // Plain lookups have no consumer callbacks; only shared raw syntax observes their inline mutation.
                 if (!options.UpdateInline)
