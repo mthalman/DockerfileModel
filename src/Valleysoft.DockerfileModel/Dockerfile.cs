@@ -160,7 +160,8 @@ public class Dockerfile : IConstructContainer
     /// defaults can import global values, otherwise they retain an existing local binding.
     /// Explicit empty assignments are set; null overrides are unset. Defaults contribute shell-decoded
     /// contents, excluding syntax quotes and continuation/comment trivia. Runtime command expansion is not performed.
-    /// Custom literal tokens retain their public variable-resolution behavior. Default references resolve
+    /// Consumer-defined aggregate tokens retain their public variable-resolution behavior and call context.
+    /// Default references resolve
     /// right-to-left; custom callbacks can edit pending syntax but do not rewrite already-resolved output.
     /// Inline updates retain each reference's captured binding and modifier branch.
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
@@ -338,7 +339,7 @@ public class Dockerfile : IConstructContainer
         }
         string value = ResolveArgValue(valueToken, escapeChar, bindings, options,
             recordResolution: resolveSyntax ? RecordResolution : null,
-            onBeforeCustomResolution: CaptureSyntaxBindings);
+            onBeforeCustomResolution: CaptureSyntaxBindings) ?? String.Empty;
 
         if (resolutions is not null)
         {
@@ -366,11 +367,11 @@ public class Dockerfile : IConstructContainer
         return value;
     }
 
-    private static string ResolveArgValue(Token token, char escapeChar,
+    private static string? ResolveArgValue(Token token, char escapeChar,
         IDictionary<string, string?> bindings, ResolutionOptions options,
         Action<AggregateToken, int, TokenResolution>? recordResolution = null,
         Action? onCustomResolution = null, Action? onBeforeCustomResolution = null,
-        Action<string>? recordSyntax = null)
+        Action<string?>? recordSyntax = null)
     {
         int customResolutionVersion = 0;
         void RecordCustomResolution()
@@ -380,7 +381,9 @@ public class Dockerfile : IConstructContainer
         }
 
         string? resolvedSyntax = null;
-        string ResolveToken(AggregateToken aggregate)
+        string? resolvedRootValue = null;
+        bool resolvedRoot = false;
+        string? ResolveToken(AggregateToken aggregate)
         {
             if (aggregate.UsesCustomResolution)
             {
@@ -388,7 +391,7 @@ public class Dockerfile : IConstructContainer
             }
             string? modifierSyntax = null;
             bool selectedModifier = false;
-            string ResolveModifier(LiteralToken modifier)
+            string? ResolveModifier(LiteralToken modifier)
             {
                 selectedModifier = true;
                 return ResolveArgValue(modifier, escapeChar, bindings, options,
@@ -401,7 +404,8 @@ public class Dockerfile : IConstructContainer
                 ModifierValueResolver = ResolveModifier
             };
             string? value;
-            using (aggregate.UsesCustomResolution ? options.UseModifierValueResolver(ResolveModifier) : null)
+            using (aggregate.UsesCustomResolution
+                ? options.UseModifierValueResolver(escapeChar, bindings, ResolveModifier) : null)
             {
                 value = aggregate.ResolveVariables(escapeChar, bindings, tokenOptions);
             }
@@ -412,12 +416,18 @@ public class Dockerfile : IConstructContainer
             resolvedSyntax = !aggregate.UsesCustomResolution && selectedModifier &&
                 (recordResolution is not null || recordSyntax is not null)
                 ? options.FormatValue(escapeChar, modifierSyntax ?? String.Empty) : value;
-            return value ?? String.Empty;
+            if (ReferenceEquals(aggregate, token))
+            {
+                resolvedRootValue = value;
+                resolvedRoot = true;
+            }
+            return value;
         }
 
-        return AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, ResolveToken,
-            resolveLiteral: ResolveToken, getCustomResolutionVersion: () => customResolutionVersion,
+        string result = AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, ResolveToken,
+            resolveAggregate: ResolveToken, getCustomResolutionVersion: () => customResolutionVersion,
             getResolvedSyntax: () => resolvedSyntax, syntaxOptions: options,
             recordTokenResolution: recordResolution, recordSyntax: recordSyntax);
+        return resolvedRoot ? resolvedRootValue : result;
     }
 }

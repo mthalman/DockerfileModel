@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 
 namespace Valleysoft.DockerfileModel;
@@ -9,23 +10,24 @@ public class ResolutionOptions
 {
     internal Func<Tokens.VariableRefToken, (string Value, char? QuoteChar, bool Escaped)?>? SemanticValueResolver { get; set; }
 
-    private Func<Tokens.LiteralToken, string>? modifierValueResolver;
+    internal Func<Tokens.LiteralToken, string?>? ModifierValueResolver { get; set; }
 
-    internal Func<Tokens.LiteralToken, string>? ModifierValueResolver
+    internal Func<Tokens.LiteralToken, string?>? GetModifierValueResolver(char escapeChar,
+        IDictionary<string, string?> variables)
     {
-        get
+        if (ModifierValueResolver is { } explicitResolver)
         {
-            for (ModifierResolutionScope? scope = ModifierResolutionScope.Current.Value;
-                scope is not null; scope = scope.Parent)
-            {
-                if (ReferenceEquals(scope.Options, this))
-                {
-                    return scope.Resolver;
-                }
-            }
-            return modifierValueResolver;
+            return explicitResolver;
         }
-        set => modifierValueResolver = value;
+        for (ModifierResolutionScope? scope = ModifierResolutionScope.Current.Value;
+            scope is not null; scope = scope.Parent)
+        {
+            if (scope.GetResolver(this, escapeChar, variables) is { } resolver)
+            {
+                return resolver;
+            }
+        }
+        return null;
     }
 
     internal Func<Tokens.AggregateToken, string?>? CustomValueResolver { get; set; }
@@ -34,26 +36,51 @@ public class ResolutionOptions
 
     internal Func<Tokens.AggregateToken, int, Tokens.AggregateToken, TokenResolution?>? TokenValueResolver { get; set; }
 
-    internal IDisposable UseModifierValueResolver(Func<Tokens.LiteralToken, string> resolver) =>
-        new ModifierResolutionScope(this, resolver);
+    internal IDisposable UseModifierValueResolver(char escapeChar,
+        IDictionary<string, string?> variables,
+        Func<Tokens.LiteralToken, string?> resolver) =>
+        new ModifierResolutionScope(this, escapeChar, variables, resolver);
 
     private sealed class ModifierResolutionScope : IDisposable
     {
         public static readonly AsyncLocal<ModifierResolutionScope?> Current = new();
 
-        public ModifierResolutionScope(ResolutionOptions options, Func<Tokens.LiteralToken, string> resolver)
+        private ResolutionOptions? options;
+        private IDictionary<string, string?>? variables;
+        private readonly char escapeChar;
+        private Func<Tokens.LiteralToken, string?>? resolver;
+
+        public ModifierResolutionScope(ResolutionOptions options, char escapeChar,
+            IDictionary<string, string?> variables,
+            Func<Tokens.LiteralToken, string?> resolver)
         {
-            Options = options;
-            Resolver = resolver;
+            this.options = options;
+            this.escapeChar = escapeChar;
+            this.variables = variables;
+            this.resolver = resolver;
             Parent = Current.Value;
             Current.Value = this;
         }
 
-        public ResolutionOptions Options { get; }
-        public Func<Tokens.LiteralToken, string> Resolver { get; }
         public ModifierResolutionScope? Parent { get; }
 
-        public void Dispose() => Current.Value = Parent;
+        public Func<Tokens.LiteralToken, string?>? GetResolver(ResolutionOptions requestedOptions,
+            char requestedEscapeChar, IDictionary<string, string?> requestedVariables)
+        {
+            Func<Tokens.LiteralToken, string?>? activeResolver = Volatile.Read(ref resolver);
+            return activeResolver is not null && ReferenceEquals(options, requestedOptions) &&
+                escapeChar == requestedEscapeChar && ReferenceEquals(variables, requestedVariables)
+                ? activeResolver : null;
+        }
+
+        public void Dispose()
+        {
+            // Child execution contexts share this scope object after inheriting the AsyncLocal chain.
+            Interlocked.Exchange(ref resolver, null);
+            options = null;
+            variables = null;
+            Current.Value = Parent;
+        }
     }
 
     /// <summary>Gets or sets whether resolved variable-reference tokens are replaced in the model. Defaults to false.</summary>

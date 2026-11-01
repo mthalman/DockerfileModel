@@ -64,15 +64,15 @@ internal static class AnalysisExpressionEvaluator
     }
 
     internal static string ResolveVariables(Token token, char escapeChar,
-        Func<VariableRefToken, string> resolveVariable,
+        Func<VariableRefToken, string?> resolveVariable,
         Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null,
         Func<LiteralToken, string>? resolveLiteral = null, Func<int>? getCustomResolutionVersion = null,
         Func<string?>? getResolvedSyntax = null, ResolutionOptions? syntaxOptions = null,
         Action<AggregateToken, int, TokenResolution>? recordTokenResolution = null,
-        Action<string>? recordSyntax = null)
+        Action<string?>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null)
     {
         Dictionary<string, AnalysisValue> variables = new();
-        ResolutionSnapshot snapshot = new(token, resolveLiteral is not null);
+        ResolutionSnapshot snapshot = new(token, resolveLiteral is not null || resolveAggregate is not null);
         List<ResolutionSnapshot> references = new();
         string CollectReference(ResolutionSnapshot reference)
         {
@@ -95,7 +95,9 @@ internal static class AnalysisExpressionEvaluator
             reference.SerializationFailure?.Throw();
             int version = getCustomResolutionVersion?.Invoke() ?? 0;
             reference.ResolvedValue = reference.Source is VariableRefToken variable
-                ? resolveVariable(variable) : resolveLiteral!((LiteralToken)reference.Source);
+                ? resolveVariable(variable)
+                : resolveAggregate is not null ? resolveAggregate((AggregateToken)reference.Source)
+                : resolveLiteral!((LiteralToken)reference.Source);
             reference.ResolvedSyntaxValue = getResolvedSyntax is null
                 ? reference.ResolvedValue : getResolvedSyntax();
             reference.IsResolved = true;
@@ -122,7 +124,7 @@ internal static class AnalysisExpressionEvaluator
         }
         if (recordSyntax is not null)
         {
-            recordSyntax(snapshot.GetResolvedSyntax(escapeChar, syntaxOptions!) ?? String.Empty);
+            recordSyntax(snapshot.GetResolvedSyntax(escapeChar, syntaxOptions!));
         }
         return result.Value!;
     }
@@ -153,7 +155,7 @@ internal static class AnalysisExpressionEvaluator
                 return;
             }
             IsReference = source is VariableRefToken ||
-                source is LiteralToken literal && literal.UsesCustomResolution && resolveCustomLiterals;
+                source is AggregateToken aggregateToken && aggregateToken.UsesCustomResolution && resolveCustomLiterals;
             if (IsReference)
             {
                 return;
@@ -222,7 +224,8 @@ internal static class AnalysisExpressionEvaluator
         {
             if (IsReference)
             {
-                return Source == token;
+                return Source == token &&
+                    (SuppressedSyntax is null || SuppressedSyntax == token.ToString());
             }
             if (Source != token || quoteReadFailure is not null)
             {
@@ -309,16 +312,37 @@ internal static class AnalysisExpressionEvaluator
         public void RecordTokenResolutions(char escapeChar, ResolutionOptions options,
             Action<AggregateToken, int, TokenResolution> record)
         {
-            if (IsReference && parent is not null)
+            if (IsReference || Source is not AggregateToken owner)
             {
-                (string Value, char? QuoteChar, bool Escaped)? semanticValue = Source is VariableRefToken
-                    ? (ResolvedValue ?? SuppressedSyntax ?? String.Empty, Context.QuoteChar, Context.Escaped)
-                    : null;
-                record((AggregateToken)parent.Source, index,
-                    new TokenResolution((AggregateToken)Source, GetResolvedSyntax(escapeChar, options), semanticValue));
+                return;
+            }
+            // Callbacks can move consumed tokens; appended aliases must not steal their occurrence captures.
+            Dictionary<AggregateToken, Queue<int>> positions = new(ReferenceComparer<AggregateToken>.Instance);
+            for (int liveIndex = 0; liveIndex < owner.TokenList.Count; liveIndex++)
+            {
+                if (owner.TokenList[liveIndex] is not AggregateToken aggregate)
+                {
+                    continue;
+                }
+                if (!positions.TryGetValue(aggregate, out Queue<int>? occurrences))
+                {
+                    occurrences = new();
+                    positions.Add(aggregate, occurrences);
+                }
+                occurrences.Enqueue(liveIndex);
             }
             foreach (ResolutionSnapshot child in children)
             {
+                if (child.Source is not AggregateToken aggregate ||
+                    !positions.TryGetValue(aggregate, out Queue<int>? occurrences) || occurrences.Count == 0)
+                {
+                    continue;
+                }
+                (string Value, char? QuoteChar, bool Escaped)? semanticValue = child.Source is VariableRefToken
+                    ? (child.ResolvedValue ?? child.SuppressedSyntax ?? String.Empty,
+                        child.Context.QuoteChar, child.Context.Escaped) : null;
+                record(owner, occurrences.Dequeue(), new TokenResolution(aggregate,
+                    child.IsReference ? child.GetResolvedSyntax(escapeChar, options) : null, semanticValue));
                 child.RecordTokenResolutions(escapeChar, options, record);
             }
         }
@@ -430,7 +454,7 @@ internal static class AnalysisExpressionEvaluator
                 return;
             }
 
-            if (token is ResolvedStringToken resolved && resolved.MatchesContext(quote, escaped))
+            if (token is ResolvedStringToken resolved && resolved.MatchesContext(quote, escaped, escapeChar))
             {
                 text?.Append(resolved.SemanticValue);
                 escaped = false;
@@ -535,7 +559,7 @@ internal static class AnalysisExpressionEvaluator
                 }
                 return;
             }
-            if (resolvedString is not null && resolvedString.MatchesContext(quote, escaped))
+            if (resolvedString is not null && resolvedString.MatchesContext(quote, escaped, escapeChar))
             {
                 text?.Append(resolvedString.SemanticValue);
                 escaped = false;

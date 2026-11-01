@@ -38,7 +38,8 @@ public abstract class AggregateToken : Token
 
     internal bool UsesCustomResolution =>
         this is LiteralToken && GetType() != typeof(LiteralToken) ||
-        this is VariableRefToken && GetType() != typeof(VariableRefToken);
+        this is VariableRefToken && GetType() != typeof(VariableRefToken) ||
+        GetType().Assembly != typeof(Token).Assembly;
 
     protected override string GetUnderlyingValue(TokenStringOptions options)
     {
@@ -179,8 +180,7 @@ public abstract class AggregateToken : Token
             string? value;
             if (token is AggregateToken aggregateToken)
             {
-                bool useCapturedValue = options.TokenValueResolver is not null &&
-                    (token is VariableRefToken || aggregateToken.UsesCustomResolution);
+                bool useCapturedValue = options.TokenValueResolver is not null;
                 TokenResolution? capturedValue = useCapturedValue
                     ? options.TokenValueResolver!(this, i, aggregateToken) : null;
                 (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken variable
@@ -190,7 +190,8 @@ public abstract class AggregateToken : Token
                     semanticValue is null ||
                     semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped) ||
                     token is VariableRefToken && useCapturedValue && capturedValue is null;
-                if (useCapturedValue)
+                if (useCapturedValue &&
+                    (capturedValue is null || token is VariableRefToken || aggregateToken.UsesCustomResolution))
                 {
                     value = capturedValue is { } captured
                         ? captured.SyntaxValue : options.FormatValue(escapeChar, token.ToString());
@@ -216,7 +217,7 @@ public abstract class AggregateToken : Token
                     else
                     {
                         TokenList[i] = semanticValue is { } semantic
-                            ? new ResolvedStringToken(value, semantic.Value, semantic.QuoteChar, semantic.Escaped)
+                            ? new ResolvedStringToken(value, semantic.Value, semantic.QuoteChar, semantic.Escaped, escapeChar)
                             : new StringToken(value);
                     }
                 }

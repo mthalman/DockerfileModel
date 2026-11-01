@@ -251,9 +251,9 @@ public class VariableRefToken : AggregateToken
         ResolutionOptions options)
     {
         LiteralToken modifier = ModifierValueToken!;
-        if (options.ModifierValueResolver is not null)
+        if (options.GetModifierValueResolver(escapeChar, variables) is { } modifierResolver)
         {
-            return options.ModifierValueResolver(modifier);
+            return modifierResolver(modifier);
         }
         if (modifier.UsesCustomResolution && options.CustomValueResolver is not null)
         {
