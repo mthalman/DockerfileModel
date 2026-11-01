@@ -55,6 +55,8 @@ public class BomStructuralEditingTests
     [InlineData(true, "ADD src /dest\n")]
     [InlineData(false, "COPY [\"src\", \"/dest\"]\n")]
     [InlineData(true, "COPY [\"src\", \"/dest\"]\n")]
+    [InlineData(false, "ADD [\"src\", \"/dest\"]\n")]
+    [InlineData(true, "ADD [\"src\", \"/dest\"]\n")]
     [InlineData(false, "ENV one=1\n")]
     [InlineData(true, "ENV one=1\n")]
     [InlineData(false, "ENV one value\n")]

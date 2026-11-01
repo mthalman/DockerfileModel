@@ -158,6 +158,7 @@ internal static class EditValidation
     /// <param name="text">The prospective instruction serialization.</param>
     /// <param name="escapeChar">The owner's effective escape character.</param>
     /// <param name="generic">Whether to retain a generic owner's argument-line representation.</param>
+    /// <param name="allowLegacyJsonOperands">Preserves ADD/COPY constructor operand syntax during JSON collection edits.</param>
     /// <returns>The parsed instruction for further role, count, and value comparisons.</returns>
     /// <remarks>
     /// Diagnostic framing detects heredoc markers throughout a continued header and rejects
@@ -165,7 +166,8 @@ internal static class EditValidation
     /// meaning; adapters compare the returned roles and heredoc associations before committing.
     /// Generic representation callers must also validate the diagnostic interpretation separately.
     /// </remarks>
-    public static Instruction ParseInstruction(string text, char escapeChar, bool generic = false)
+    public static Instruction ParseInstruction(string text, char escapeChar, bool generic = false,
+        bool allowLegacyJsonOperands = false)
     {
         bool bom = text.StartsWith("\uFEFF", StringComparison.Ordinal);
         string content = bom ? text.Substring(1) : text;
@@ -193,8 +195,13 @@ internal static class EditValidation
                 {
                     throw new InvalidOperationException("The edit would not form one complete instruction.");
                 }
-                parsed = Instruction.CreateDiagnosticInstruction(name.Value.Value, content, escapeChar,
-                    new InstructionParseContext(region, 0));
+                parsed = name.Value.Value.ToUpperInvariant() switch
+                {
+                    "COPY" when allowLegacyJsonOperands => CopyInstruction.ParseForEditing(content, escapeChar),
+                    "ADD" when allowLegacyJsonOperands => AddInstruction.ParseForEditing(content, escapeChar),
+                    _ => Instruction.CreateDiagnosticInstruction(name.Value.Value, content, escapeChar,
+                        new InstructionParseContext(region, 0))
+                };
             }
         }
         catch (ParseException exception)

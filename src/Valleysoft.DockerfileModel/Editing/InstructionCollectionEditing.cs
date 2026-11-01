@@ -581,8 +581,8 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
             parsed = owner switch
             {
                 ExecFormCommand command => command.ParseForEditing(text),
-                CopyInstruction when IsJson => CopyInstruction.ParseForEditing(text, owner.EditingEscapeChar),
-                AddInstruction when IsJson => AddInstruction.ParseForEditing(text, owner.EditingEscapeChar),
+                FileTransferInstruction when IsJson => EditValidation.ParseInstruction(text, owner.EditingEscapeChar,
+                    allowLegacyJsonOperands: true),
                 UnknownInstruction => throw new InvalidOperationException("Unknown instruction arguments are opaque."),
                 GenericInstruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar, generic: true),
                 Instruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar),
