@@ -244,14 +244,6 @@ public class Dockerfile : IConstructContainer
         Dictionary<string, string?> stageArgs, IDictionary<string, string?> globalArgs,
         IDictionary<string, string?> variableOverrides, ResolutionOptions options)
     {
-        ResolutionOptions inlineOptions = options.UpdateInline
-            ? options
-            : new ResolutionOptions
-            {
-                UpdateInline = true,
-                RemoveEscapeCharacters = options.RemoveEscapeCharacters
-            };
-
         ArgInstruction resolvedInstruction = options.UpdateInline
             ? instruction
             : ArgInstruction.Parse(instruction.ToString(), escapeChar);
@@ -268,7 +260,7 @@ public class Dockerfile : IConstructContainer
             }
             else if (arg.HasAssignmentOperator)
             {
-                stageArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, stageArgs, inlineOptions,
+                stageArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, stageArgs, options,
                     resolvedArgs[i]);
             }
             else if (globalArgs.TryGetValue(arg.Name, out string? globalArg) && globalArg is not null)
@@ -319,26 +311,43 @@ public class Dockerfile : IConstructContainer
             return String.Empty;
         }
 
-        Dictionary<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? resolutions = options.UpdateInline
-            ? new(ReferenceComparer<VariableRefToken>.Instance) : null;
-        Dictionary<AggregateToken, Queue<string?>>? customValues = options.UpdateInline
+        bool resolveSyntax = options.UpdateInline || syntaxArg is not null && syntaxArg != arg;
+        Dictionary<AggregateToken, Dictionary<int, Stack<TokenResolution>>>? resolutions = resolveSyntax
             ? new(ReferenceComparer<AggregateToken>.Instance) : null;
-        Dictionary<VariableRefToken, Queue<(bool Exists, string? Value)>>? capturedBindings = options.UpdateInline
-            ? new(ReferenceComparer<VariableRefToken>.Instance) : null;
-        IDictionary<string, string?> syntaxBindings = syntaxArg is not null && syntaxArg != arg
-            ? new Dictionary<string, string?>(bindings) : bindings;
-        bool updateCustomInline = options.UpdateInline && (syntaxArg is null || syntaxArg == arg);
-        string value = ResolveArgValue(valueToken, escapeChar, bindings, options, resolutions,
-            customValues, updateCustomInline, capturedBindings: capturedBindings);
+        void RecordResolution(AggregateToken owner, int index, TokenResolution resolution)
+        {
+            if (!resolutions!.TryGetValue(owner, out Dictionary<int, Stack<TokenResolution>>? positions))
+            {
+                positions = new();
+                resolutions.Add(owner, positions);
+            }
+            if (!positions.TryGetValue(index, out Stack<TokenResolution>? occurrences))
+            {
+                occurrences = new();
+                positions.Add(index, occurrences);
+            }
+            occurrences.Push(resolution);
+        }
+        IDictionary<string, string?> syntaxBindings = bindings;
+        void CaptureSyntaxBindings()
+        {
+            if (syntaxArg is not null && syntaxArg != arg && ReferenceEquals(syntaxBindings, bindings))
+            {
+                syntaxBindings = new Dictionary<string, string?>(bindings);
+            }
+        }
+        string value = ResolveArgValue(valueToken, escapeChar, bindings, options,
+            recordResolution: resolveSyntax ? RecordResolution : null,
+            onBeforeCustomResolution: CaptureSyntaxBindings);
 
         if (resolutions is not null)
         {
             LiteralToken syntaxValue = syntaxArg?.ValueToken ?? valueToken;
             if (syntaxValue != valueToken)
             {
-                // Reparsed copies have distinct variable tokens and need their own context snapshots.
-                ResolveArgValue(syntaxValue, escapeChar, syntaxBindings, options, resolutions, customValues,
-                    capturedBindings: capturedBindings);
+                // Reparsed copies have distinct token owners and need their own occurrence snapshots.
+                ResolveArgValue(syntaxValue, escapeChar, syntaxBindings, options,
+                    recordResolution: RecordResolution);
             }
             if (!syntaxValue.UsesCustomResolution)
             {
@@ -346,11 +355,10 @@ public class Dockerfile : IConstructContainer
                 {
                     UpdateInline = true,
                     RemoveEscapeCharacters = options.RemoveEscapeCharacters,
-                    SemanticValueResolver = variable => resolutions.TryGetValue(variable, out var resolution)
-                        ? resolution : null,
-                    CustomValueResolver = token => customValues!.TryGetValue(token, out Queue<string?>? values)
-                        ? values.Dequeue() : token.ToString(),
-                    VariableBindingResolver = variable => capturedBindings![variable].Dequeue()
+                    TokenValueResolver = (owner, index, token) =>
+                        resolutions.TryGetValue(owner, out var positions) &&
+                        positions.TryGetValue(index, out var occurrences) && occurrences.Count > 0 &&
+                        ReferenceEquals(occurrences.Peek().Source, token) ? occurrences.Pop() : null
                 });
             }
         }
@@ -360,10 +368,9 @@ public class Dockerfile : IConstructContainer
 
     private static string ResolveArgValue(Token token, char escapeChar,
         IDictionary<string, string?> bindings, ResolutionOptions options,
-        Dictionary<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? resolutions = null,
-        Dictionary<AggregateToken, Queue<string?>>? customValues = null, bool updateCustomInline = false,
-        Action? onCustomResolution = null,
-        Dictionary<VariableRefToken, Queue<(bool Exists, string? Value)>>? capturedBindings = null)
+        Action<AggregateToken, int, TokenResolution>? recordResolution = null,
+        Action? onCustomResolution = null, Action? onBeforeCustomResolution = null,
+        Action<string>? recordSyntax = null)
     {
         int customResolutionVersion = 0;
         void RecordCustomResolution()
@@ -372,44 +379,45 @@ public class Dockerfile : IConstructContainer
             onCustomResolution?.Invoke();
         }
 
+        string? resolvedSyntax = null;
         string ResolveToken(AggregateToken aggregate)
         {
-            if (aggregate is VariableRefToken variable && !aggregate.UsesCustomResolution &&
-                capturedBindings is not null)
+            if (aggregate.UsesCustomResolution)
             {
-                bool exists = bindings.TryGetValue(variable.VariableName, out string? binding);
-                if (!capturedBindings.TryGetValue(variable, out Queue<(bool Exists, string? Value)>? occurrences))
-                {
-                    occurrences = new();
-                    capturedBindings.Add(variable, occurrences);
-                }
-                occurrences.Enqueue((exists, binding));
+                onBeforeCustomResolution?.Invoke();
             }
-            string? value = aggregate.ResolveVariables(escapeChar, bindings, new ResolutionOptions
+            string? modifierSyntax = null;
+            bool selectedModifier = false;
+            string ResolveModifier(LiteralToken modifier)
             {
-                UpdateInline = aggregate.UsesCustomResolution && updateCustomInline,
+                selectedModifier = true;
+                return ResolveArgValue(modifier, escapeChar, bindings, options,
+                    recordResolution, RecordCustomResolution, onBeforeCustomResolution,
+                    recordResolution is null && recordSyntax is null ? null : syntax => modifierSyntax = syntax);
+            }
+            ResolutionOptions tokenOptions = aggregate.UsesCustomResolution ? options : new ResolutionOptions
+            {
                 RemoveEscapeCharacters = options.RemoveEscapeCharacters,
-                ModifierValueResolver = modifier => ResolveArgValue(modifier, escapeChar, bindings, options,
-                    resolutions, customValues, updateCustomInline, RecordCustomResolution, capturedBindings)
-            });
+                ModifierValueResolver = ResolveModifier
+            };
+            string? value;
+            using (aggregate.UsesCustomResolution ? options.UseModifierValueResolver(ResolveModifier) : null)
+            {
+                value = aggregate.ResolveVariables(escapeChar, bindings, tokenOptions);
+            }
             if (aggregate.UsesCustomResolution)
             {
                 RecordCustomResolution();
-                if (customValues is not null)
-                {
-                    if (!customValues.TryGetValue(aggregate, out Queue<string?>? values))
-                    {
-                        values = new Queue<string?>();
-                        customValues.Add(aggregate, values);
-                    }
-                    values.Enqueue(value);
-                }
             }
+            resolvedSyntax = !aggregate.UsesCustomResolution && selectedModifier &&
+                (recordResolution is not null || recordSyntax is not null)
+                ? options.FormatValue(escapeChar, modifierSyntax ?? String.Empty) : value;
             return value ?? String.Empty;
         }
 
         return AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, ResolveToken,
-            resolutions is null ? null : (variable, resolution) => resolutions[variable] = resolution,
-            ResolveToken, () => customResolutionVersion);
+            resolveLiteral: ResolveToken, getCustomResolutionVersion: () => customResolutionVersion,
+            getResolvedSyntax: () => resolvedSyntax, syntaxOptions: options,
+            recordTokenResolution: recordResolution, recordSyntax: recordSyntax);
     }
 }

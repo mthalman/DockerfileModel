@@ -66,7 +66,10 @@ internal static class AnalysisExpressionEvaluator
     internal static string ResolveVariables(Token token, char escapeChar,
         Func<VariableRefToken, string> resolveVariable,
         Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null,
-        Func<LiteralToken, string>? resolveLiteral = null, Func<int>? getCustomResolutionVersion = null)
+        Func<LiteralToken, string>? resolveLiteral = null, Func<int>? getCustomResolutionVersion = null,
+        Func<string?>? getResolvedSyntax = null, ResolutionOptions? syntaxOptions = null,
+        Action<AggregateToken, int, TokenResolution>? recordTokenResolution = null,
+        Action<string>? recordSyntax = null)
     {
         Dictionary<string, AnalysisValue> variables = new();
         ResolutionSnapshot snapshot = new(token, resolveLiteral is not null);
@@ -93,6 +96,8 @@ internal static class AnalysisExpressionEvaluator
             int version = getCustomResolutionVersion?.Invoke() ?? 0;
             reference.ResolvedValue = reference.Source is VariableRefToken variable
                 ? resolveVariable(variable) : resolveLiteral!((LiteralToken)reference.Source);
+            reference.ResolvedSyntaxValue = getResolvedSyntax is null
+                ? reference.ResolvedValue : getResolvedSyntax();
             reference.IsResolved = true;
             if (getCustomResolutionVersion is not null && version != getCustomResolutionVersion() &&
                 reference.PendingSyntaxChanged())
@@ -111,6 +116,14 @@ internal static class AnalysisExpressionEvaluator
         {
             throw new InvalidOperationException(result.Message);
         }
+        if (recordTokenResolution is not null)
+        {
+            snapshot.RecordTokenResolutions(escapeChar, syntaxOptions!, recordTokenResolution);
+        }
+        if (recordSyntax is not null)
+        {
+            recordSyntax(snapshot.GetResolvedSyntax(escapeChar, syntaxOptions!) ?? String.Empty);
+        }
         return result.Value!;
     }
 
@@ -121,27 +134,50 @@ internal static class AnalysisExpressionEvaluator
         private char? capturedQuote;
         private readonly ResolvedStringToken? resolvedString;
         private readonly string? serializedText;
+        private ExceptionDispatchInfo? quoteReadFailure;
         private ResolutionSnapshot? parent;
         private int index;
         private List<ResolutionSnapshot> children = new();
 
-        public ResolutionSnapshot(Token source, bool resolveCustomLiterals)
+        public ResolutionSnapshot(Token source, bool resolveCustomLiterals, ResolutionSnapshot? previous = null)
         {
             Source = source;
             this.resolveCustomLiterals = resolveCustomLiterals;
+            if (previous?.Source != source)
+            {
+                previous = null;
+            }
+            if (previous?.quoteReadFailure is { } failure)
+            {
+                SerializationFailure = failure;
+                return;
+            }
             IsReference = source is VariableRefToken ||
                 source is LiteralToken literal && literal.UsesCustomResolution && resolveCustomLiterals;
             if (IsReference)
             {
                 return;
             }
-            capturedQuote = (source as IQuotableToken)?.QuoteChar;
+            try
+            {
+                capturedQuote = (source as IQuotableToken)?.QuoteChar;
+            }
+            catch (Exception error) when (resolveCustomLiterals &&
+                error is not OutOfMemoryException and not OperationCanceledException)
+            {
+                SerializationFailure = ExceptionDispatchInfo.Capture(error);
+                return;
+            }
             OpeningQuote = ClosingQuote = capturedQuote;
             if (source is AggregateToken aggregate)
             {
+                int childIndex = 0;
                 foreach (Token child in aggregate.Tokens)
                 {
-                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals));
+                    ResolutionSnapshot? previousChild = previous is not null && childIndex < previous.children.Count
+                        ? previous.children[childIndex] : null;
+                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild));
+                    childIndex++;
                 }
             }
             else if (source is PrimitiveToken primitive)
@@ -169,6 +205,7 @@ internal static class AnalysisExpressionEvaluator
         public bool IsReference { get; }
         public bool IsResolved { get; set; }
         public string? ResolvedValue { get; set; }
+        public string? ResolvedSyntaxValue { get; set; }
         public string? SuppressedSyntax { get; set; }
         public (char? QuoteChar, bool Escaped) Context { get; set; }
         public char? OpeningQuote { get; private set; }
@@ -187,8 +224,22 @@ internal static class AnalysisExpressionEvaluator
             {
                 return Source == token;
             }
-            if (Source != token || capturedQuote != (token as IQuotableToken)?.QuoteChar ||
-                token is PrimitiveToken primitive && primitiveValue != primitive.Value)
+            if (Source != token || quoteReadFailure is not null)
+            {
+                return false;
+            }
+            char? liveQuote;
+            try
+            {
+                liveQuote = (token as IQuotableToken)?.QuoteChar;
+            }
+            catch (Exception error) when (resolveCustomLiterals &&
+                error is not OutOfMemoryException and not OperationCanceledException)
+            {
+                quoteReadFailure = ExceptionDispatchInfo.Capture(error);
+                return false;
+            }
+            if (capturedQuote != liveQuote || token is PrimitiveToken primitive && primitiveValue != primitive.Value)
             {
                 return false;
             }
@@ -241,7 +292,7 @@ internal static class AnalysisExpressionEvaluator
                 for (int i = 0; i < Math.Min(child.index, liveChildren.Count); i++)
                 {
                     owner.AddChild(previous[i].Matches(liveChildren[i])
-                        ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals));
+                        ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, previous[i]));
                 }
                 for (int i = child.index; i < previous.Count; i++)
                 {
@@ -254,6 +305,47 @@ internal static class AnalysisExpressionEvaluator
 
         public void Visit(Evaluation evaluation) => evaluation.VisitSnapshot(this,
             children, resolvedString, serializedText);
+
+        public void RecordTokenResolutions(char escapeChar, ResolutionOptions options,
+            Action<AggregateToken, int, TokenResolution> record)
+        {
+            if (IsReference && parent is not null)
+            {
+                (string Value, char? QuoteChar, bool Escaped)? semanticValue = Source is VariableRefToken
+                    ? (ResolvedValue ?? SuppressedSyntax ?? String.Empty, Context.QuoteChar, Context.Escaped)
+                    : null;
+                record((AggregateToken)parent.Source, index,
+                    new TokenResolution((AggregateToken)Source, GetResolvedSyntax(escapeChar, options), semanticValue));
+            }
+            foreach (ResolutionSnapshot child in children)
+            {
+                child.RecordTokenResolutions(escapeChar, options, record);
+            }
+        }
+
+        public string? GetResolvedSyntax(char escapeChar, ResolutionOptions options)
+        {
+            SerializationFailure?.Throw();
+            if (IsReference)
+            {
+                return IsResolved ? ResolvedSyntaxValue
+                    : options.FormatValue(escapeChar, SuppressedSyntax ?? Source.ToString());
+            }
+            if (Source is PrimitiveToken)
+            {
+                string syntax = Source is LineContinuationToken or CommentToken or NewLineToken
+                    ? Source.ToString() : $"{OpeningQuote}{serializedText}{ClosingQuote}";
+                return options.FormatValue(escapeChar, syntax);
+            }
+            StringBuilder builder = new();
+            builder.Append(OpeningQuote);
+            foreach (ResolutionSnapshot child in children)
+            {
+                builder.Append(child.GetResolvedSyntax(escapeChar, options));
+            }
+            builder.Append(ClosingQuote);
+            return builder.ToString();
+        }
     }
 
     private static AnalysisValue EvaluateVariable(

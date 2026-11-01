@@ -179,13 +179,23 @@ public abstract class AggregateToken : Token
             string? value;
             if (token is AggregateToken aggregateToken)
             {
+                bool useCapturedValue = options.TokenValueResolver is not null &&
+                    (token is VariableRefToken || aggregateToken.UsesCustomResolution);
+                TokenResolution? capturedValue = useCapturedValue
+                    ? options.TokenValueResolver!(this, i, aggregateToken) : null;
                 (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken variable
-                    ? options.SemanticValueResolver?.Invoke(variable) : null;
+                    ? capturedValue?.SemanticValue ?? options.SemanticValueResolver?.Invoke(variable) : null;
                 // Uncaptured references were inserted into an already-consumed suffix by a custom callback.
                 bool suppressExpansion = token is VariableRefToken && options.SemanticValueResolver is not null &&
                     semanticValue is null ||
-                    semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped);
-                if (suppressExpansion)
+                    semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped) ||
+                    token is VariableRefToken && useCapturedValue && capturedValue is null;
+                if (useCapturedValue)
+                {
+                    value = capturedValue is { } captured
+                        ? captured.SyntaxValue : options.FormatValue(escapeChar, token.ToString());
+                }
+                else if (suppressExpansion)
                 {
                     value = options.FormatValue(escapeChar, token.ToString());
                 }
