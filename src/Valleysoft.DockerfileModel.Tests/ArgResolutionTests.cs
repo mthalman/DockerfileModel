@@ -800,6 +800,126 @@ public class ArgResolutionTests
         return dockerfile;
     }
 
+    [Theory]
+    [InlineData(false, false, "changed")]
+    [InlineData(false, true, "changed")]
+    [InlineData(true, false, "changed")]
+    [InlineData(true, true, "changed")]
+    [InlineData(false, false, "${UNSET?changed}")]
+    [InlineData(false, true, "${UNSET?changed}")]
+    [InlineData(true, false, "${UNSET?changed}")]
+    [InlineData(true, true, "${UNSET?changed}")]
+    public void ResolveVariables_CustomResolverCannotRewriteCompletedSuffix(
+        bool stageScope, bool updateInline, string edit)
+    {
+        LiteralToken right = new("${R:-r}", canContainVariables: true);
+        EditingVariableRefToken left = new(right, edit);
+        Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
+
+        Assert.Equal(stageScope ? "ENV RESULT=rightr" : "FROM prefixrightr",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(1, left.ResolutionCount);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_CustomLiteralInsertedIntoCompletedSuffixIsNotResolved(
+        bool stageScope, bool updateInline)
+    {
+        LiteralToken right = new("${R:-r}", canContainVariables: true);
+        ComputingLiteralToken inserted = new("wrong");
+        CallbackVariableRefToken left = new(() =>
+        {
+            right.TokenList.Clear();
+            right.TokenList.Add(inserted);
+        });
+        Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftr" : "FROM prefixleftr",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(0, inserted.ResolutionCount);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_CustomPrimitiveSerializationIsCapturedOnce(bool stageScope, bool updateInline)
+    {
+        ChangingSerializedStringToken primitive = new();
+        Dockerfile dockerfile = CreateCustomDefault(stageScope,
+            primitive, new VariableRefToken("R", ":-", "r"), new StringToken("'"));
+
+        Assert.Equal(stageScope ? "ENV RESULT=${R:-r}" : "FROM prefix${R:-r}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(updateInline ? 3 : 2, primitive.SerializationCount);
+    }
+
+    [Fact]
+    public void ResolveVariables_UnchangedCustomCallbacksDoNotRebuildLexicalPlan()
+    {
+        const int count = 256;
+        int serializations = 0;
+        Token[] tokens = Enumerable.Range(0, count)
+            .SelectMany(_ => new Token[]
+            {
+                new CountingSerializedStringToken(() => serializations++),
+                new ChangingVariableRefToken()
+            }).ToArray();
+        Dockerfile dockerfile = CreateCustomDefault(false, tokens);
+
+        Assert.Equal("FROM prefix" + String.Concat(Enumerable.Repeat("pfirst", count)),
+            dockerfile.ResolveVariables());
+        Assert.Equal(2 * count, serializations);
+    }
+
+    private sealed class ChangingSerializedStringToken : StringToken
+    {
+        public ChangingSerializedStringToken() : base("placeholder") { }
+
+        public int SerializationCount { get; private set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) =>
+            ++SerializationCount <= 2 ? "'" : "";
+    }
+
+    private sealed class CountingSerializedStringToken : StringToken
+    {
+        private readonly Action onSerialize;
+
+        public CountingSerializedStringToken(Action onSerialize) : base("p")
+        {
+            this.onSerialize = onSerialize;
+        }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            onSerialize();
+            return "p";
+        }
+    }
+
+    private sealed class CallbackVariableRefToken : VariableRefToken
+    {
+        private readonly Action callback;
+
+        public CallbackVariableRefToken(Action callback) : base("LEFT")
+        {
+            this.callback = callback;
+        }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            callback();
+            return "left";
+        }
+    }
+
     private sealed class ChangingModifierLiteral : LiteralToken
     {
         public ChangingModifierLiteral() : base("placeholder", canContainVariables: true) { }

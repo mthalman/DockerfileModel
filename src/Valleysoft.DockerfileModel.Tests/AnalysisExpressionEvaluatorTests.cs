@@ -283,6 +283,30 @@ public class AnalysisExpressionEvaluatorTests
         Assert.InRange(allocated, 0, 5L * length);
     }
 
+    [Fact]
+    public void UnchangedCustomCallbacksDoNotAllocateRepeatedResolutionPlans()
+    {
+        const int count = 512;
+        LiteralToken token = new(Enumerable.Range(0, count)
+            .Select(_ => new VariableRefToken("X")), canContainVariables: true, '\\');
+        int version = 0;
+        string Resolve(VariableRefToken variable)
+        {
+            version++;
+            return "x";
+        }
+        AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+            getCustomResolutionVersion: () => version);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        string result = AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+            getCustomResolutionVersion: () => version);
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(new string('x', count), result);
+        Assert.InRange(allocated, 0, 2048L * count);
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);

@@ -160,7 +160,8 @@ public class Dockerfile : IConstructContainer
     /// defaults can import global values, otherwise they retain an existing local binding.
     /// Explicit empty assignments are set; null overrides are unset. Defaults contribute shell-decoded
     /// contents, excluding syntax quotes and continuation/comment trivia. Runtime command expansion is not performed.
-    /// Custom literal tokens retain their public variable-resolution behavior.
+    /// Custom literal tokens retain their public variable-resolution behavior. Default references resolve
+    /// right-to-left; custom callbacks can edit pending syntax but do not rewrite already-resolved output.
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
     /// </remarks>
     public string ResolveVariables(IDictionary<string, string?>? variableOverrides = null, ResolutionOptions? options = null) =>
@@ -339,8 +340,10 @@ public class Dockerfile : IConstructContainer
                 {
                     UpdateInline = true,
                     RemoveEscapeCharacters = options.RemoveEscapeCharacters,
-                    SemanticValueResolver = variable => resolutions[variable],
-                    CustomValueResolver = token => customValues![token].Dequeue()
+                    SemanticValueResolver = variable => resolutions.TryGetValue(variable, out var resolution)
+                        ? resolution : null,
+                    CustomValueResolver = token => customValues!.TryGetValue(token, out Queue<string?>? values)
+                        ? values.Dequeue() : token.ToString()
                 });
             }
         }

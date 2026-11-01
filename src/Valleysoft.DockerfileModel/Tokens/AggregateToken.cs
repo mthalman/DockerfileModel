@@ -181,7 +181,10 @@ public abstract class AggregateToken : Token
             {
                 (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken variable
                     ? options.SemanticValueResolver?.Invoke(variable) : null;
-                bool suppressExpansion = semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped);
+                // Uncaptured references were inserted into an already-consumed suffix by a custom callback.
+                bool suppressExpansion = token is VariableRefToken && options.SemanticValueResolver is not null &&
+                    semanticValue is null ||
+                    semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped);
                 if (suppressExpansion)
                 {
                     value = options.FormatValue(escapeChar, token.ToString());

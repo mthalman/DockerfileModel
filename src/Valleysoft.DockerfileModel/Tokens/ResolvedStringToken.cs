@@ -17,6 +17,9 @@ internal sealed class ResolvedStringToken : StringToken
 
     public string SemanticValue { get; }
 
+    internal ResolvedStringToken CreateSnapshot() =>
+        new(syntax, SemanticValue, quoteChar, escaped) { Value = this.Value };
+
     public bool MatchesContext(char? quote, bool isEscaped) =>
         Value == syntax && quoteChar == quote && escaped == isEscaped;
 }
