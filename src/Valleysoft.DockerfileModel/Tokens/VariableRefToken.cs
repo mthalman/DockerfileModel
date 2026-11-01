@@ -164,7 +164,16 @@ public class VariableRefToken : AggregateToken
         string variableName = VariableName;
         string? modifier = Modifier;
 
-        bool varExists = variables.TryGetValue(variableName, out string? value);
+        bool varExists;
+        string? value;
+        if (options.VariableBindingResolver is not null)
+        {
+            (varExists, value) = options.VariableBindingResolver(this);
+        }
+        else
+        {
+            varExists = variables.TryGetValue(variableName, out value);
+        }
 
         if (modifier is not null)
         {

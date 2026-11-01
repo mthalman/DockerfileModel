@@ -801,6 +801,214 @@ public class ArgResolutionTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolveVariables_InlineReplayUsesCapturedBindings(bool stageScope)
+    {
+        EnvironmentEditingVariable left = new();
+        Dockerfile dockerfile = CreateCustomDefault(stageScope,
+            left, new VariableRefToken("B", ":-", "\"old\""));
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal("ARG X=left\"old\"\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal(1, left.ResolutionCount);
+    }
+
+    [Theory]
+    [InlineData("$B", "old")]
+    [InlineData("${B:-fallback}", "old")]
+    [InlineData("${B:+\"present\"}", "\"present\"")]
+    [InlineData("${B?required}", "old")]
+    public void ResolveVariables_InlineReplayRetainsSetBindingAndModifierBranch(string expression, string syntax)
+    {
+        foreach (bool stageScope in new[] { false, true })
+        {
+            foreach (bool updateInline in new[] { false, true })
+            {
+                Dockerfile dockerfile = Dockerfile.Parse(stageScope
+                    ? "FROM alpine\nARG B=old\nARG X=placeholder\nENV RESULT=$X"
+                    : "ARG B=old\nARG X=placeholder\nFROM prefix$X");
+                EnvironmentEditingVariable left = new(removeBinding: true);
+                dockerfile.Items.OfType<ArgInstruction>().Last().ArgTokens[0].ValueToken =
+                    new LiteralToken(new Token[] { left, VariableRefToken.Parse(expression) },
+                        canContainVariables: true, Dockerfile.DefaultEscapeChar);
+                string original = dockerfile.ToString();
+
+                Assert.Equal(stageScope ? $"ENV RESULT=left{syntax.Trim('\"')}" : $"FROM prefixleft{syntax.Trim('\"')}",
+                    dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+                Assert.Equal(1, left.ResolutionCount);
+                if (updateInline)
+                {
+                    Assert.Equal($"ARG X=left{syntax}\n", dockerfile.Items.OfType<ArgInstruction>().Last().ToString());
+                }
+                else
+                {
+                    Assert.Equal(original, dockerfile.ToString());
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_CallbackQuoteEditsKeepBalancedBoundaries(bool stageScope, bool updateInline)
+    {
+        LiteralToken? root = null;
+        CallbackVariableRefToken left = new(() => root!.QuoteChar = null);
+        Dockerfile dockerfile = CreateCustomDefault(stageScope, left, new VariableRefToken("R", ":-", "r"));
+        root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
+        root.QuoteChar = '"';
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftr" : "FROM prefixleftr",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Null(root.QuoteChar);
+    }
+
+    [Fact]
+    public void ResolveVariables_InactiveModifierDoesNotReadCustomQuoteGetter()
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "FROM alpine\nARG SET=set\nARG X=placeholder\nENV RESULT=$X");
+        VariableRefToken variable = new("SET", ":-", "placeholder")
+        {
+            ModifierValueToken = new ThrowingQuoteLiteral()
+        };
+        dockerfile.Items.OfType<ArgInstruction>().Last().ArgTokens[0].ValueToken =
+            new LiteralToken(new[] { variable }, canContainVariables: true, Dockerfile.DefaultEscapeChar);
+
+        Assert.Equal("ENV RESULT=set",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ResolveVariables_GlobalDefaultSerializationPreservesRightmostError(
+        bool updateInline, bool formatError)
+    {
+        Dockerfile dockerfile = CreateCustomDefault(false,
+            new ThrowingPrimitive(formatError ? new FormatException("Bad serialization.") : null),
+            new VariableRefToken("UNSET", "?", "right"));
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'right'.", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolveVariables_DeferredSerializerFailureIsRethrownUnchanged(bool updateInline)
+    {
+        FormatException expected = new("Bad serialization.");
+        Dockerfile dockerfile = CreateCustomDefault(false,
+            new ThrowingPrimitive(expected), new VariableRefToken("R", ":-", "right"));
+
+        FormatException error = Assert.Throws<FormatException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Same(expected, error);
+        Assert.Contains(nameof(ThrowingPrimitive), error.StackTrace);
+    }
+
+    private sealed class EnvironmentEditingVariable : VariableRefToken
+    {
+        private readonly bool removeBinding;
+
+        public EnvironmentEditingVariable(bool removeBinding = false) : base("LEFT")
+        {
+            this.removeBinding = removeBinding;
+        }
+
+        public int ResolutionCount { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            ResolutionCount++;
+            if (removeBinding)
+            {
+                variables!.Remove("B");
+            }
+            else
+            {
+                variables!["B"] = "new";
+            }
+            return "left";
+        }
+    }
+
+    private sealed class ThrowingQuoteLiteral : LiteralToken
+    {
+        public ThrowingQuoteLiteral() : base("placeholder", canContainVariables: true) { }
+
+        public override char? QuoteChar
+        {
+            get => throw new InvalidOperationException("Inactive quote getter.");
+            set { }
+        }
+    }
+
+    private sealed class ThrowingPrimitive : StringToken
+    {
+        private readonly Exception error;
+
+        public ThrowingPrimitive(Exception? error = null) : base("p")
+        {
+            this.error = error ?? new InvalidOperationException("Primitive serialization.");
+        }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) =>
+            options.ExcludeQuotes ? throw error : "p";
+    }
+
+    [Theory]
+    [InlineData(16)]
+    [InlineData(32)]
+    [InlineData(64)]
+    public void ResolveVariables_NestedDefaultsDoNotSnapshotInactiveDescendants(int depth)
+    {
+        CountingTerminalLiteral terminal = new();
+        LiteralToken value = terminal;
+        for (int i = 0; i < depth; i++)
+        {
+            value = new LiteralToken(new[]
+            {
+                new VariableRefToken("UNSET", ":-", "end") { ModifierValueToken = value }
+            }, canContainVariables: true, Dockerfile.DefaultEscapeChar);
+        }
+        Dockerfile dockerfile = CreateCustomDefault(true, value);
+        terminal.QuoteReads = 0;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        Assert.Equal("ENV RESULT=end",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(terminal.QuoteReads, 0, 4);
+        Assert.InRange(allocated, 0, 8192L * depth);
+    }
+
+    private sealed class CountingTerminalLiteral : LiteralToken
+    {
+        public CountingTerminalLiteral() : base("end", canContainVariables: true) { }
+
+        public int QuoteReads { get; set; }
+
+        public override char? QuoteChar
+        {
+            get { QuoteReads++; return base.QuoteChar; }
+            set => base.QuoteChar = value;
+        }
+    }
+
+    [Theory]
     [InlineData(false, false, "changed")]
     [InlineData(false, true, "changed")]
     [InlineData(true, false, "changed")]

@@ -11,6 +11,8 @@ public class ResolutionOptions
 
     internal Func<Tokens.AggregateToken, string?>? CustomValueResolver { get; set; }
 
+    internal Func<Tokens.VariableRefToken, (bool Exists, string? Value)>? VariableBindingResolver { get; set; }
+
     /// <summary>Gets or sets whether resolved variable-reference tokens are replaced in the model. Defaults to false.</summary>
     /// <remarks>
     /// Document resolution may also process preceding ARG declarations. This does not write supplied overrides

@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
@@ -88,6 +89,7 @@ internal static class AnalysisExpressionEvaluator
         for (int i = references.Count - 1; i >= 0; i--)
         {
             ResolutionSnapshot reference = references[i];
+            reference.SerializationFailure?.Throw();
             int version = getCustomResolutionVersion?.Invoke() ?? 0;
             reference.ResolvedValue = reference.Source is VariableRefToken variable
                 ? resolveVariable(variable) : resolveLiteral!((LiteralToken)reference.Source);
@@ -123,40 +125,54 @@ internal static class AnalysisExpressionEvaluator
         private int index;
         private List<ResolutionSnapshot> children = new();
 
-        public ResolutionSnapshot(Token source, bool resolveCustomLiterals, bool captureText = true)
+        public ResolutionSnapshot(Token source, bool resolveCustomLiterals)
         {
             Source = source;
             this.resolveCustomLiterals = resolveCustomLiterals;
-            capturedQuote = (source as IQuotableToken)?.QuoteChar;
-            OpeningQuote = ClosingQuote = capturedQuote;
             IsReference = source is VariableRefToken ||
                 source is LiteralToken literal && literal.UsesCustomResolution && resolveCustomLiterals;
+            if (IsReference)
+            {
+                return;
+            }
+            capturedQuote = (source as IQuotableToken)?.QuoteChar;
+            OpeningQuote = ClosingQuote = capturedQuote;
             if (source is AggregateToken aggregate)
             {
                 foreach (Token child in aggregate.Tokens)
                 {
-                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, captureText && !IsReference));
+                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals));
                 }
             }
             else if (source is PrimitiveToken primitive)
             {
                 primitiveValue = primitive.Value;
-                if (captureText && source is not LineContinuationToken and not CommentToken and not NewLineToken)
+                if (source is not LineContinuationToken and not CommentToken and not NewLineToken)
                 {
                     resolvedString = (source as ResolvedStringToken)?.CreateSnapshot();
-                    serializedText = primitive.ToString(new TokenStringOptions(excludeQuotes: true));
+                    try
+                    {
+                        serializedText = primitive.ToString(new TokenStringOptions(excludeQuotes: true));
+                    }
+                    catch (Exception error) when (resolveCustomLiterals &&
+                        error is not OutOfMemoryException and not OperationCanceledException)
+                    {
+                        // Document resolution rethrows serializer failures at their reverse-order position.
+                        SerializationFailure = ExceptionDispatchInfo.Capture(error);
+                    }
                 }
             }
         }
 
         public Token Source { get; }
+        public ExceptionDispatchInfo? SerializationFailure { get; }
         public bool IsReference { get; }
         public bool IsResolved { get; set; }
         public string? ResolvedValue { get; set; }
         public string? SuppressedSyntax { get; set; }
         public (char? QuoteChar, bool Escaped) Context { get; set; }
         public char? OpeningQuote { get; private set; }
-        public char? ClosingQuote { get; }
+        public char? ClosingQuote { get; private set; }
 
         private void AddChild(ResolutionSnapshot child)
         {
@@ -167,6 +183,10 @@ internal static class AnalysisExpressionEvaluator
 
         private bool Matches(Token token)
         {
+            if (IsReference)
+            {
+                return Source == token;
+            }
             if (Source != token || capturedQuote != (token as IQuotableToken)?.QuoteChar ||
                 token is PrimitiveToken primitive && primitiveValue != primitive.Value)
             {
@@ -228,7 +248,7 @@ internal static class AnalysisExpressionEvaluator
                     owner.AddChild(previous[i]);
                 }
                 owner.capturedQuote = (owner.Source as IQuotableToken)?.QuoteChar;
-                owner.OpeningQuote = owner.capturedQuote;
+                owner.OpeningQuote = owner.ClosingQuote = owner.capturedQuote;
             }
         }
 
@@ -377,6 +397,18 @@ internal static class AnalysisExpressionEvaluator
         public void VisitSnapshot(ResolutionSnapshot snapshot, List<ResolutionSnapshot> children,
             ResolvedStringToken? resolvedString, string? serializedText)
         {
+            if (snapshot.SerializationFailure is not null)
+            {
+                if (resolveSnapshot is not null)
+                {
+                    resolveSnapshot(snapshot);
+                }
+                else
+                {
+                    snapshot.SerializationFailure.Throw();
+                }
+                return;
+            }
             if (snapshot.Source is LineContinuationToken or CommentToken or NewLineToken)
             {
                 return;
