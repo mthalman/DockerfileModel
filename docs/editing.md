@@ -154,6 +154,8 @@ apply inside modifier values, which may contain decoded newline characters.
 Protected malformed reference text remains literal; active malformed references
 are diagnosed during resolution rather than during JSON string tokenization.
 Unterminated decoded quotes fail before substitutions are committed to that path.
+Resolution parse-error positions refer to the complete physical path literal,
+including its JSON quotes, escapes, and Dockerfile continuations.
 Pattern modifiers (`#`, `##`, `%`, `%%`, `/`, and `//`) remain unsupported;
 their unresolved references retain the original JSON spelling and token identity.
 Unmatched Unicode

@@ -173,6 +173,35 @@ public class VariableRefToken : AggregateToken
             options = new ResolutionOptions();
         }
 
+        return ResolveVariablesCore(escapeChar, variables, options, null, modifierResolved: false);
+    }
+
+    internal LiteralToken? GetRequiredModifierValue(IDictionary<string, string?> variables)
+    {
+        string? modifier = Modifier;
+        bool exists = variables.TryGetValue(VariableName, out string? value);
+        bool isSet = IsVariableSet(modifier, exists, value);
+        return modifier?.Last() switch
+        {
+            '-' or '?' when !isSet => ModifierValueToken,
+            '+' when isSet => ModifierValueToken,
+            _ => null
+        };
+    }
+
+    private static bool IsVariableSet(string? modifier, bool exists, string? value) =>
+        modifier is not null && modifier[0] == ':' ? exists && !String.IsNullOrEmpty(value) : exists;
+
+    internal string? ResolveWithModifierValue(char escapeChar, IDictionary<string, string?> variables,
+        ResolutionOptions options, string modifierValue) =>
+        ResolveVariablesCore(escapeChar, variables, options, modifierValue, modifierResolved: true);
+
+    private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables,
+        ResolutionOptions options, string? modifierValue, bool modifierResolved)
+    {
+        string? ResolveModifier() => modifierResolved
+            ? modifierValue
+            : ResolveModifierValue(escapeChar, variables, options);
         string variableName = VariableName;
         string? modifier = Modifier;
 
@@ -189,22 +218,14 @@ public class VariableRefToken : AggregateToken
                 return ToString();
             }
 
-            bool isVariableSet;
-            if (modifier[0] == ':')
-            {
-                isVariableSet = varExists && !String.IsNullOrEmpty(value);
-            }
-            else
-            {
-                isVariableSet = varExists;
-            }
+            bool isVariableSet = IsVariableSet(modifier, varExists, value);
 
             switch (modifier.Last())
             {
                 case '-':
                     if (!isVariableSet)
                     {
-                        value = ResolveModifierValue(escapeChar, variables, options);
+                        value = ResolveModifier();
                     }
                     break;
                 case '+':
@@ -214,13 +235,13 @@ public class VariableRefToken : AggregateToken
                     }
                     else
                     {
-                        value = ResolveModifierValue(escapeChar, variables, options);
+                        value = ResolveModifier();
                     }
                     break;
                 case '?':
                     if (!isVariableSet)
                     {
-                        string? errorDetail = ResolveModifierValue(escapeChar, variables, options);
+                        string? errorDetail = ResolveModifier();
                         throw new VariableSubstitutionException(
                             $"Variable '{variableName}' is not set. Error detail: '{errorDetail ?? "<empty>"}'.");
                     }

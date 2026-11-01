@@ -4,14 +4,31 @@ namespace Valleysoft.DockerfileModel.Parsing;
 
 internal static class DecodedVariableParsers
 {
-    internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character)
+    internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
+        string text, Action? onBlocked = null)
     {
+        Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
+        bool blocked = false;
+        TextParser<char> sourceCharacter = character;
+        character = input =>
+        {
+            Result<char> result = sourceCharacter(input);
+            blocked |= !input.IsAtEnd && !result.HasValue;
+            return result;
+        };
         TextParser<char> Symbol(char value) => character.Where(ch => ch == value, $"`{value}`");
         TextParser<string> name = character.Where(ch => char.IsLetterOrDigit(ch) || ch == '_',
             "variable name").AtLeastOnce().Text();
-        TextParser<VariableRefToken>? parser = null;
-        TextParser<VariableRefToken> nested = input =>
-            (parser ?? throw new InvalidOperationException("The reference parser is not initialized."))(input);
+        Result<VariableRefToken> CachedReference(TextSpan input)
+        {
+            if (parsed.TryGetValue(input.Position.Absolute, out var cached))
+            {
+                blocked |= cached.Blocked;
+                return cached.Result;
+            }
+            return Result.Empty<VariableRefToken>(input, "variable reference");
+        }
+        TextParser<VariableRefToken> nested = CachedReference;
 
         TextParser<IEnumerable<Token>> Escaped() =>
             from escape in Symbol(escapeChar)
@@ -45,9 +62,9 @@ internal static class DecodedVariableParsers
 
         TextParser<IEnumerable<Token>> singleQuoted =
             from open in Symbol('\'')
-            from text in character.Where(ch => ch != '\'', "single-quoted character").Many().Text()
+            from quotedText in character.Where(ch => ch != '\'', "single-quoted character").Many().Text()
             from close in Symbol('\'')
-            select (IEnumerable<Token>)new Token[] { new StringToken($"'{text}'") };
+            select (IEnumerable<Token>)new Token[] { new StringToken($"'{quotedText}'") };
         TextParser<IEnumerable<Token>> doubleQuoted =
             from open in Symbol('"')
             from tokens in Parts('"').Try().Many().Flatten()
@@ -59,7 +76,8 @@ internal static class DecodedVariableParsers
 
         TextParser<IEnumerable<Token>> modifier =
             from operation in VariableRefToken.ValidModifiers
-                .Select(text => Span.EqualTo(text).Text())
+                .Select(text => text.Select(Symbol)
+                    .Aggregate((first, next) => first.IgnoreThen(next)).Select(_ => text))
                 .Aggregate((first, next) => first.Try().Or(next))
             from tokens in value.Try().Many().Flatten()
             select ConcatTokens(operation.Select(ch => new SymbolToken(ch)),
@@ -72,11 +90,41 @@ internal static class DecodedVariableParsers
             from close in Symbol('}')
             select ConcatTokens(new Token[] { new SymbolToken('{'), new StringToken(identifier) },
                 operation, new Token[] { new SymbolToken('}') });
-        parser =
+        TextParser<VariableRefToken> parser =
             from dollar in Symbol('$')
             from tokens in braced.Try().Or(name.Select(identifier =>
                 (IEnumerable<Token>)new Token[] { new StringToken(identifier) }))
             select new VariableRefToken(tokens, escapeChar);
-        return parser;
+        List<TextSpan> candidates = new();
+        TextSpan remaining = new(text);
+        while (!remaining.IsAtEnd)
+        {
+            if (text[remaining.Position.Absolute] == '$')
+            {
+                candidates.Add(remaining);
+            }
+            remaining = remaining.Skip(1);
+        }
+        for (int index = candidates.Count - 1; index >= 0; index--)
+        {
+            TextSpan candidate = candidates[index];
+            blocked = false;
+            Result<VariableRefToken> result = parser(candidate);
+            parsed.Add(candidate.Position.Absolute, (result, blocked));
+        }
+        return input =>
+        {
+            if (!ReferenceEquals(input.Source, text))
+            {
+                throw new InvalidOperationException("The reference parser belongs to a different decoded path.");
+            }
+            blocked = false;
+            Result<VariableRefToken> result = CachedReference(input);
+            if (blocked)
+            {
+                onBlocked?.Invoke();
+            }
+            return result;
+        };
     }
 }

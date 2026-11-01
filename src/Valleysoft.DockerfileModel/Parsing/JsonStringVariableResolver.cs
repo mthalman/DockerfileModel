@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Valleysoft.DockerfileModel.Tokens;
 
@@ -22,6 +23,11 @@ internal static class JsonStringVariableResolver
         while (input.Position.Absolute < physical.Length - 1)
         {
             int start = input.Position.Absolute;
+            if (physical[start] == escapeChar && start + 1 < physical.Length - 1)
+            {
+                input = input.Skip(2);
+                continue;
+            }
             if (physical[start] == '$' &&
                 (physical[start + 1] != '{' || completeBraces.Contains(start)))
             {
@@ -99,6 +105,8 @@ internal static class JsonStringVariableResolver
         IDictionary<string, string?> variables, ResolutionOptions options, bool expandVariables)
     {
         string decoded = Decode(logical, offsets, out List<int> starts, out List<int> ends);
+        Position PhysicalPosition(int decodedOffset) => new TextSpan(physical).Skip(
+            decodedOffset < starts.Count ? starts[decodedOffset] : offsets[logical.Length - 1]).Position;
         (Token Token, string Text)[] source = path.Tokens.Select(token => (token, token.ToString())).ToArray();
         int[] resolvedCounts = new int[decoded.Length + 1];
         int sourceIndex = 0;
@@ -122,12 +130,12 @@ internal static class JsonStringVariableResolver
             int index = input.Position.Absolute;
             if (!input.IsAtEnd && resolvedCounts[index + 1] != resolvedCounts[index])
             {
-                blocked = true;
                 return Result.Empty<char>(input, "unresolved source character");
             }
             return Character.AnyChar(input);
         };
-        TextParser<VariableRefToken> variableParser = DecodedVariableParsers.Variable(escapeChar, character);
+        TextParser<VariableRefToken> variableParser =
+            DecodedVariableParsers.Variable(escapeChar, character, decoded, () => blocked = true);
         TextSpan input = new(decoded);
         int tokenIndex = 0;
         int tokenStart = 1;
@@ -218,7 +226,7 @@ internal static class JsonStringVariableResolver
                     int end = variable.Remainder.Position.Absolute;
                     if (!VariableRefToken.IsPatternModifier(variable.Value.Modifier))
                     {
-                        string value = variable.Value.ResolveVariables(escapeChar, variables, valueOptions) ?? string.Empty;
+                        string value = ResolveReference(variable.Value, escapeChar, variables, valueOptions);
                         replacements.Add((starts[index], ends[end - 1], new StringToken(Encode(value)), true));
                     }
                     input = variable.Remainder;
@@ -226,7 +234,8 @@ internal static class JsonStringVariableResolver
                 }
                 if (!blocked && index + 1 < decoded.Length && decoded[index + 1] == '{')
                 {
-                    throw new ParseException("Invalid variable reference in decoded JSON path.", variable.ErrorPosition);
+                    throw new ParseException("Invalid variable reference in decoded JSON path.",
+                        PhysicalPosition(variable.ErrorPosition.Absolute));
                 }
             }
             input = input.Skip(1);
@@ -234,7 +243,8 @@ internal static class JsonStringVariableResolver
 
         if (expandVariables && quote is not null)
         {
-            throw new ParseException("Unterminated quote in decoded JSON path.", input.Position);
+            throw new ParseException("Unterminated quote in decoded JSON path.",
+                PhysicalPosition(input.Position.Absolute));
         }
         if (replacements.Count == 0)
         {
@@ -254,6 +264,85 @@ internal static class JsonStringVariableResolver
             path.RecordResolvedJsonLiterals(substitutions);
         }
         return result;
+    }
+
+    private static string ResolveReference(VariableRefToken root, char escapeChar,
+        IDictionary<string, string?> variables, ResolutionOptions options)
+    {
+        Dictionary<VariableRefToken, string> resolved = new(ReferenceComparer<VariableRefToken>.Instance);
+        Stack<(VariableRefToken Reference, bool Ready)> pending = new();
+        pending.Push((root, false));
+        while (pending.Count > 0)
+        {
+            (VariableRefToken reference, bool ready) = pending.Pop();
+            if (resolved.ContainsKey(reference))
+            {
+                continue;
+            }
+            if (VariableRefToken.IsPatternModifier(reference.Modifier))
+            {
+                resolved.Add(reference, RenderReference(reference));
+                continue;
+            }
+            LiteralToken? modifier = reference.GetRequiredModifierValue(variables);
+            if (modifier is null)
+            {
+                resolved.Add(reference, reference.ResolveVariables(escapeChar, variables, options) ?? string.Empty);
+            }
+            else if (!ready)
+            {
+                pending.Push((reference, true));
+                foreach (VariableRefToken child in modifier.Tokens.OfType<VariableRefToken>())
+                {
+                    pending.Push((child, false));
+                }
+            }
+            else
+            {
+                string value = string.Concat(modifier.Tokens.Select(token => token is VariableRefToken child
+                    ? resolved[child]
+                    : options.FormatValue(escapeChar, token.ToString())));
+                resolved.Add(reference, reference.ResolveWithModifierValue(escapeChar, variables, options, value)
+                    ?? string.Empty);
+            }
+        }
+        return resolved[root];
+    }
+
+    private static string RenderReference(VariableRefToken reference)
+    {
+        StringBuilder builder = new();
+        Stack<(Token Token, bool Close)> pending = new();
+        pending.Push((reference, false));
+        while (pending.Count > 0)
+        {
+            (Token token, bool close) = pending.Pop();
+            if (close)
+            {
+                builder.Append(((IQuotableToken)token).QuoteChar);
+            }
+            else if (token is AggregateToken aggregate)
+            {
+                if (token is VariableRefToken)
+                {
+                    builder.Append('$');
+                }
+                if (token is IQuotableToken quotable && quotable.QuoteChar.HasValue)
+                {
+                    builder.Append(quotable.QuoteChar);
+                    pending.Push((token, true));
+                }
+                foreach (Token child in aggregate.Tokens.Reverse())
+                {
+                    pending.Push((child, false));
+                }
+            }
+            else
+            {
+                builder.Append(token.ToString());
+            }
+        }
+        return builder.ToString();
     }
 
     private static string Decode(string logical, List<int> offsets, out List<int> starts, out List<int> ends)

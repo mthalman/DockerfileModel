@@ -289,7 +289,7 @@ public class ResolutionOptions
 
     internal bool? JsonStringResolution { get; private set; }
 
-    internal ResolutionOptions WithJsonStringResolution(bool enabled) => new()
+    internal ResolutionOptions WithJsonStringResolution(bool enabled) => JsonStringResolution == enabled ? this : new()
     {
         UpdateInline = UpdateInline,
         RemoveEscapeCharacters = RemoveEscapeCharacters,
