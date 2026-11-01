@@ -35,6 +35,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     /// <remarks>
     /// Setting preserves the existing <see cref="QuoteChar"/> and, except for raw-value literals,
     /// reparses the contents with the retained context.
+    /// For an unwrapped mixed word, assigning its current value preserves fragment syntax;
+    /// a replacement containing whitespace receives a quote wrapper to retain one operand.
     /// The value is not a general JSON-unescaped or shell-expanded string. Use <c>ToString()</c> for complete syntax.
     /// </remarks>
     public string Value
@@ -43,13 +45,41 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         set
         {
             Guard.NotNull(value, nameof(value));
-            ReplaceWithTokens(GetInnerTokens(value));
+            bool mixedWord = QuoteChar is null && Tokens.OfType<LiteralToken>().Any();
+            if (mixedWord && value == Value)
+            {
+                return;
+            }
+            Token[] contents = GetInnerTokens(value).ToArray();
+            char? replacementQuote = QuoteChar;
+            if (mixedWord && value.Any(char.IsWhiteSpace))
+            {
+                LiteralToken replacement = new(contents, canContainVariables, escapeChar);
+                foreach (char quote in new[] { '"', '\'' })
+                {
+                    replacement.QuoteChar = quote;
+                    Result<LiteralToken> parsed = LiteralWithVariables(escapeChar,
+                        whitespaceMode: WhitespaceMode.AllowedInQuotes).AtEnd().TryParse(replacement.ToString());
+                    if (parsed.HasValue && parsed.Value.Value == replacement.Value)
+                    {
+                        replacementQuote = quote;
+                        break;
+                    }
+                }
+                if (replacementQuote is null)
+                {
+                    throw new ArgumentException("The value cannot be quoted as one operand without changing its contents.", nameof(value));
+                }
+            }
+            ReplaceWithTokens(contents);
+            QuoteChar = replacementQuote;
         }
     }
 
     /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
     /// <remarks>
-    /// Changing a mixed word's quote unwraps its fragment quotes while retaining variable-reference children.
+    /// Changing a mixed word's quote unwraps its fragment quotes while retaining variable-reference children,
+    /// adding braces where a removed wrapper delimited a variable name.
     /// Assigning the existing quote preserves the original fragment syntax.
     /// </remarks>
     public virtual char? QuoteChar
@@ -59,7 +89,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         {
             if (quoteChar != value && Tokens.OfType<LiteralToken>().Any())
             {
-                ReplaceWithTokens(TokenHelper.CollapseStringTokens(StringParsers.ExtractLiteralTokenContents(Tokens)));
+                ReplaceWithTokens(StringParsers.UnwrapLiteralFragments(Tokens,
+                    aggregate => aggregate.TokenList, variable => variable.TokenList));
             }
             quoteChar = value;
         }

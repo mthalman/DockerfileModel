@@ -232,6 +232,34 @@ internal static class StringParsers
         }
     }
 
+    /// <summary>Removes fragment wrappers without merging a variable name into the following literal text.</summary>
+    /// <param name="tokens">The mixed literal's children.</param>
+    /// <param name="getChildren">Reads live or staged aggregate children.</param>
+    /// <param name="editVariable">Gets writable live or staged children for a variable requiring braces.</param>
+    internal static List<Token> UnwrapLiteralFragments(IEnumerable<Token> tokens,
+        Func<AggregateToken, IReadOnlyList<Token>> getChildren,
+        Func<VariableRefToken, List<Token>> editVariable)
+    {
+        List<Token> contents = TokenHelper.CollapseStringTokens(
+            ExtractLiteralTokenContents(tokens, literal => getChildren(literal))).ToList();
+        for (int index = 0; index + 1 < contents.Count; index++)
+        {
+            if (contents[index] is not VariableRefToken variable ||
+                getChildren(variable).FirstOrDefault() is not Tokens.StringToken)
+            {
+                continue;
+            }
+            string following = contents[index + 1].ToString();
+            if (following.Length > 0 && (char.IsLetterOrDigit(following[0]) || following[0] == '_'))
+            {
+                List<Token> children = editVariable(variable);
+                children.Insert(0, new SymbolToken('{'));
+                children.Add(new SymbolToken('}'));
+            }
+        }
+        return contents;
+    }
+
     /// <summary>
     /// Parses an identifier string wrapped in quotes.
     /// </summary>

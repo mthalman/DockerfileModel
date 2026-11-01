@@ -215,6 +215,112 @@ public class QuotedOperandTests
     }
 
     [Theory]
+    [InlineData("\"$ROOT\"suffix", "\"${ROOT}suffix\"")]
+    [InlineData("\"$ROOT\"1", "\"${ROOT}1\"")]
+    [InlineData("\"$ROOT\"_suffix", "\"${ROOT}_suffix\"")]
+    [InlineData("\"$ROOT\"\"\"suffix", "\"${ROOT}suffix\"")]
+    [InlineData("\"$ROOT\"/suffix", "\"$ROOT/suffix\"")]
+    [InlineData("\"${ROOT}\"suffix", "\"${ROOT}suffix\"")]
+    public void RequotingPreservesVariableNameBoundaries(string operand, string expected)
+    {
+        CopyInstruction instruction = CopyInstruction.Parse($"COPY {operand} /dest");
+        LiteralToken source = Assert.Single(instruction.SourceTokens);
+        VariableRefToken variable = Assert.Single(source.Tokens.OfType<LiteralToken>()
+            .SelectMany(fragment => fragment.Tokens).OfType<VariableRefToken>());
+        source.QuoteChar = '"';
+        Assert.Same(variable, Assert.Single(source.Tokens.OfType<VariableRefToken>()));
+        Assert.Equal(expected, source.ToString());
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "value", ["ROOTsuffix"] = "wrong" };
+        LiteralToken reparsed = Assert.Single(CopyInstruction.Parse(instruction.ToString()).SourceTokens);
+        Assert.Equal("ROOT", Assert.Single(reparsed.Tokens.OfType<VariableRefToken>()).VariableName);
+        Assert.Equal(source.ResolveVariables('\\', variables), reparsed.ResolveVariables('\\', variables));
+    }
+
+    [Fact]
+    public void StagedRequotingPreservesVariableNameBoundaries()
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse("COPY \"$ROOT\"suffix /dest").SourceTokens);
+        LiteralToken fragment = Assert.Single(source.Tokens.OfType<LiteralToken>());
+        VariableRefToken variable = Assert.Single(fragment.Tokens.OfType<VariableRefToken>());
+        CopyInstruction target = CopyInstruction.Parse("COPY [\"old\", \"/dest\"]");
+        target.SourceTokens.Add(source);
+        Assert.Same(source, target.SourceTokens[1]);
+        Assert.Same(variable, Assert.Single(source.Tokens.OfType<VariableRefToken>()));
+        Assert.Equal("\"${ROOT}suffix\"", source.ToString());
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "value", ["ROOTsuffix"] = "wrong" };
+        Assert.Equal(source.ResolveVariables('\\', variables),
+            CopyInstruction.Parse(target.ToString()).SourceTokens[1].ResolveVariables('\\', variables));
+    }
+
+    [Fact]
+    public void RejectedStagedRequotingDoesNotChangeVariableSyntax()
+    {
+        const string operand = "\"$ROOT\"suffix\\q";
+        LiteralToken source = Assert.Single(CopyInstruction.Parse($"COPY {operand} /dest").SourceTokens);
+        VariableRefToken variable = Assert.Single(source.Tokens.OfType<LiteralToken>()
+            .SelectMany(fragment => fragment.Tokens).OfType<VariableRefToken>());
+        CopyInstruction target = CopyInstruction.Parse("COPY [\"old\", \"/dest\"]");
+        string before = target.ToString();
+        Assert.Throws<InvalidOperationException>(() => target.SourceTokens.Add(source));
+        Assert.Equal(before, target.ToString());
+        Assert.Equal(operand, source.ToString());
+        Assert.Equal("$ROOT", variable.ToString());
+    }
+
+    [Theory]
+    [InlineData("/dir\" name\"", "/updated name")]
+    [InlineData("\"/dir \"name", "/updated name")]
+    [InlineData("/dir' name'", "/updated name")]
+    [InlineData("/dir\" name\"", "$ROOT/new dir")]
+    [InlineData("/dir\" name\"", "/updated\tname")]
+    [InlineData("/dir\" name\"", "/updated\" name")]
+    public void MixedDestinationValueUpdatesPreserveOneOperand(string operand, string replacement)
+    {
+        foreach (string name in new[] { "COPY", "ADD" })
+        {
+            foreach (bool heredoc in new[] { false, true })
+            {
+                string text = heredoc ? $"{name} <<EOF {operand}\nbody\nEOF\n" : $"{name} src {operand}";
+                AssertFileTransferModels(text, instruction =>
+                {
+                    LiteralToken destination = instruction.DestinationToken!;
+                    instruction.Destination = instruction.Destination;
+                    Assert.Equal(text, instruction.ToString());
+                    instruction.Destination = replacement;
+                    Assert.Same(destination, instruction.DestinationToken);
+                    Assert.Equal(replacement, instruction.Destination);
+                    FileTransferInstruction reparsed = name == "COPY"
+                        ? CopyInstruction.Parse(instruction.ToString()) : AddInstruction.Parse(instruction.ToString());
+                    Assert.Equal(replacement, reparsed.Destination);
+                    Assert.Equal(heredoc ? Array.Empty<string>() : new[] { "src" }, reparsed.Sources);
+                });
+            }
+        }
+    }
+
+    [Fact]
+    public void MixedOperandUpdatesRetainCustomEscapeContext()
+    {
+        CopyInstruction instruction = CopyInstruction.Parse("COPY \"$ROOT\"suffix /dir\" name\"", '`');
+        LiteralToken source = Assert.Single(instruction.SourceTokens);
+        source.QuoteChar = '"';
+        instruction.Destination = "/updated`\" dir";
+        CopyInstruction reparsed = CopyInstruction.Parse(instruction.ToString(), '`');
+        Assert.Equal(instruction.Destination, reparsed.Destination);
+        Assert.Equal("ROOT", Assert.Single(reparsed.SourceTokens[0].Tokens.OfType<VariableRefToken>()).VariableName);
+    }
+
+    [Fact]
+    public void RejectedMixedValueUpdateLeavesOriginalSyntax()
+    {
+        const string text = "COPY src /dir\" name\"";
+        CopyInstruction instruction = CopyInstruction.Parse(text);
+        Assert.Throws<ArgumentException>(() => instruction.Destination = "/updated'\" name");
+        Assert.Equal(text, instruction.ToString());
+        Assert.Equal("/dir name", instruction.Destination);
+    }
+
+    [Theory]
     [InlineData("COPY")]
     [InlineData("ADD")]
     public void HeredocBodyCannotCloseADestinationQuote(string name)

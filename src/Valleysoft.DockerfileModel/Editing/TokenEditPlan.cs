@@ -36,6 +36,14 @@ internal sealed class TokenEditPlan
     public void SetQuote(IQuotableToken token, char? quote)
     {
         EditValidation.ValidateSupportedQuote(token);
+        if (token is LiteralToken literal && quote != literal.QuoteChar &&
+            Tokens(literal).OfType<LiteralToken>().Any())
+        {
+            List<Token> contents = StringParsers.UnwrapLiteralFragments(Tokens(literal), Tokens, variable => Edit(variable));
+            List<Token> children = Edit(literal);
+            children.Clear();
+            children.AddRange(contents);
+        }
         quotes[token] = quote;
     }
 
@@ -65,11 +73,6 @@ internal sealed class TokenEditPlan
         {
             IEnumerable<Token> children = replacements.TryGetValue(aggregate, out List<Token>? edited)
                 ? edited : aggregate.Tokens;
-            if (token is LiteralToken literal && quotes.TryGetValue(literal, out char? newQuote) &&
-                newQuote != literal.QuoteChar)
-            {
-                children = StringParsers.ExtractLiteralTokenContents(children, fragment => Tokens(fragment));
-            }
             text = string.Concat(children.Select(child => Render(child, path)));
             if (token is VariableRefToken)
             {
