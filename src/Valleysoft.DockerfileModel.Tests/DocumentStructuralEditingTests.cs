@@ -23,6 +23,32 @@ public class DocumentStructuralEditingTests
     }
 
     [Fact]
+    public void DocumentBoundaryRepairsAllocateLinearlyWithConstructs()
+    {
+        Measure(16);
+        long small = Measure(64);
+        long large = Measure(256);
+        Assert.True(large * 2 < small * 9,
+            $"Growing unterminated constructs fourfold allocated {small} then {large} bytes.");
+
+        static long Measure(int count)
+        {
+            DockerfileConstruct[] instructions = Enumerable.Range(0, count)
+                .Select(index => (DockerfileConstruct)RunInstruction.Parse($"RUN echo {index}")).ToArray();
+            Dockerfile file = new(instructions);
+            WorkdirInstruction incoming = new("/app");
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            file.Items.Add(incoming);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Equal(string.Concat(Enumerable.Range(0, count).Select(index => $"RUN echo {index}\n")) +
+                "WORKDIR /app", file.ToString());
+            Assert.Equal(instructions.Append(incoming), file.Items);
+            return allocated;
+        }
+    }
+
+    [Fact]
     public void DocumentPreviewsAllocateLinearlyWithStagedOperandsAndConstructs()
     {
         Measure(16);

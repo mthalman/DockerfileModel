@@ -136,19 +136,30 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
         string before = owner.ToString();
         PreserveBom(items, plan, trivia);
         Func<Token, string> render = plan.CreateRenderer();
+        List<string>[]? boundaryNewLines = null;
+        List<(DockerfileConstruct Owner, string NewLine)> seams = new();
         string tail = string.Empty;
         for (int i = 0; i < items.Count; i++)
         {
             string text = render(items[i]);
             if (i > 0 && items[i] is not Whitespace && HasContent(tail) && !StartsWithLineBreak(text))
             {
-                string newLine = SeamNewLine(items, i, plan, render);
-                plan.Edit(items[i - 1]).Add(new NewLineToken(newLine));
-                render = plan.CreateRenderer();
+                boundaryNewLines ??= items.Select(item => BoundaryNewLines(item, plan, render).ToList()).ToArray();
+                string newLine = SeamNewLine(boundaryNewLines, i);
+                seams.Add((items[i - 1], newLine));
+                boundaryNewLines[i - 1].Add(newLine);
                 tail = string.Empty;
             }
             int newline = text.LastIndexOf('\n');
             tail = newline >= 0 ? text.Substring(newline + 1) : tail + text;
+        }
+        foreach (var seam in seams)
+        {
+            plan.Edit(seam.Owner).Add(new NewLineToken(seam.NewLine));
+        }
+        if (seams.Count > 0)
+        {
+            render = plan.CreateRenderer();
         }
 
         ValidateIdentity(items, plan);
@@ -200,24 +211,23 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
         owner.RawItems.AddRange(items);
     }
 
-    private static string SeamNewLine(IReadOnlyList<DockerfileConstruct> items, int index, TokenEditPlan plan,
-        Func<Token, string> render)
+    private static string SeamNewLine(IReadOnlyList<List<string>> boundaryNewLines, int index)
     {
-        for (int distance = 0; distance < Math.Max(index, items.Count - index); distance++)
+        for (int distance = 0; distance < Math.Max(index, boundaryNewLines.Count - index); distance++)
         {
             int previous = index - distance - 1;
             if (previous >= 0)
             {
-                string? preceding = BoundaryNewLines(items[previous], plan, render).LastOrDefault();
+                string? preceding = boundaryNewLines[previous].LastOrDefault();
                 if (preceding is not null)
                 {
                     return preceding;
                 }
             }
             int next = index + distance;
-            if (next < items.Count)
+            if (next < boundaryNewLines.Count)
             {
-                string? following = BoundaryNewLines(items[next], plan, render).FirstOrDefault();
+                string? following = boundaryNewLines[next].FirstOrDefault();
                 if (following is not null)
                 {
                     return following;
