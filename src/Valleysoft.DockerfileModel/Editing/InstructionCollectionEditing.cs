@@ -584,7 +584,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
                 CopyInstruction when IsJson => CopyInstruction.ParseForEditing(text, owner.EditingEscapeChar),
                 AddInstruction when IsJson => AddInstruction.ParseForEditing(text, owner.EditingEscapeChar),
                 UnknownInstruction => throw new InvalidOperationException("Unknown instruction arguments are opaque."),
-                GenericInstruction => GenericInstruction.Parse(text, owner.EditingEscapeChar),
+                GenericInstruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar, generic: true),
                 Instruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar),
                 _ => throw new InvalidOperationException("This owner does not define an editable instruction collection.")
             };

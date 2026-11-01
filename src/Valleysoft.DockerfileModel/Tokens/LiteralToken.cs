@@ -1,4 +1,3 @@
-
 namespace Valleysoft.DockerfileModel.Tokens;
 
 /// <summary>A literal with optional quote syntax, continuations, and recognized variable-reference children.</summary>
@@ -52,6 +51,10 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     }
 
     /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
+    /// <remarks>
+    /// Single quotes suppress variable resolution outside an enclosing double-quoted context.
+    /// Reference children are retained so later quote changes can re-enable resolution without reparsing the value.
+    /// </remarks>
     public virtual char? QuoteChar
     {
         get => quoteChar;
