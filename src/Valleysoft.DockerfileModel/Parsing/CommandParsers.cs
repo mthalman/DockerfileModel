@@ -38,6 +38,18 @@ internal static class CommandParsers
         {
             return JsonArrayKind.Invalid;
         }
+        if (source[first] == escapeChar)
+        {
+            int next = first + 1;
+            while (next < source.Length && char.IsWhiteSpace(source[next]) && source[next] is not ('\r' or '\n'))
+            {
+                next++;
+            }
+            if (next == source.Length || source[next] is not ('\r' or '\n'))
+            {
+                return JsonArrayKind.Invalid;
+            }
+        }
 
         // Recognition uses the whole logical header; token parsers still consume physical prefixes.
         string logical = ConstructReader.FoldHeader(source, input.Position.Absolute, escapeChar, out _);
@@ -261,10 +273,10 @@ internal static class CommandParsers
 
         TextParser<IEnumerable<Token>> jsonEscape =
             from backslash in BasicParsers.ToStringTokens(Character.EqualTo('\\'))
-            from escaped in BasicParsers.CharWithOptionalLineContinuation(escapeChar,
-                Superpower.Parse.Not(NativeParsers.LineEnd).IgnoreThen(Character.AnyChar),
-                ch => new StringToken(ch.ToString()))
-            select TokenSequences.ConcatTokens(backslash, escaped);
+            from continuations in JsonLineContinuation(escapeChar).Try().Many().Flatten()
+            from escaped in BasicParsers.ToStringTokens(
+                Superpower.Parse.Not(NativeParsers.LineEnd).IgnoreThen(Character.AnyChar))
+            select TokenSequences.ConcatTokens(backslash, continuations, escaped);
 
         TextParser<IEnumerable<Token>> contentParser = JsonWhitespace(escapeChar)
             .Where(tokens => tokens.Any()).Try()
@@ -281,6 +293,19 @@ internal static class CommandParsers
 
     private static TextParser<IEnumerable<Token>> JsonWhitespace(char escapeChar)
     {
+        return
+            from leading in BasicParsers.WhitespaceWithoutNewLine()
+            from continued in (
+                from continuation in JsonLineContinuation(escapeChar)
+                from horizontal in BasicParsers.WhitespaceWithoutNewLine()
+                select TokenSequences.ConcatTokens(continuation, new Token?[] { horizontal }))
+                .Try().Many().Flatten()
+            from trailing in BasicParsers.Whitespace().Where(tokens => tokens.Any()).Try().Many().Flatten()
+            select TokenSequences.ConcatTokens(new Token?[] { leading }, continued, trailing);
+    }
+
+    private static TextParser<IEnumerable<Token>> JsonLineContinuation(char escapeChar)
+    {
         // Blank-line indentation belongs to skipped physical trivia, not to the JSON string value.
         TextParser<IEnumerable<Token>> blankLine =
             from text in Span.MatchedBy(BasicParsers.WhitespaceWithoutNewLine().IgnoreThen(NativeParsers.LineEnd)).Text()
@@ -294,14 +319,8 @@ internal static class CommandParsers
                 new CommentToken(TokenSequences.ConcatTokens(new Token?[] { leading }, comment, new Token?[] { newline }))
             };
         return
-            from leading in BasicParsers.WhitespaceWithoutNewLine()
-            from continued in (
-                from continuation in LineContinuationToken.GetParser(escapeChar)
-                from skipped in blankLine.Try().Or(commentLine).Try().Many().Flatten()
-                from horizontal in BasicParsers.WhitespaceWithoutNewLine()
-                select TokenSequences.ConcatTokens(new Token[] { continuation }, skipped, new Token?[] { horizontal }))
-                .Try().Many().Flatten()
-            from trailing in BasicParsers.Whitespace().Where(tokens => tokens.Any()).Try().Many().Flatten()
-            select TokenSequences.ConcatTokens(new Token?[] { leading }, continued, trailing);
+            from continuation in LineContinuationToken.GetParser(escapeChar)
+            from skipped in blankLine.Try().Or(commentLine).Try().Many().Flatten()
+            select TokenSequences.ConcatTokens(new Token[] { continuation }, skipped);
     }
 }

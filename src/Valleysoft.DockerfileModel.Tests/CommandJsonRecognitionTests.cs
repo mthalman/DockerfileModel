@@ -274,6 +274,10 @@ public class CommandJsonRecognitionTests
             ("[\"\\\r\n\\\r\necho\", \"dest\"]", '\\', new[] { "echo", "dest" }),
             ("[\"ec`\nho\\\"there\", \"dest\"]", '`', new[] { "echo\\\"there", "dest" }),
             ("[\"a\\`\n\"b\", \"dest\"]", '`', new[] { "a\\\"b", "dest" }),
+            ("[\"a\\`\n# comment\n\"b\", \"dest\"]", '`', new[] { "a\\\"b", "dest" }),
+            ("[\"a\\`\n # comment\n\\b\", \"dest\"]", '`', new[] { "a\\\\b", "dest" }),
+            ("[\"a\\`\r\n# comment\r\nnb\", \"dest\"]", '`', new[] { "a\\nb", "dest" }),
+            ("[\"a\\`\n# comment\nu0020b\", \"dest\"]", '`', new[] { "a\\u0020b", "dest" }),
             ("[\"a\\\\b\\t\\u0020\", \"dest\"]", '`', new[] { "a\\\\b\\t\\u0020", "dest" })
         };
         foreach (string prefix in new[] { "RUN", "CMD", "ENTRYPOINT", "HEALTHCHECK CMD", "ONBUILD RUN",
@@ -295,6 +299,8 @@ public class CommandJsonRecognitionTests
             ("[\"a\"\\\n\n\n, \"dest\"]", '\\', new[] { "a", "dest" }),
             ("[\"a\", \"dest\"\\\n\n\n]", '\\', new[] { "a", "dest" }),
             ("[\"a\\\n\n\n# comment\nb\", \"dest\"]", '\\', new[] { "ab", "dest" }),
+            ("[\"a\\`\n \t\n\n # first\n \n# second\n\"b\", \"dest\"]", '`', new[] { "a\\\"b", "dest" }),
+            ("[\"a\\`\r\n\r\n # first\r\n`\r\n\r\n# second\r\nnb\", \"dest\"]", '`', new[] { "a\\nb", "dest" }),
             ("[\"a`\r\n\r\n\r\n # first\r\n\r\n# second\r\n b\", \"dest\"]", '`', new[] { "a b", "dest" })
         };
         foreach (string prefix in new[] { "RUN", "CMD", "ENTRYPOINT", "HEALTHCHECK CMD", "ONBUILD RUN",
@@ -403,11 +409,52 @@ public class CommandJsonRecognitionTests
     }
 
     [Theory]
-    [InlineData("echo ")]
-    [InlineData("  echo ")]
-    public void ShellRecognitionDoesNotAllocateProportionalToHeaderLength(string prefix)
+    [InlineData("RUN")]
+    [InlineData("CMD")]
+    [InlineData("ENTRYPOINT")]
+    [InlineData("HEALTHCHECK CMD")]
+    [InlineData("ONBUILD RUN")]
+    [InlineData("SHELL")]
+    public void JsonEscapesRetainContinuedTriviaDuringCollectionEdits(string prefix)
     {
-        var parser = CommandParsers.MaybeJson(Superpower.Parse.Return(true), Superpower.Parse.Return(false), '\\');
+        const string arguments = "[\"a\\`\n\n # comment\n\"b\", \"dest\"]";
+        ExecFormCommand command = Assert.IsType<ExecFormCommand>(
+            GetCommand(ParseInstruction(prefix + " " + arguments, '`')));
+        LiteralToken original = command.ValueTokens[0];
+        string body = original.ToString();
+
+        command.Values.Add("extra");
+
+        Assert.Same(original, command.ValueTokens[0]);
+        Assert.Equal(body, original.ToString());
+        Assert.Equal(new[] { "a\\\"b", "dest", "extra" }, command.Values);
+        original.Value += "c";
+        Assert.Equal(new[] { "a\\\"bc", "dest", "extra" }, command.Values);
+        Assert.Equal(command.ToString(), GetCommand(ParseInstruction(prefix + " " + command, '`'))!.ToString());
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    public void WhitespaceAfterJsonEscapeContinuationIsNotSkipped(string whitespace)
+    {
+        string text = "RUN [\"a\\`\n# comment\n" + whitespace + "nb\", \"dest\"]\n";
+        RunInstruction instruction = RunInstruction.Parse(text, '`');
+        Assert.IsType<ShellFormCommand>(instruction.Command);
+        Assert.Equal(text, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData("echo ", '\\')]
+    [InlineData("  echo ", '\\')]
+    [InlineData("\\\\server\\share ", '\\')]
+    [InlineData("  \\echo ", '\\')]
+    [InlineData("\\  echo ", '\\')]
+    [InlineData("`echo ", '`')]
+    [InlineData("  `  echo ", '`')]
+    public void ShellRecognitionDoesNotAllocateProportionalToHeaderLength(string prefix, char escapeChar)
+    {
+        var parser = CommandParsers.MaybeJson(Superpower.Parse.Return(true), Superpower.Parse.Return(false), escapeChar);
         TextSpan input = new(prefix + new string('x', 100_000));
         for (int i = 0; i < 20; i++)
         {
@@ -424,13 +471,16 @@ public class CommandJsonRecognitionTests
     }
 
     [Theory]
-    [InlineData("[\"echo\"]")]
-    [InlineData("  [\"echo\"]")]
-    [InlineData("\\\n [\"echo\"]")]
-    [InlineData(" \\\n# comment\n [\"echo\"]")]
-    public void JsonRecognitionIncludesLeadingContinuations(string text)
+    [InlineData("[\"echo\"]", '\\')]
+    [InlineData("  [\"echo\"]", '\\')]
+    [InlineData("\\\n [\"echo\"]", '\\')]
+    [InlineData("\\ \t\r\n [\"echo\"]", '\\')]
+    [InlineData(" \\\n# comment\n [\"echo\"]", '\\')]
+    [InlineData("`\n [\"echo\"]", '`')]
+    [InlineData(" ` \t\r\n# comment\r\n [\"echo\"]", '`')]
+    public void JsonRecognitionIncludesLeadingContinuations(string text, char escapeChar)
     {
-        var parser = CommandParsers.MaybeJson(Superpower.Parse.Return(true), Superpower.Parse.Return(false), '\\');
+        var parser = CommandParsers.MaybeJson(Superpower.Parse.Return(true), Superpower.Parse.Return(false), escapeChar);
         Assert.True(parser(new TextSpan("prefix" + text).Skip(6)).Value);
     }
 

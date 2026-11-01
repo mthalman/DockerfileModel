@@ -85,7 +85,9 @@ before the first string character or in an empty string; parsing retains their
 physical source without including them in the literal value.
 Standalone instruction parsing and `Dockerfile.TryParse` also retain skipped
 blank lines and comments after a continuation without including their text or
-indentation in JSON string values.
+indentation in JSON string values. This also applies to continuations between
+a JSON backslash and its escaped character. Whitespace on the resumed content
+line remains part of the JSON string and is not discarded.
 
 `ADD`, `COPY`, and `VOLUME` use the same recognition rule, but their fallback is
 the instruction's non-JSON operand grammar. `SHELL` requires JSON form and does
