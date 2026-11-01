@@ -74,6 +74,7 @@ private def addFlagParser (escapeChar : Char) : Parser (List Token) :=
     are parsed as a single literal token with quoteChar set, matching C# behavior. -/
 private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List Token) := do
   let first ← literalWithVariables escapeChar (whitespaceMode := .allowedInQuotes)
+    (allowUnmatchedQuoteFragments := true)
   let rest ← many (do
     let ws ← whitespace
     if ws.isEmpty then Parser.fail "expected whitespace between file args"
@@ -83,6 +84,7 @@ private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List To
                        let w ← whitespace
                        Parser.pure w
     let arg ← literalWithVariables escapeChar (whitespaceMode := .allowedInQuotes)
+      (allowUnmatchedQuoteFragments := true)
     Parser.pure (concatTokens [ws, lc, wsAfterLc, [arg]]))
   Parser.pure (concatTokens [[first], rest.flatten])
 
@@ -96,8 +98,9 @@ private partial def spaceSeparatedFileArgs (escapeChar : Char) : Parser (List To
 partial def addArgsParser (escapeChar : Char) : Parser (List Token) := do
   let flags ← many (addFlagParser escapeChar)
   let fileArgs ← argTokens
-    (or' heredocWithDestination
-      (maybeJsonArrayParser (spaceSeparatedFileArgs escapeChar) escapeChar))
+    (or' (heredocWithDestination escapeChar)
+      (except (maybeJsonArrayParser (spaceSeparatedFileArgs escapeChar) escapeChar)
+        heredocHeaderParser))
     escapeChar
   Parser.pure (concatTokens [flags.flatten, fileArgs])
 
@@ -108,7 +111,7 @@ partial def addArgsParser (escapeChar : Char) : Parser (List Token) := do
 /-- Parse a complete ADD instruction.
     Corresponds to AddInstruction.GetInnerParser() -/
 def addInstructionParser (escapeChar : Char) : Parser (List Token) :=
-  instructionParser "ADD" escapeChar (addArgsParser escapeChar)
+  parseEnd (instructionParser "ADD" escapeChar (addArgsParser escapeChar))
 
 /-- Parse an ADD instruction and produce an Instruction value. -/
 def parseAddInstruction (escapeChar : Char := '\\') : Parser Instruction := do

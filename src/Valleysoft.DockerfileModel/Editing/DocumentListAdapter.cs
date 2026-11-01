@@ -135,22 +135,36 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
         EditValidation.ValidateSupportedDocument(owner);
         string before = owner.ToString();
         PreserveBom(items, plan, trivia);
+        Func<Token, string> render = plan.CreateRenderer();
+        (string? First, string? Last)[]? boundaryNewLines = null;
+        List<(DockerfileConstruct Owner, string NewLine)> seams = new();
         string tail = string.Empty;
         for (int i = 0; i < items.Count; i++)
         {
-            string text = plan.Render(items[i]);
+            string text = render(items[i]);
             if (i > 0 && items[i] is not Whitespace && HasContent(tail) && !StartsWithLineBreak(text))
             {
-                string newLine = SeamNewLine(items, i, plan);
-                plan.Edit(items[i - 1]).Add(new NewLineToken(newLine));
+                boundaryNewLines ??= items.Select(item => BoundaryNewLines(item, plan, render)).ToArray();
+                string newLine = SeamNewLine(boundaryNewLines, i);
+                seams.Add((items[i - 1], newLine));
+                boundaryNewLines[i - 1].First ??= newLine;
+                boundaryNewLines[i - 1].Last = newLine;
                 tail = string.Empty;
             }
             int newline = text.LastIndexOf('\n');
             tail = newline >= 0 ? text.Substring(newline + 1) : tail + text;
         }
+        foreach (var seam in seams)
+        {
+            plan.Edit(seam.Owner).Add(new NewLineToken(seam.NewLine));
+        }
+        if (seams.Count > 0)
+        {
+            render = plan.CreateRenderer();
+        }
 
         ValidateIdentity(items, plan);
-        string after = string.Concat(items.Select(plan.Render));
+        string after = string.Concat(items.Select(render));
         var previousHeader = ReadHeader(before);
         var nextHeader = ReadHeader(after);
         List<string> remainingErrors = previousHeader.Errors.ToList();
@@ -198,23 +212,23 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
         owner.RawItems.AddRange(items);
     }
 
-    private static string SeamNewLine(IReadOnlyList<DockerfileConstruct> items, int index, TokenEditPlan plan)
+    private static string SeamNewLine(IReadOnlyList<(string? First, string? Last)> boundaryNewLines, int index)
     {
-        for (int distance = 0; distance < Math.Max(index, items.Count - index); distance++)
+        for (int distance = 0; distance < Math.Max(index, boundaryNewLines.Count - index); distance++)
         {
             int previous = index - distance - 1;
             if (previous >= 0)
             {
-                string? preceding = BoundaryNewLines(items[previous], plan).LastOrDefault();
+                string? preceding = boundaryNewLines[previous].Last;
                 if (preceding is not null)
                 {
                     return preceding;
                 }
             }
             int next = index + distance;
-            if (next < items.Count)
+            if (next < boundaryNewLines.Count)
             {
-                string? following = BoundaryNewLines(items[next], plan).FirstOrDefault();
+                string? following = boundaryNewLines[next].First;
                 if (following is not null)
                 {
                     return following;
@@ -224,8 +238,10 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
         return "\n";
     }
 
-    private static IEnumerable<string> BoundaryNewLines(Token token, TokenEditPlan plan)
+    private static (string? First, string? Last) BoundaryNewLines(Token token, TokenEditPlan plan, Func<Token, string> render)
     {
+        string? first = null;
+        string? last = null;
         if (token is AggregateToken aggregate)
         {
             IEnumerable<Token> children = plan.Tokens(aggregate);
@@ -236,23 +252,24 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
             }
             foreach (Token child in children)
             {
-                foreach (string newline in BoundaryNewLines(child, plan))
-                {
-                    yield return newline;
-                }
+                var boundary = BoundaryNewLines(child, plan, render);
+                first ??= boundary.First;
+                last = boundary.Last ?? last;
             }
         }
         else
         {
-            string text = plan.Render(token);
+            string text = render(token);
             for (int i = 0; i < text.Length; i++)
             {
                 if (text[i] == '\n')
                 {
-                    yield return i > 0 && text[i - 1] == '\r' ? "\r\n" : "\n";
+                    last = i > 0 && text[i - 1] == '\r' ? "\r\n" : "\n";
+                    first ??= last;
                 }
             }
         }
+        return (first, last);
     }
 
     private void PreserveBom(List<DockerfileConstruct> items, TokenEditPlan plan, TriviaDisposition trivia)

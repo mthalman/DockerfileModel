@@ -224,13 +224,16 @@ internal static class EditValidation
     /// <param name="owner">The live owner whose staged marker and body tokens define the expected roles.</param>
     /// <param name="parsed">The diagnostic interpretation of the complete prospective instruction.</param>
     /// <param name="plan">The plan supplying prospective children and token serialization.</param>
+    /// <param name="render">A shared renderer for an unchanged plan, or null to create one for this validation.</param>
     /// <remarks>
     /// Ordinary source or command text must not become an unmodeled heredoc, even when the
     /// resulting serialization happens to include a valid delimiter. This check does not replace
     /// the live owner or its pair wrappers with parsed objects.
     /// </remarks>
-    public static void ValidateHeredocAssociations(AggregateToken owner, Instruction parsed, TokenEditPlan plan)
+    public static void ValidateHeredocAssociations(AggregateToken owner, Instruction parsed, TokenEditPlan plan,
+        Func<Token, string>? render = null)
     {
+        render ??= plan.CreateRenderer();
         Token[] expected = StagedDescendants(owner).ToArray();
         Token[] actual = InstructionCollectionEditing.Descendants(parsed).ToArray();
         HeredocMarkerToken[] expectedMarkers = expected.OfType<HeredocMarkerToken>().ToArray();
@@ -246,10 +249,10 @@ internal static class EditValidation
         {
             HeredocMarkerToken expectedMarker = expectedMarkers[index];
             HeredocMarkerToken actualMarker = actualMarkers[index];
-            if (plan.Render(expectedMarker) != actualMarker.ToString() ||
+            if (render(expectedMarker) != actualMarker.ToString() ||
                 expectedMarker.DelimiterName != actualMarker.DelimiterName ||
                 expectedMarker.Expand != actualMarker.Expand || expectedMarker.Chomp != actualMarker.Chomp ||
-                plan.Render(expectedBodies[index]) != actualBodies[index].ToString())
+                render(expectedBodies[index]) != actualBodies[index].ToString())
             {
                 throw new InvalidOperationException("The edit changes heredoc associations or delimiter semantics.");
             }

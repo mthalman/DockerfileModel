@@ -8,6 +8,7 @@ namespace Valleysoft.DockerfileModel;
 /// Source collections are live syntax-aware views; the destination is a separate required operand.
 /// Constructors choose JSON form when any supplied source or destination contains a space, otherwise
 /// space-separated form. They retain the supplied escape context for later edits.
+/// Parsing requires the complete instruction so trailing operands cannot be silently dropped.
 /// </remarks>
 public abstract partial class FileTransferInstruction : Instruction
 {
@@ -152,7 +153,7 @@ public abstract partial class FileTransferInstruction : Instruction
 
     private protected static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, string instructionName,
         TextParser<IEnumerable<Token>>? optionalFlagParser, InstructionParseContext? context, bool allowLegacyJsonOperands) =>
-        Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser, context, allowLegacyJsonOperands));
+        Instruction(instructionName, escapeChar, GetArgsParser(escapeChar, optionalFlagParser, context, allowLegacyJsonOperands)).AtEnd();
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
         string? changeOwner, string? permissions, char escapeChar, string instructionName)
@@ -206,7 +207,8 @@ public abstract partial class FileTransferInstruction : Instruction
     {
         TextParser<IEnumerable<Token>> fallback =
             from literals in ArgTokens(
-                    LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes).AsEnumerable(),
+                    LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes,
+                        allowUnmatchedQuoteFragments: true).AsEnumerable(),
                     escapeChar).Try().Many()
             select literals.Flatten();
         if (allowLegacyJsonOperands)
