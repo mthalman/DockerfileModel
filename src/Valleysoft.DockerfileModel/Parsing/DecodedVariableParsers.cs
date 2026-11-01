@@ -127,7 +127,8 @@ internal static class DecodedVariableParsers
             else if (current == '$')
             {
                 candidates.Add(remaining);
-                if (index + 1 < text.Length && text[index + 1] == '{')
+                if (index + 1 < text.Length && text[index + 1] == '{' &&
+                    sourceCharacter(remaining.Skip(1)).HasValue)
                 {
                     quotes.Push(quote);
                     quote = null;

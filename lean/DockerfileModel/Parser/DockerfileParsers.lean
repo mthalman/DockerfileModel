@@ -304,7 +304,8 @@ partial def modifierValueLiteral (escapeChar : Char) : Parser (List Token) := do
 /-- Parse a braced variable reference: ${IDENTIFIER}, ${IDENTIFIER:-default}, etc.
     Returns a VariableRefToken.
     Corresponds to VariableRefToken.BracedVariableReference() -/
-partial def bracedVariableRef (escapeChar : Char) : Parser Token := do
+partial def bracedVariableRef (escapeChar : Char)
+    (nestedParser : Option (Parser Token) := none) : Parser Token := do
   let _ ← char '$'
   let openBrace ← char '{'
   let name ← variableIdentifier
@@ -313,7 +314,7 @@ partial def bracedVariableRef (escapeChar : Char) : Parser Token := do
     let modSymbols : List Token := mod.toList.map Token.mkSymbol
     let valueTokens ← many (or'
       (do let ref ← simpleVariableRef; Parser.pure [ref])
-      (or' (do let ref ← bracedVariableRef escapeChar; Parser.pure [ref])
+      (or' (do let ref ← nestedParser.getD (bracedVariableRef escapeChar); Parser.pure [ref])
         (modifierValueLiteral escapeChar)))
     let valueLiteral := Token.mkLiteral (collapseStringTokens valueTokens.flatten)
     Parser.pure (modSymbols ++ [valueLiteral]))
@@ -328,8 +329,9 @@ partial def bracedVariableRef (escapeChar : Char) : Parser Token := do
 
 /-- Parse a variable reference: either $VAR or ${VAR} or ${VAR:-default} etc.
     Corresponds to VariableRefToken.GetParser() -/
-def variableRefParser (escapeChar : Char) : Parser Token :=
-  or' (bracedVariableRef escapeChar) simpleVariableRef
+def variableRefParser (escapeChar : Char)
+    (nestedParser : Option (Parser Token) := none) : Parser Token :=
+  or' (bracedVariableRef escapeChar nestedParser) simpleVariableRef
 
 -- ============================================================
 -- Literal string parsers
@@ -402,8 +404,9 @@ def literalString (escapeChar : Char) (excludedChars : List Char)
 /-- Parse either a variable reference or a literal value.
     Corresponds to VariableParsers.ValueOrVariableRef() -/
 def valueOrVariableRef (escapeChar : Char)
-    (valueParsers : Parser (List Token)) : Parser (List Token) :=
-  or' (do let v ← variableRefParser escapeChar; Parser.pure [v])
+    (valueParsers : Parser (List Token))
+    (referenceParser : Option (Parser Token) := none) : Parser (List Token) :=
+  or' (do let v ← referenceParser.getD (variableRefParser escapeChar); Parser.pure [v])
       valueParsers
 
 -- ============================================================
@@ -440,7 +443,8 @@ partial def literalWithVariablesUnquoted (escapeChar : Char) (excludedChars : Li
     Corresponds to the wrapped branch of VariableParsers.LiteralWithVariablesTokens() -/
 def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
     (quoteChar : Char) (whitespaceMode : WhitespaceMode := .disallowed)
-    (allowMalformedVariableText : Bool := false) : Parser Token := do
+    (allowMalformedVariableText : Bool := false)
+    (referenceParser : Option (Parser Token) := none) : Parser Token := do
   let _ ← char quoteChar
   let tokenLists ← many (valueOrVariableRef escapeChar
     (or'
@@ -458,7 +462,7 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
               | some c' =>
                 if c'.isAlpha || c'.isDigit || c' == '_' || c' == '{' then
                   if allowMalformedVariableText then
-                    match variableRefParser escapeChar pos with
+                    match referenceParser.getD (variableRefParser escapeChar) pos with
                     | .ok _ _ => .error "variable reference start" pos
                     | .error _ _ => .ok c pos.next
                   else .error "variable reference start" pos
@@ -479,7 +483,7 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
             let esc ← char escapeChar
             let v ← satisfy (fun c => !isLineTerminator c) "escaped character"
             Parser.pure [Token.mkString (String.ofList [esc, v])])
-          whitespaceOrComments))))
+          whitespaceOrComments))) referenceParser)
   let _ ← char quoteChar
   let tokens := collapseStringTokens tokenLists.flatten
   Parser.pure (Token.mkLiteral tokens (some ⟨quoteChar⟩))

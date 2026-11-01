@@ -172,6 +172,8 @@ contents, even when `UpdateInline` is `true`. Inline substitutions stay
 literal across later primitive-token edits. Assigning the path's `Value` or
 updating it through `Paths` reparses its contents and makes new references
 eligible for resolution again.
+If a JSON escape spans untouched text and an inline substitution, its decoded
+character remains literal and cannot introduce variable, quote, or escape syntax.
 Collection adoption and scalar token replacement bind direct token resolution
 to the receiving owner's context. Instruction resolution uses that instruction's
 context independently of the token's latest binding, so sharing a token with a

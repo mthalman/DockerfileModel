@@ -2101,6 +2101,35 @@ def testVolumeVariable : IO Unit := do
       assertEqual (Token.toString inst.token) text
         "volume JSON malformed variable text remains lossless"
     | none => throw (IO.Error.userError s!"VOLUME JSON literal variable text failed: {text}")
+  let depth := 4096
+  for protectedText in [false, true] do
+    let nested := String.join (List.replicate depth "${X:-") ++
+      "value" ++ String.ofList (List.replicate depth '}')
+    let content := if protectedText then "'" ++ nested ++ "'" else nested
+    match parseVolume ("VOLUME [\"" ++ content ++ "\"]") with
+    | some inst =>
+      match inst.token with
+      | .aggregate .instruction children _ =>
+        let paths := children.filter fun token =>
+          match token with
+          | .aggregate .literal _ _ => true
+          | _ => false
+        assertTrue (paths.length == 1) "deep volume JSON path count"
+        let mut current := paths.head?
+        let mut actualDepth := 0
+        while current.isSome do
+          match current with
+          | some (.aggregate kind children _) =>
+            if kind == .variableRef then
+              actualDepth := actualDepth + 1
+            current := children.find? fun token =>
+              match token with
+              | .aggregate .literal _ _ | .aggregate .variableRef _ _ => true
+              | _ => false
+          | _ => current := none
+        assertTrue (actualDepth == depth) "deep volume JSON variable nesting"
+      | _ => throw (IO.Error.userError "Expected deep volume instruction token")
+    | none => throw (IO.Error.userError "Deep volume JSON reference failed")
 
 open DockerfileModel.Parser.Instructions.Volume in
 /-- Test: VOLUME exec form multiple -/

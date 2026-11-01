@@ -113,13 +113,19 @@ internal static class JsonStringVariableResolver
         int sourceStart = 1;
         for (int index = 0; index < decoded.Length; index++)
         {
-            while (sourceIndex < source.Length && sourceStart + source[sourceIndex].Text.Length <= starts[index])
+            bool resolved = false;
+            while (sourceIndex < source.Length && sourceStart < ends[index])
             {
-                sourceStart += source[sourceIndex].Text.Length;
+                int sourceEnd = sourceStart + source[sourceIndex].Text.Length;
+                resolved |= sourceEnd > starts[index] && path.IsResolvedJsonLiteral(source[sourceIndex].Token);
+                if (sourceEnd > ends[index])
+                {
+                    break;
+                }
+                sourceStart = sourceEnd;
                 sourceIndex++;
             }
-            resolvedCounts[index + 1] = resolvedCounts[index] +
-                (sourceIndex < source.Length && path.IsResolvedJsonLiteral(source[sourceIndex].Token) ? 1 : 0);
+            resolvedCounts[index + 1] = resolvedCounts[index] + (resolved ? 1 : 0);
         }
 
         List<(int Start, int End, Token Token, bool Inline)> replacements = new();
@@ -147,11 +153,12 @@ internal static class JsonStringVariableResolver
                 tokenStart += source[tokenIndex].Text.Length;
                 tokenIndex++;
             }
-            if (tokenIndex < source.Length && path.IsResolvedJsonLiteral(source[tokenIndex].Token))
+            if (resolvedCounts[index + 1] != resolvedCounts[index])
             {
                 int end = index + 1;
                 int tokenEnd = tokenStart + source[tokenIndex].Text.Length;
-                while (end < decoded.Length && starts[end] < tokenEnd)
+                while (end < decoded.Length && starts[end] < tokenEnd &&
+                    resolvedCounts[end + 1] != resolvedCounts[end])
                 {
                     end++;
                 }
@@ -336,7 +343,9 @@ internal static class JsonStringVariableResolver
     private static string RenderExpansion(Expansion root, char escapeChar, bool formatRoot = true)
     {
         StringBuilder builder = new();
-        List<bool> escapes = new();
+        List<long> escapes = new();
+        // A non-escape resets every formatting layer without walking the ancestor stack.
+        long epoch = 1;
         Stack<(Expansion Value, bool Close, bool Format)> pending = new();
         pending.Push((root, false, root.Format && formatRoot));
         while (pending.Count > 0)
@@ -348,23 +357,33 @@ internal static class JsonStringVariableResolver
             }
             else if (value.Text is string text)
             {
-                if (escapes.Count == 0)
+                if (escapes.Count == 0 || text.Length > 0 && text.IndexOf(escapeChar) < 0)
                 {
                     builder.Append(text);
+                    if (text.Length > 0)
+                    {
+                        epoch++;
+                    }
                     continue;
                 }
                 foreach (char character in text)
                 {
+                    if (character != escapeChar)
+                    {
+                        epoch++;
+                        builder.Append(character);
+                        continue;
+                    }
                     bool emit = true;
                     for (int index = escapes.Count - 1; index >= 0; index--)
                     {
-                        if (character == escapeChar && !escapes[index])
+                        if (escapes[index] != epoch)
                         {
-                            escapes[index] = true;
+                            escapes[index] = epoch;
                             emit = false;
                             break;
                         }
-                        escapes[index] = false;
+                        escapes[index] = 0;
                     }
                     if (emit)
                     {
@@ -376,7 +395,7 @@ internal static class JsonStringVariableResolver
             {
                 if (format)
                 {
-                    escapes.Add(false);
+                    escapes.Add(0);
                     pending.Push((value, true, false));
                 }
                 foreach (Expansion child in value.Children!.Reverse())
@@ -390,6 +409,10 @@ internal static class JsonStringVariableResolver
 
     internal static string RenderToken(Token token)
     {
+        if (token.GetType() != typeof(VariableRefToken) && token.GetType() != typeof(LiteralToken))
+        {
+            return token.ToString();
+        }
         StringBuilder builder = new();
         Stack<(Token Token, bool Close)> pending = new();
         pending.Push((token, false));

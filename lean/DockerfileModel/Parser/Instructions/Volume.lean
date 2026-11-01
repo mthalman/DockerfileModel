@@ -39,6 +39,7 @@ import DockerfileModel.Parser.Basic
 import DockerfileModel.Parser.Combinators
 import DockerfileModel.Parser.DockerfileParsers
 import DockerfileModel.Parser.ExecForm
+import Std.Data.HashMap
 
 namespace DockerfileModel.Parser.Instructions.Volume
 
@@ -65,6 +66,26 @@ def volumePathsParser (escapeChar : Char) : Parser (List Token) := do
 -- VOLUME args parser
 -- ============================================================
 
+/-- Keep JSON-path parsing independent of modifier nesting depth. -/
+def jsonVolumeVariableParser (escapeChar : Char) (text : String) : Parser Token := Id.run do
+  let mut candidates : List Position := []
+  let mut position := Position.ofString text
+  while !position.atEnd do
+    if position.current == some escapeChar then
+      position := position.next.next
+    else
+      if position.current == some '$' then
+        candidates := position :: candidates
+      position := position.next
+  let mut parsed : Std.HashMap Nat (ParseResult Token) := {}
+  for candidate in candidates do
+    let cached : Parser Token := fun pos =>
+      (parsed[pos.offset.byteIdx]?).getD (.error "expected variable reference" pos)
+    parsed := parsed.insert candidate.offset.byteIdx
+      (variableRefParser escapeChar (some cached) candidate)
+  return fun pos =>
+    (parsed[pos.offset.byteIdx]?).getD (.error "expected variable reference" pos)
+
 /-- BuildKit's VolumeCommand.Expand expands JSON paths too. Validate JSON syntax
     before recognizing variable references, without changing exec-command parsing. -/
 def jsonVolumePathsParser (escapeChar : Char) : Parser (List Token) := do
@@ -74,9 +95,10 @@ def jsonVolumePathsParser (escapeChar : Char) : Parser (List Token) := do
   tokens.mapM fun token =>
     match token with
     | .aggregate .literal _ _ =>
+      let text := Token.toString token
+      let referenceParser := jsonVolumeVariableParser escapeChar text
       match (literalWithVariablesQuoted escapeChar [] '"' .allowedInQuotes
-          (allowMalformedVariableText := true)).run
-          (Token.toString token) with
+          (allowMalformedVariableText := true) (referenceParser := some referenceParser)).run text with
       | .ok path remaining =>
         if remaining.atEnd then Parser.pure path
         else Parser.fail "unconsumed variable-aware VOLUME path"

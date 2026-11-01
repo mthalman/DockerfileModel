@@ -990,6 +990,60 @@ public class VolumeInstructionTests
     }
 
     [Theory]
+    [InlineData("24", "\\u00", "ROOT")]
+    [InlineData("27", "\\u00", "$ROOT")]
+    [InlineData("5c", "\\u00", "$ROOT")]
+    public void JsonEscapesCannotReactivateSubstitutedCharacters(string digits, string prefix, string suffix)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"prefix${DIGITS}suffix\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["DIGITS"] = digits },
+            new ResolutionOptions { UpdateInline = true });
+        Assert.IsType<StringToken>(path.Tokens.First()).Value = prefix;
+        Assert.IsType<StringToken>(path.Tokens.Last()).Value = suffix;
+        string expected = instruction.ToString();
+
+        foreach (bool inline in new[] { false, true })
+        {
+            string resolved = instruction.ResolveVariables('\\',
+                new Dictionary<string, string?> { ["ROOT"] = "value" },
+                new ResolutionOptions { UpdateInline = inline })!;
+            Assert.Equal(digits == "24" ? expected : expected.Replace("$ROOT", "value"), resolved);
+            Assert.Equal(inline && digits != "24" ? resolved : expected, instruction.ToString());
+        }
+    }
+
+    [Fact]
+    public void JsonProtectedOpeningBracesDoNotChangeCandidateQuoteState()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"\\u0022${OPEN}suffix\\u0022\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["OPEN"] = "{" },
+            new ResolutionOptions { UpdateInline = true });
+        Assert.IsType<StringToken>(path.Tokens.First()).Value = "\\u0022$";
+        Assert.IsType<StringToken>(path.Tokens.Last()).Value = "'$ROOT\\u0022";
+        string expected = instruction.ToString().Replace("$ROOT", "value");
+
+        Assert.Equal(expected, instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "value" }));
+    }
+
+    [Fact]
+    public void JsonPrimitiveRenderingAvoidsTraversalAllocations()
+    {
+        StringToken token = new("value");
+        JsonStringVariableResolver.RenderToken(token);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1024; index++)
+        {
+            Assert.Equal("value", JsonStringVariableResolver.RenderToken(token));
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(allocated < 100_000, $"Primitive rendering allocated {allocated} bytes.");
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void JsonDeepRawReferencesUseStackSafeResolutionSerialization(bool protectedText)
@@ -1023,15 +1077,17 @@ public class VolumeInstructionTests
         Assert.Equal(expected, json.RootElement[0].GetString());
     }
 
-    [Fact]
-    public void JsonAccumulatingNestedModifiersHaveBoundedAllocations()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonAccumulatingNestedModifiersHaveBoundedAllocations(bool removeEscapes)
     {
         const int depth = 4096;
         string content = string.Concat(Enumerable.Repeat("${X:-a", depth)) +
             "value" + new string('}', depth);
         VariableRefToken reference = DecodedVariableParsers.Variable('\\', Character.AnyChar, content).Parse(content);
         Dictionary<string, string?> variables = new();
-        ResolutionOptions options = new();
+        ResolutionOptions options = new() { RemoveEscapeCharacters = removeEscapes };
         JsonStringVariableResolver.ResolveReference(reference, '\\', variables, options);
         long before = GC.GetAllocatedBytesForCurrentThread();
         string result = JsonStringVariableResolver.ResolveReference(reference, '\\', variables, options);
@@ -1039,6 +1095,31 @@ public class VolumeInstructionTests
 
         Assert.Equal($"{new string('a', depth)}value", result);
         Assert.True(allocated < 12_000_000, $"Accumulating modifiers allocated {allocated} bytes.");
+    }
+
+    [Theory]
+    [InlineData(1, "")]
+    [InlineData(2, "")]
+    [InlineData(4, "")]
+    [InlineData(1, "a")]
+    [InlineData(2, "a")]
+    [InlineData(4, "a")]
+    public void JsonDeferredFormattingMatchesModifierResolution(int depth, string suffix)
+    {
+        string content = string.Concat(Enumerable.Repeat("${X:-", depth)) +
+            "${A}${B}" + suffix + new string('}', depth);
+        VariableRefToken reference = VariableRefToken.Parse(content);
+        ResolutionOptions options = new() { RemoveEscapeCharacters = true };
+        string[] values = { "", "\\", "\\\\", "a\\", "\\a", "a" };
+        foreach (string first in values)
+        {
+            foreach (string second in values)
+            {
+                Dictionary<string, string?> variables = new() { ["A"] = first, ["B"] = second };
+                Assert.Equal(reference.ResolveVariables('\\', variables, options),
+                    JsonStringVariableResolver.ResolveReference(reference, '\\', variables, options));
+            }
+        }
     }
 
     [Theory]
