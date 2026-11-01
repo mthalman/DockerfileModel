@@ -647,6 +647,105 @@ public class VolumeInstructionTests
         Assert.Equal(2, source.RenderCount);
     }
 
+    [Theory]
+    [InlineData("WORKDIR")]
+    [InlineData("USER")]
+    [InlineData("ARG")]
+    public void JsonResolutionContextDoesNotFollowPathsIntoScalarOperands(string name)
+    {
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME [\"\\u0024ROOT\"]");
+        LiteralToken path = volume.PathTokens[0];
+        volume.PathTokens.RemoveAt(0);
+        AggregateToken owner;
+        if (name == "WORKDIR")
+        {
+            WorkdirInstruction workdir = new("/data") { PathToken = path };
+            owner = workdir;
+        }
+        else if (name == "USER")
+        {
+            UserInstruction user = new("root") { UserToken = path };
+            owner = user;
+        }
+        else
+        {
+            ArgDeclaration declaration = new("PATH") { ValueToken = path };
+            owner = declaration;
+        }
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "unexpected" };
+        Assert.Equal(owner.ToString(), owner.ResolveVariables('\\', variables));
+        Assert.Equal(path.ToString(), path.ResolveVariables('\\', variables));
+    }
+
+    [Fact]
+    public void JsonResolutionPolicyBelongsToEachSharedPathOwner()
+    {
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME [\"\\u0024ROOT\"]");
+        CopyInstruction copy = CopyInstruction.Parse("COPY /data /dest");
+        copy.SourceTokens.Add(volume.PathTokens[0]);
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "/srv" };
+        Assert.Equal("VOLUME [\"/srv\"]", volume.ResolveVariables('\\', variables));
+        Assert.Equal(copy.ToString(), copy.ResolveVariables('\\', variables));
+
+        CopyInstruction donor = CopyInstruction.Parse("COPY \"\\u0024ROOT\" /dest");
+        VolumeInstruction receiver = VolumeInstruction.Parse("VOLUME []");
+        receiver.PathTokens.Add(donor.SourceTokens[0]);
+        Assert.Equal("VOLUME [\"/srv\"]", receiver.ResolveVariables('\\', variables));
+        Assert.Equal(donor.ToString(), donor.ResolveVariables('\\', variables));
+    }
+
+    [Theory]
+    [InlineData("'a\\\\b'", "'ab'")]
+    [InlineData("'\\\\$ROOT'", "'$ROOT'")]
+    [InlineData("'a\\\\\\\\b'", "'a\\b'")]
+    [InlineData("a\\\\", "a")]
+    public void JsonEscapeFormattingAppliesToProtectedAndTerminalEscapes(string content, string expected)
+    {
+        foreach (bool inline in new[] { false, true })
+        {
+            string text = $"VOLUME [\"{content}\"]";
+            VolumeInstruction instruction = VolumeInstruction.Parse(text);
+            string resolved = instruction.ResolveVariables('\\',
+                new Dictionary<string, string?> { ["ROOT"] = "unexpected" },
+                new ResolutionOptions { RemoveEscapeCharacters = true, UpdateInline = inline })!;
+            using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(resolved.Substring(7));
+            Assert.Equal(expected, json.RootElement[0].GetString());
+            Assert.Equal(text, instruction.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(64)]
+    [InlineData(128)]
+    [InlineData(512)]
+    public void JsonProtectedNestedMalformedReferencesRemainLossless(int count)
+    {
+        string text = "VOLUME [\"'" + string.Concat(Enumerable.Repeat("${X:-", count)) + "'\"]";
+        VolumeInstruction instruction = VolumeInstruction.Parse(text);
+        Assert.Equal(text, instruction.ToString());
+        Assert.Equal(text, instruction.ResolveVariables('\\'));
+    }
+
+    [Fact]
+    public void JsonUnclosedOuterReferencesDoNotHideCompleteInnerReferences()
+    {
+        string text = "VOLUME [\"'" + string.Concat(Enumerable.Repeat("${X:-", 512)) + "${ROOT}'\"]";
+        VolumeInstruction instruction = VolumeInstruction.Parse(text);
+        Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        Assert.Equal(text, instruction.ToString());
+        Assert.Equal(text, instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" }));
+    }
+
+    [Fact]
+    public void JsonTokenizationKeepsPhysicalReferenceBoundariesAcrossContinuations()
+    {
+        const string text = "VOLUME [\"${ROOT:-$\\\n{literal}\"]";
+        VolumeInstruction instruction = VolumeInstruction.Parse(text);
+        Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        Assert.Equal(text, instruction.ToString());
+    }
+
     [Fact]
     public void Paths()
     {

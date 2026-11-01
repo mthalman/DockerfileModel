@@ -87,7 +87,6 @@ public abstract partial class FileTransferInstruction : Instruction
                 throw new InvalidOperationException("No destination token exists to replace.");
             }
             SetToken(current, value);
-            value.ResolveAsJsonString = false;
         }
     }
 

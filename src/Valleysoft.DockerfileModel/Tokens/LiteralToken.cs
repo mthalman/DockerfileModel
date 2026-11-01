@@ -111,7 +111,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
         ResolutionOptions? options = null)
     {
-        if (!ResolveAsJsonString || QuoteChar != '"')
+        if (!(options?.JsonStringResolution ?? ResolveAsJsonString) || QuoteChar != '"')
         {
             return base.ResolveVariables(escapeChar, variables, options);
         }

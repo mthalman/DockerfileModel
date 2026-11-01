@@ -10,7 +10,20 @@ internal static class JsonStringVariableResolver
         string physical = path.ToString();
         (Token Token, string Text)[] source = path.Tokens.Select(token => (token, token.ToString())).ToArray();
         List<(int Start, int End, Token Token, bool Inline)> references = new();
-        TextParser<VariableRefToken> parser = VariableRefToken.GetParser(escapeChar);
+        HashSet<int> completeBraces = FindCompleteBracedReferences(physical, escapeChar);
+        Dictionary<int, Result<VariableRefToken>> parsed = new();
+        TextParser<VariableRefToken>? parser = null;
+        Result<VariableRefToken> ParseReference(TextSpan span)
+        {
+            // Cache recursive failures too, so malformed suffixes are not reparsed at each outer reference.
+            if (!parsed.TryGetValue(span.Position.Absolute, out Result<VariableRefToken> result))
+            {
+                result = (parser ?? throw new InvalidOperationException("The reference parser is not initialized."))(span);
+                parsed.Add(span.Position.Absolute, result);
+            }
+            return result;
+        }
+        parser = VariableRefToken.GetParser(escapeChar, ParseReference);
         TextSpan input = new TextSpan(physical).Skip(1);
         while (input.Position.Absolute < physical.Length - 1)
         {
@@ -22,7 +35,12 @@ internal static class JsonStringVariableResolver
             }
             if (physical[start] == '$')
             {
-                Result<VariableRefToken> reference = parser(input);
+                if (start + 1 < physical.Length && physical[start + 1] == '{' && !completeBraces.Contains(start))
+                {
+                    input = input.Skip(1);
+                    continue;
+                }
+                Result<VariableRefToken> reference = ParseReference(input);
                 if (reference.HasValue && reference.Remainder.Position.Absolute < physical.Length)
                 {
                     references.Add((start, reference.Remainder.Position.Absolute, reference.Value, false));
@@ -38,6 +56,32 @@ internal static class JsonStringVariableResolver
         {
             QuoteChar = path.QuoteChar
         };
+    }
+
+    private static HashSet<int> FindCompleteBracedReferences(string physical, char escapeChar)
+    {
+        List<int> offsets = new();
+        string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out _, offsets);
+        Stack<int> openings = new();
+        HashSet<int> complete = new();
+        for (int index = 1; index < logical.Length - 1; index++)
+        {
+            if (logical[index] == escapeChar)
+            {
+                index++;
+            }
+            else if (logical[index] == '$' && index + 1 < logical.Length && logical[index + 1] == '{' &&
+                offsets[index + 1] == offsets[index] + 1)
+            {
+                openings.Push(offsets[index]);
+                index++;
+            }
+            else if (logical[index] == '}' && openings.Count > 0)
+            {
+                complete.Add(openings.Pop());
+            }
+        }
+        return complete;
     }
 
     internal static string Resolve(LiteralToken path, string physical, string logical, List<int> offsets, char escapeChar,
@@ -108,6 +152,19 @@ internal static class JsonStringVariableResolver
             char current = decoded[index];
             if (quote == '\'')
             {
+                if (current == escapeChar && options.RemoveEscapeCharacters)
+                {
+                    int end = index + 1;
+                    string value = string.Empty;
+                    if (end < decoded.Length && decoded[end] == escapeChar)
+                    {
+                        end++;
+                        value = escapeChar.ToString();
+                    }
+                    replacements.Add((starts[index], ends[end - 1], new StringToken(Encode(value)), false));
+                    input = input.Skip(end - index);
+                    continue;
+                }
                 if (current == '\'')
                 {
                     quote = null;
@@ -115,8 +172,17 @@ internal static class JsonStringVariableResolver
                 input = input.Skip(1);
                 continue;
             }
-            if (current == escapeChar && index + 1 < decoded.Length)
+            if (current == escapeChar)
             {
+                if (index + 1 == decoded.Length)
+                {
+                    if (options.RemoveEscapeCharacters)
+                    {
+                        replacements.Add((starts[index], ends[index], new StringToken(string.Empty), false));
+                    }
+                    input = input.Skip(1);
+                    continue;
+                }
                 int length = char.IsHighSurrogate(decoded[index + 1]) &&
                     index + 2 < decoded.Length && char.IsLowSurrogate(decoded[index + 2]) ? 2 : 1;
                 if (options.RemoveEscapeCharacters)

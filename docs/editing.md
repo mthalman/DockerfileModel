@@ -158,13 +158,17 @@ surrogates decode to U+FFFD, matching BuildKit's JSON decoder, while untouched
 escape spelling remains intact. Legacy parser-accepted paths that are not valid
 JSON strings retain token-based resolution.
 
-`RemoveEscapeCharacters` affects returned JSON text without rewriting untouched
-path contents, even when `UpdateInline` is `true`. Inline substitutions stay
+`RemoveEscapeCharacters` affects returned JSON text, including single-quoted
+contents and trailing escape characters, without rewriting untouched path
+contents, even when `UpdateInline` is `true`. Inline substitutions stay
 literal across later primitive-token edits. Assigning the path's `Value` or
 updating it through `Paths` reparses its contents and makes new references
 eligible for resolution again.
-Syntax-aware adoption into a non-VOLUME owner clears the VOLUME JSON-resolution
-context; the receiving instruction retains its own resolution behavior.
+Collection adoption and scalar token replacement bind direct token resolution
+to the receiving owner's context. Instruction resolution uses that instruction's
+context independently of the token's latest binding, so sharing a token with a
+non-VOLUME instruction does not change the original VOLUME's resolution policy.
+The token and its contents remain shared mutable objects.
 
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's

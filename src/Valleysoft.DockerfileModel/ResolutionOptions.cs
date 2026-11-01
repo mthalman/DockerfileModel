@@ -287,6 +287,15 @@ public class ResolutionOptions
     /// </remarks>
     public bool RemoveEscapeCharacters { get; set; }
 
+    internal bool? JsonStringResolution { get; private set; }
+
+    internal ResolutionOptions WithJsonStringResolution(bool enabled) => new()
+    {
+        UpdateInline = UpdateInline,
+        RemoveEscapeCharacters = RemoveEscapeCharacters,
+        JsonStringResolution = enabled
+    };
+
     internal string FormatValue(char escapeChar, string value) =>
         FormatValue(escapeChar, value, RemoveEscapeCharacters);
 

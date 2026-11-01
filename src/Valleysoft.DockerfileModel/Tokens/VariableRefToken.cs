@@ -264,9 +264,11 @@ public class VariableRefToken : AggregateToken
     /// Parses a variable reference.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
+    /// <param name="nestedParser">Optional recursive parser for sharing a caller-local result cache.</param>
     /// <returns>Parsed variable reference token.</returns>
-    internal static TextParser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
-        from tokens in GetInnerParser(escapeChar)
+    internal static TextParser<VariableRefToken> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar,
+        TextParser<VariableRefToken>? nestedParser = null) =>
+        from tokens in GetInnerParser(escapeChar, nestedParser)
         select new VariableRefToken(tokens, escapeChar);
 
     /// <summary>
@@ -317,9 +319,10 @@ public class VariableRefToken : AggregateToken
         }
     }
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar,
+        TextParser<VariableRefToken>? nestedParser = null) =>
         SimpleVariableReference()
-            .Try().Or(BracedVariableReference(escapeChar));
+            .Try().Or(BracedVariableReference(escapeChar, nestedParser));
 
 
     /// <summary>
@@ -338,9 +341,10 @@ public class VariableRefToken : AggregateToken
     /// which allows horizontal whitespace within the braces.
     /// </summary>
     /// <param name="escapeChar">Escape character.</param>
+    /// <param name="nestedParser">Optional recursive parser for sharing a caller-local result cache.</param>
     /// <returns>Parsed variable reference token.</returns>
     private static TextParser<IEnumerable<Token>> BracedVariableReference(
-        char escapeChar) =>
+        char escapeChar, TextParser<VariableRefToken>? nestedParser = null) =>
         from variableChar in Character.EqualTo('$')
         from opening in Symbol('{').AsEnumerable()
         from varNameToken in
@@ -348,7 +352,8 @@ public class VariableRefToken : AggregateToken
             select new StringToken(varName)
         from modifierTokens in (
             from modifier in variableSubstitutionModifiers.Aggregate((current, next) => current.Try().Or(next)).AsEnumerable()
-            from modifierValueTokens in ValueOrVariableRef(escapeChar, ModifierValueParser(), new char[] { '}' })
+            from modifierValueTokens in ValueOrVariableRef(escapeChar, ModifierValueParser(), new char[] { '}' },
+                nestedParser)
                 .Try().Many()
                 .Flatten()
             select ConcatTokens(
