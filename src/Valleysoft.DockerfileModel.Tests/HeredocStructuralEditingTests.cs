@@ -7,6 +7,31 @@ namespace Valleysoft.DockerfileModel.Tests;
 /// </summary>
 public class HeredocStructuralEditingTests
 {
+    [Fact]
+    public void HeredocBoundaryPreviewsAllocateLinearlyWithOperandCount()
+    {
+        Measure(16);
+        long small = Measure(64);
+        long large = Measure(256);
+        Assert.True(large < small * 6,
+            $"Growing operands fourfold allocated {small} then {large} bytes.");
+
+        static long Measure(int count)
+        {
+            string sources = string.Join(" ", Enumerable.Range(0, count).Select(index => $"source{index}"));
+            CopyInstruction copy = CopyInstruction.Parse($"COPY {sources} /dest\r\n");
+            Heredoc incoming = new("DOC", "body\n");
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            copy.Heredocs.Add(incoming);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Same(incoming, Assert.Single(copy.Heredocs));
+            Assert.Equal($"COPY {sources} <<DOC /dest\r\nbody\nDOC\r\n", copy.ToString());
+            Assert.Equal(count, copy.SourceTokens.Count);
+            return allocated;
+        }
+    }
+
     /// <summary>
     /// Equal-comparing source and destination tokens do not move a new heredoc marker before the source.
     /// </summary>

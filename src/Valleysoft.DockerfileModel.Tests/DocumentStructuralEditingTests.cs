@@ -7,6 +7,47 @@ namespace Valleysoft.DockerfileModel.Tests;
 /// </summary>
 public class DocumentStructuralEditingTests
 {
+    [Fact]
+    public void DocumentPreviewsRefreshAfterEachStagedBoundary()
+    {
+        RunInstruction first = RunInstruction.Parse("RUN first");
+        RunInstruction second = RunInstruction.Parse("RUN second\r\n");
+        RunInstruction third = RunInstruction.Parse("RUN third");
+        Dockerfile file = new(new DockerfileConstruct[] { first, second, third });
+        WorkdirInstruction incoming = new("/app");
+
+        file.Items.Add(incoming);
+
+        Assert.Equal("RUN first\r\nRUN second\r\nRUN third\r\nWORKDIR /app", file.ToString());
+        Assert.Equal(new DockerfileConstruct[] { first, second, third, incoming }, file.Items);
+    }
+
+    [Fact]
+    public void DocumentPreviewsAllocateLinearlyWithStagedOperandsAndConstructs()
+    {
+        Measure(16);
+        long small = Measure(64);
+        long large = Measure(256);
+        Assert.True(large * 2 < small * 9,
+            $"Growing operands and constructs fourfold allocated {small} then {large} bytes.");
+
+        static long Measure(int count)
+        {
+            string suffix = string.Concat(Enumerable.Range(0, count).Select(index => $"RUN echo {index}\r\n"));
+            Dockerfile file = Dockerfile.Parse("COPY old /dest\r\n" + suffix);
+            string sources = string.Join(" ", Enumerable.Range(0, count).Select(index => $"source{index}"));
+            CopyInstruction incoming = CopyInstruction.Parse($"COPY {sources} /dest");
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            file.Items[0] = incoming;
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Same(incoming, file.Items[0]);
+            Assert.Equal($"COPY {sources} /dest\r\n" + suffix, file.ToString());
+            Assert.Equal(count + 1, file.Items.Count);
+            return allocated;
+        }
+    }
+
     /// <summary>
     /// Verifies insertion creates only the necessary separator while retaining neighboring construct instances.
     /// </summary>

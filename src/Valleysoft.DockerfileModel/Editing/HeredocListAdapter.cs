@@ -237,13 +237,15 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
     /// <summary>Infers each missing separator from the nearest staged structural newline, excluding body payload.</summary>
     private void EnsureBodyBoundaries(TokenEditPlan plan, bool terminateLast)
     {
+        Func<Token, string> render = plan.CreateRenderer();
         var bodies = plan.Tokens(owner).OfType<HeredocBodyToken>().ToArray();
         List<(int Position, string NewLine)> boundaries = new();
-        Dictionary<HeredocBodyToken, int> bodyEnds = new(ReferenceComparer<HeredocBodyToken>.Instance);
+        Dictionary<HeredocBodyToken, (int Position, bool Terminated)> bodyEnds =
+            new(ReferenceComparer<HeredocBodyToken>.Instance);
         int position = 0;
         foreach (Token token in plan.Tokens(owner))
         {
-            string text = plan.Render(token);
+            string text = render(token);
             if (token is HeredocBodyToken body)
             {
                 int childPosition = position;
@@ -251,12 +253,12 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
                 foreach (Token child in plan.Tokens(body))
                 {
                     closingDelimiter |= child is HeredocDelimiterToken;
-                    string childText = plan.Render(child);
+                    string childText = render(child);
                     if (closingDelimiter && child is NewLineToken)
                         AddBoundaries(childText, childPosition);
                     childPosition += childText.Length;
                 }
-                bodyEnds.Add(body, position + text.Length);
+                bodyEnds.Add(body, (position + text.Length, text.EndsWith("\n", StringComparison.Ordinal)));
             }
             else
             {
@@ -266,10 +268,10 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
         }
         for (int i = 0; i < bodies.Length; i++)
         {
-            if ((i < bodies.Length - 1 || terminateLast) && !plan.Render(bodies[i]).EndsWith("\n", StringComparison.Ordinal))
+            if ((i < bodies.Length - 1 || terminateLast) && !bodyEnds[bodies[i]].Terminated)
             {
                 string newline = boundaries.Count == 0 ? "\n" :
-                    boundaries.OrderBy(boundary => Math.Abs(boundary.Position - bodyEnds[bodies[i]])).First().NewLine;
+                    boundaries.OrderBy(boundary => Math.Abs(boundary.Position - bodyEnds[bodies[i]].Position)).First().NewLine;
                 plan.Edit(bodies[i]).Add(new NewLineToken(newline));
             }
         }
