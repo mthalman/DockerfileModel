@@ -23,6 +23,55 @@ public class DocumentStructuralEditingTests
     }
 
     [Fact]
+    public void DocumentBoundarySummariesPreserveFirstAndLastNewlineStyles()
+    {
+        const string trivia = "\r\n\n";
+        Whitespace precedingTrivia = new("");
+        precedingTrivia.ReplaceWithTokens(new Token[] { new NewLineToken("\r\n"), new NewLineToken("\n") });
+        RunInstruction precedingRun = RunInstruction.Parse("RUN first");
+        WorkdirInstruction appended = new("/app");
+        Dockerfile preceding = new(new DockerfileConstruct[] { precedingTrivia, precedingRun });
+        preceding.Items.Add(appended);
+        Assert.Equal(trivia + "RUN first\nWORKDIR /app", preceding.ToString());
+
+        Whitespace followingTrivia = new("");
+        followingTrivia.ReplaceWithTokens(new Token[] { new NewLineToken("\r\n"), new NewLineToken("\n") });
+        RunInstruction followingRun = RunInstruction.Parse("RUN first");
+        WorkdirInstruction inserted = new("/app");
+        Dockerfile following = new(new DockerfileConstruct[] { followingRun, followingTrivia });
+        following.Items.Insert(1, inserted);
+        Assert.Equal("RUN first\r\nWORKDIR /app" + trivia, following.ToString());
+    }
+
+    [Fact]
+    public void DocumentBoundarySummariesDoNotAllocatePerUnrelatedNewline()
+    {
+        Measure(true);
+        Measure(false);
+        long withoutRepair = Measure(false);
+        long withRepair = Measure(true);
+        Assert.True(withRepair - withoutRepair < 32_768,
+            $"Repairing one seam allocated {withRepair - withoutRepair} extra bytes for unrelated newlines.");
+
+        static long Measure(bool repair)
+        {
+            string trivia = string.Concat(Enumerable.Repeat("\r\n", 8192));
+            Whitespace whitespace = new("");
+            whitespace.ReplaceWithToken(new WhitespaceToken(trivia));
+            RunInstruction first = RunInstruction.Parse(repair ? "RUN first" : "RUN first\r\n");
+            RunInstruction incoming = RunInstruction.Parse("RUN next");
+            Dockerfile file = new(new DockerfileConstruct[] { first, whitespace });
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            file.Items.Insert(1, incoming);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Equal("RUN first\r\nRUN next" + trivia, file.ToString());
+            Assert.Equal(new DockerfileConstruct[] { first, incoming, whitespace }, file.Items);
+            return allocated;
+        }
+    }
+
+    [Fact]
     public void DocumentBoundaryRepairsAllocateLinearlyWithConstructs()
     {
         Measure(16);

@@ -136,7 +136,7 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
         string before = owner.ToString();
         PreserveBom(items, plan, trivia);
         Func<Token, string> render = plan.CreateRenderer();
-        List<string>[]? boundaryNewLines = null;
+        (string? First, string? Last)[]? boundaryNewLines = null;
         List<(DockerfileConstruct Owner, string NewLine)> seams = new();
         string tail = string.Empty;
         for (int i = 0; i < items.Count; i++)
@@ -144,10 +144,11 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
             string text = render(items[i]);
             if (i > 0 && items[i] is not Whitespace && HasContent(tail) && !StartsWithLineBreak(text))
             {
-                boundaryNewLines ??= items.Select(item => BoundaryNewLines(item, plan, render).ToList()).ToArray();
+                boundaryNewLines ??= items.Select(item => BoundaryNewLines(item, plan, render)).ToArray();
                 string newLine = SeamNewLine(boundaryNewLines, i);
                 seams.Add((items[i - 1], newLine));
-                boundaryNewLines[i - 1].Add(newLine);
+                boundaryNewLines[i - 1].First ??= newLine;
+                boundaryNewLines[i - 1].Last = newLine;
                 tail = string.Empty;
             }
             int newline = text.LastIndexOf('\n');
@@ -211,14 +212,14 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
         owner.RawItems.AddRange(items);
     }
 
-    private static string SeamNewLine(IReadOnlyList<List<string>> boundaryNewLines, int index)
+    private static string SeamNewLine(IReadOnlyList<(string? First, string? Last)> boundaryNewLines, int index)
     {
         for (int distance = 0; distance < Math.Max(index, boundaryNewLines.Count - index); distance++)
         {
             int previous = index - distance - 1;
             if (previous >= 0)
             {
-                string? preceding = boundaryNewLines[previous].LastOrDefault();
+                string? preceding = boundaryNewLines[previous].Last;
                 if (preceding is not null)
                 {
                     return preceding;
@@ -227,7 +228,7 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
             int next = index + distance;
             if (next < boundaryNewLines.Count)
             {
-                string? following = boundaryNewLines[next].FirstOrDefault();
+                string? following = boundaryNewLines[next].First;
                 if (following is not null)
                 {
                     return following;
@@ -237,8 +238,10 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
         return "\n";
     }
 
-    private static IEnumerable<string> BoundaryNewLines(Token token, TokenEditPlan plan, Func<Token, string> render)
+    private static (string? First, string? Last) BoundaryNewLines(Token token, TokenEditPlan plan, Func<Token, string> render)
     {
+        string? first = null;
+        string? last = null;
         if (token is AggregateToken aggregate)
         {
             IEnumerable<Token> children = plan.Tokens(aggregate);
@@ -249,10 +252,9 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
             }
             foreach (Token child in children)
             {
-                foreach (string newline in BoundaryNewLines(child, plan, render))
-                {
-                    yield return newline;
-                }
+                var boundary = BoundaryNewLines(child, plan, render);
+                first ??= boundary.First;
+                last = boundary.Last ?? last;
             }
         }
         else
@@ -262,10 +264,12 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
             {
                 if (text[i] == '\n')
                 {
-                    yield return i > 0 && text[i - 1] == '\r' ? "\r\n" : "\n";
+                    last = i > 0 && text[i - 1] == '\r' ? "\r\n" : "\n";
+                    first ??= last;
                 }
             }
         }
+        return (first, last);
     }
 
     private void PreserveBom(List<DockerfileConstruct> items, TokenEditPlan plan, TriviaDisposition trivia)
