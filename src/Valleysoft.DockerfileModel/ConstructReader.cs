@@ -143,15 +143,8 @@ internal static class ConstructReader
                 continue;
             }
 
-            int last = contentEnd - 1;
-            while (last >= position && (text[last] == ' ' || text[last] == '\t'))
-            {
-                last--;
-            }
-
-            // BuildKit's continuation rule excludes an escape preceded by another escape.
-            continued = end > contentEnd && last >= position && text[last] == escapeChar &&
-                (last == position || text[last - 1] != escapeChar);
+            int last = FindContinuationStart(text, position, contentEnd, escapeChar);
+            continued = end > contentEnd && last >= 0;
             int headerEnd = continued ? last : contentEnd;
             for (int i = position; i < headerEnd; i++)
             {
@@ -168,6 +161,19 @@ internal static class ConstructReader
 
         consumedEnd = position;
         return header.ToString();
+    }
+
+    internal static int FindContinuationStart(string text, int start, int contentEnd, char escapeChar)
+    {
+        int last = contentEnd - 1;
+        while (last >= start && (text[last] == ' ' || text[last] == '\t'))
+        {
+            last--;
+        }
+
+        // BuildKit excludes any escape immediately preceded by another escape, not just even pairs.
+        return last >= start && text[last] == escapeChar &&
+            (last == start || text[last - 1] != escapeChar) ? last : -1;
     }
 
     private static List<HeredocRegion> FindHeredocs(string header, List<int> offsets)

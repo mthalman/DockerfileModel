@@ -68,6 +68,14 @@ internal static class VariableParsers
             return LiteralWithVariablesFragment(escapeChar, excluded, whitespaceMode);
         }
 
+        var parser = new Lazy<TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>>(
+            () => WordFragments(escapeChar, excluded, whitespaceMode, allowUnmatchedQuoteFragments));
+        return input => parser.Value(input);
+    }
+
+    private static TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)> WordFragments(
+        char escapeChar, char[] excluded, WhitespaceMode whitespaceMode, bool allowUnmatchedQuoteFragments)
+    {
         TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)> fragment =
             LiteralWithVariablesFragment(escapeChar, excluded, whitespaceMode, separateQuotes: true);
         // Unquoted words historically include raw quotes; preserve them when a later quoted fragment is unmatched.

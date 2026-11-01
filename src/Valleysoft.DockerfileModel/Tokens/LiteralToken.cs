@@ -1,4 +1,3 @@
-
 namespace Valleysoft.DockerfileModel.Tokens;
 
 /// <summary>A literal with optional quote syntax, continuations, and recognized variable-reference children.</summary>
@@ -24,7 +23,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     }
 
     internal LiteralToken(IEnumerable<Token> tokens, bool canContainVariables, char escapeChar, bool preserveRawValue = false,
-        TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser = null)
+        TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser = null, bool useJsonStringSyntax = false)
         : base(tokens)
     {
         this.canContainVariables = canContainVariables;
@@ -32,7 +31,11 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         EditingEscapeChar = escapeChar;
         this.preserveRawValue = preserveRawValue;
         this.wordParser = wordParser;
+        UseJsonStringSyntax = useJsonStringSyntax;
     }
+
+    internal bool UseJsonStringSyntax { get; set; }
+    internal bool HasWordContext => wordParser is not null;
 
     /// <summary>Gets text without quote wrappers, continuations, comments, or newlines; sets the literal's inner contents.</summary>
     /// <remarks>
@@ -78,16 +81,18 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 
     /// <summary>Gets or sets the surrounding quote character, or null for no quote wrapper.</summary>
     /// <remarks>
-    /// Changing a mixed word's quote unwraps its fragment quotes while retaining variable-reference children,
+    /// Changing a parsed or adopted mixed word's quote unwraps its fragment quotes while retaining variable-reference children,
     /// adding braces where a removed wrapper delimited a variable name.
     /// Assigning the existing quote preserves the original fragment syntax.
+    /// Single quotes suppress variable resolution outside an enclosing double-quoted context.
+    /// Reference children are retained so later quote changes can re-enable resolution without reparsing the value.
     /// </remarks>
     public virtual char? QuoteChar
     {
         get => quoteChar;
         set
         {
-            if (quoteChar != value && Tokens.OfType<LiteralToken>().Any())
+            if (HasWordContext && quoteChar != value && Tokens.OfType<LiteralToken>().Any())
             {
                 ReplaceWithTokens(StringParsers.UnwrapLiteralFragments(Tokens,
                     aggregate => aggregate.TokenList, variable => variable.TokenList));
@@ -96,8 +101,22 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         }
     }
 
-    protected virtual IEnumerable<Token> GetInnerTokens(string value) =>
-        preserveRawValue ? new Token[] { new StringToken(value) } : GetTokens(value, canContainVariables, escapeChar).Tokens;
+    protected virtual IEnumerable<Token> GetInnerTokens(string value)
+    {
+        if (preserveRawValue)
+        {
+            return new Token[] { new StringToken(value) };
+        }
+        if (UseJsonStringSyntax)
+        {
+            IEnumerable<Token> tokens = CommandParsers.JsonStringTokens(escapeChar, canContainVariables)
+                .Try().Many().Flatten().AtEnd().Parse(value);
+            return TokenHelper.CollapseTokens(tokens,
+                token => token is StringToken || token.GetType() == typeof(WhitespaceToken),
+                text => new StringToken(text));
+        }
+        return GetTokens(value, canContainVariables, escapeChar).Tokens;
+    }
 
     private static (IEnumerable<Token> Tokens, char? QuoteChar) GetTokens(string value, bool canContainVariables, char escapeChar)
     {

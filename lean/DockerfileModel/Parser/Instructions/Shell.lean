@@ -39,7 +39,7 @@ open DockerfileModel.Parser.ExecForm
 /-- Parse the arguments of a SHELL instruction: exec form only.
     Corresponds to ShellInstruction.GetArgsParser() -/
 def shellArgsParser (escapeChar : Char) : Parser (List Token) :=
-  argTokens (jsonArrayParser escapeChar) escapeChar
+  argTokens (completeJsonArrayParser escapeChar) escapeChar
 
 -- ============================================================
 -- SHELL instruction parser

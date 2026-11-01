@@ -102,7 +102,7 @@ partial def copyArgsParser (escapeChar : Char) : Parser (List Token) := do
   -- Then parse file args: heredoc with destination, exec form, or space-separated
   let fileArgs ← argTokens
     (or' (heredocWithDestination escapeChar)
-      (except (or' (jsonArrayParser escapeChar) (spaceSeparatedFileArgs escapeChar))
+      (except (maybeJsonArrayParser (spaceSeparatedFileArgs escapeChar) escapeChar)
         heredocHeaderParser))
     escapeChar
   Parser.pure (concatTokens [flags.flatten, fileArgs])

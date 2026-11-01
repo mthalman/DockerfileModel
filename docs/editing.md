@@ -172,9 +172,8 @@ items. Consequently, removal can change `Items.Count` by more than minus one.
 Replacement can also promote embedded comments after the replacement item,
 which remains at the selected index.
 After a successful `Items.Clear()`, `Count` is zero. Preserve rejects the clear
-if retaining embedded trivia or the document's byte-order mark (BOM) would
-require leftover items. Use `Clear(Discard)` for an explicit complete removal.
-Other document edits preserve an existing BOM.
+if retaining trivia would require leftover items. Use `Clear(Discard)` for an
+explicit complete removal.
 
 Preserved trivia is reused rather than cloned. A removed instruction can still
 reference a comment promoted into the document, and a replaced heredoc can still

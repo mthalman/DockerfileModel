@@ -186,7 +186,9 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
         int markers = owner.Tokens.OfType<HeredocMarkerToken>().Count();
         int bodies = owner.Tokens.OfType<HeredocBodyToken>().Count();
         if (markers != bodies) throw new InvalidOperationException("Heredoc marker/body counts do not match.");
-        if (owner is FileTransferInstruction && owner.Tokens.TakeWhile(token => token is not HeredocBodyToken)
+        if (owner is FileTransferInstruction && owner.Tokens
+            .Skip(owner.Tokens.FirstOrDefault() is StringToken { Value: "\uFEFF" } ? 1 : 0)
+            .TakeWhile(token => token is not HeredocBodyToken)
             .OfType<StringToken>().Any(token => !string.IsNullOrWhiteSpace(token.Value)))
             throw new InvalidOperationException("Opaque file-transfer header text cannot be mapped to editable source tokens; use diagnostic parsing.");
         foreach (Heredoc pair in Snapshot()) pair.ValidatePair();
@@ -314,22 +316,20 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
         }
     }
 
-    /// <summary>Uses diagnostic document parsing to verify the complete instruction and expected heredoc associations.</summary>
+    /// <summary>Uses diagnostic instruction parsing to verify the complete instruction and expected heredoc associations.</summary>
     /// <returns>The detached instruction used to compare restored command semantics before commit.</returns>
     /// <remarks>
-    /// A temporary escape directive supplies custom context to the parser; it is not added to the owner.
+    /// The effective escape context is supplied directly without moving a leading BOM behind a temporary directive.
     /// Raw body content and delimiter expansion/chomp semantics must survive the proposed serialization.
     /// </remarks>
     private Instruction ValidateProspective(string text, IReadOnlyList<Heredoc> expected)
     {
-        string prefix = escapeChar == '`' ? "# escape=`\n" : "";
-        DockerfileParseResult result = Dockerfile.TryParse(prefix + text);
-        Instruction? parsed = result.Dockerfile?.Items.OfType<Instruction>().SingleOrDefault();
+        Instruction parsed = EditValidation.ParseInstruction(text, escapeChar);
         bool matchingKind = (owner, parsed) is
             (RunInstruction, RunInstruction) or
             (CopyInstruction, CopyInstruction) or
             (AddInstruction, AddInstruction);
-        if (!result.Success || parsed is null || !matchingKind || parsed.ToString() != text)
+        if (!matchingKind || parsed.ToString() != text)
             throw new InvalidOperationException("The heredoc edit would not form one complete instruction.");
         IReadOnlyList<Heredoc> actual = parsed switch
         {

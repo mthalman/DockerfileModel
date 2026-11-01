@@ -178,13 +178,17 @@ public class AddInstruction : FileTransferInstruction
     internal static AddInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
         new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
+    internal static AddInstruction ParseForEditing(string text, char escapeChar) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, allowLegacyJsonOperands: true).AtEnd()), escapeChar);
+
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null,
+        bool allowLegacyJsonOperands = false) =>
         GetInnerParser(escapeChar, Name,
             ArgTokens(ChecksumFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)
                 .Try().Or(ArgTokens(KeepGitDirFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
                 .Try().Or(ArgTokens(LinkFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
                 .Try().Or(ArgTokens(UnpackFlag.GetParser(escapeChar).AsEnumerable(), escapeChar))
-                .Try().Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context);
+                .Try().Or(ArgTokens(ExcludeFlag.GetParser(escapeChar).AsEnumerable(), escapeChar)), context, allowLegacyJsonOperands);
 
     private static IEnumerable<Token> GetTokens(IEnumerable<string> sources, string destination,
         string? changeOwner, string? permissions, string? checksum, bool keepGitDir, bool link,
@@ -198,6 +202,6 @@ public class AddInstruction : FileTransferInstruction
             excludes.Select(pattern => new ExcludeFlag(pattern, escapeChar).ToString() + " "));
         string trailingFlags = $"{keepGitDirFlag}{linkFlag}{unpackFlag}{excludeFlags}";
         string text = CreateInstructionString(sources, destination, changeOwner, permissions, escapeChar, Name, checksumFlag, trailingFlags);
-        return GetTokens(text, GetInnerParser(escapeChar));
+        return GetTokens(text, GetInnerParser(escapeChar, allowLegacyJsonOperands: true));
     }
 }

@@ -80,6 +80,36 @@ public class QuotedOperandTests
     }
 
     [Fact]
+    public void ParsedSingleQuotedFragmentsRetainResolutionPolicyUntilRequoting()
+    {
+        CopyInstruction instruction = CopyInstruction.Parse("COPY '$ROOT'suffix /dest");
+        LiteralToken source = Assert.Single(instruction.SourceTokens);
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "value", ["ROOTsuffix"] = "wrong" };
+
+        Assert.Equal("'$ROOT'suffix", source.ResolveVariables('\\', variables));
+        source.QuoteChar = '"';
+        Assert.Equal("\"${ROOT}suffix\"", source.ToString());
+        Assert.Equal("\"valuesuffix\"", source.ResolveVariables('\\', variables));
+        Assert.Equal(source.ResolveVariables('\\', variables),
+            CopyInstruction.Parse(instruction.ToString()).SourceTokens[0].ResolveVariables('\\', variables));
+    }
+
+    [Fact]
+    public void StagedSingleQuotedFragmentsRetainVariableBoundariesWhenAdoptedAsJson()
+    {
+        LiteralToken source = Assert.Single(CopyInstruction.Parse("COPY '$ROOT'suffix /dest").SourceTokens);
+        CopyInstruction target = CopyInstruction.Parse("COPY [\"old\", \"/dest\"]");
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "value", ["ROOTsuffix"] = "wrong" };
+
+        Assert.Equal("'$ROOT'suffix", source.ResolveVariables('\\', variables));
+        target.SourceTokens.Add(source);
+        Assert.Same(source, target.SourceTokens[1]);
+        Assert.Equal("\"${ROOT}suffix\"", source.ToString());
+        Assert.Equal("\"valuesuffix\"", source.ResolveVariables('\\', variables));
+        Assert.True(source.UseJsonStringSyntax);
+    }
+
+    [Fact]
     public void FreeformLiteralsRetainEmbeddedApostrophes()
     {
         const string text = "MAINTAINER Jean O'Brien";

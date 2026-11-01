@@ -68,7 +68,7 @@ internal sealed class TokenEditPlan
             effective.TryGetValue(owner, out List<Token>? children) ? children : owner.TokenList;
         foreach (KeyValuePair<IQuotableToken, char?> change in quotes)
         {
-            if (change.Key is LiteralToken literal && change.Value != literal.QuoteChar &&
+            if (change.Key is LiteralToken { HasWordContext: true } literal && change.Value != literal.QuoteChar &&
                 Read(literal).OfType<LiteralToken>().Any())
             {
                 effective[literal] = StringParsers.UnwrapLiteralFragments(Read(literal), Read, variable =>

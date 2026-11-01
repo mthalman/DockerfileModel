@@ -320,6 +320,7 @@ public class JsonStructuralEditingTests
 
         Assert.Equal("[\"old\"]", command.ToString());
         Assert.Null(incoming.QuoteChar);
+        Assert.False(incoming.UseJsonStringSyntax);
     }
 
     /// <summary>Preserves physical source offsets and heredoc framing when folding a continued JSON header.</summary>

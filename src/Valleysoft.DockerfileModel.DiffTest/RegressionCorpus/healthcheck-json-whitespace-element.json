@@ -1,0 +1,9 @@
+{
+  "id": "local-healthcheck-json-whitespace-element",
+  "instructionType": "HEALTHCHECK",
+  "inputBase64": "SEVBTFRIQ0hFQ0sgQ01EIFsidHJ1ZSIsICIgIl0=",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}
