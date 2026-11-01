@@ -106,6 +106,14 @@ internal static class CommandParsers
     internal static TextParser<IEnumerable<Token>> JsonArray(char escapeChar, bool canContainVariables, bool allowEmpty = false,
         bool useJsonStringSyntax = false)
     {
+        var parser = new Lazy<TextParser<IEnumerable<Token>>>(() =>
+            CreateJsonArrayParser(escapeChar, canContainVariables, allowEmpty, useJsonStringSyntax));
+        return input => parser.Value(input);
+    }
+
+    private static TextParser<IEnumerable<Token>> CreateJsonArrayParser(char escapeChar, bool canContainVariables, bool allowEmpty,
+        bool useJsonStringSyntax)
+    {
         TextParser<IEnumerable<Token>> whitespace = JsonWhitespace(escapeChar);
         TextParser<IEnumerable<Token>> elements =
             JsonArrayElements(escapeChar, canContainVariables, allowEmpty, useJsonStringSyntax);

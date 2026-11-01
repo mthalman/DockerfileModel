@@ -290,6 +290,77 @@ public class CommandJsonRecognitionTests
         Assert.True(allocated < 1_000_000, $"Parsing 100 escaped segments allocated {allocated} bytes.");
     }
 
+    [Theory]
+    [InlineData('\\', false, false)]
+    [InlineData('\\', false, true)]
+    [InlineData('\\', true, false)]
+    [InlineData('\\', true, true)]
+    [InlineData('`', false, false)]
+    [InlineData('`', false, true)]
+    [InlineData('`', true, false)]
+    [InlineData('`', true, true)]
+    public void JsonArrayConstructionDefersElementParsers(char escapeChar, bool canContainVariables, bool useJsonStringSyntax)
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            CommandParsers.JsonArray(escapeChar, canContainVariables, allowEmpty: true, useJsonStringSyntax);
+        }
+        long start = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            GC.KeepAlive(CommandParsers.JsonArray(escapeChar, canContainVariables, allowEmpty: true, useJsonStringSyntax));
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
+        Assert.True(allocated < 100_000, $"Constructing 100 unused JSON parsers allocated {allocated} bytes.");
+    }
+
+    [Theory]
+    [InlineData("RUN", 25_000_000)]
+    [InlineData("CMD", 17_000_000)]
+    [InlineData("ENTRYPOINT", 21_000_000)]
+    [InlineData("HEALTHCHECK", 34_000_000)]
+    [InlineData("ADD", 26_000_000)]
+    [InlineData("COPY", 26_000_000)]
+    [InlineData("VOLUME", 18_000_000)]
+    public void NonJsonInstructionParsingDoesNotConstructJsonGrammar(string instruction, long allocationLimit)
+    {
+        string text = instruction switch
+        {
+            "HEALTHCHECK" => "HEALTHCHECK CMD echo hello",
+            "ADD" or "COPY" => $"{instruction} source destination",
+            "VOLUME" => "VOLUME /data",
+            _ => $"{instruction} echo hello"
+        };
+        for (int i = 0; i < 10; i++)
+        {
+            Dockerfile.Parse(text);
+        }
+        long start = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            Dockerfile.Parse(text);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
+        Assert.True(allocated < allocationLimit, $"Parsing 100 non-JSON {instruction} instructions allocated {allocated} bytes.");
+    }
+
+    [Theory]
+    [InlineData('\\', false)]
+    [InlineData('\\', true)]
+    [InlineData('`', false)]
+    [InlineData('`', true)]
+    public void DeferredJsonArrayParserKeepsParseResultsIndependent(char escapeChar, bool useJsonStringSyntax)
+    {
+        var parser = CommandParsers.JsonArray(escapeChar, canContainVariables: false, allowEmpty: true,
+            useJsonStringSyntax).AtEnd();
+        Assert.False(parser(new TextSpan("[invalid]")).HasValue);
+        IEnumerable<Token> first = parser.Parse("[\"first\"]");
+        IEnumerable<Token> second = parser.Parse("[\"next\", \"last\"]");
+        Assert.Equal("[\"first\"]", string.Concat(first));
+        Assert.Equal("[\"next\", \"last\"]", string.Concat(second));
+        Assert.Equal("[]", string.Concat(parser.Parse("[]")));
+    }
+
     [Fact]
     public void JsonArrayParsingReusesElementParsers()
     {
