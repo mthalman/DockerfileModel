@@ -9,12 +9,20 @@ internal sealed class LiteralResolutionPlan
     private readonly ShellQuoteContext initialContext;
     private readonly Entry[] entries;
     private readonly ExceptionDispatchInfo? quoteFailure;
-    private bool consumed;
+    private readonly Operation operation;
+    private long validatedGeneration;
+    private volatile bool consumed;
 
     public LiteralResolutionPlan(AggregateToken token, char escapeChar, ref ShellQuoteContext context)
+        : this(token, escapeChar, ref context, new Operation())
+    {
+    }
+
+    private LiteralResolutionPlan(AggregateToken token, char escapeChar, ref ShellQuoteContext context, Operation operation)
     {
         this.token = token;
         this.escapeChar = escapeChar;
+        this.operation = operation;
         initialContext = context;
         QuoteChar = ReadQuote(token, out quoteFailure);
         ConsumeQuote(QuoteChar, escapeChar, ref context);
@@ -27,6 +35,7 @@ internal sealed class LiteralResolutionPlan
             ShellQuoteContext childContext = context;
             LiteralResolutionPlan? childPlan = null;
             ExceptionDispatchInfo? childFailure = null;
+            char? childQuote = null;
             if (child is not (LineContinuationToken or CommentToken or NewLineToken))
             {
                 if (child is VariableRefToken)
@@ -38,33 +47,32 @@ internal sealed class LiteralResolutionPlan
                 }
                 else if (child is AggregateToken aggregate)
                 {
-                    childPlan = new LiteralResolutionPlan(aggregate, escapeChar, ref context);
+                    childPlan = new LiteralResolutionPlan(aggregate, escapeChar, ref context, operation);
                 }
                 else if (child is PrimitiveToken primitive)
                 {
-                    char? quote = ReadQuote(child, out childFailure);
-                    ConsumeQuote(quote, escapeChar, ref context);
+                    childQuote = ReadQuote(child, out childFailure);
+                    ConsumeQuote(childQuote, escapeChar, ref context);
                     ConsumeText(primitive.Value, escapeChar, ref context);
-                    ConsumeQuote(quote, escapeChar, ref context);
+                    ConsumeQuote(childQuote, escapeChar, ref context);
                 }
             }
-            entries[i] = new Entry(child, childContext, childPlan, childFailure);
+            entries[i] = new Entry(child, childContext, childPlan, childFailure, childQuote);
         }
         ConsumeQuote(QuoteChar, escapeChar, ref context);
+        validatedGeneration = operation.Generation;
     }
 
     public char? QuoteChar { get; }
 
     public LiteralResolutionPlan ForInvocation(char escapeChar)
     {
-        quoteFailure?.Throw();
-        Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolver = token.ResolveVariables;
-        bool hasOverride = resolver.Method.DeclaringType != typeof(AggregateToken);
-        // Overrides can edit descendants before delegating; only the shared, non-overridden path reuses a subtree.
-        if (consumed || this.escapeChar != escapeChar || hasOverride || !MatchesCurrentSyntax())
+        // Consumer callbacks can edit any shared subtree, even when the current token has no override.
+        if (consumed || this.escapeChar != escapeChar ||
+            !MatchesCurrentSyntax(recursive: Interlocked.Read(ref validatedGeneration) != operation.Generation))
         {
             ShellQuoteContext context = initialContext;
-            return new LiteralResolutionPlan(token, escapeChar, ref context);
+            return new LiteralResolutionPlan(token, escapeChar, ref context, operation);
         }
         return this;
     }
@@ -79,11 +87,13 @@ internal sealed class LiteralResolutionPlan
 
     public LiteralResolutionPlan? GetChildPlan(int index) => entries[index].Plan;
 
-    public void ThrowDeferredFailure(int index) => entries[index].Failure?.Throw();
+    public void BeforeCallback(Token callbackToken) => operation.BeforeCallback(callbackToken);
 
-    private bool MatchesCurrentSyntax()
+    private bool MatchesCurrentSyntax(bool recursive)
     {
-        if (QuoteChar != (token as IQuotableToken)?.QuoteChar || entries.Length != token.TokenList.Count)
+        char? currentQuote = ReadQuote(token, out ExceptionDispatchInfo? currentFailure);
+        if (QuoteChar != currentQuote || !SameFailure(quoteFailure, currentFailure) ||
+            entries.Length != token.TokenList.Count)
         {
             return false;
         }
@@ -95,9 +105,26 @@ internal sealed class LiteralResolutionPlan
             {
                 return false;
             }
+            if (child is PrimitiveToken && child is IQuotableToken)
+            {
+                currentQuote = ReadQuote(child, out currentFailure);
+                if (entries[i].QuoteChar != currentQuote || !SameFailure(entries[i].Failure, currentFailure))
+                {
+                    return false;
+                }
+            }
+            if (recursive && entries[i].Plan is LiteralResolutionPlan childPlan &&
+                !childPlan.MatchesCurrentSyntax(recursive: true))
+            {
+                return false;
+            }
         }
+        Interlocked.Exchange(ref validatedGeneration, operation.Generation);
         return true;
     }
+
+    private static bool SameFailure(ExceptionDispatchInfo? first, ExceptionDispatchInfo? second) =>
+        ReferenceEquals(first?.SourceException, second?.SourceException);
 
     private static char? ReadQuote(Token token, out ExceptionDispatchInfo? failure)
     {
@@ -108,7 +135,7 @@ internal sealed class LiteralResolutionPlan
         }
         catch (Exception exception)
         {
-            // Metadata failures are rethrown at their reverse-resolution position, not during lexical scanning.
+            // Defer metadata failures until resolution, when consumer callbacks may have repaired them.
             failure = ExceptionDispatchInfo.Capture(exception);
             return null;
         }
@@ -161,12 +188,14 @@ internal sealed class LiteralResolutionPlan
 
     private readonly struct Entry
     {
-        public Entry(Token token, ShellQuoteContext context, LiteralResolutionPlan? plan, ExceptionDispatchInfo? failure)
+        public Entry(Token token, ShellQuoteContext context, LiteralResolutionPlan? plan, ExceptionDispatchInfo? failure,
+            char? quoteChar)
         {
             Token = token;
             Context = context;
             Plan = plan;
             Failure = failure;
+            QuoteChar = quoteChar;
             PrimitiveValue = (token as PrimitiveToken)?.Value;
         }
 
@@ -174,6 +203,42 @@ internal sealed class LiteralResolutionPlan
         public ShellQuoteContext Context { get; }
         public LiteralResolutionPlan? Plan { get; }
         public ExceptionDispatchInfo? Failure { get; }
+        public char? QuoteChar { get; }
         public string? PrimitiveValue { get; }
+    }
+
+    private sealed class Operation
+    {
+        private readonly Dictionary<Type, bool> resolverOverrides = new();
+        private long generation;
+
+        public long Generation => Interlocked.Read(ref generation);
+
+        public void BeforeCallback(Token token)
+        {
+            if (token is AggregateToken aggregate)
+            {
+                Type type = token.GetType();
+                bool hasOverride;
+                lock (resolverOverrides)
+                {
+                    if (!resolverOverrides.TryGetValue(type, out hasOverride))
+                    {
+                        Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolver = aggregate.ResolveVariables;
+                        hasOverride = resolver.Method.DeclaringType != typeof(AggregateToken);
+                        resolverOverrides.Add(type, hasOverride);
+                    }
+                }
+                if (hasOverride)
+                {
+                    Interlocked.Increment(ref generation);
+                }
+            }
+            else if (token.GetType() != typeof(StringToken) && token.GetType() != typeof(SymbolToken) &&
+                token.GetType() != typeof(WhitespaceToken) && token.GetType() != typeof(NewLineToken))
+            {
+                Interlocked.Increment(ref generation);
+            }
+        }
     }
 }
