@@ -164,6 +164,8 @@ public class Dockerfile : IConstructContainer
     /// changes they make to the supplied options affect subsequent resolution. Explicit consumer resolution overrides
     /// on trivia tokens also contribute binding contents. Inline replay does not enable updates retroactively for
     /// references consumed while updates were disabled.
+    /// An enclosing reference can retain earlier modifier syntax when a later callback enables inline updates,
+    /// without reinterpreting already-resolved contents.
     /// Default references resolve
     /// right-to-left; custom callbacks can edit pending syntax but do not rewrite already-resolved output.
     /// Pending consumer serializers are rechecked after custom callbacks or later consumer serialization,
@@ -390,7 +392,7 @@ public class Dockerfile : IConstructContainer
         IDictionary<string, string?> bindings, ResolutionOptions options,
         Action<AggregateToken, int, TokenResolution>? recordResolution = null,
         Action? onCustomResolution = null, Action? onBeforeCustomResolution = null,
-        Action<string?>? recordSyntax = null, Func<bool>? shouldRecordSyntax = null)
+        Action<Func<string?>>? recordSyntax = null, Func<bool>? shouldRecordSyntax = null)
     {
         int customResolutionVersion = 0;
         void RecordCustomResolution()
@@ -399,7 +401,7 @@ public class Dockerfile : IConstructContainer
             onCustomResolution?.Invoke();
         }
 
-        string? resolvedSyntax = null;
+        Func<string?>? resolvedSyntax = null;
         string? resolvedRootValue = null;
         bool resolvedRoot = false;
         string? ResolveToken(AggregateToken aggregate)
@@ -408,7 +410,7 @@ public class Dockerfile : IConstructContainer
             {
                 onBeforeCustomResolution?.Invoke();
             }
-            string? modifierSyntax = null;
+            Func<string?>? modifierSyntax = null;
             bool selectedModifier = false;
             bool ShouldRecordModifierSyntax() => options.UpdateInline ||
                 (shouldRecordSyntax?.Invoke() ?? recordSyntax is not null);
@@ -430,9 +432,10 @@ public class Dockerfile : IConstructContainer
             {
                 RecordCustomResolution();
             }
-            resolvedSyntax = !aggregate.UsesCustomResolution && selectedModifier &&
-                ShouldRecordModifierSyntax()
-                ? options.FormatValue(escapeChar, modifierSyntax ?? String.Empty) : value;
+            bool removeEscapes = options.RemoveEscapeCharacters;
+            resolvedSyntax = !aggregate.UsesCustomResolution && selectedModifier
+                ? () => ResolutionOptions.FormatValue(escapeChar, modifierSyntax?.Invoke() ?? String.Empty, removeEscapes)
+                : null;
             if (ReferenceEquals(aggregate, token))
             {
                 resolvedRootValue = value;
@@ -443,7 +446,7 @@ public class Dockerfile : IConstructContainer
 
         string result = AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, ResolveToken,
             resolveAggregate: ResolveToken, getCustomResolutionVersion: () => customResolutionVersion,
-            getResolvedSyntax: () => resolvedSyntax, syntaxOptions: options,
+            getResolvedSyntaxFactory: () => resolvedSyntax, syntaxOptions: options,
             recordTokenResolution: recordResolution, recordSyntax: recordSyntax,
             onConsumerSerialization: RecordCustomResolution, shouldRecordSyntax: shouldRecordSyntax);
         return resolvedRoot ? resolvedRootValue : result;

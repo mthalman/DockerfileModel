@@ -1191,6 +1191,113 @@ public class ArgResolutionContextTests
         Assert.Equal(1, continuation.FailingSerializationCount);
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void LaterInlineActivationRetainsEarlierModifierQuotes(bool stageScope, bool updateInline, bool nested)
+    {
+        LiteralToken quoted = Literal(new StringToken("a b"));
+        quoted.QuoteChar = '"';
+        VariableRefToken inner = new("INNER", ":-", "placeholder") { ModifierValueToken = quoted };
+        VariableRefToken earlier = nested
+            ? new VariableRefToken("MIDDLE", ":-", "placeholder") { ModifierValueToken = Literal(inner) }
+            : inner;
+        VariableRefToken outer = new("OUTER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(
+                new CallbackVariable((_, _, options) => options!.UpdateInline = true), earlier)
+        };
+        Dockerfile dockerfile = Document(stageScope, outer);
+
+        Assert.Equal(stageScope ? "ENV RESULT=lefta b" : "FROM prefixlefta b",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("ARG X=left\"a b\"\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        if (!updateInline)
+        {
+            Assert.Equal(":-", inner.Modifier);
+            Assert.Same(quoted, inner.ModifierValueToken);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DelayedModifierSyntaxRetainsConsumedContentsAndFormatting(bool stageScope)
+    {
+        LiteralToken quoted = Literal(new StringToken("a\\\\b"));
+        quoted.QuoteChar = '"';
+        VariableRefToken inner = new("INNER", ":-", "placeholder") { ModifierValueToken = quoted };
+        VariableRefToken outer = new("OUTER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new CallbackVariable((_, _, options) =>
+            {
+                options!.RemoveEscapeCharacters = true;
+                options.UpdateInline = true;
+                quoted.QuoteChar = '\'';
+                quoted.Value = "edited";
+            }), inner)
+        };
+        Dockerfile dockerfile = Document(stageScope, outer);
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftab" : "FROM prefixleftab",
+            dockerfile.ResolveVariables(options: new ResolutionOptions()));
+        Assert.Equal("ARG X=left\"a\\b\"\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal(":-", inner.Modifier);
+        Assert.Equal("edited", quoted.Value);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void EscapedOpaqueAggregateResultsRemainSemanticData(bool stageScope, bool updateInline)
+    {
+        const string customValue = "\"$LITERAL\\q\"";
+        Dockerfile dockerfile = Document(stageScope, new StringToken("\\"),
+            new OptionsEditingLiteral(_ => customValue), new VariableRefToken("UNSET", ":-", "right"));
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? $"ENV RESULT={customValue}right" : $"FROM prefix{customValue}right",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false, '\\')]
+    [InlineData(false, true, '\\')]
+    [InlineData(true, false, '\\')]
+    [InlineData(true, true, '\\')]
+    [InlineData(false, false, '`')]
+    [InlineData(false, true, '`')]
+    [InlineData(true, false, '`')]
+    [InlineData(true, true, '`')]
+    public void OpaqueAggregatesConsumePrecedingEscapes(bool stageScope, bool updateInline, char escapeChar)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? $"# escape={escapeChar}\nFROM alpine\nARG X=placeholder\nENV RESULT=$X"
+            : $"# escape={escapeChar}\nARG X=placeholder\nFROM prefix$X");
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken = Literal(
+            new StringToken(escapeChar.ToString()), new OptionsEditingLiteral(_ => "computed"),
+            new VariableRefToken("MISSING", "?", "right"));
+        string original = dockerfile.ToString();
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'MISSING' is not set. Error detail: 'right'.", error.Message);
+        Assert.Equal(original, dockerfile.ToString());
+    }
+
     [Fact]
     public void SimpleReferencesDoNotAllocateModifierScopes()
     {

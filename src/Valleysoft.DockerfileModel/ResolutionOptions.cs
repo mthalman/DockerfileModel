@@ -97,9 +97,12 @@ public class ResolutionOptions
     /// </remarks>
     public bool RemoveEscapeCharacters { get; set; }
 
-    internal string FormatValue(char escapeChar, string value)
+    internal string FormatValue(char escapeChar, string value) =>
+        FormatValue(escapeChar, value, RemoveEscapeCharacters);
+
+    internal static string FormatValue(char escapeChar, string value, bool removeEscapeCharacters)
     {
-        if (RemoveEscapeCharacters)
+        if (removeEscapeCharacters)
         {
             StringBuilder builder = new();
             for (int i = 0; i < value.Length; i++)

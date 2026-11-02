@@ -67,9 +67,9 @@ internal static class AnalysisExpressionEvaluator
         Func<VariableRefToken, string?> resolveVariable,
         Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null,
         Func<LiteralToken, string>? resolveLiteral = null, Func<int>? getCustomResolutionVersion = null,
-        Func<string?>? getResolvedSyntax = null, ResolutionOptions? syntaxOptions = null,
+        Func<Func<string?>?>? getResolvedSyntaxFactory = null, ResolutionOptions? syntaxOptions = null,
         Action<AggregateToken, int, TokenResolution>? recordTokenResolution = null,
-        Action<string?>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null,
+        Action<Func<string?>>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null,
         Action? onConsumerSerialization = null, Func<bool>? shouldRecordSyntax = null)
     {
         Dictionary<string, AnalysisValue> variables = new();
@@ -108,8 +108,8 @@ internal static class AnalysisExpressionEvaluator
                     ? resolveVariable(variable)
                     : resolveAggregate is not null ? resolveAggregate((AggregateToken)reference.Source)
                     : resolveLiteral!((LiteralToken)reference.Source);
-                reference.ResolvedSyntaxValue = getResolvedSyntax is null
-                    ? reference.ResolvedValue : getResolvedSyntax();
+                reference.ResolvedSyntaxValue = reference.ResolvedValue;
+                reference.ResolvedSyntaxFactory = getResolvedSyntaxFactory?.Invoke();
                 reference.IsResolved = true;
                 reference.InlineUpdateAllowed = syntaxOptions?.UpdateInline == true;
                 if (reference.InlineUpdateAllowed)
@@ -139,9 +139,19 @@ internal static class AnalysisExpressionEvaluator
             snapshot.RecordTokenResolutions(escapeChar, syntaxOptions!, recordTokenResolution,
                 shouldRecordSyntax?.Invoke() == true);
         }
-        if (recordSyntax is not null && (shouldRecordSyntax?.Invoke() ?? true))
+        if (recordSyntax is not null)
         {
-            recordSyntax(snapshot.GetResolvedSyntax(escapeChar, syntaxOptions!));
+            if (shouldRecordSyntax?.Invoke() ?? true)
+            {
+                string? syntax = snapshot.GetResolvedSyntax(escapeChar, syntaxOptions!);
+                recordSyntax(() => syntax);
+            }
+            else
+            {
+                // Later callbacks can enable an enclosing update; unused syntax must not invoke serializers.
+                ResolutionOptions formatting = new() { RemoveEscapeCharacters = syntaxOptions!.RemoveEscapeCharacters };
+                recordSyntax(() => snapshot.GetResolvedSyntax(escapeChar, formatting));
+            }
         }
         return result.Value!;
     }
@@ -270,6 +280,7 @@ internal static class AnalysisExpressionEvaluator
         public bool InlineUpdateAllowed { get; set; }
         public string? ResolvedValue { get; set; }
         public string? ResolvedSyntaxValue { get; set; }
+        public Func<string?>? ResolvedSyntaxFactory { get; set; }
         public string? SuppressedSyntax { get; set; }
         public (char? QuoteChar, bool Escaped) Context { get; set; }
         public char? OpeningQuote { get; private set; }
@@ -480,7 +491,7 @@ internal static class AnalysisExpressionEvaluator
                 ? index : owner.TokenList.FindIndex(token => ReferenceEquals(token, Source));
             if (liveIndex >= 0)
             {
-                owner.ReplaceResolvedVariable(liveIndex, ResolvedSyntaxValue,
+                owner.ReplaceResolvedVariable(liveIndex, GetResolvedSyntaxValue(),
                     (ResolvedValue ?? String.Empty, Context.QuoteChar, Context.Escaped), escapeChar);
                 InlineUpdated = true;
             }
@@ -642,7 +653,7 @@ internal static class AnalysisExpressionEvaluator
             SerializationFailure?.Throw();
             if (IsReference)
             {
-                return IsResolved ? ResolvedSyntaxValue
+                return IsResolved ? GetResolvedSyntaxValue()
                     : options.FormatValue(escapeChar, SuppressedSyntax ?? Source.ToString());
             }
             if (Source is not AggregateToken)
@@ -659,6 +670,16 @@ internal static class AnalysisExpressionEvaluator
             }
             builder.Append(ClosingQuote);
             return builder.ToString();
+        }
+
+        private string? GetResolvedSyntaxValue()
+        {
+            if (ResolvedSyntaxFactory is { } factory)
+            {
+                ResolvedSyntaxValue = factory();
+                ResolvedSyntaxFactory = null;
+            }
+            return ResolvedSyntaxValue;
         }
     }
 
@@ -894,6 +915,10 @@ internal static class AnalysisExpressionEvaluator
                 {
                     snapshot.Context = (quote, escaped);
                     AppendValue(AnalysisValue.Known(resolveSnapshot!(snapshot)));
+                }
+                if (snapshot.Source is not VariableRefToken)
+                {
+                    escaped = false;
                 }
                 return;
             }
