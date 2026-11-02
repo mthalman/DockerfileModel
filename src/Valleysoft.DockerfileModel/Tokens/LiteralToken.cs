@@ -161,7 +161,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         string physical = JsonStringVariableResolver.RenderToken(this);
         PruneResolvedJsonLiterals();
         if (IsPlainJsonString(physical, escapeChar) &&
-            !HasCustomReference())
+            !HasCustomDescendant())
         {
             return physical;
         }
@@ -178,7 +178,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
             expandVariables: canContainVariables);
     }
 
-    private bool HasCustomReference()
+    private bool HasCustomDescendant()
     {
         Stack<LiteralToken>? pending = null;
         IEnumerable<Token> tokens = Tokens;
@@ -186,7 +186,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         {
             foreach (Token token in tokens)
             {
-                if (token is VariableRefToken { HasCustomResolution: true })
+                if (token is VariableRefToken { HasCustomResolution: true } or
+                    LiteralToken { HasCustomResolution: true })
                 {
                     return true;
                 }
