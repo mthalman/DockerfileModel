@@ -245,7 +245,7 @@ internal static class JsonStringVariableResolver
             {
                 blocked = false;
                 variableParser ??= DecodedVariableParsers.Variable(escapeChar, character, decoded,
-                    () => blocked = true, index, literalEnds);
+                    () => blocked = true, index, literalEnds, quote);
                 Result<VariableRefToken> variable = variableParser(input);
                 if (variable.HasValue &&
                     resolvedCounts[variable.Remainder.Position.Absolute] == resolvedCounts[index])
@@ -457,6 +457,15 @@ internal static class JsonStringVariableResolver
 
     private static string RenderToken(Token token, List<(int Start, int End)>? literalSpans, int offset)
     {
+        if (literalSpans is not null && token is LiteralToken { CanContainVariables: false })
+        {
+            string text = RenderToken(token);
+            if (text.Length > 0)
+            {
+                literalSpans.Add((offset, offset + text.Length));
+            }
+            return text;
+        }
         if (token.GetType() != typeof(VariableRefToken) && token.GetType() != typeof(LiteralToken))
         {
             return token.ToString();
@@ -471,8 +480,7 @@ internal static class JsonStringVariableResolver
             {
                 builder.Append(((IQuotableToken)current).QuoteChar);
             }
-            else if (literalSpans is not null && current.GetType() == typeof(LiteralToken) &&
-                current is LiteralToken literal && !literal.CanContainVariables)
+            else if (literalSpans is not null && current is LiteralToken literal && !literal.CanContainVariables)
             {
                 int start = builder.Length;
                 builder.Append(RenderToken(literal));

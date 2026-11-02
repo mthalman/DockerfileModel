@@ -181,6 +181,9 @@ JSON `VOLUME` paths cache raw variable-reference parses from innermost to
 outermost before composing the quoted path. This avoids recursive parser calls
 for deeply nested modifiers without changing the grammar used by other
 instructions or the general token serializer.
+The quoted path is composed with JSON string rules, independently of the active
+Dockerfile continuation character, so backtick directives do not change JSON
+backslash escapes or reject literal backticks.
 
 `HeredocParsers` owns legacy heredoc parsing, including input
 advancement and memo propagation. The diagnostic path remains separate in

@@ -142,7 +142,8 @@ with a backtick Dockerfile escape directive.
 `VOLUME` paths recognize variable references and supported variable modifiers in
 both shell and JSON form, including paths created or updated through the editable
 views. Typed `LiteralToken` paths and modifier values retain their
-variable-recognition policy. A modifier value constructed with
+variable-recognition policy, including derived `LiteralToken` instances.
+A modifier value constructed with
 `canContainVariables: false` remains literal after JSON decoding, including
 any dollar signs, quotes, or braces in its contents.
 `ResolveVariables()` preserves the original model unless
@@ -182,6 +183,8 @@ to the receiving owner's context. Instruction resolution uses that instruction's
 context independently of the token's latest binding, so sharing a token with a
 non-VOLUME instruction does not change the original VOLUME's resolution policy.
 Document `ARG` evaluation uses the `ARG` context for defaults shared with `VOLUME`.
+Direct variable-reference resolution uses the modifier's non-JSON context even
+when the modifier literal is also shared with a JSON `VOLUME` path.
 The token and its contents remain shared mutable objects.
 
 Adding a second variable to a legacy `ENV name value` converts the affected

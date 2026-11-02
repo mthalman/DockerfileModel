@@ -5,7 +5,7 @@ namespace Valleysoft.DockerfileModel.Parsing;
 internal static class DecodedVariableParsers
 {
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
-        string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null)
+        string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null, char? initialQuote = null)
     {
         Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
         bool blocked = false;
@@ -108,8 +108,12 @@ internal static class DecodedVariableParsers
             from tokens in braced.Try().Or(name.Select(identifier =>
                 (IEnumerable<Token>)new Token[] { new StringToken(identifier) }))
             select new VariableRefToken(tokens, escapeChar);
-        List<TextSpan> candidates = new();
+        List<(TextSpan Input, bool Active)> candidates = new();
         TextSpan remaining = new TextSpan(text).Skip(start);
+        char? quote = initialQuote;
+        Stack<char?> quotes = new();
+        bool escaped = false;
+        bool hasProtectedSource = false;
         while (!remaining.IsAtEnd)
         {
             int index = remaining.Position.Absolute;
@@ -118,15 +122,55 @@ internal static class DecodedVariableParsers
                 remaining = remaining.Skip(literalEnds[index] - index);
                 continue;
             }
-            if (text[index] == '$' && sourceCharacter(remaining).HasValue)
+            if (!sourceCharacter(remaining).HasValue)
             {
-                candidates.Add(remaining);
+                hasProtectedSource = true;
+                remaining = remaining.Skip(1);
+                continue;
+            }
+            char current = text[index];
+            if (current == '$')
+            {
+                candidates.Add((remaining, quote != '\'' && !escaped));
+            }
+            if (quote == '\'')
+            {
+                if (current == '\'')
+                {
+                    quote = null;
+                }
+            }
+            else if (escaped)
+            {
+                escaped = false;
+            }
+            else if (current == escapeChar)
+            {
+                escaped = true;
+            }
+            else if (current == '"' || current == '\'' && quote is null)
+            {
+                quote = quote == current ? null : current;
+            }
+            else if (current == '$' && index + 1 < text.Length && text[index + 1] == '{')
+            {
+                quotes.Push(quote);
+                quote = null;
+            }
+            else if (current == '}' && quote is null && quotes.Count > 0)
+            {
+                quote = quotes.Pop();
             }
             remaining = remaining.Skip(1);
         }
         for (int index = candidates.Count - 1; index >= 0; index--)
         {
-            TextSpan candidate = candidates[index];
+            (TextSpan candidate, bool active) = candidates[index];
+            // Protected source can invalidate quote prediction by blocking an enclosing reference.
+            if (!hasProtectedSource && !active)
+            {
+                continue;
+            }
             blocked = false;
             Result<VariableRefToken> result = parser(candidate);
             parsed.Add(candidate.Position.Absolute, (result, blocked));

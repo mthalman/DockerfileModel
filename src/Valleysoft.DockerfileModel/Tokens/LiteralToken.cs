@@ -116,6 +116,10 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         {
             return base.ResolveVariables(escapeChar, variables, options);
         }
+        if (!canContainVariables && options?.RemoveEscapeCharacters != true)
+        {
+            return JsonStringVariableResolver.RenderToken(this);
+        }
         string physical = JsonStringVariableResolver.RenderToken(this);
         List<int> offsets = new();
         string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out int consumed, offsets);

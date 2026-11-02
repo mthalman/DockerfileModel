@@ -2101,6 +2101,14 @@ def testVolumeVariable : IO Unit := do
       assertEqual (Token.toString inst.token) text
         "volume JSON malformed variable text remains lossless"
     | none => throw (IO.Error.userError s!"VOLUME JSON literal variable text failed: {text}")
+  for content in ["a\\\"b", "a`", "a`$ROOT", "a\\\"$ROOT", "${ROOT:-a\\\"b}"] do
+    let text := "VOLUME [\"" ++ content ++ "\"]"
+    match parseVolume text '`' with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text "volume backtick JSON round-trip"
+      assertTrue (inst.token.children.any fun token => token == Token.mkSymbol '[')
+        "volume backtick JSON retains array form"
+    | none => throw (IO.Error.userError s!"VOLUME backtick JSON failed: {text}")
   let depth := 4096
   for protectedText in [false, true] do
     let nested := String.join (List.replicate depth "${X:-") ++

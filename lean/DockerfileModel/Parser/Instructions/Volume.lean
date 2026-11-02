@@ -86,6 +86,21 @@ def jsonVolumeVariableParser (escapeChar : Char) (text : String) : Parser Token 
   return fun pos =>
     (parsed[pos.offset.byteIdx]?).getD (.error "expected variable reference" pos)
 
+/-- JSON backslashes remain escapes even when Dockerfile continuations use backticks. -/
+def jsonVolumePathParser (referenceParser : Parser Token) : Parser Token := do
+  let _ ← char '"'
+  let children ← many (or' referenceParser
+    (or'
+      (do let escaped ← jsonEscapeSequence; Parser.pure (Token.mkString escaped))
+      (or'
+        (do
+          let text ← many1Chars (satisfy (fun c => c != '"' && c != '\\' && c != '$')
+            "JSON string character")
+          Parser.pure (Token.mkString text))
+        (toStringToken (char '$')))))
+  let _ ← char '"'
+  Parser.pure (Token.mkLiteral (collapseStringTokens children) (some ⟨'"'⟩))
+
 /-- BuildKit's VolumeCommand.Expand expands JSON paths too. Validate JSON syntax
     before recognizing variable references, without changing exec-command parsing. -/
 def jsonVolumePathsParser (escapeChar : Char) : Parser (List Token) := do
@@ -97,8 +112,7 @@ def jsonVolumePathsParser (escapeChar : Char) : Parser (List Token) := do
     | .aggregate .literal _ _ =>
       let text := Token.toString token
       let referenceParser := jsonVolumeVariableParser escapeChar text
-      match (literalWithVariablesQuoted escapeChar [] '"' .allowedInQuotes
-          (allowMalformedVariableText := true) (referenceParser := some referenceParser)).run text with
+      match (jsonVolumePathParser referenceParser).run text with
       | .ok path remaining =>
         if remaining.atEnd then Parser.pure path
         else Parser.fail "unconsumed variable-aware VOLUME path"

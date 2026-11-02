@@ -1313,6 +1313,115 @@ public class VolumeInstructionTests
         Assert.True(json.RemoveEscapeCharacters);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonSharedModifiersRetainTheirReferenceResolutionContext(bool inline)
+    {
+        LiteralToken modifier = new("\"\\u0024ROOT\"", canContainVariables: true);
+        VariableRefToken reference = new("MISSING", ":-", "placeholder") { ModifierValueToken = modifier };
+        string expected = reference.ResolveVariables('\\')!;
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME []");
+        volume.PathTokens.Add(modifier);
+
+        Assert.Equal(expected, reference.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" },
+            new ResolutionOptions { UpdateInline = inline }));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonDerivedModifiersRetainVariablePolicy(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"${MISSING:-placeholder}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        reference.ModifierValueToken = new OpaqueLiteralToken("$ROOT");
+
+        Assert.Equal("VOLUME [\"$ROOT\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" },
+            new ResolutionOptions { UpdateInline = inline }));
+    }
+
+    private sealed class OpaqueLiteralToken(string value) : LiteralToken(value, canContainVariables: false);
+
+    [Fact]
+    public void JsonDerivedOpaqueModifiersPreserveCustomRendering()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"${MISSING:-placeholder}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        reference.ModifierValueToken = new RenderedOpaqueLiteralToken();
+
+        Assert.Equal("VOLUME [\"$ROOT\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" }));
+    }
+
+    private sealed class RenderedOpaqueLiteralToken() : LiteralToken("$IGNORED", canContainVariables: false)
+    {
+        protected override string GetUnderlyingValue(TokenStringOptions options) => "$ROOT";
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonMixedProtectedReferencesHaveBoundedAllocations(bool escaped)
+    {
+        string protectedText = string.Concat(Enumerable.Repeat(escaped ? "`$ROOT/" : "$ROOT/", 1024));
+        if (!escaped)
+        {
+            protectedText = "'" + protectedText + "'";
+        }
+        string content = "$ACTIVE/" + protectedText;
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME []", '`');
+        LiteralToken path = new(new[] { new StringToken(content) }, canContainVariables: true, '`')
+        {
+            QuoteChar = '"'
+        };
+        volume.PathTokens.Add(path);
+        Dictionary<string, string?> variables = new() { ["ACTIVE"] = "value", ["ROOT"] = "unexpected" };
+        path.ResolveVariables('`', variables);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        string? result = path.ResolveVariables('`', variables);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal($"\"value/{protectedText}\"", result);
+        Assert.True(allocated < 650_000, $"Mixed protected references allocated {allocated} bytes.");
+    }
+
+    [Fact]
+    public void JsonPublicDisabledExpansionAvoidsOffsetMapAllocations()
+    {
+        LiteralToken path = new(new string('a', 65_536), canContainVariables: false) { QuoteChar = '"' };
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME []");
+        volume.PathTokens.Add(path);
+        path.ResolveVariables('\\');
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        string expected = JsonStringVariableResolver.RenderToken(path);
+        long rendering = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        string? result = path.ResolveVariables('\\');
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(expected, result);
+        Assert.True(allocated - rendering < 10_000,
+            $"Disabled expansion allocated {allocated - rendering} bytes above rendering.");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonDisabledExpansionStillFormatsEscapes(bool inline)
+    {
+        LiteralToken path = new("C:\\\\cache", canContainVariables: false) { QuoteChar = '"' };
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME []");
+        volume.PathTokens.Add(path);
+        string original = volume.ToString();
+
+        Assert.Equal("VOLUME [\"C:cache\"]", volume.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = inline, RemoveEscapeCharacters = true }));
+        Assert.Equal(original, volume.ToString());
+    }
+
     [Fact]
     public void Paths()
     {
