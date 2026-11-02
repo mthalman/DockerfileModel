@@ -75,7 +75,11 @@ def jsonVolumeVariableParser (escapeChar : Char) (text : String) : Parser Token 
       position := position.next.next
     else
       if position.current == some '$' then
-        candidates := position :: candidates
+        match position.next.current with
+        | some next =>
+          if next.isAlpha || next.isDigit || next == '_' || next == '{' then
+            candidates := position :: candidates
+        | none => Pure.pure ()
       position := position.next
   let mut parsed : Std.HashMap Nat (ParseResult Token) := {}
   for candidate in candidates do

@@ -1832,6 +1832,177 @@ public class VolumeInstructionTests
         }
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void JsonModifiersPreserveCustomReferenceResolution(bool inline, bool nested)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse(nested
+            ? "VOLUME [\"${OUTER:-${INNER:-placeholder}}\"]"
+            : "VOLUME [\"${INNER:-placeholder}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        if (nested)
+        {
+            reference = Assert.Single(reference.ModifierValueToken!.Tokens.OfType<VariableRefToken>());
+        }
+        CustomResolvingReference custom = new();
+        reference.ModifierValueToken = new ReferenceLiteral(custom);
+        string original = instruction.ToString();
+        TaggedResolutionOptions options = new() { Label = "custom", UpdateInline = inline };
+
+        Assert.Equal("VOLUME [\"custom\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" }, options));
+        Assert.Equal(1, custom.ResolutionCount);
+        Assert.Equal(options.Label, Assert.IsType<TaggedResolutionOptions>(custom.SeenOptions).Label);
+        Assert.Equal(inline, custom.SeenOptions!.UpdateInline);
+        Assert.Equal(inline ? "VOLUME [\"custom\"]" : original, instruction.ToString());
+    }
+
+    private sealed class ReferenceLiteral : LiteralToken
+    {
+        public ReferenceLiteral(VariableRefToken reference, string prefix = "", string suffix = "")
+            : base("placeholder", canContainVariables: true)
+        {
+            TokenList.Clear();
+            TokenList.Add(new StringToken(prefix));
+            TokenList.Add(reference);
+            TokenList.Add(new StringToken(suffix));
+        }
+    }
+
+    private sealed class CustomResolvingReference() : VariableRefToken("ROOT")
+    {
+        public int ResolutionCount { get; private set; }
+        public ResolutionOptions? SeenOptions { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            ResolutionCount++;
+            SeenOptions = options;
+            return options is TaggedResolutionOptions tagged ? tagged.Label : "custom";
+        }
+    }
+
+    [Theory]
+    [InlineData(":-", false)]
+    [InlineData("-", false)]
+    [InlineData(":+", true)]
+    [InlineData("+", true)]
+    [InlineData(":?", false)]
+    [InlineData("?", false)]
+    public void JsonCustomReferencesRemainLazy(string operation, bool selectedWhenSet)
+    {
+        foreach (bool selected in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"${{OUTER{operation}placeholder}}\"]");
+            CustomResolvingReference custom = new();
+            Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>()).ModifierValueToken =
+                new ReferenceLiteral(custom);
+            Dictionary<string, string?> variables = new();
+            if (selected == selectedWhenSet)
+            {
+                variables["OUTER"] = "present";
+            }
+            if (selected && operation.Last() == '?')
+            {
+                VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+                    instruction.ResolveVariables('\\', variables));
+                Assert.Contains("custom", error.Message);
+            }
+            else
+            {
+                Assert.Equal(selected ? "VOLUME [\"custom\"]" :
+                    operation.Last() == '+' ? "VOLUME [\"\"]" : "VOLUME [\"present\"]",
+                    instruction.ResolveVariables('\\', variables));
+            }
+            Assert.Equal(selected ? 1 : 0, custom.ResolutionCount);
+        }
+    }
+
+    [Theory]
+    [InlineData("'", "'", "'$ROOT'", 0)]
+    [InlineData("\\u0022", "\\u0022", "\"custom\"", 1)]
+    public void JsonCustomReferencesRetainDecodedQuoteProtection(
+        string prefix, string suffix, string expected, int calls)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"${OUTER:-placeholder}\"]");
+        CustomResolvingReference custom = new();
+        Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>()).ModifierValueToken =
+            new ReferenceLiteral(custom, prefix, suffix);
+
+        string result = instruction.ResolveVariables('\\')!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+        Assert.Equal(expected, json.RootElement[0].GetString());
+        Assert.Equal(calls, custom.ResolutionCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonDirectCustomReferencesRetainCallerContext(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        CustomResolvingReference custom = new();
+        instruction.PathTokens[0].ReplaceWithToken(custom);
+        TaggedResolutionOptions options = new() { Label = "C:\\\"$LATER", UpdateInline = inline };
+        string original = instruction.ToString();
+
+        string result = instruction.ResolveVariables('\\', options: options)!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+        Assert.Equal(options.Label, json.RootElement[0].GetString());
+        Assert.Equal(1, custom.ResolutionCount);
+        Assert.Equal(inline, custom.SeenOptions!.UpdateInline);
+        Assert.False(custom.SeenOptions.JsonStringResolution);
+        Assert.Equal(inline ? result : original, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonInlinePreservesUntouchedEmptyChildren(bool suffix)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse(suffix
+            ? "VOLUME [\"$ROOT/suffix\"]" : "VOLUME [\"prefix$ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        StringToken untouched = Assert.IsType<StringToken>(suffix ? path.Tokens.Last() : path.Tokens.First());
+        untouched.Value = "";
+
+        Assert.Equal("VOLUME [\"value\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "value" },
+            new ResolutionOptions { UpdateInline = true }));
+        Assert.Contains(untouched, path.Tokens);
+        untouched.Value = "/";
+        Assert.Equal(suffix ? "VOLUME [\"value/\"]" : "VOLUME [\"/value\"]", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void JsonBareDollarPathsAvoidDecodedModelAllocations(bool inline, bool removeEscapes)
+    {
+        string content = string.Concat(Enumerable.Repeat("$/", 32_768)) + "$-/$";
+        VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"{content}\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        ResolutionOptions options = new() { UpdateInline = inline, RemoveEscapeCharacters = removeEscapes };
+        path.ResolveVariables('\\', options: options);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        string expected = JsonStringVariableResolver.RenderToken(path);
+        long rendering = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        string? actual = path.ResolveVariables('\\', options: options);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(expected, path.ToString());
+        Assert.True(allocated - rendering < 10_000,
+            $"Bare-dollar resolution allocated {allocated - rendering} bytes above rendering.");
+    }
+
     [Fact]
     public void Paths()
     {

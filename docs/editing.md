@@ -150,12 +150,14 @@ Derived literals that inherit the default rendering preserve these policies
 in nested modifier values. A modifier's overridden `ResolveVariables()` is
 called only when its branch is selected, even if its rendered text is empty.
 Its result is JSON-escaped without recognizing new variable references.
+Variable-reference overrides inside selected modifier values also retain virtual
+dispatch. Decoded single quotes still protect these references from evaluation.
 Resolution context preserves the caller's `ResolutionOptions` subtype and custom
 fields. Selected custom modifier overrides receive the caller's `UpdateInline`
 and `RemoveEscapeCharacters` settings; the overrides manage their own side effects.
 `ResolveVariables()` preserves the original model unless
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
-references but retains untouched child tokens.
+references but retains untouched child tokens, including empty primitive tokens.
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
 retained. Decoded single quotes protect their contents from expansion; quote

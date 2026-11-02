@@ -15,6 +15,10 @@ public class VariableRefToken : AggregateToken
 
     internal static bool IsPatternModifier(string? modifier) => modifier is "#" or "##" or "%" or "%%" or "/" or "//";
 
+    internal bool HasCustomResolution => GetType() != typeof(VariableRefToken) &&
+        ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
+            .Method.DeclaringType != typeof(VariableRefToken);
+
     /// <summary>
     /// Parsers for all of the variable substitution modifiers.
     /// </summary>

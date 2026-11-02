@@ -2109,6 +2109,13 @@ def testVolumeVariable : IO Unit := do
       assertTrue (inst.token.children.any fun token => token == Token.mkSymbol '[')
         "volume backtick JSON retains array form"
     | none => throw (IO.Error.userError s!"VOLUME backtick JSON failed: {text}")
+  for content in ["$", "$-", "$/", "$$ROOT", "$9", "$_ROOT",
+      String.join (List.replicate 4096 "$/") ++ "$ROOT",
+      "${MISSING:-" ++ String.join (List.replicate 4096 "$/") ++ "$ROOT}"] do
+    let text := "VOLUME [\"" ++ content ++ "\"]"
+    match parseVolume text with
+    | some inst => assertEqual (Token.toString inst.token) text "volume reference candidate boundaries"
+    | none => throw (IO.Error.userError s!"Volume candidate boundary failed: {text}")
   let depth := 4096
   for protectedText in [false, true] do
     let nested := String.join (List.replicate depth "${X:-") ++

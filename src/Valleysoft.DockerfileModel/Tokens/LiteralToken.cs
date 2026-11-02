@@ -155,7 +155,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         for (int index = 1; index < physical.Length - 1; index++)
         {
             char current = physical[index];
-            if (current < ' ' || current == escapeChar || current is '$' or '\'' or '"' or '\\')
+            if (current < ' ' || current == escapeChar || current is '\'' or '"' or '\\' ||
+                VariableParsers.IsVariableReferenceStart(physical, index))
             {
                 return false;
             }
