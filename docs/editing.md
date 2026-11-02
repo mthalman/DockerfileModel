@@ -150,7 +150,8 @@ Derived literals that inherit the default rendering preserve these policies
 in nested modifier values. A modifier's overridden `ResolveVariables()` is
 called only when its branch is selected, even if its rendered text is empty.
 Its result is JSON-escaped without recognizing new variable references.
-Nested literal and variable-reference overrides also retain virtual dispatch,
+Nested aggregate overrides, including literal and variable-reference overrides,
+also retain virtual dispatch,
 both directly in a path and inside selected modifier values, even when their
 rendered text is empty. Each occurrence is evaluated
 independently, including occurrences that share the same token instance.
@@ -160,12 +161,17 @@ text consists only of folded continuations remain evaluable and retain their
 physical replacement boundaries.
 Custom occurrences sharing a decoded JSON character replace that character
 together, preserving the order of their results and evaluating each occurrence.
+An empty custom occurrence physically inside a JSON escape inserts its result
+before the decoded character without splitting the escape or dropping the character.
 Opaque literals and zero-width custom occurrences interrupt variable names and
 reference syntax rather than being consumed as part of a reference.
 Decoded single quotes and escapes still protect these references from evaluation.
 Sibling callbacks run from right to left, matching ordinary aggregate resolution.
 Changes a right-hand callback makes to the variable dictionary are visible to
 left-hand references.
+References whose original tokens match the decoded syntax also observe callback
+changes to those tokens' names and modifier values, including nested references.
+Custom rendering still determines decoded modifier contents.
 Changes to `RemoveEscapeCharacters` also affect subsequent references and source
 formatting in that evaluation order.
 Selected modifier branches do not change if a callback updates the variable
@@ -184,7 +190,8 @@ Unrelated empty literals retain their identity, including those inside an
 ancestor whose expanded references are replaced.
 Inline expansion also retains untouched children of nonempty nested literals.
 Non-inline resolution does not reconstruct the source token tree.
-Inline reconstruction skips source ranges that cannot contain a replacement.
+Inline reconstruction skips source ranges that cannot contain a replacement,
+including unrelated sibling subtrees beside a zero-width substitution.
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
 retained. Decoded single quotes protect their contents from expansion; quote

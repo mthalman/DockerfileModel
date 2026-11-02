@@ -78,6 +78,10 @@ public abstract class AggregateToken : Token
         ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
             .Method.DeclaringType?.Assembly != typeof(AggregateToken).Assembly;
 
+    internal bool HasCustomVariableResolution =>
+        ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
+            .Method.DeclaringType != typeof(AggregateToken);
+
     protected override string GetUnderlyingValue(TokenStringOptions options)
     {
         Guard.NotNull(options, nameof(options));

@@ -3042,6 +3042,260 @@ public class VolumeInstructionTests
             $"Inline reconstruction allocated {allocated - baseline} bytes for an unrelated subtree.");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonEmptyCustomOccurrencesInsideEscapesPreserveValidJson(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        int calls = 0;
+        CallbackReference callback = new("", _ => { calls++; return "custom"; });
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[]
+        {
+            new StringToken("\\u"), callback, new StringToken("0061")
+        });
+        string original = instruction.ToString();
+
+        string result = instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = inline })!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+        Assert.Equal("customa", json.RootElement[0].GetString());
+        Assert.Equal(1, calls);
+        Assert.Equal(inline ? result : original, instruction.ToString());
+        if (inline)
+        {
+            Assert.Equal(result, instruction.ResolveVariables('\\'));
+            Assert.Equal(1, calls);
+        }
+    }
+
+    [Theory]
+    [InlineData("\\u0061", 1, "a")]
+    [InlineData("\\u0061", 2, "a")]
+    [InlineData("\\u0061", 3, "a")]
+    [InlineData("\\u0061", 4, "a")]
+    [InlineData("\\u0061", 5, "a")]
+    [InlineData("\\n", 1, "\n")]
+    [InlineData("\\\\", 1, "\\")]
+    [InlineData("\\\"x\\\"", 1, "\"x\"")]
+    public void JsonEmptyCustomOccurrencesUseWholeEscapeInsertionBoundaries(
+        string escape, int split, string decoded)
+    {
+        foreach (bool nested in new[] { false, true })
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+            int calls = 0;
+            CallbackReference callback = new("", _ => { calls++; return "custom"; });
+            Token[] children = { new StringToken(escape.Substring(0, split)), callback,
+                new StringToken(escape.Substring(split)) };
+            instruction.PathTokens[0].ReplaceWithTokens(nested
+                ? new Token[] { new TokenSequenceLiteral(children) } : children);
+
+            string result = instruction.ResolveVariables('\\',
+                options: new ResolutionOptions { UpdateInline = true })!;
+            using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+            Assert.Equal("custom" + decoded, json.RootElement[0].GetString());
+            Assert.Equal(result, instruction.ResolveVariables('\\'));
+            Assert.Equal(1, calls);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonMultipleEmptyOccurrencesInsideOneEscapeRetainOrder(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        List<string> calls = new();
+        CallbackReference first = new("", _ => { calls.Add("first"); return "first"; });
+        CallbackReference second = new("", _ => { calls.Add("second"); return "second"; });
+        instruction.PathTokens[0].ReplaceWithToken(new TokenSequenceLiteral(
+            new StringToken("\\u"), first, new StringToken("00"), second, new StringToken("61")));
+
+        string original = instruction.ToString();
+        Assert.Equal("VOLUME [\"firstsecond\\u0061\"]", instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(new[] { "second", "first" }, calls);
+        Assert.Equal(inline ? "VOLUME [\"firstsecond\\u0061\"]" : original, instruction.ToString());
+        if (inline)
+        {
+            Assert.Equal(instruction.ToString(), instruction.ResolveVariables('\\'));
+            Assert.Equal(2, calls.Count);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonCallbacksUpdateOriginalLeftHandReferences(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        VariableRefToken reference = new("ROOT");
+        CallbackReference callback = new("callback", _ =>
+        {
+            reference.VariableName = "NEXT";
+            return "";
+        });
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[] { reference, callback });
+
+        Assert.Equal("VOLUME [\"next\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "old", ["NEXT"] = "next" },
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? "VOLUME [\"next\"]" : "VOLUME [\"$NEXTcallback\"]", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void JsonCallbacksUpdateOriginalModifierReferences(bool inline, bool nested)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        VariableRefToken reference = new("MISSING", ":-", "before");
+        CallbackReference callback = new("callback", _ =>
+        {
+            reference.ModifierValue = "after";
+            return "";
+        });
+        TokenSequenceLiteral sequence = new(reference, callback);
+        if (nested)
+        {
+            instruction.PathTokens[0].ReplaceWithToken(new VariableRefToken("OUTER", ":-", "placeholder")
+            {
+                ModifierValueToken = sequence
+            });
+        }
+        else
+        {
+            instruction.PathTokens[0].ReplaceWithToken(sequence);
+        }
+
+        Assert.Equal("VOLUME [\"after\"]", instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal("after", reference.ModifierValue);
+    }
+
+    [Fact]
+    public void JsonLiveReferencesDoNotBypassCustomModifierRendering()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        VariableRefToken reference = new("MISSING", ":-", "placeholder")
+        {
+            ModifierValueToken = new RenderedOpaqueLiteralToken()
+        };
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[]
+        {
+            reference, new CallbackReference("callback", _ => "")
+        });
+
+        Assert.Equal("VOLUME [\"$ROOT\"]", instruction.ResolveVariables('\\'));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonOtherAggregateOverridesRemainEvaluable(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        ResolvingAggregate custom = new();
+        instruction.PathTokens[0].ReplaceWithToken(custom);
+        TaggedResolutionOptions options = new() { Label = "custom", UpdateInline = inline };
+
+        Assert.Equal("VOLUME [\"custom\"]", instruction.ResolveVariables('\\', options: options));
+        Assert.Equal(1, custom.Calls);
+        Assert.Same(options, custom.SeenOptions);
+        Assert.Equal(inline ? "VOLUME [\"custom\"]" : "VOLUME [\"placeholder\"]", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, "placeholder")]
+    [InlineData(true, "placeholder")]
+    [InlineData(false, "")]
+    [InlineData(true, "")]
+    public void JsonOtherAggregateOverridesRemainLazyInModifiers(bool selected, string rendering)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"${ROOT:-placeholder}\"]");
+        ResolvingAggregate custom = new(rendering);
+        Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>()).ModifierValueToken =
+            new TokenSequenceLiteral(new StringToken("before"), custom, new StringToken("after"));
+        Dictionary<string, string?> variables = new();
+        if (!selected)
+        {
+            variables["ROOT"] = "present";
+        }
+        TaggedResolutionOptions options = new() { Label = "custom", UpdateInline = true };
+
+        Assert.Equal(selected ? "VOLUME [\"beforecustomafter\"]" : "VOLUME [\"present\"]",
+            instruction.ResolveVariables('\\', variables, options));
+        Assert.Equal(selected ? 1 : 0, custom.Calls);
+        if (selected)
+        {
+            Assert.Same(options, custom.SeenOptions);
+        }
+        Assert.Equal(instruction.ToString(), instruction.ResolveVariables('\\'));
+    }
+
+    [Theory]
+    [InlineData("'", "'")]
+    [InlineData("\\\\", "")]
+    public void JsonOtherAggregateOverridesRetainProtection(string prefix, string suffix)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        ResolvingAggregate custom = new();
+        instruction.PathTokens[0].ReplaceWithToken(new TokenSequenceLiteral(
+            new StringToken(prefix), custom, new StringToken(suffix)));
+        string original = instruction.ToString();
+
+        Assert.Equal(original, instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal(0, custom.Calls);
+    }
+
+    private sealed class ResolvingAggregate(string rendering = "placeholder")
+        : AggregateToken(new[] { new StringToken(rendering) })
+    {
+        internal int Calls { get; private set; }
+        internal ResolutionOptions? SeenOptions { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            Calls++;
+            SeenOptions = options;
+            return "custom";
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonInlineEmptyAnchorsAvoidUnrelatedSourceTreeReconstruction(bool prefix)
+    {
+        Token nested = new StringToken("/");
+        for (int index = 0; index < 4096; index++)
+        {
+            nested = new TokenSequenceLiteral(nested);
+        }
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        Token callback = new CallbackReference("", _ => "custom");
+        path.ReplaceWithTokens(prefix ? new[] { callback, nested } : new[] { nested, callback });
+        string expected = prefix ? "VOLUME [\"custom/\"]" : "VOLUME [\"/custom\"]";
+        instruction.ResolveVariables('\\');
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Equal(expected, instruction.ResolveVariables('\\'));
+        long baseline = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Equal(expected, instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = true }));
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Same(nested, prefix ? path.Tokens.Last() : path.Tokens.First());
+        Assert.True(allocated - baseline < 100_000,
+            $"Empty-anchor reconstruction allocated {allocated - baseline} bytes for an unrelated subtree.");
+    }
+
     private sealed class TokenSequenceLiteral : LiteralToken
     {
         internal TokenSequenceLiteral(params Token[] tokens) : base("placeholder", canContainVariables: true)

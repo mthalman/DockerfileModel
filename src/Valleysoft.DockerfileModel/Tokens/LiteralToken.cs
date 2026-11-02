@@ -178,23 +178,25 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
             expandVariables: canContainVariables);
     }
 
-    private bool HasCustomDescendant()
+    internal bool HasCustomDescendant()
     {
-        Stack<LiteralToken>? pending = null;
+        Stack<AggregateToken>? pending = null;
         IEnumerable<Token> tokens = Tokens;
         while (true)
         {
             foreach (Token token in tokens)
             {
                 if (token is VariableRefToken { HasCustomResolution: true } or
-                    LiteralToken { HasCustomResolution: true })
+                    LiteralToken { HasCustomResolution: true } ||
+                    token is AggregateToken { HasCustomVariableResolution: true } and not LiteralToken and not VariableRefToken)
                 {
                     return true;
                 }
-                if (token is LiteralToken { CanContainVariables: true, HasDefaultRendering: true } literal)
+                if (token is LiteralToken { CanContainVariables: true, HasDefaultRendering: true } or
+                    VariableRefToken { HasDefaultRendering: true })
                 {
                     pending ??= new();
-                    pending.Push(literal);
+                    pending.Push((AggregateToken)token);
                 }
             }
             if (pending is null || pending.Count == 0)

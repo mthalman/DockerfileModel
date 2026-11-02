@@ -7,8 +7,9 @@ internal static class DecodedVariableParsers
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
         string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null, char? initialQuote = null,
         Dictionary<int, (int End, List<AggregateToken> Tokens)>? customTokens = null,
-        Dictionary<int, List<(AggregateToken Token, int Start, int End)>>? emptyReferences = null,
-        Dictionary<int, LiteralToken>? customModifiers = null)
+        Dictionary<int, List<(AggregateToken Token, int Start, int End, int Position, Token Owner)>>? emptyReferences = null,
+        Dictionary<int, LiteralToken>? customModifiers = null,
+        Func<int, int, VariableRefToken, VariableRefToken>? bindReference = null)
     {
         Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
         bool blocked = false;
@@ -253,6 +254,11 @@ internal static class DecodedVariableParsers
             }
             blocked = false;
             Result<VariableRefToken> result = parser(candidate);
+            if (result.HasValue && bindReference is not null)
+            {
+                result = Result.Value(bindReference(candidate.Position.Absolute,
+                    result.Remainder.Position.Absolute, result.Value), candidate, result.Remainder);
+            }
             parsed.Add(candidate.Position.Absolute, (result, blocked));
         }
         return input =>
