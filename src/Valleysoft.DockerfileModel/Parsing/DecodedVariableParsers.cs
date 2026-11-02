@@ -5,7 +5,8 @@ namespace Valleysoft.DockerfileModel.Parsing;
 internal static class DecodedVariableParsers
 {
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
-        string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null, char? initialQuote = null)
+        string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null, char? initialQuote = null,
+        Dictionary<int, (int End, LiteralToken Literal)>? customModifiers = null)
     {
         Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
         bool blocked = false;
@@ -87,15 +88,29 @@ internal static class DecodedVariableParsers
         TextParser<IEnumerable<Token>> value =
             opaqueLiteral.Or(singleQuoted.Try()).Or(doubleQuoted.Try()).Or(Parts(null));
 
+        TextParser<IEnumerable<Token>> modifierTokens = value.Try().Many().Flatten();
+        TextParser<LiteralToken> modifierValue = input =>
+        {
+            int index = input.Position.Absolute;
+            if (customModifiers is not null && customModifiers.TryGetValue(index, out var custom))
+            {
+                // Keep virtual evaluation lazy, including modifiers whose rendering is empty.
+                return Result.Value(custom.Literal, input, input.Skip(custom.End - index));
+            }
+            Result<IEnumerable<Token>> result = modifierTokens(input);
+            return result.HasValue
+                ? Result.Value(new LiteralToken(TokenHelper.CollapseStringTokens(result.Value),
+                    canContainVariables: true, escapeChar), input, result.Remainder)
+                : Result.CastEmpty<IEnumerable<Token>, LiteralToken>(result);
+        };
         TextParser<IEnumerable<Token>> modifier =
             from operation in VariableRefToken.ValidModifiers
                 .Select(text => text.Select(Symbol)
                     .Aggregate((first, next) => first.IgnoreThen(next)).Select(_ => text))
                 .Aggregate((first, next) => first.Try().Or(next))
-            from tokens in value.Try().Many().Flatten()
+            from literal in modifierValue
             select ConcatTokens(operation.Select(ch => new SymbolToken(ch)),
-                new Token[] { new LiteralToken(TokenHelper.CollapseStringTokens(tokens),
-                    canContainVariables: true, escapeChar) });
+                new Token[] { literal });
         TextParser<IEnumerable<Token>> braced =
             from open in Symbol('{')
             from identifier in name

@@ -1422,6 +1422,177 @@ public class VolumeInstructionTests
         Assert.Equal(original, volume.ToString());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonDerivedVariableAwareModifiersRetainNestedLiteralPolicies(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"${MISSING:-placeholder}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        LiteralToken modifier = new TransparentLiteralToken("${INNER:-$ROOT}");
+        Assert.Single(modifier.Tokens.OfType<VariableRefToken>()).ModifierValueToken = new LiteralToken("$ROOT", false);
+        reference.ModifierValueToken = modifier;
+        string original = instruction.ToString();
+
+        Assert.Equal("VOLUME [\"$ROOT\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" },
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? "VOLUME [\"$ROOT\"]" : original, instruction.ToString());
+    }
+
+    private sealed class TransparentLiteralToken(string value) : LiteralToken(value, canContainVariables: true);
+
+    [Theory]
+    [InlineData(false, false, "placeholder")]
+    [InlineData(true, false, "placeholder")]
+    [InlineData(false, true, "placeholder")]
+    [InlineData(true, true, "placeholder")]
+    [InlineData(false, false, "")]
+    [InlineData(true, false, "")]
+    [InlineData(false, true, "")]
+    [InlineData(true, true, "")]
+    [InlineData(false, false, "\\u0024ROOT")]
+    [InlineData(true, false, "\\u0024ROOT")]
+    [InlineData(false, false, "${BROKEN")]
+    [InlineData(true, false, "'")]
+    public void JsonModifiersPreserveVirtualResolution(bool inline, bool nested, string text)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse(nested
+            ? "VOLUME [\"${OUTER:-${INNER:-placeholder}}\"]"
+            : "VOLUME [\"${INNER:-placeholder}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        if (nested)
+        {
+            reference = Assert.Single(reference.ModifierValueToken!.Tokens.OfType<VariableRefToken>());
+        }
+        ResolvingLiteralToken modifier = new(text);
+        reference.ModifierValueToken = modifier;
+        string original = instruction.ToString();
+
+        Assert.Equal("VOLUME [\"custom\"]", instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(1, modifier.ResolutionCount);
+        Assert.Equal(inline ? "VOLUME [\"custom\"]" : original, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(":-", false)]
+    [InlineData(":+", true)]
+    [InlineData(":?", false)]
+    public void JsonCustomModifierResolutionRemainsLazy(string operation, bool set)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"${{INNER{operation}placeholder}}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        ResolvingLiteralToken modifier = new("placeholder");
+        reference.ModifierValueToken = modifier;
+        Dictionary<string, string?> variables = new();
+        if (set)
+        {
+            variables["INNER"] = "present";
+        }
+
+        if (operation == ":?")
+        {
+            VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+                instruction.ResolveVariables('\\', variables));
+            Assert.Contains("custom", error.Message);
+        }
+        else
+        {
+            Assert.Equal("VOLUME [\"custom\"]", instruction.ResolveVariables('\\', variables));
+        }
+        Assert.Equal(1, modifier.ResolutionCount);
+
+        modifier.ResolutionCount = 0;
+        variables.Clear();
+        if (!set)
+        {
+            variables["INNER"] = "present";
+        }
+        Assert.Equal(operation == ":+" ? "VOLUME [\"\"]" : "VOLUME [\"present\"]",
+            instruction.ResolveVariables('\\', variables));
+        Assert.Equal(0, modifier.ResolutionCount);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void JsonCustomModifierResultsAreEncodedAndFormattedOnce(bool inline, bool removeEscapes)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"${INNER:-placeholder}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        ResolvingLiteralToken modifier = new("placeholder") { Result = "C:\\\\cache\"$ROOT" };
+        reference.ModifierValueToken = modifier;
+        string original = instruction.ToString();
+
+        string result = instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" },
+            new ResolutionOptions { UpdateInline = inline, RemoveEscapeCharacters = removeEscapes })!;
+
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+        Assert.Equal(1, json.RootElement.GetArrayLength());
+        Assert.Equal(removeEscapes ? "C:\\cache\"$ROOT" : modifier.Result, json.RootElement[0].GetString());
+        Assert.Equal(1, modifier.ResolutionCount);
+        Assert.Equal(inline ? result : original, instruction.ToString());
+    }
+
+    private sealed class ResolvingLiteralToken(string value) : LiteralToken(value)
+    {
+        public int ResolutionCount { get; set; }
+        public string Result { get; init; } = "custom";
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            ResolutionCount++;
+            return Result;
+        }
+    }
+
+    [Fact]
+    public void JsonSemanticPathReplacementReleasesDetachedSubstitutionTracking()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["ROOT"] = new string('a', 65_536) },
+            new ResolutionOptions { UpdateInline = true });
+        Token substitution = Assert.Single(path.Tokens);
+        Assert.True(path.IsResolvedJsonLiteral(substitution));
+
+        Assert.Throws<ArgumentException>(() => instruction.Paths[0] = "invalid\"value");
+        Assert.True(path.IsResolvedJsonLiteral(substitution));
+        instruction.Paths.Add("/extra");
+        Assert.True(path.IsResolvedJsonLiteral(substitution));
+
+        instruction.Paths[0] = "/small";
+
+        Assert.Same(path, instruction.PathTokens[0]);
+        Assert.False(path.IsResolvedJsonLiteral(substitution));
+        Assert.Equal("VOLUME [\"/small\", \"/extra\"]", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonRawTokenizationWithoutBracesHasBoundedAllocations(bool simpleReference)
+    {
+        string content = (simpleReference ? "$ROOT/" : "/") + new string('a', 65_536);
+        LiteralToken path = new(new[] { new StringToken(content) }, canContainVariables: false, '\\')
+        {
+            QuoteChar = '"'
+        };
+        JsonStringVariableResolver.Tokenize(path, '\\');
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        LiteralToken result = JsonStringVariableResolver.Tokenize(path, '\\');
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal($"\"{content}\"", result.ToString());
+        Assert.Equal(simpleReference ? 1 : 0, result.Tokens.OfType<VariableRefToken>().Count());
+        Assert.True(allocated < 600_000, $"Brace-free tokenization allocated {allocated} bytes.");
+    }
+
     [Fact]
     public void Paths()
     {

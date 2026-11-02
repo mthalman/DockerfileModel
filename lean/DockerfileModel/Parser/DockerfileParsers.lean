@@ -404,9 +404,8 @@ def literalString (escapeChar : Char) (excludedChars : List Char)
 /-- Parse either a variable reference or a literal value.
     Corresponds to VariableParsers.ValueOrVariableRef() -/
 def valueOrVariableRef (escapeChar : Char)
-    (valueParsers : Parser (List Token))
-    (referenceParser : Option (Parser Token) := none) : Parser (List Token) :=
-  or' (do let v ← referenceParser.getD (variableRefParser escapeChar); Parser.pure [v])
+    (valueParsers : Parser (List Token)) : Parser (List Token) :=
+  or' (do let v ← variableRefParser escapeChar; Parser.pure [v])
       valueParsers
 
 -- ============================================================
@@ -442,9 +441,7 @@ partial def literalWithVariablesUnquoted (escapeChar : Char) (excludedChars : Li
     Returns (tokens, quoteChar).
     Corresponds to the wrapped branch of VariableParsers.LiteralWithVariablesTokens() -/
 def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
-    (quoteChar : Char) (whitespaceMode : WhitespaceMode := .disallowed)
-    (allowMalformedVariableText : Bool := false)
-    (referenceParser : Option (Parser Token) := none) : Parser Token := do
+    (quoteChar : Char) (whitespaceMode : WhitespaceMode := .disallowed) : Parser Token := do
   let _ ← char quoteChar
   let tokenLists ← many (valueOrVariableRef escapeChar
     (or'
@@ -461,11 +458,7 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
               match pos'.current with
               | some c' =>
                 if c'.isAlpha || c'.isDigit || c' == '_' || c' == '{' then
-                  if allowMalformedVariableText then
-                    match referenceParser.getD (variableRefParser escapeChar) pos with
-                    | .ok _ _ => .error "variable reference start" pos
-                    | .error _ _ => .ok c pos.next
-                  else .error "variable reference start" pos
+                  .error "variable reference start" pos
                 else .ok c pos.next
               | none => .ok c pos.next
             else if !(whitespaceMode == .allowedInQuotes || whitespaceMode == .allowed) &&
@@ -483,7 +476,7 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
             let esc ← char escapeChar
             let v ← satisfy (fun c => !isLineTerminator c) "escaped character"
             Parser.pure [Token.mkString (String.ofList [esc, v])])
-          whitespaceOrComments))) referenceParser)
+          whitespaceOrComments))))
   let _ ← char quoteChar
   let tokens := collapseStringTokens tokenLists.flatten
   Parser.pure (Token.mkLiteral tokens (some ⟨quoteChar⟩))

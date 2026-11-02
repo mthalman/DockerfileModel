@@ -109,6 +109,13 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     internal bool ResolveAsJsonString { get; set; }
     internal bool CanContainVariables => canContainVariables;
 
+    // Bound delegates identify overrides without trim-unsafe member lookup.
+    internal bool HasCustomResolution => GetType() != typeof(LiteralToken) &&
+        ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
+            .Method.DeclaringType != typeof(LiteralToken);
+    internal bool HasDefaultRendering =>
+        ((Func<TokenStringOptions, string>)GetUnderlyingValue).Method.DeclaringType == typeof(AggregateToken);
+
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
         ResolutionOptions? options = null)
     {
@@ -130,18 +137,27 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         }
         options ??= new ResolutionOptions();
         variables ??= new Dictionary<string, string?>();
-        resolvedJsonLiterals?.IntersectWith(Tokens);
+        PruneResolvedJsonLiterals();
         return JsonStringVariableResolver.Resolve(this, physical, logical, offsets, escapeChar, variables, options,
             expandVariables: canContainVariables);
     }
 
     internal bool IsResolvedJsonLiteral(Token token) => resolvedJsonLiterals?.Contains(token) == true;
 
+    internal void PruneResolvedJsonLiterals()
+    {
+        resolvedJsonLiterals?.IntersectWith(Tokens);
+        if (resolvedJsonLiterals?.Count == 0)
+        {
+            resolvedJsonLiterals = null;
+        }
+    }
+
     internal void RecordResolvedJsonLiterals(IEnumerable<Token> literals)
     {
         // Primitive edits must not reactivate dollars or quotes inserted by an earlier substitution.
+        PruneResolvedJsonLiterals();
         resolvedJsonLiterals ??= new HashSet<Token>(ReferenceComparer<Token>.Instance);
-        resolvedJsonLiterals.IntersectWith(Tokens);
         resolvedJsonLiterals.UnionWith(literals);
     }
 

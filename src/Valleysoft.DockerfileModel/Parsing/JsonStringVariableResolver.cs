@@ -84,10 +84,14 @@ internal static class JsonStringVariableResolver
 
     private static HashSet<int> FindCompleteBracedReferences(string physical, char escapeChar)
     {
+        HashSet<int> complete = new();
+        if (physical.IndexOf("${", StringComparison.Ordinal) < 0)
+        {
+            return complete;
+        }
         List<int> offsets = new();
         string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out _, offsets);
         Stack<int> openings = new();
-        HashSet<int> complete = new();
         for (int index = 1; index < logical.Length - 1; index++)
         {
             if (logical[index] == escapeChar)
@@ -118,7 +122,7 @@ internal static class JsonStringVariableResolver
         string decoded = Decode(logical, offsets, out List<int> starts, out List<int> ends);
         Position PhysicalPosition(int decodedOffset) => new TextSpan(physical).Skip(
             decodedOffset < starts.Count ? starts[decodedOffset] : offsets[logical.Length - 1]).Position;
-        List<(int Start, int End)>? literalSpans = expandVariables ? new() : null;
+        List<(int Start, int End, LiteralToken? Custom)>? literalSpans = expandVariables ? new() : null;
         int sourcePosition = 1;
         (Token Token, string Text)[] source = path.Tokens.Select(token =>
         {
@@ -126,7 +130,7 @@ internal static class JsonStringVariableResolver
             sourcePosition += text.Length;
             return (token, text);
         }).ToArray();
-        int[]? literalEnds = FindLiteralEnds(literalSpans, starts, ends);
+        int[]? literalEnds = FindLiteralEnds(literalSpans, starts, ends, out var customModifiers);
         int[] resolvedCounts = new int[decoded.Length + 1];
         int sourceIndex = 0;
         int sourceStart = 1;
@@ -245,7 +249,7 @@ internal static class JsonStringVariableResolver
             {
                 blocked = false;
                 variableParser ??= DecodedVariableParsers.Variable(escapeChar, character, decoded,
-                    () => blocked = true, index, literalEnds, quote);
+                    () => blocked = true, index, literalEnds, quote, customModifiers);
                 Result<VariableRefToken> variable = variableParser(input);
                 if (variable.HasValue &&
                     resolvedCounts[variable.Remainder.Position.Absolute] == resolvedCounts[index])
@@ -293,15 +297,17 @@ internal static class JsonStringVariableResolver
         return result;
     }
 
-    private static int[]? FindLiteralEnds(List<(int Start, int End)>? spans, List<int> starts, List<int> ends)
+    private static int[]? FindLiteralEnds(List<(int Start, int End, LiteralToken? Custom)>? spans,
+        List<int> starts, List<int> ends, out Dictionary<int, (int End, LiteralToken Literal)>? customModifiers)
     {
+        customModifiers = null;
         if (spans is null || spans.Count == 0)
         {
             return null;
         }
         int[] literalEnds = new int[starts.Count];
         int index = 0;
-        foreach ((int start, int end) in spans)
+        foreach ((int start, int end, LiteralToken? custom) in spans)
         {
             while (index < ends.Count && ends[index] <= start)
             {
@@ -311,6 +317,11 @@ internal static class JsonStringVariableResolver
             while (index < starts.Count && starts[index] < end)
             {
                 index++;
+            }
+            if (custom is not null)
+            {
+                customModifiers ??= new();
+                customModifiers.Add(first, (index, custom));
             }
             for (int current = first; current < index; current++)
             {
@@ -343,7 +354,7 @@ internal static class JsonStringVariableResolver
                 continue;
             }
             LiteralToken? modifier = reference.GetRequiredModifierValue(variables);
-            if (modifier is null)
+            if (modifier is null || modifier.HasCustomResolution)
             {
                 resolved.Add(reference, new Expansion(reference.ResolveVariables(escapeChar, variables, options)
                     ?? string.Empty));
@@ -455,18 +466,19 @@ internal static class JsonStringVariableResolver
 
     internal static string RenderToken(Token token) => RenderToken(token, null, 0);
 
-    private static string RenderToken(Token token, List<(int Start, int End)>? literalSpans, int offset)
+    private static bool HasDefaultRendering(Token token)
     {
-        if (literalSpans is not null && token is LiteralToken { CanContainVariables: false })
+        if (token.GetType() == typeof(VariableRefToken) || token.GetType() == typeof(LiteralToken))
         {
-            string text = RenderToken(token);
-            if (text.Length > 0)
-            {
-                literalSpans.Add((offset, offset + text.Length));
-            }
-            return text;
+            return true;
         }
-        if (token.GetType() != typeof(VariableRefToken) && token.GetType() != typeof(LiteralToken))
+        return token is LiteralToken literal && literal.HasDefaultRendering;
+    }
+
+    private static string RenderToken(Token token, List<(int Start, int End, LiteralToken? Custom)>? literalSpans,
+        int offset)
+    {
+        if (!HasDefaultRendering(token) && (literalSpans is null || token is not Tokens.LiteralToken))
         {
             return token.ToString();
         }
@@ -480,17 +492,18 @@ internal static class JsonStringVariableResolver
             {
                 builder.Append(((IQuotableToken)current).QuoteChar);
             }
-            else if (literalSpans is not null && current is LiteralToken literal && !literal.CanContainVariables)
+            else if (literalSpans is not null && current is LiteralToken literal &&
+                (!literal.CanContainVariables || literal.HasCustomResolution))
             {
                 int start = builder.Length;
                 builder.Append(RenderToken(literal));
-                if (builder.Length > start)
+                bool custom = literal.HasCustomResolution;
+                if (builder.Length > start || custom)
                 {
-                    literalSpans.Add((offset + start, offset + builder.Length));
+                    literalSpans.Add((offset + start, offset + builder.Length, custom ? literal : null));
                 }
             }
-            else if ((current.GetType() == typeof(VariableRefToken) || current.GetType() == typeof(LiteralToken)) &&
-                current is AggregateToken aggregate)
+            else if (current is AggregateToken aggregate && HasDefaultRendering(current))
             {
                 if (current is VariableRefToken)
                 {

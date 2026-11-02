@@ -146,6 +146,10 @@ variable-recognition policy, including derived `LiteralToken` instances.
 A modifier value constructed with
 `canContainVariables: false` remains literal after JSON decoding, including
 any dollar signs, quotes, or braces in its contents.
+Derived literals that inherit the default rendering preserve these policies
+in nested modifier values. A modifier's overridden `ResolveVariables()` is
+called only when its branch is selected, even if its rendered text is empty.
+Its result is JSON-escaped without recognizing new variable references.
 `ResolveVariables()` preserves the original model unless
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
 references but retains untouched child tokens.
@@ -176,6 +180,8 @@ contents, even when `UpdateInline` is `true`. Inline substitutions stay
 literal across later primitive-token edits. Assigning the path's `Value` or
 updating it through `Paths` reparses its contents and makes new references
 eligible for resolution again.
+Successful path replacement also releases tracking references to detached
+substitutions; rejected edits retain the existing tracking state.
 If a JSON escape spans untouched text and an inline substitution, its decoded
 character remains literal and cannot introduce variable, quote, or escape syntax.
 Collection adoption and scalar token replacement bind direct token resolution

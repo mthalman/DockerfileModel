@@ -146,6 +146,10 @@ internal sealed class TokenEditPlan
         {
             change.Key.TokenList.Clear();
             change.Key.TokenList.AddRange(change.Value);
+            if (change.Key is LiteralToken literal)
+            {
+                literal.PruneResolvedJsonLiterals();
+            }
         }
         foreach (KeyValuePair<IQuotableToken, char?> change in quotes)
         {
