@@ -19,6 +19,9 @@ public class VariableRefToken : AggregateToken
         ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
             .Method.DeclaringType != typeof(VariableRefToken);
 
+    internal bool HasDefaultRendering =>
+        ((Func<TokenStringOptions, string>)GetUnderlyingValue).Method.DeclaringType == typeof(VariableRefToken);
+
     /// <summary>
     /// Parsers for all of the variable substitution modifiers.
     /// </summary>

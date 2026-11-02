@@ -178,10 +178,9 @@ internal static class JsonStringVariableResolver
             if (quote != '\'' && emptyReferences is not null &&
                 emptyReferences.TryGetValue(index, out var empty))
             {
-                int position = index < starts.Count ? starts[index] : offsets[logical.Length - 1];
-                foreach (AggregateToken emptyReference in empty)
+                foreach (var emptyReference in empty)
                 {
-                    SubstituteReference(position, position, emptyReference);
+                    SubstituteReference(emptyReference.Start, emptyReference.End, emptyReference.Token);
                 }
             }
             if (quote != '\'' && customTokens is not null &&
@@ -355,7 +354,7 @@ internal static class JsonStringVariableResolver
 
     private static int[]? FindLiteralEnds(List<(int Start, int End, Token? Custom, bool Modifier)>? spans,
         List<int> starts, List<int> ends, out Dictionary<int, (int End, List<AggregateToken> Tokens)>? customTokens,
-        out Dictionary<int, List<AggregateToken>>? emptyReferences,
+        out Dictionary<int, List<(AggregateToken Token, int Start, int End)>>? emptyReferences,
         out Dictionary<int, LiteralToken>? customModifiers)
     {
         customTokens = null;
@@ -385,7 +384,7 @@ internal static class JsonStringVariableResolver
                 customModifiers ??= new();
                 customModifiers.Add(first, literal);
             }
-            if (start == end && custom is AggregateToken reference)
+            if ((start == end || first == index) && custom is AggregateToken reference)
             {
                 if (first < customEnd)
                 {
@@ -398,7 +397,7 @@ internal static class JsonStringVariableResolver
                     references = new();
                     emptyReferences.Add(first, references);
                 }
-                references.Add(reference);
+                references.Add((reference, start, end));
             }
             else if (custom is AggregateToken customToken)
             {
@@ -600,7 +599,12 @@ internal static class JsonStringVariableResolver
         {
             return true;
         }
-        return token is LiteralToken literal && literal.HasDefaultRendering;
+        return token switch
+        {
+            LiteralToken literal => literal.HasDefaultRendering,
+            VariableRefToken reference => reference.HasDefaultRendering,
+            _ => false
+        };
     }
 
     private static string RenderToken(Token token, List<(int Start, int End, Token? Custom, bool Modifier)>? literalSpans,
@@ -745,7 +749,25 @@ internal static class JsonStringVariableResolver
         }
         SourcePart[] roots = source.Select(item => new SourcePart(item.Token, item.Text)).ToArray();
         var ranges = replacements.Where(replacement => replacement.Start < replacement.End).ToArray();
+        int[] anchorPositions = anchors.Keys.OrderBy(position => position).ToArray();
         int rangeIndex = 0;
+        bool IntersectsReplacement(int start, int end)
+        {
+            while (rangeIndex < ranges.Length && ranges[rangeIndex].End <= start)
+            {
+                rangeIndex++;
+            }
+            if (rangeIndex < ranges.Length && ranges[rangeIndex].Start < end)
+            {
+                return true;
+            }
+            int anchor = Array.BinarySearch(anchorPositions, start);
+            if (anchor < 0)
+            {
+                anchor = ~anchor;
+            }
+            return anchor < anchorPositions.Length && anchorPositions[anchor] <= end;
+        }
         Stack<(SourcePart Part, bool Close)> pending = new(roots.Reverse().Select(part => (part, false)));
         int position = 1;
         while (pending.Count > 0)
@@ -754,6 +776,10 @@ internal static class JsonStringVariableResolver
             if (close)
             {
                 part.ContainsReplacement = part.Children!.Any(child => child.ContainsReplacement);
+            }
+            else if (part.Text is string text && !IntersectsReplacement(position, position + text.Length))
+            {
+                position += text.Length;
             }
             else if (part.Token is LiteralToken
                 {

@@ -7,7 +7,7 @@ internal static class DecodedVariableParsers
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
         string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null, char? initialQuote = null,
         Dictionary<int, (int End, List<AggregateToken> Tokens)>? customTokens = null,
-        Dictionary<int, List<AggregateToken>>? emptyReferences = null,
+        Dictionary<int, List<(AggregateToken Token, int Start, int End)>>? emptyReferences = null,
         Dictionary<int, LiteralToken>? customModifiers = null)
     {
         Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
@@ -18,6 +18,7 @@ internal static class DecodedVariableParsers
         {
             if (!input.IsAtEnd && literalEnds?[input.Position.Absolute] > input.Position.Absolute)
             {
+                blocked = true;
                 return Result.Empty<char>(input, "variable-aware source character");
             }
             Result<char> result = sourceCharacter(input);
@@ -25,7 +26,17 @@ internal static class DecodedVariableParsers
             return result;
         };
         TextParser<char> Symbol(char value) => character.Where(ch => ch == value, $"`{value}`");
-        TextParser<string> name = character.Where(ch => char.IsLetterOrDigit(ch) || ch == '_',
+        TextParser<char> referenceCharacter = input =>
+        {
+            if (emptyReferences?.ContainsKey(input.Position.Absolute) == true)
+            {
+                blocked = true;
+                return Result.Empty<char>(input, "variable-aware source character");
+            }
+            return character(input);
+        };
+        TextParser<char> ReferenceSymbol(char value) => referenceCharacter.Where(ch => ch == value, $"`{value}`");
+        TextParser<string> name = referenceCharacter.Where(ch => char.IsLetterOrDigit(ch) || ch == '_',
             "variable name").AtLeastOnce().Text();
         Result<VariableRefToken> CachedReference(TextSpan input)
         {
@@ -62,7 +73,7 @@ internal static class DecodedVariableParsers
                     int index = remaining.Position.Absolute;
                     if (emptyReferences is not null && emptyReferences.TryGetValue(index, out var references))
                     {
-                        tokens.AddRange(references);
+                        tokens.AddRange(references.Select(reference => reference.Token));
                     }
                     int previous = allowedEmptyReference;
                     allowedEmptyReference = index;
@@ -156,17 +167,17 @@ internal static class DecodedVariableParsers
         };
         TextParser<IEnumerable<Token>> modifier =
             from operation in VariableRefToken.ValidModifiers
-                .Select(text => text.Select(Symbol)
+                .Select(text => text.Select(ReferenceSymbol)
                     .Aggregate((first, next) => first.IgnoreThen(next)).Select(_ => text))
                 .Aggregate((first, next) => first.Try().Or(next))
             from literal in modifierValue
             select ConcatTokens(operation.Select(ch => new SymbolToken(ch)),
                 new Token[] { literal });
         TextParser<IEnumerable<Token>> braced =
-            from open in Symbol('{')
+            from open in ReferenceSymbol('{')
             from identifier in name
             from operation in modifier.Try().OptionalOrDefault(Enumerable.Empty<Token>())
-            from close in Symbol('}')
+            from close in (operation.Any() ? Symbol('}') : ReferenceSymbol('}'))
             select ConcatTokens(new Token[] { new SymbolToken('{'), new StringToken(identifier) },
                 operation, new Token[] { new SymbolToken('}') });
         TextParser<VariableRefToken> parser =
@@ -183,8 +194,10 @@ internal static class DecodedVariableParsers
         while (!remaining.IsAtEnd)
         {
             int index = remaining.Position.Absolute;
+            hasProtectedSource |= emptyReferences?.ContainsKey(index) == true;
             if (literalEnds?[index] > index)
             {
+                hasProtectedSource = true;
                 remaining = remaining.Skip(literalEnds[index] - index);
                 escaped = false;
                 continue;
