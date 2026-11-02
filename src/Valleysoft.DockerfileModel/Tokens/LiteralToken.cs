@@ -5,7 +5,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 {
     // Resolution is synchronous; scoped thread-local context avoids cloning consumer-owned options.
     [ThreadStatic]
-    private static (LiteralToken? Token, bool Json) resolutionContext;
+    private static List<(LiteralToken Token, bool Json)>? resolutionContexts;
 
     private readonly bool canContainVariables;
     private readonly char escapeChar;
@@ -123,22 +123,33 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     internal string? ResolveVariablesInContext(bool json, char escapeChar,
         IDictionary<string, string?>? variables, ResolutionOptions? options)
     {
-        var previous = resolutionContext;
-        resolutionContext = (this, json);
+        List<(LiteralToken Token, bool Json)> contexts = resolutionContexts ??= new();
+        contexts.Add((this, json));
         try
         {
             return ResolveVariables(escapeChar, variables, options);
         }
         finally
         {
-            resolutionContext = previous;
+            contexts.RemoveAt(contexts.Count - 1);
         }
     }
 
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
         ResolutionOptions? options = null)
     {
-        bool json = ReferenceEquals(resolutionContext.Token, this) ? resolutionContext.Json : ResolveAsJsonString;
+        bool json = ResolveAsJsonString;
+        if (resolutionContexts is { } contexts)
+        {
+            for (int index = contexts.Count - 1; index >= 0; index--)
+            {
+                if (ReferenceEquals(contexts[index].Token, this))
+                {
+                    json = contexts[index].Json;
+                    break;
+                }
+            }
+        }
         if (!json || QuoteChar != '"')
         {
             return base.ResolveVariables(escapeChar, variables, options);
@@ -150,7 +161,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         string physical = JsonStringVariableResolver.RenderToken(this);
         PruneResolvedJsonLiterals();
         if (IsPlainJsonString(physical, escapeChar) &&
-            !Tokens.Any(token => token is VariableRefToken { HasCustomResolution: true }))
+            !HasCustomReference())
         {
             return physical;
         }
@@ -165,6 +176,32 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         variables ??= new Dictionary<string, string?>();
         return JsonStringVariableResolver.Resolve(this, physical, logical, offsets, escapeChar, variables, options,
             expandVariables: canContainVariables);
+    }
+
+    private bool HasCustomReference()
+    {
+        Stack<LiteralToken>? pending = null;
+        IEnumerable<Token> tokens = Tokens;
+        while (true)
+        {
+            foreach (Token token in tokens)
+            {
+                if (token is VariableRefToken { HasCustomResolution: true })
+                {
+                    return true;
+                }
+                if (token is LiteralToken { CanContainVariables: true, HasDefaultRendering: true } literal)
+                {
+                    pending ??= new();
+                    pending.Push(literal);
+                }
+            }
+            if (pending is null || pending.Count == 0)
+            {
+                return false;
+            }
+            tokens = pending.Pop().Tokens;
+        }
     }
 
     private static bool IsPlainJsonString(string physical, char escapeChar)

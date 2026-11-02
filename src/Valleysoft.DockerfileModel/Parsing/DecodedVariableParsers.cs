@@ -100,8 +100,6 @@ internal static class DecodedVariableParsers
 
         TextParser<IEnumerable<Token>> Plain(char? quote)
         {
-            TextParser<char> variableStart = Character.EqualTo('$').IgnoreThen(Character.Matching(
-                ch => char.IsLetterOrDigit(ch) || ch is '_' or '{', "variable start"));
             TextParser<char> literal = character.Where(ch => ch != escapeChar &&
                 (quote.HasValue ? ch != quote : ch is not '}' and not '\'' and not '"'),
                 "modifier value character");
@@ -109,7 +107,7 @@ internal static class DecodedVariableParsers
             {
                 int index = input.Position.Absolute;
                 if (index != allowedEmptyReference && emptyReferences?.ContainsKey(index) == true ||
-                    variableStart(input).HasValue)
+                    !input.IsAtEnd && VariableParsers.IsVariableReferenceStart(text, index))
                 {
                     return Result.Empty<char>(input, "literal character");
                 }

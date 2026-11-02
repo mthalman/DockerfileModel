@@ -2237,6 +2237,103 @@ public class VolumeInstructionTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonEmptyReferenceReplacementPreservesEmptySiblingOrder(bool nested)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        StringToken prefix = new("");
+        StringToken suffix = new("");
+        CallbackReference custom = new("", _ => "custom");
+        Token[] children = { prefix, custom, suffix };
+        path.ReplaceWithTokens(nested ? new Token[] { new TokenSequenceLiteral(children) } : children);
+
+        Assert.Equal("VOLUME [\"custom\"]", instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = true }));
+        prefix.Value = "before";
+        suffix.Value = "after";
+        Assert.Equal("VOLUME [\"beforecustomafter\"]", instruction.ToString());
+    }
+
+    [Fact]
+    public void JsonOuterContextSurvivesReentryThroughAnotherLiteral()
+    {
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "value" };
+        CallbackLiteral outer = new();
+        CallbackLiteral inner = new();
+        bool entered = false;
+        outer.BeforeResolve = () =>
+        {
+            if (!entered)
+            {
+                entered = true;
+                inner.ResolveVariablesInContext(false, '\\', variables, null);
+                entered = false;
+            }
+        };
+        inner.BeforeResolve = () => Assert.Equal("\"value\"", outer.ResolveVariables('\\', variables));
+
+        Assert.Equal("\"value\"", outer.ResolveVariablesInContext(true, '\\', variables, null));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("plain")]
+    public void JsonPlainPathsEvaluateNestedCustomReferences(string rendering)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        int calls = 0;
+        CallbackReference custom = new(rendering, _ => { calls++; return "custom"; });
+        instruction.PathTokens[0].ReplaceWithToken(new TokenSequenceLiteral(custom));
+
+        Assert.Equal("VOLUME [\"custom\"]", instruction.ResolveVariables('\\'));
+        Assert.Equal(1, calls);
+        Assert.Equal("VOLUME [\"custom\"]", instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal("VOLUME [\"custom\"]", instruction.ResolveVariables('\\'));
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public void JsonPlainPathShortcutHonorsNestedDisabledVariablePolicy()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        int calls = 0;
+        CallbackReference custom = new("", _ => { calls++; return "unexpected"; });
+        LiteralToken opaque = new("", canContainVariables: false);
+        opaque.ReplaceWithToken(custom);
+        instruction.PathTokens[0].ReplaceWithToken(new TokenSequenceLiteral(opaque));
+
+        Assert.Equal("VOLUME [\"\"]", instruction.ResolveVariables('\\'));
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public void ShellVolumeChecksOwnerContextOnce()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse(
+            "VOLUME " + string.Join(" ", Enumerable.Repeat("$ROOT", 128)));
+        CountingSymbolToken symbol = new();
+        instruction.TokenList.Add(symbol);
+
+        Assert.Equal("VOLUME " + string.Join(" ", Enumerable.Repeat("value", 128)) + "!",
+            instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["ROOT"] = "value" }));
+        Assert.Equal(2, symbol.RenderCount);
+    }
+
+    private sealed class CountingSymbolToken() : SymbolToken('!')
+    {
+        internal int RenderCount { get; private set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            RenderCount++;
+            return base.GetUnderlyingValue(options);
+        }
+    }
+
     private sealed class TokenSequenceLiteral : LiteralToken
     {
         internal TokenSequenceLiteral(params Token[] tokens) : base("placeholder", canContainVariables: true)

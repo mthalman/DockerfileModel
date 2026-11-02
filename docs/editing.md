@@ -162,6 +162,7 @@ and `RemoveEscapeCharacters` settings; the overrides manage their own side effec
 `ResolveVariables()` preserves the original model unless
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
 references but retains untouched child tokens, including empty primitive tokens.
+Empty primitive siblings retain their order around zero-width substitutions.
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
 retained. Decoded single quotes protect their contents from expansion; quote
@@ -197,6 +198,8 @@ Collection adoption and scalar token replacement bind direct token resolution
 to the receiving owner's context. Instruction resolution uses that instruction's
 context independently of the token's latest binding, so sharing a token with a
 non-VOLUME instruction does not change the original VOLUME's resolution policy.
+Synchronous reentrant calls retain each active literal's context, including calls
+that re-enter an outer literal through another literal's callback.
 Document `ARG` evaluation uses the `ARG` context for defaults shared with `VOLUME`.
 Direct variable-reference resolution uses the modifier's non-JSON context even
 when the modifier literal is also shared with a JSON `VOLUME` path.
