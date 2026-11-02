@@ -1050,6 +1050,147 @@ public class ArgResolutionContextTests
         Assert.Equal(original, dockerfile.ToString());
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void RenamedDeclarationsUseTheirPostResolutionName(bool stageScope, bool updateInline, bool previousBinding)
+    {
+        string declarations = previousBinding ? "ARG X=old\nARG X=placeholder" : "ARG X=placeholder";
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? $"FROM alpine\n{declarations}\nENV RESULT=${{X-fallback}}-${{Y-fallback}}"
+            : $"{declarations}\nFROM prefix${{X-fallback}}-${{Y-fallback}}");
+        ArgDeclaration arg = dockerfile.Items.OfType<ArgInstruction>().Last().ArgTokens[0];
+        ComputingVariable variable = new(() =>
+        {
+            arg.Name = "Y";
+            return "ok";
+        });
+        arg.ValueToken = Literal(variable);
+
+        string value = previousBinding ? "old-ok" : "fallback-ok";
+        Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("Y", arg.Name);
+        if (!updateInline)
+        {
+            Assert.Same(variable, Assert.Single(arg.ValueToken.Tokens));
+        }
+    }
+
+    [Theory]
+    [InlineData(false, '\\')]
+    [InlineData(true, '\\')]
+    [InlineData(false, '`')]
+    [InlineData(true, '`')]
+    public void MovedFailedReferencesUseTheirCurrentEscapeContext(bool initiallyQuoted, char escapeChar)
+    {
+        bool armed = false;
+        VariableRefToken failed = new("IGNORED", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new OptionSerializedString(options =>
+                armed && !options.ExcludeComments
+                    ? throw new FormatException("Deferred reference serialization.") : "placeholder"))
+        };
+        LiteralToken left = initiallyQuoted ? Literal(failed) : Literal(new StringToken(escapeChar.ToString()), failed);
+        if (initiallyQuoted) left.QuoteChar = '\'';
+        LiteralToken right = Literal();
+        CallbackVariable callback = new(() =>
+        {
+            left.TokenList.Clear();
+            left.QuoteChar = null;
+            right.TokenList.Add(new StringToken(escapeChar.ToString()));
+            right.TokenList.Add(failed);
+        });
+        Dockerfile dockerfile = Dockerfile.Parse(
+            $"# escape={escapeChar}\nFROM alpine\nARG X=placeholder\nENV RESULT=$X");
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken =
+            Literal(left, right, new VariableRefToken("MISSING", "?", "right"), callback);
+        armed = true;
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+
+        Assert.Equal("Variable 'MISSING' is not set. Error detail: 'right'.", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void DisabledInlineUpdatesDoNotSerializeUnusedModifierTrivia(bool stageScope, bool updateInline)
+    {
+        bool fail = false;
+        FailingContinuation continuation = new(() => fail, new FormatException("Unused modifier syntax."));
+        ResolutionOptions options = new() { UpdateInline = updateInline };
+        VariableRefToken outer = new("UNSET", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(continuation, new CallbackVariable((_, _, receivedOptions) =>
+            {
+                Assert.Same(options, receivedOptions);
+                receivedOptions!.UpdateInline = false;
+                fail = true;
+            }))
+        };
+        Dockerfile dockerfile = Document(stageScope, new VariableRefToken("MISSING", "?", "left"), outer);
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: options));
+
+        Assert.Equal("Variable 'MISSING' is not set. Error detail: 'left'.", error.Message);
+        Assert.False(options.UpdateInline);
+        Assert.Equal(0, continuation.FailingSerializationCount);
+    }
+
+    [Fact]
+    public void ReenabledInlineUpdatesDoNotSerializePreviouslyDisabledModifiers()
+    {
+        bool fail = false;
+        FailingContinuation continuation = new(() => fail, new FormatException("Unused modifier syntax."));
+        VariableRefToken outer = new("UNSET", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(continuation, new CallbackVariable((_, _, options) =>
+            {
+                options!.UpdateInline = false;
+                fail = true;
+            }))
+        };
+        Dockerfile dockerfile = Document(false,
+            new CallbackVariable((_, _, options) => options!.UpdateInline = true), outer);
+
+        Assert.Equal("FROM prefixleftleft",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Same(outer, dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!.Tokens.Last());
+        Assert.Equal(0, continuation.FailingSerializationCount);
+    }
+
+    [Fact]
+    public void DisabledInlineUpdatesStillSerializeTheReturnedInstruction()
+    {
+        bool fail = false;
+        FormatException expected = new("Returned instruction syntax.");
+        FailingContinuation continuation = new(() => fail, expected);
+        VariableRefToken outer = new("UNSET", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(continuation, new CallbackVariable((_, _, options) =>
+            {
+                options!.UpdateInline = false;
+                fail = true;
+            }))
+        };
+        Dockerfile dockerfile = Document(true, outer);
+
+        Assert.Same(expected, Assert.Throws<FormatException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true })));
+        Assert.Equal(1, continuation.FailingSerializationCount);
+    }
+
     [Fact]
     public void SimpleReferencesDoNotAllocateModifierScopes()
     {
@@ -1157,6 +1298,30 @@ public class ArgResolutionContextTests
         {
             ResolutionCount++;
             return base.ResolveVariables(escapeChar, variables, options);
+        }
+    }
+
+    private sealed class FailingContinuation : LineContinuationToken
+    {
+        private readonly Func<bool> fail;
+        private readonly Exception error;
+
+        public FailingContinuation(Func<bool> fail, Exception error) : base("\n")
+        {
+            this.fail = fail;
+            this.error = error;
+        }
+
+        public int FailingSerializationCount { get; private set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            if (fail())
+            {
+                FailingSerializationCount++;
+                throw error;
+            }
+            return base.GetUnderlyingValue(options);
         }
     }
 

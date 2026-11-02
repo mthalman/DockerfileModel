@@ -267,8 +267,9 @@ public class Dockerfile : IConstructContainer
             }
             else if (arg.HasAssignmentOperator)
             {
-                stageArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, stageArgs, options,
+                string value = ResolveArgDefault(arg, escapeChar, stageArgs, options,
                     resolvedArgs[i]);
+                stageArgs[arg.Name] = value;
             }
             else if (globalArgs.TryGetValue(arg.Name, out string? globalArg) && globalArg is not null)
             {
@@ -292,7 +293,8 @@ public class Dockerfile : IConstructContainer
             }
             else if (arg.HasAssignmentOperator)
             {
-                globalArgs[arg.Name] = ResolveArgDefault(arg, escapeChar, globalArgs, options);
+                string value = ResolveArgDefault(arg, escapeChar, globalArgs, options);
+                globalArgs[arg.Name] = value;
             }
         }
 
@@ -356,7 +358,7 @@ public class Dockerfile : IConstructContainer
             {
                 // Reparsed copies have distinct token owners and need their own occurrence snapshots.
                 ResolveArgValue(syntaxValue, escapeChar, syntaxBindings, options,
-                    recordResolution: RecordResolution);
+                    recordResolution: RecordResolution, shouldRecordSyntax: static () => true);
             }
             if (!syntaxValue.UsesCustomResolution &&
                 (!updateInline || options.UpdateInline || syntaxValue != valueToken))
@@ -408,8 +410,8 @@ public class Dockerfile : IConstructContainer
             }
             string? modifierSyntax = null;
             bool selectedModifier = false;
-            bool ShouldRecordModifierSyntax() => options.UpdateInline || recordResolution is not null ||
-                recordSyntax is not null && (shouldRecordSyntax?.Invoke() ?? true);
+            bool ShouldRecordModifierSyntax() => options.UpdateInline ||
+                (shouldRecordSyntax?.Invoke() ?? recordSyntax is not null);
             string? ResolveModifier(LiteralToken modifier)
             {
                 selectedModifier = true;
