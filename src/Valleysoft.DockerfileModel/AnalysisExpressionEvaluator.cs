@@ -69,10 +69,12 @@ internal static class AnalysisExpressionEvaluator
         Func<LiteralToken, string>? resolveLiteral = null, Func<int>? getCustomResolutionVersion = null,
         Func<string?>? getResolvedSyntax = null, ResolutionOptions? syntaxOptions = null,
         Action<AggregateToken, int, TokenResolution>? recordTokenResolution = null,
-        Action<string?>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null)
+        Action<string?>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null,
+        Action? onConsumerSerialization = null)
     {
         Dictionary<string, AnalysisValue> variables = new();
-        ResolutionSnapshot snapshot = new(token, resolveLiteral is not null || resolveAggregate is not null);
+        ResolutionSnapshot snapshot = new(token, resolveLiteral is not null || resolveAggregate is not null,
+            getSerializationVersion: getCustomResolutionVersion, onConsumerSerialization: onConsumerSerialization);
         List<ResolutionSnapshot> references = new();
         string CollectReference(ResolutionSnapshot reference)
         {
@@ -145,6 +147,8 @@ internal static class AnalysisExpressionEvaluator
     private sealed class ResolutionSnapshot
     {
         private readonly bool resolveCustomLiterals;
+        private readonly Func<int>? getSerializationVersion;
+        private readonly Action? onConsumerSerialization;
         private readonly string? primitiveValue;
         private char? capturedQuote;
         private readonly ResolvedStringToken? resolvedString;
@@ -156,11 +160,14 @@ internal static class AnalysisExpressionEvaluator
         private List<ResolutionSnapshot> children = new();
 
         public ResolutionSnapshot(Token source, bool resolveCustomLiterals, ResolutionSnapshot? previous = null,
-            int serializationVersion = 0)
+            int serializationVersion = 0, Func<int>? getSerializationVersion = null,
+            Action? onConsumerSerialization = null)
         {
             Source = source;
             this.resolveCustomLiterals = resolveCustomLiterals;
-            this.serializationVersion = serializationVersion;
+            this.getSerializationVersion = getSerializationVersion;
+            this.onConsumerSerialization = onConsumerSerialization;
+            this.serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
             if (previous?.Source != source)
             {
                 previous = null;
@@ -186,6 +193,11 @@ internal static class AnalysisExpressionEvaluator
                 if (source is not LineContinuationToken and not CommentToken and not NewLineToken)
                 {
                     resolvedString = (source as ResolvedStringToken)?.CreateSnapshot();
+                    if (IsConsumerLeaf)
+                    {
+                        onConsumerSerialization?.Invoke();
+                        this.serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
+                    }
                     try
                     {
                         serializedText = source.ToString(new TokenStringOptions(excludeQuotes: true));
@@ -213,11 +225,12 @@ internal static class AnalysisExpressionEvaluator
             if (source is AggregateToken aggregate)
             {
                 int childIndex = 0;
-                foreach (Token child in aggregate.Tokens)
+                foreach (Token child in aggregate.Tokens.ToArray())
                 {
                     ResolutionSnapshot? previousChild = previous is not null && childIndex < previous.children.Count
                         ? previous.children[childIndex] : null;
-                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild, serializationVersion));
+                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild, serializationVersion,
+                        getSerializationVersion, onConsumerSerialization));
                     childIndex++;
                 }
             }
@@ -324,17 +337,18 @@ internal static class AnalysisExpressionEvaluator
 
         public void RefreshSerialization(int version)
         {
-            // Consumer serializers can change independently of Value; recheck only at their pending position.
+            // Later callbacks and serializers can change state not exposed by Value.
             SerializationConsumed = true;
             if (serializationVersion == version)
             {
                 return;
             }
+            onConsumerSerialization?.Invoke();
             char? quote = (Source as IQuotableToken)?.QuoteChar;
             string text = Source.ToString(new TokenStringOptions(excludeQuotes: true));
             capturedQuote = OpeningQuote = ClosingQuote = quote;
             serializedText = text;
-            serializationVersion = version;
+            serializationVersion = getSerializationVersion?.Invoke() ?? version;
         }
 
         public void RefreshPendingSyntax(int version)
@@ -347,7 +361,8 @@ internal static class AnalysisExpressionEvaluator
                 for (int i = 0; i < Math.Min(child.index, liveChildren.Count); i++)
                 {
                     owner.AddChild(previous[i].Matches(liveChildren[i])
-                        ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, previous[i], version));
+                        ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, previous[i], version,
+                            getSerializationVersion, onConsumerSerialization));
                 }
                 for (int i = child.index; i < previous.Count; i++)
                 {

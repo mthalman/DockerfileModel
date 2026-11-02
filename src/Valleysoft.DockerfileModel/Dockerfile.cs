@@ -163,8 +163,8 @@ public class Dockerfile : IConstructContainer
     /// Consumer-defined aggregate tokens retain their public variable-resolution behavior and call context.
     /// Default references resolve
     /// right-to-left; custom callbacks can edit pending syntax but do not rewrite already-resolved output.
-    /// Pending consumer serializers are rechecked after custom callbacks; their edits to earlier syntax are honored
-    /// without re-reading consumed output. Inline substitutions are visible to later callbacks as references
+    /// Pending consumer serializers are rechecked after custom callbacks or later consumer serialization;
+    /// edits to earlier syntax are honored without re-reading consumed output. Inline substitutions are visible to later callbacks as references
     /// are consumed; moved references retain their resolved syntax and semantic contents.
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
     /// </remarks>
@@ -430,7 +430,8 @@ public class Dockerfile : IConstructContainer
         string result = AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, ResolveToken,
             resolveAggregate: ResolveToken, getCustomResolutionVersion: () => customResolutionVersion,
             getResolvedSyntax: () => resolvedSyntax, syntaxOptions: options,
-            recordTokenResolution: recordResolution, recordSyntax: recordSyntax);
+            recordTokenResolution: recordResolution, recordSyntax: recordSyntax,
+            onConsumerSerialization: RecordCustomResolution);
         return resolvedRoot ? resolvedRootValue : result;
     }
 }

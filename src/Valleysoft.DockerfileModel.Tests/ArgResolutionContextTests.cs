@@ -565,6 +565,96 @@ public class ArgResolutionContextTests
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InitialSerializerCanReplaceEarlierSibling(bool nested)
+    {
+        bool edited = false;
+        LiteralToken? owner = null;
+        OptionSerializedString serializer = new(options =>
+        {
+            if (!edited && !options.ExcludeComments)
+            {
+                edited = true;
+                owner!.TokenList[0] = new StringToken("new");
+            }
+            return "p";
+        });
+        LiteralToken value = Literal(new StringToken("old"), serializer);
+        Dockerfile dockerfile = Document(true, nested ? new Token[] { value } : value.Tokens.ToArray());
+        owner = nested ? value : dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
+
+        Assert.Equal("ENV RESULT=newp",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        Assert.True(edited);
+        Assert.Equal("new", Assert.IsType<StringToken>(owner.TokenList[0]).Value);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void PendingSerializerObservesOtherSerializerStateChanges(bool leaf, bool modifier)
+    {
+        bool active = false;
+        Token pending = leaf ? new SerializedLeaf(() => active ? "new" : "old")
+            : new MutableSerializedString(() => active ? "new" : "old");
+        MutableSerializedString serializer = new(() =>
+        {
+            active = true;
+            return "p";
+        });
+        Token right = modifier ? new VariableRefToken("UNSET", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(serializer)
+        } : serializer;
+        Dockerfile dockerfile = Document(true, pending, right);
+
+        Assert.Equal("ENV RESULT=newp",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+    }
+
+    [Fact]
+    public void EarlierSerializerCannotRewriteCompletedSerializerOutput()
+    {
+        int serializations = 0;
+        bool active = false;
+        Dockerfile dockerfile = Document(true, new MutableSerializedString(() =>
+        {
+            active = ++serializations > 1;
+            return "left";
+        }), new MutableSerializedString(() => active ? "new" : "old"));
+
+        Assert.Equal("ENV RESULT=leftold",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+    }
+
+    [Fact]
+    public void SerializerStateChangesRecheckPendingLeavesLinearly()
+    {
+        const int count = 512;
+        int serializations = 0;
+        bool active = false;
+        Token[] pending = Enumerable.Range(0, count)
+            .Select(_ => (Token)new MutableSerializedString(() =>
+            {
+                serializations++;
+                return active ? "new" : "old";
+            })).Append(new MutableSerializedString(() =>
+            {
+                serializations++;
+                active = true;
+                return "p";
+            })).ToArray();
+        Dockerfile dockerfile = Document(true, pending);
+
+        Assert.Equal("ENV RESULT=" + String.Concat(Enumerable.Repeat("new", count)) + "p",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal(4 * count + 3, serializations);
+    }
+
     [Fact]
     public void InitialPrimitiveQuoteFailurePreservesRequiredError()
     {
@@ -669,6 +759,16 @@ public class ArgResolutionContextTests
         public MutableSerializedString(Func<string> serialize) : base("placeholder") => this.serialize = serialize;
 
         protected override string GetUnderlyingValue(TokenStringOptions options) => serialize();
+    }
+
+    private sealed class OptionSerializedString : StringToken
+    {
+        private readonly Func<TokenStringOptions, string> serialize;
+
+        public OptionSerializedString(Func<TokenStringOptions, string> serialize) : base("placeholder") =>
+            this.serialize = serialize;
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => serialize(options);
     }
 
     private static LiteralToken Literal(params Token[] tokens) =>
