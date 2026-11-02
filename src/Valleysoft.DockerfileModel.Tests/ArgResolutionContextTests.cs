@@ -797,6 +797,144 @@ public class ArgResolutionContextTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void InlineReplayPreservesEachCallbacksInlineDecision(bool stageScope, bool builtIn)
+    {
+        CallbackVariable left = new((_, _, options) => options!.UpdateInline = true);
+        CallbackVariable right = new((_, _, options) => options!.UpdateInline = false);
+        VariableRefToken middle = new("UNSET", ":-", "middle");
+        Dockerfile dockerfile = Document(stageScope, builtIn
+            ? new Token[] { left, middle, right } : new Token[] { left, right });
+
+        string value = builtIn ? "leftmiddleleft" : "leftleft";
+        Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        LiteralToken result = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
+        Assert.Same(right, result.Tokens.Last());
+        if (builtIn)
+        {
+            Assert.Same(middle, result.Tokens.ElementAt(1));
+        }
+        Assert.Equal(builtIn ? "ARG X=left${UNSET:-middle}$LEFT\n" : "ARG X=left$LEFT\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+    }
+
+    [Fact]
+    public void InlineReplayDoesNotReserializeReferencesWhoseInlineUpdatesWereDisabled()
+    {
+        int serializations = 0;
+        CallbackVariable right = new((_, _, options) => options!.UpdateInline = false)
+        {
+            VariableNameToken = new OptionSerializedString(options =>
+            {
+                if (!options.ExcludeComments) serializations++;
+                return "RIGHT";
+            })
+        };
+        Dockerfile dockerfile = Document(true,
+            new CallbackVariable((_, _, options) => options!.UpdateInline = true), right);
+
+        Assert.Equal("ENV RESULT=leftleft",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal(1, serializations);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void InitialSuppressedSerializerFailurePreservesRightmostError(bool singleQuoted, bool throwOnce)
+    {
+        bool failed = false;
+        VariableRefToken suppressed = new("IGNORED", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new OptionSerializedString(options =>
+            {
+                if (options.ExcludeComments || throwOnce && failed) return "placeholder";
+                failed = true;
+                throw new FormatException("Suppressed serialization.");
+            }))
+        };
+        Dockerfile dockerfile = Document(true, new StringToken(singleQuoted ? "'" : "\\"),
+            suppressed, new StringToken(singleQuoted ? "'" : ""), new VariableRefToken("UNSET", "?", "right"));
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+
+        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'right'.", error.Message);
+        Assert.True(failed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InitialSuppressedSerializerFailureIsRethrownUnchanged(bool throwOnce)
+    {
+        bool failed = false;
+        FormatException expected = new("Suppressed serialization.");
+        VariableRefToken suppressed = new("IGNORED", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new OptionSerializedString(options =>
+            {
+                if (options.ExcludeComments || throwOnce && failed) return "placeholder";
+                failed = true;
+                throw expected;
+            }))
+        };
+        LiteralToken prefix = Literal(new StringToken("\\"));
+        Dockerfile dockerfile = Document(true, prefix, suppressed,
+            new CallbackVariable(() => prefix.TokenList.Insert(0, new StringToken("new"))));
+
+        Assert.Same(expected, Assert.Throws<FormatException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true })));
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void ConsumerTriviaOverridesSupplyDefaultValues(bool stageScope, bool updateInline, bool comment)
+    {
+        int resolutions = 0;
+        Action resolved = () => resolutions++;
+        Token trivia = comment ? new ResolvingComment(resolved) : new ResolvingContinuation(resolved);
+        Dockerfile dockerfile = Document(stageScope, trivia);
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=custom" : "FROM prefixcustom",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(1, resolutions);
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    [Fact]
+    public void SimpleReferencesDoNotAllocateModifierScopes()
+    {
+        const int count = 2048;
+        Dockerfile dockerfile = Dockerfile.Parse("ARG SET=set\nARG X=" +
+            String.Concat(Enumerable.Repeat("$SET", count)) + "\nFROM prefix$X");
+        string expected = "FROM prefix" + String.Concat(Enumerable.Repeat("set", count));
+        Assert.Equal(expected, dockerfile.ResolveVariables());
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        string result = dockerfile.ResolveVariables();
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(expected, result);
+        Assert.InRange(allocated, 0, 1_500_000);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void SpeculativeQuoteFailuresRemainStickyAfterCallbacks(bool throwOnce)
@@ -899,6 +1037,34 @@ public class ArgResolutionContextTests
         {
             SerializationCount++;
             return base.GetUnderlyingValue(options);
+        }
+    }
+
+    private sealed class ResolvingContinuation : LineContinuationToken
+    {
+        private readonly Action resolved;
+
+        public ResolvingContinuation(Action resolved) : base("\n") => this.resolved = resolved;
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            resolved();
+            return "custom";
+        }
+    }
+
+    private sealed class ResolvingComment : CommentToken
+    {
+        private readonly Action resolved;
+
+        public ResolvingComment(Action resolved) : base("comment") => this.resolved = resolved;
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            resolved();
+            return "custom";
         }
     }
 

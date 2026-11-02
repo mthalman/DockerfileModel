@@ -90,7 +90,12 @@ public class VariableRefToken : AggregateToken
     public IEnumerable<SymbolToken> ModifierTokens =>
         this.Tokens
             .OfType<SymbolToken>()
-            .Where(token => token.Value != "{" && token.Value != "}");
+            .Where(IsModifierToken);
+
+    internal bool HasModifierTokens =>
+        TokenList.Exists(token => token is SymbolToken symbol && IsModifierToken(symbol));
+
+    private static bool IsModifierToken(SymbolToken token) => token.Value != "{" && token.Value != "}";
 
     public string? ModifierValue
     {

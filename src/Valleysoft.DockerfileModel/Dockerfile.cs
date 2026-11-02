@@ -159,9 +159,11 @@ public class Dockerfile : IConstructContainer
     /// Global ARGs supply FROM values; each stage starts a fresh local ARG scope. Stage declarations without
     /// defaults can import global values, otherwise they retain an existing local binding.
     /// Explicit empty assignments are set; null overrides are unset. Defaults contribute shell-decoded
-    /// contents, excluding syntax quotes and continuation/comment trivia. Runtime command expansion is not performed.
+    /// contents, excluding syntax quotes and ordinary continuation/comment trivia. Runtime command expansion is not performed.
     /// Consumer-defined aggregate tokens retain their public variable-resolution behavior and call context;
-    /// changes they make to the supplied options affect subsequent resolution.
+    /// changes they make to the supplied options affect subsequent resolution. Explicit consumer resolution overrides
+    /// on trivia tokens also contribute binding contents. Inline replay does not enable updates retroactively for
+    /// references consumed while updates were disabled.
     /// Default references resolve
     /// right-to-left; custom callbacks can edit pending syntax but do not rewrite already-resolved output.
     /// Pending consumer serializers are rechecked after custom callbacks or later consumer serialization,
@@ -363,9 +365,17 @@ public class Dockerfile : IConstructContainer
                     UpdateInline = true,
                     RemoveEscapeCharacters = options.RemoveEscapeCharacters,
                     TokenValueResolver = (owner, index, token) =>
-                        resolutions.TryGetValue(owner, out var positions) &&
-                        positions.TryGetValue(index, out var occurrences) && occurrences.Count > 0 &&
-                        ReferenceEquals(occurrences.Peek().Source, token) ? occurrences.Pop() : null
+                    {
+                        if (!resolutions.TryGetValue(owner, out var positions) ||
+                            !positions.TryGetValue(index, out var occurrences) || occurrences.Count == 0 ||
+                            !ReferenceEquals(occurrences.Peek().Source, token))
+                        {
+                            return null;
+                        }
+                        TokenResolution resolution = occurrences.Pop();
+                        return new TokenResolution(resolution.Source, resolution.SyntaxValue, resolution.SemanticValue,
+                            syntaxValue != valueToken || resolution.UpdateInline);
+                    }
                 });
             }
         }
@@ -405,7 +415,9 @@ public class Dockerfile : IConstructContainer
                     recordResolution is null && recordSyntax is null ? null : syntax => modifierSyntax = syntax);
             }
             string? value;
-            using (options.UseModifierValueResolver(escapeChar, bindings, ResolveModifier))
+            using (aggregate.UsesCustomResolution ||
+                aggregate is VariableRefToken variable && variable.HasModifierTokens
+                ? options.UseModifierValueResolver(escapeChar, bindings, ResolveModifier) : null)
             {
                 value = aggregate.ResolveVariables(escapeChar, bindings, options);
             }

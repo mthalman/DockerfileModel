@@ -223,7 +223,8 @@ public abstract class AggregateToken : Token
                 {
                     value = aggregateToken.ResolveVariables(escapeChar, variables, options);
                 }
-                if (token is VariableRefToken && options.UpdateInline && !suppressExpansion)
+                if (token is VariableRefToken && options.UpdateInline && !suppressExpansion &&
+                    (capturedValue?.UpdateInline ?? true))
                 {
                     ReplaceResolvedVariable(i, value, semanticValue, escapeChar);
                 }

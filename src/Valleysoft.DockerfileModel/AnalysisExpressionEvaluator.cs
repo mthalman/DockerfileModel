@@ -111,7 +111,8 @@ internal static class AnalysisExpressionEvaluator
                 reference.ResolvedSyntaxValue = getResolvedSyntax is null
                     ? reference.ResolvedValue : getResolvedSyntax();
                 reference.IsResolved = true;
-                if (syntaxOptions?.UpdateInline == true)
+                reference.InlineUpdateAllowed = syntaxOptions?.UpdateInline == true;
+                if (reference.InlineUpdateAllowed)
                 {
                     reference.ApplyInlineResolution(escapeChar);
                 }
@@ -164,6 +165,7 @@ internal static class AnalysisExpressionEvaluator
             Action? onConsumerSerialization = null)
         {
             Source = source;
+            IsIgnoredTrivia = source is LineContinuationToken or CommentToken or NewLineToken;
             this.resolveCustomLiterals = resolveCustomLiterals;
             this.getSerializationVersion = getSerializationVersion;
             this.onConsumerSerialization = onConsumerSerialization;
@@ -185,6 +187,13 @@ internal static class AnalysisExpressionEvaluator
                 source is AggregateToken aggregateToken && aggregateToken.UsesCustomResolution && resolveCustomLiterals;
             if (IsReference)
             {
+                if (IsIgnoredTrivia && source is AggregateToken trivia)
+                {
+                    // Serializer-only trivia subclasses remain syntax-only.
+                    Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolver =
+                        trivia.ResolveVariables;
+                    IsIgnoredTrivia = resolver.Method.DeclaringType == typeof(AggregateToken);
+                }
                 return;
             }
             if (source is not AggregateToken)
@@ -237,8 +246,9 @@ internal static class AnalysisExpressionEvaluator
         }
 
         public Token Source { get; }
-        public ExceptionDispatchInfo? SerializationFailure { get; }
+        public ExceptionDispatchInfo? SerializationFailure { get; private set; }
         public bool IsReference { get; }
+        public bool IsIgnoredTrivia { get; }
         public bool IsConsumerLeaf => resolveCustomLiterals && Source is not AggregateToken &&
             Source.GetType().Assembly != typeof(Token).Assembly;
         public bool IsSuppressedReference => Source is VariableRefToken && SuppressedSyntax is not null &&
@@ -247,6 +257,7 @@ internal static class AnalysisExpressionEvaluator
         public bool SerializationConsumed { get; private set; }
         public bool IsResolved { get; set; }
         public bool InlineUpdated { get; private set; }
+        public bool InlineUpdateAllowed { get; set; } = true;
         public string? ResolvedValue { get; set; }
         public string? ResolvedSyntaxValue { get; set; }
         public string? SuppressedSyntax { get; set; }
@@ -360,16 +371,27 @@ internal static class AnalysisExpressionEvaluator
             serializationVersion = getSerializationVersion?.Invoke() ?? version;
         }
 
-        public string CaptureSuppressedSyntax()
+        public bool TryCaptureSuppressedSyntax(out string syntax)
         {
             if (SuppressedSyntax is { } captured)
             {
-                return captured;
+                syntax = captured;
+                return true;
             }
-            string syntax = SerializeSuppressedSyntax(Source);
-            SuppressedSyntax = syntax;
-            serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
-            return syntax;
+            try
+            {
+                syntax = SerializeSuppressedSyntax(Source);
+                SuppressedSyntax = syntax;
+                serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
+                return true;
+            }
+            catch (Exception error) when (resolveCustomLiterals &&
+                error is not OutOfMemoryException and not OperationCanceledException)
+            {
+                SerializationFailure = ExceptionDispatchInfo.Capture(error);
+                syntax = String.Empty;
+                return false;
+            }
         }
 
         private string SerializeSuppressedSyntax(Token token)
@@ -570,7 +592,8 @@ internal static class AnalysisExpressionEvaluator
                     ? (child.ResolvedValue ?? child.SuppressedSyntax ?? String.Empty,
                         child.Context.QuoteChar, child.Context.Escaped) : null;
                 record(capture.Owner, capture.Index, new TokenResolution(capture.Source,
-                    child.IsReference ? child.GetResolvedSyntax(escapeChar, options) : null, semanticValue));
+                    child.IsReference ? child.GetResolvedSyntax(escapeChar, options) : null, semanticValue,
+                    child.InlineUpdateAllowed));
             }
         }
 
@@ -764,6 +787,10 @@ internal static class AnalysisExpressionEvaluator
                             AppendCharacter(failedClosingQuote);
                         }
                     }
+                    if (snapshot.Source is VariableRefToken && snapshot.Context.Escaped)
+                    {
+                        escaped = false;
+                    }
                 }
                 else
                 {
@@ -771,7 +798,7 @@ internal static class AnalysisExpressionEvaluator
                 }
                 return;
             }
-            if (snapshot.Source is LineContinuationToken or CommentToken or NewLineToken)
+            if (snapshot.IsIgnoredTrivia)
             {
                 return;
             }
@@ -794,10 +821,25 @@ internal static class AnalysisExpressionEvaluator
                     (quote == '\'' || escaped ||
                         (resolveSnapshot is null || snapshot.SerializationConsumed) && snapshot.SuppressedSyntax is not null))
                 {
-                    string syntax = snapshot.CaptureSuppressedSyntax();
                     if (resolveSnapshot is not null && !snapshot.SerializationConsumed)
                     {
                         snapshot.Context = (quote, escaped);
+                    }
+                    if (!snapshot.TryCaptureSuppressedSyntax(out string syntax))
+                    {
+                        if (resolveSnapshot is not null)
+                        {
+                            resolveSnapshot(snapshot);
+                            escaped = false;
+                        }
+                        else
+                        {
+                            snapshot.SerializationFailure!.Throw();
+                        }
+                        return;
+                    }
+                    if (resolveSnapshot is not null && !snapshot.SerializationConsumed)
+                    {
                         resolveSnapshot(snapshot);
                     }
                     recordResolution?.Invoke(variable,

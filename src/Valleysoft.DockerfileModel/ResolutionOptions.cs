@@ -129,14 +129,16 @@ public class ResolutionOptions
 internal readonly struct TokenResolution
 {
     public TokenResolution(Tokens.AggregateToken source, string? syntaxValue,
-        (string Value, char? QuoteChar, bool Escaped)? semanticValue)
+        (string Value, char? QuoteChar, bool Escaped)? semanticValue, bool updateInline = true)
     {
         Source = source;
         SyntaxValue = syntaxValue;
         SemanticValue = semanticValue;
+        UpdateInline = updateInline;
     }
 
     public Tokens.AggregateToken Source { get; }
     public string? SyntaxValue { get; }
     public (string Value, char? QuoteChar, bool Escaped)? SemanticValue { get; }
+    public bool UpdateInline { get; }
 }
