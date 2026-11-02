@@ -213,12 +213,20 @@ internal static class AnalysisExpressionEvaluator
                     Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolver =
                         trivia.ResolveVariables;
                     IsIgnoredTrivia = resolver.Method.DeclaringType == typeof(AggregateToken);
+                    IsReference = !IsIgnoredTrivia;
                 }
-                return;
+                if (IsReference)
+                {
+                    return;
+                }
             }
             if (source is not AggregateToken)
             {
                 primitiveValue = (source as PrimitiveToken)?.Value;
+                if (IsIgnoredTrivia && !IsConsumerLeaf)
+                {
+                    serializedText = primitiveValue;
+                }
                 if (source is not LineContinuationToken and not CommentToken and not NewLineToken)
                 {
                     resolvedString = (source as ResolvedStringToken)?.CreateSnapshot();
@@ -659,7 +667,7 @@ internal static class AnalysisExpressionEvaluator
             if (Source is not AggregateToken)
             {
                 string syntax = Source is LineContinuationToken or CommentToken or NewLineToken
-                    ? Source.ToString() : $"{OpeningQuote}{serializedText}{ClosingQuote}";
+                    ? serializedText ?? Source.ToString() : $"{OpeningQuote}{serializedText}{ClosingQuote}";
                 return options.FormatValue(escapeChar, syntax);
             }
             StringBuilder builder = new();
@@ -873,6 +881,10 @@ internal static class AnalysisExpressionEvaluator
             }
             if (snapshot.IsReference)
             {
+                if (snapshot.Source is not VariableRefToken && escaped && quote == '"')
+                {
+                    text?.Append(escapeChar);
+                }
                 if (snapshot.IsResolved)
                 {
                     text?.Append(snapshot.ResolvedValue);

@@ -1298,6 +1298,81 @@ public class ArgResolutionContextTests
         Assert.Equal(original, dockerfile.ToString());
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void DelayedModifierTriviaUsesCapturedPublicResolution(
+        bool stageScope, bool updateInline, bool editNewLine)
+    {
+        bool fail = false;
+        FailingContinuation continuation = new(() => fail, new FormatException("Deferred trivia syntax."));
+        NewLineToken newLine = continuation.Tokens.OfType<NewLineToken>().Single();
+        VariableRefToken inner = new("INNER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(continuation, new StringToken("ok"))
+        };
+        VariableRefToken outer = new("OUTER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new CallbackVariable((_, _, options) =>
+            {
+                options!.UpdateInline = true;
+                fail = true;
+                if (editNewLine) newLine.Value = "\r\n";
+            }), inner)
+        };
+        Dockerfile dockerfile = Document(stageScope, outer);
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftok" : "FROM prefixleftok",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("ARG X=left\\\nok\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal(editNewLine ? "\r\n" : "\n", newLine.Value);
+        Assert.Equal(0, continuation.FailingSerializationCount);
+    }
+
+    [Theory]
+    [InlineData(false, false, '\\', false)]
+    [InlineData(false, false, '\\', true)]
+    [InlineData(false, true, '\\', false)]
+    [InlineData(false, true, '\\', true)]
+    [InlineData(true, false, '\\', false)]
+    [InlineData(true, false, '\\', true)]
+    [InlineData(true, true, '\\', false)]
+    [InlineData(true, true, '\\', true)]
+    [InlineData(false, false, '`', false)]
+    [InlineData(false, false, '`', true)]
+    [InlineData(false, true, '`', false)]
+    [InlineData(false, true, '`', true)]
+    [InlineData(true, false, '`', false)]
+    [InlineData(true, false, '`', true)]
+    [InlineData(true, true, '`', false)]
+    [InlineData(true, true, '`', true)]
+    public void OpaqueAggregatesPreserveDoubleQuotedLiteralEscapes(
+        bool stageScope, bool updateInline, char escapeChar, bool quoted)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(stageScope
+            ? $"# escape={escapeChar}\nFROM alpine\nARG X=placeholder\nENV RESULT=$X"
+            : $"# escape={escapeChar}\nARG X=placeholder\nFROM prefix$X");
+        LiteralToken value = Literal(new StringToken(escapeChar.ToString()),
+            new OptionsEditingLiteral(_ => "computed"), new StringToken("q"));
+        value.QuoteChar = quoted ? '"' : null;
+        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken = value;
+        string original = dockerfile.ToString();
+        string expected = $"{(quoted ? escapeChar.ToString() : "")}computedq";
+
+        Assert.Equal(stageScope ? $"ENV RESULT={expected}" : $"FROM prefix{expected}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
     [Fact]
     public void SimpleReferencesDoNotAllocateModifierScopes()
     {
