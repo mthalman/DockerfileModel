@@ -836,7 +836,8 @@ public class ArgResolutionTests
         {
             Assert.IsType<ResolvedStringToken>(right.TokenList[0]);
             Assert.Same(shared, right.TokenList[1]);
-            Assert.Equal("ARG X=leftold${UNSET:-old}\n",
+            Assert.Equal("$old", shared.ToString());
+            Assert.Equal("ARG X=leftold$old\n",
                 dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
         }
     }

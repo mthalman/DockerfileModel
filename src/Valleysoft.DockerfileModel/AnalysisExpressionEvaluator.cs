@@ -97,7 +97,8 @@ internal static class AnalysisExpressionEvaluator
             bool checkPendingSyntax;
             if (reference.IsConsumerLeaf)
             {
-                checkPendingSyntax = reference.RefreshSerialization(version);
+                reference.RefreshSerialization(version);
+                checkPendingSyntax = true;
             }
             else
             {
@@ -108,6 +109,10 @@ internal static class AnalysisExpressionEvaluator
                 reference.ResolvedSyntaxValue = getResolvedSyntax is null
                     ? reference.ResolvedValue : getResolvedSyntax();
                 reference.IsResolved = true;
+                if (syntaxOptions?.UpdateInline == true)
+                {
+                    reference.ApplyInlineResolution(escapeChar);
+                }
                 checkPendingSyntax = getCustomResolutionVersion is not null && version != getCustomResolutionVersion();
             }
             if (checkPendingSyntax && reference.PendingSyntaxChanged())
@@ -175,6 +180,25 @@ internal static class AnalysisExpressionEvaluator
             {
                 return;
             }
+            if (source is not AggregateToken)
+            {
+                primitiveValue = (source as PrimitiveToken)?.Value;
+                if (source is not LineContinuationToken and not CommentToken and not NewLineToken)
+                {
+                    resolvedString = (source as ResolvedStringToken)?.CreateSnapshot();
+                    try
+                    {
+                        serializedText = source.ToString(new TokenStringOptions(excludeQuotes: true));
+                    }
+                    catch (Exception error) when (resolveCustomLiterals &&
+                        error is not OutOfMemoryException and not OperationCanceledException)
+                    {
+                        // Document resolution rethrows serializer failures at their reverse-order position.
+                        SerializationFailure = ExceptionDispatchInfo.Capture(error);
+                        return;
+                    }
+                }
+            }
             try
             {
                 capturedQuote = (source as IQuotableToken)?.QuoteChar;
@@ -197,24 +221,6 @@ internal static class AnalysisExpressionEvaluator
                     childIndex++;
                 }
             }
-            else
-            {
-                primitiveValue = (source as PrimitiveToken)?.Value;
-                if (source is not LineContinuationToken and not CommentToken and not NewLineToken)
-                {
-                    resolvedString = (source as ResolvedStringToken)?.CreateSnapshot();
-                    try
-                    {
-                        serializedText = source.ToString(new TokenStringOptions(excludeQuotes: true));
-                    }
-                    catch (Exception error) when (resolveCustomLiterals &&
-                        error is not OutOfMemoryException and not OperationCanceledException)
-                    {
-                        // Document resolution rethrows serializer failures at their reverse-order position.
-                        SerializationFailure = ExceptionDispatchInfo.Capture(error);
-                    }
-                }
-            }
         }
 
         public Token Source { get; }
@@ -224,6 +230,7 @@ internal static class AnalysisExpressionEvaluator
             Source.GetType().Assembly != typeof(Token).Assembly;
         public bool SerializationConsumed { get; private set; }
         public bool IsResolved { get; set; }
+        public bool InlineUpdated { get; private set; }
         public string? ResolvedValue { get; set; }
         public string? ResolvedSyntaxValue { get; set; }
         public string? SuppressedSyntax { get; set; }
@@ -315,20 +322,19 @@ internal static class AnalysisExpressionEvaluator
             return false;
         }
 
-        public bool RefreshSerialization(int version)
+        public void RefreshSerialization(int version)
         {
             // Consumer serializers can change independently of Value; recheck only at their pending position.
             SerializationConsumed = true;
             if (serializationVersion == version)
             {
-                return false;
+                return;
             }
             char? quote = (Source as IQuotableToken)?.QuoteChar;
             string text = Source.ToString(new TokenStringOptions(excludeQuotes: true));
             capturedQuote = OpeningQuote = ClosingQuote = quote;
             serializedText = text;
             serializationVersion = version;
-            return true;
         }
 
         public void RefreshPendingSyntax(int version)
@@ -352,13 +358,30 @@ internal static class AnalysisExpressionEvaluator
             }
         }
 
+        public void ApplyInlineResolution(char escapeChar)
+        {
+            if (Source is not VariableRefToken || parent?.Source is not AggregateToken owner)
+            {
+                return;
+            }
+            int liveIndex = index < owner.TokenList.Count && ReferenceEquals(owner.TokenList[index], Source)
+                ? index : owner.TokenList.FindIndex(token => ReferenceEquals(token, Source));
+            if (liveIndex >= 0)
+            {
+                owner.ReplaceResolvedVariable(liveIndex, ResolvedSyntaxValue,
+                    (ResolvedValue ?? String.Empty, Context.QuoteChar, Context.Escaped), escapeChar);
+                InlineUpdated = true;
+            }
+        }
+
         public void Visit(Evaluation evaluation) => evaluation.VisitSnapshot(this,
             children, resolvedString, serializedText);
 
         public void RecordTokenResolutions(char escapeChar, ResolutionOptions options,
             Action<AggregateToken, int, TokenResolution> record)
         {
-            if (IsReference || Source is not AggregateToken root)
+            if (IsReference || Source is not AggregateToken root ||
+                !children.Any(child => child.Source is AggregateToken))
             {
                 return;
             }
@@ -409,7 +432,7 @@ internal static class AnalysisExpressionEvaluator
                 }
                 foreach (ResolutionSnapshot child in node.children)
                 {
-                    if (child.Source is not AggregateToken aggregate)
+                    if (child.InlineUpdated || child.Source is not AggregateToken aggregate)
                     {
                         continue;
                     }

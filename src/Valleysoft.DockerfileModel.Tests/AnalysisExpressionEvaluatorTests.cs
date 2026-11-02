@@ -350,6 +350,31 @@ public class AnalysisExpressionEvaluatorTests
         protected override string GetUnderlyingValue(TokenStringOptions options) => serialize();
     }
 
+    [Fact]
+    public void ConstantDefaultsDoNotAllocateUnusedCaptureGraphs()
+    {
+        const int count = 128;
+        LiteralToken token = new("value");
+        ResolutionOptions options = new();
+        string Run(bool record) => AnalysisExpressionEvaluator.ResolveVariables(token, '\\',
+            static _ => String.Empty, syntaxOptions: options,
+            recordTokenResolution: record ? static (_, _, _) =>
+                throw new InvalidOperationException("A constant default has no captures.") : null);
+        long Measure(bool record)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < count; i++) Assert.Equal("value", Run(record));
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+        Run(false);
+        Run(true);
+
+        long baseline = Measure(false);
+        long withCaptures = Measure(true);
+
+        Assert.InRange(withCaptures, 0, baseline + 128 * count);
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);

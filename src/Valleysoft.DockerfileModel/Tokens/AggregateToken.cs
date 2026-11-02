@@ -170,6 +170,21 @@ public abstract class AggregateToken : Token
         TokenList.AddRange(tokens);
     }
 
+    internal void ReplaceResolvedVariable(int index, string? value,
+        (string Value, char? QuoteChar, bool Escaped)? semanticValue, char escapeChar)
+    {
+        if (value is null)
+        {
+            TokenList.RemoveAt(index);
+        }
+        else
+        {
+            TokenList[index] = semanticValue is { } semantic
+                ? new ResolvedStringToken(value, semantic.Value, semantic.QuoteChar, semantic.Escaped, escapeChar)
+                : new StringToken(value);
+        }
+    }
+
     private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
     {
         StringBuilder builder = new();
@@ -210,16 +225,7 @@ public abstract class AggregateToken : Token
                 }
                 if (token is VariableRefToken && options.UpdateInline && !suppressExpansion)
                 {
-                    if (value is null)
-                    {
-                        TokenList.RemoveAt(i);
-                    }
-                    else
-                    {
-                        TokenList[i] = semanticValue is { } semantic
-                            ? new ResolvedStringToken(value, semantic.Value, semantic.QuoteChar, semantic.Escaped, escapeChar)
-                            : new StringToken(value);
-                    }
+                    ReplaceResolvedVariable(i, value, semanticValue, escapeChar);
                 }
             }
             else
