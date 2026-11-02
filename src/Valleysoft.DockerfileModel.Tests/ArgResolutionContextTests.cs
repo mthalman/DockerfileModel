@@ -917,6 +917,139 @@ public class ArgResolutionContextTests
         }
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void MovingPendingTokensPreservesDeferredFailures(bool betweenOwners, bool quoteGetter, bool throwOnce)
+    {
+        bool armed = false;
+        bool failed = false;
+        InvalidOperationException expected = new("Deferred token failure.");
+        void Fail()
+        {
+            if (armed && (!throwOnce || !failed))
+            {
+                failed = true;
+                throw expected;
+            }
+        }
+        Token pending = quoteGetter ? new QuotedString(() =>
+        {
+            Fail();
+            return null;
+        }) : new OptionSerializedString(options =>
+        {
+            if (!options.ExcludeComments) Fail();
+            return "p";
+        });
+        LiteralToken left = Literal(pending);
+        LiteralToken right = Literal(new StringToken("q"));
+        LiteralToken? root = null;
+        CallbackVariable callback = new(() =>
+        {
+            if (betweenOwners)
+            {
+                left.TokenList.Clear();
+                right.TokenList.Insert(0, pending);
+            }
+            else
+            {
+                (root!.TokenList[0], root.TokenList[1]) = (root.TokenList[1], root.TokenList[0]);
+            }
+        });
+        Dockerfile dockerfile = Document(true, betweenOwners
+            ? new Token[] { left, right, callback }
+            : new Token[] { pending, new StringToken("q"), callback });
+        root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
+        armed = true;
+
+        Assert.Same(expected, Assert.Throws<InvalidOperationException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true })));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RemovingPendingTokensDiscardsTheirDeferredFailures(bool quoteGetter)
+    {
+        bool armed = false;
+        InvalidOperationException expected = new("Removed token failure.");
+        Token pending = quoteGetter ? new QuotedString(() =>
+            armed ? throw expected : null) : new OptionSerializedString(options =>
+            armed && !options.ExcludeComments ? throw expected : "p");
+        LiteralToken? root = null;
+        Dockerfile dockerfile = Document(true, pending, new CallbackVariable(() =>
+            root!.TokenList[0] = new StringToken("new")));
+        root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
+        armed = true;
+
+        Assert.Equal("ENV RESULT=newleft",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public void CallbacksEnablingInlineUpdatesPreserveModifierQuotes(bool stageScope, bool nested, bool targetArg)
+    {
+        ResolutionOptions options = new();
+        LiteralToken operand = Literal(new OptionsEditingLiteral(receivedOptions =>
+        {
+            Assert.Same(options, receivedOptions);
+            receivedOptions.UpdateInline = true;
+            return "a b";
+        }));
+        operand.QuoteChar = '"';
+        VariableRefToken reference = new("UNSET", ":-", "placeholder") { ModifierValueToken = operand };
+        if (nested)
+        {
+            reference = new VariableRefToken("OUTER", ":-", "placeholder")
+            {
+                ModifierValueToken = Literal(reference)
+            };
+        }
+        Dockerfile dockerfile = Document(stageScope, reference);
+
+        string result = targetArg
+            ? dockerfile.ResolveVariables(dockerfile.Items.OfType<ArgInstruction>().Single(), options: options)
+            : dockerfile.ResolveVariables(options: options);
+        Assert.Equal(targetArg ? "ARG X=\"a b\"\n" : stageScope ? "ENV RESULT=a b" : "FROM prefixa b", result);
+        Assert.True(options.UpdateInline);
+        Assert.Equal("ARG X=\"a b\"\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ModifierCallbacksLeavingInlineUpdatesDisabledPreserveSyntax(bool stageScope)
+    {
+        ResolutionOptions options = new();
+        LiteralToken operand = Literal(new OptionsEditingLiteral(receivedOptions =>
+        {
+            Assert.Same(options, receivedOptions);
+            return "a b";
+        }));
+        operand.QuoteChar = '"';
+        Dockerfile dockerfile = Document(stageScope,
+            new VariableRefToken("UNSET", ":-", "placeholder") { ModifierValueToken = operand });
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=a b" : "FROM prefixa b",
+            dockerfile.ResolveVariables(options: options));
+        Assert.False(options.UpdateInline);
+        Assert.Equal(original, dockerfile.ToString());
+    }
+
     [Fact]
     public void SimpleReferencesDoNotAllocateModifierScopes()
     {

@@ -276,7 +276,8 @@ public class Dockerfile : IConstructContainer
             }
         }
 
-        return options.FormatValue(escapeChar, resolvedInstruction.ToString());
+        return options.FormatValue(escapeChar,
+            (options.UpdateInline ? instruction : resolvedInstruction).ToString());
     }
 
     private static Dictionary<string, string?> GetGlobalArgs(StagesView stagesView, char escapeChar, IDictionary<string, string?> variables,
@@ -348,9 +349,9 @@ public class Dockerfile : IConstructContainer
             recordResolution: updateInline ? RecordResolution : null,
             onBeforeCustomResolution: CaptureSyntaxBindings) ?? String.Empty;
 
-        if (resolutions is not null)
+        if (resolutions is not null && (updateInline || !options.UpdateInline))
         {
-            LiteralToken syntaxValue = syntaxArg?.ValueToken ?? valueToken;
+            LiteralToken syntaxValue = options.UpdateInline ? valueToken : syntaxArg?.ValueToken ?? valueToken;
             if (syntaxValue != valueToken)
             {
                 // Reparsed copies have distinct token owners and need their own occurrence snapshots.
@@ -387,7 +388,7 @@ public class Dockerfile : IConstructContainer
         IDictionary<string, string?> bindings, ResolutionOptions options,
         Action<AggregateToken, int, TokenResolution>? recordResolution = null,
         Action? onCustomResolution = null, Action? onBeforeCustomResolution = null,
-        Action<string?>? recordSyntax = null)
+        Action<string?>? recordSyntax = null, Func<bool>? shouldRecordSyntax = null)
     {
         int customResolutionVersion = 0;
         void RecordCustomResolution()
@@ -407,12 +408,14 @@ public class Dockerfile : IConstructContainer
             }
             string? modifierSyntax = null;
             bool selectedModifier = false;
+            bool ShouldRecordModifierSyntax() => options.UpdateInline || recordResolution is not null ||
+                recordSyntax is not null && (shouldRecordSyntax?.Invoke() ?? true);
             string? ResolveModifier(LiteralToken modifier)
             {
                 selectedModifier = true;
                 return ResolveArgValue(modifier, escapeChar, bindings, options,
                     recordResolution, RecordCustomResolution, onBeforeCustomResolution,
-                    recordResolution is null && recordSyntax is null ? null : syntax => modifierSyntax = syntax);
+                    syntax => modifierSyntax = syntax, shouldRecordSyntax ?? ShouldRecordModifierSyntax);
             }
             string? value;
             using (aggregate.UsesCustomResolution ||
@@ -426,7 +429,7 @@ public class Dockerfile : IConstructContainer
                 RecordCustomResolution();
             }
             resolvedSyntax = !aggregate.UsesCustomResolution && selectedModifier &&
-                (recordResolution is not null || recordSyntax is not null)
+                ShouldRecordModifierSyntax()
                 ? options.FormatValue(escapeChar, modifierSyntax ?? String.Empty) : value;
             if (ReferenceEquals(aggregate, token))
             {
@@ -440,7 +443,7 @@ public class Dockerfile : IConstructContainer
             resolveAggregate: ResolveToken, getCustomResolutionVersion: () => customResolutionVersion,
             getResolvedSyntax: () => resolvedSyntax, syntaxOptions: options,
             recordTokenResolution: recordResolution, recordSyntax: recordSyntax,
-            onConsumerSerialization: RecordCustomResolution);
+            onConsumerSerialization: RecordCustomResolution, shouldRecordSyntax: shouldRecordSyntax);
         return resolvedRoot ? resolvedRootValue : result;
     }
 }

@@ -70,7 +70,7 @@ internal static class AnalysisExpressionEvaluator
         Func<string?>? getResolvedSyntax = null, ResolutionOptions? syntaxOptions = null,
         Action<AggregateToken, int, TokenResolution>? recordTokenResolution = null,
         Action<string?>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null,
-        Action? onConsumerSerialization = null)
+        Action? onConsumerSerialization = null, Func<bool>? shouldRecordSyntax = null)
     {
         Dictionary<string, AnalysisValue> variables = new();
         ResolutionSnapshot snapshot = new(token, resolveLiteral is not null || resolveAggregate is not null,
@@ -138,7 +138,7 @@ internal static class AnalysisExpressionEvaluator
         {
             snapshot.RecordTokenResolutions(escapeChar, syntaxOptions!, recordTokenResolution);
         }
-        if (recordSyntax is not null)
+        if (recordSyntax is not null && (shouldRecordSyntax?.Invoke() ?? true))
         {
             recordSyntax(snapshot.GetResolvedSyntax(escapeChar, syntaxOptions!));
         }
@@ -162,7 +162,8 @@ internal static class AnalysisExpressionEvaluator
 
         public ResolutionSnapshot(Token source, bool resolveCustomLiterals, ResolutionSnapshot? previous = null,
             int serializationVersion = 0, Func<int>? getSerializationVersion = null,
-            Action? onConsumerSerialization = null)
+            Action? onConsumerSerialization = null,
+            Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null)
         {
             Source = source;
             IsIgnoredTrivia = source is LineContinuationToken or CommentToken or NewLineToken;
@@ -174,12 +175,20 @@ internal static class AnalysisExpressionEvaluator
             {
                 previous = null;
             }
-            if (previous?.syntaxReadFailure is { } failure)
+            if (pendingFailures is not null &&
+                pendingFailures.TryGetValue(source, out Queue<ResolutionSnapshot>? failures) && failures.Count > 0)
+            {
+                previous = failures.Dequeue();
+            }
+            if (previous is not null &&
+                (previous.syntaxReadFailure ?? previous.SerializationFailure) is { } failure)
             {
                 SerializationFailure = failure;
                 SuppressedSyntax = previous.SuppressedSyntax;
                 OpeningQuote = previous.OpeningQuote;
                 ClosingQuote = previous.ClosingQuote;
+                capturedQuote = previous.capturedQuote;
+                primitiveValue = previous.primitiveValue;
                 serializedText = previous.serializedText;
                 return;
             }
@@ -239,7 +248,7 @@ internal static class AnalysisExpressionEvaluator
                     ResolutionSnapshot? previousChild = previous is not null && childIndex < previous.children.Count
                         ? previous.children[childIndex] : null;
                     AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild, serializationVersion,
-                        getSerializationVersion, onConsumerSerialization));
+                        getSerializationVersion, onConsumerSerialization, pendingFailures));
                     childIndex++;
                 }
             }
@@ -411,6 +420,35 @@ internal static class AnalysisExpressionEvaluator
 
         public void RefreshPendingSyntax(int version)
         {
+            Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null;
+            void CollectFailures(ResolutionSnapshot node)
+            {
+                if (node.IsResolved || node.SerializationConsumed)
+                {
+                    return;
+                }
+                if (node.SerializationFailure is not null || node.syntaxReadFailure is not null)
+                {
+                    pendingFailures ??= new(ReferenceComparer<Token>.Instance);
+                    if (!pendingFailures.TryGetValue(node.Source, out Queue<ResolutionSnapshot>? failures))
+                    {
+                        failures = new();
+                        pendingFailures.Add(node.Source, failures);
+                    }
+                    failures.Enqueue(node);
+                }
+                foreach (ResolutionSnapshot child in node.children)
+                {
+                    CollectFailures(child);
+                }
+            }
+            for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
+            {
+                for (int i = 0; i < child.index; i++)
+                {
+                    CollectFailures(owner.children[i]);
+                }
+            }
             for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
             {
                 List<Token> liveChildren = ((AggregateToken)owner.Source).TokenList;
@@ -420,7 +458,7 @@ internal static class AnalysisExpressionEvaluator
                 {
                     owner.AddChild(previous[i].Matches(liveChildren[i])
                         ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, previous[i], version,
-                            getSerializationVersion, onConsumerSerialization));
+                            getSerializationVersion, onConsumerSerialization, pendingFailures));
                 }
                 for (int i = child.index; i < previous.Count; i++)
                 {
