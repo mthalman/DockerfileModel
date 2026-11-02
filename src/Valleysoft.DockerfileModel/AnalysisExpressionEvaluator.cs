@@ -97,10 +97,10 @@ internal static class AnalysisExpressionEvaluator
             reference.SerializationFailure?.Throw();
             int version = getCustomResolutionVersion?.Invoke() ?? 0;
             bool checkPendingSyntax;
-            if (reference.IsConsumerLeaf)
+            if (reference.IsConsumerLeaf || reference.IsSuppressedReference)
             {
                 reference.RefreshSerialization(version);
-                checkPendingSyntax = true;
+                checkPendingSyntax = reference.IsConsumerLeaf || reference.HasSuppressedConsumerSerialization;
             }
             else
             {
@@ -241,6 +241,9 @@ internal static class AnalysisExpressionEvaluator
         public bool IsReference { get; }
         public bool IsConsumerLeaf => resolveCustomLiterals && Source is not AggregateToken &&
             Source.GetType().Assembly != typeof(Token).Assembly;
+        public bool IsSuppressedReference => Source is VariableRefToken && SuppressedSyntax is not null &&
+            (Context.QuoteChar == '\'' || Context.Escaped);
+        public bool HasSuppressedConsumerSerialization { get; private set; }
         public bool SerializationConsumed { get; private set; }
         public bool IsResolved { get; set; }
         public bool InlineUpdated { get; private set; }
@@ -268,7 +271,7 @@ internal static class AnalysisExpressionEvaluator
                 }
                 try
                 {
-                    return SuppressedSyntax is null || SuppressedSyntax == token.ToString();
+                    return SuppressedSyntax is null || SuppressedSyntax == SerializeSuppressedSyntax(token);
                 }
                 catch (Exception error) when (resolveCustomLiterals &&
                     error is not OutOfMemoryException and not OperationCanceledException)
@@ -343,13 +346,46 @@ internal static class AnalysisExpressionEvaluator
             {
                 return;
             }
+            if (IsSuppressedReference)
+            {
+                SuppressedSyntax = SerializeSuppressedSyntax(Source);
+                serializationVersion = getSerializationVersion?.Invoke() ?? version;
+                return;
+            }
             onConsumerSerialization?.Invoke();
-            char? quote = (Source as IQuotableToken)?.QuoteChar;
             string text = Source.ToString(new TokenStringOptions(excludeQuotes: true));
+            char? quote = (Source as IQuotableToken)?.QuoteChar;
             capturedQuote = OpeningQuote = ClosingQuote = quote;
             serializedText = text;
             serializationVersion = getSerializationVersion?.Invoke() ?? version;
         }
+
+        public string CaptureSuppressedSyntax()
+        {
+            if (SuppressedSyntax is { } captured)
+            {
+                return captured;
+            }
+            string syntax = SerializeSuppressedSyntax(Source);
+            SuppressedSyntax = syntax;
+            serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
+            return syntax;
+        }
+
+        private string SerializeSuppressedSyntax(Token token)
+        {
+            HasSuppressedConsumerSerialization |= ContainsConsumerSerialization(token);
+            if (HasSuppressedConsumerSerialization)
+            {
+                onConsumerSerialization?.Invoke();
+            }
+            return token.ToString();
+        }
+
+        private static bool ContainsConsumerSerialization(Token token) =>
+            token.GetType().Assembly != typeof(Token).Assembly ||
+            token is AggregateToken aggregate &&
+                (aggregate.UsesCustomResolution || aggregate.Tokens.Any(ContainsConsumerSerialization));
 
         public void RefreshPendingSyntax(int version)
         {
@@ -755,16 +791,18 @@ internal static class AnalysisExpressionEvaluator
                     }
                 }
                 else if (snapshot.Source is VariableRefToken variable &&
-                    (quote == '\'' || escaped || resolveSnapshot is null && snapshot.SuppressedSyntax is not null))
+                    (quote == '\'' || escaped ||
+                        (resolveSnapshot is null || snapshot.SerializationConsumed) && snapshot.SuppressedSyntax is not null))
                 {
-                    snapshot.SuppressedSyntax ??= variable.ToString();
-                    if (resolveSnapshot is not null)
+                    string syntax = snapshot.CaptureSuppressedSyntax();
+                    if (resolveSnapshot is not null && !snapshot.SerializationConsumed)
                     {
                         snapshot.Context = (quote, escaped);
+                        resolveSnapshot(snapshot);
                     }
                     recordResolution?.Invoke(variable,
-                        (snapshot.SuppressedSyntax, snapshot.Context.QuoteChar, snapshot.Context.Escaped));
-                    AppendText(snapshot.SuppressedSyntax);
+                        (syntax, snapshot.Context.QuoteChar, snapshot.Context.Escaped));
+                    AppendText(syntax);
                 }
                 else
                 {

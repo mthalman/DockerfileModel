@@ -160,10 +160,12 @@ public class Dockerfile : IConstructContainer
     /// defaults can import global values, otherwise they retain an existing local binding.
     /// Explicit empty assignments are set; null overrides are unset. Defaults contribute shell-decoded
     /// contents, excluding syntax quotes and continuation/comment trivia. Runtime command expansion is not performed.
-    /// Consumer-defined aggregate tokens retain their public variable-resolution behavior and call context.
+    /// Consumer-defined aggregate tokens retain their public variable-resolution behavior and call context;
+    /// changes they make to the supplied options affect subsequent resolution.
     /// Default references resolve
     /// right-to-left; custom callbacks can edit pending syntax but do not rewrite already-resolved output.
-    /// Pending consumer serializers are rechecked after custom callbacks or later consumer serialization;
+    /// Pending consumer serializers are rechecked after custom callbacks or later consumer serialization,
+    /// including serialization of suppressed reference syntax;
     /// edits to earlier syntax are honored without re-reading consumed output. Inline substitutions are visible to later callbacks as references
     /// are consumed; moved references retain their resolved syntax and semantic contents.
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
@@ -314,7 +316,8 @@ public class Dockerfile : IConstructContainer
             return String.Empty;
         }
 
-        bool resolveSyntax = options.UpdateInline || syntaxArg is not null && syntaxArg != arg;
+        bool updateInline = options.UpdateInline;
+        bool resolveSyntax = updateInline || syntaxArg is not null && syntaxArg != arg;
         Dictionary<AggregateToken, Dictionary<int, Stack<TokenResolution>>>? resolutions = resolveSyntax
             ? new(ReferenceComparer<AggregateToken>.Instance) : null;
         void RecordResolution(AggregateToken owner, int index, TokenResolution resolution)
@@ -340,7 +343,7 @@ public class Dockerfile : IConstructContainer
             }
         }
         string value = ResolveArgValue(valueToken, escapeChar, bindings, options,
-            recordResolution: options.UpdateInline ? RecordResolution : null,
+            recordResolution: updateInline ? RecordResolution : null,
             onBeforeCustomResolution: CaptureSyntaxBindings) ?? String.Empty;
 
         if (resolutions is not null)
@@ -352,7 +355,8 @@ public class Dockerfile : IConstructContainer
                 ResolveArgValue(syntaxValue, escapeChar, syntaxBindings, options,
                     recordResolution: RecordResolution);
             }
-            if (!syntaxValue.UsesCustomResolution)
+            if (!syntaxValue.UsesCustomResolution &&
+                (!updateInline || options.UpdateInline || syntaxValue != valueToken))
             {
                 syntaxValue.ResolveVariables(escapeChar, bindings, new ResolutionOptions
                 {
@@ -400,17 +404,10 @@ public class Dockerfile : IConstructContainer
                     recordResolution, RecordCustomResolution, onBeforeCustomResolution,
                     recordResolution is null && recordSyntax is null ? null : syntax => modifierSyntax = syntax);
             }
-            ResolutionOptions tokenOptions = aggregate.UsesCustomResolution ? options : new ResolutionOptions
-            {
-                UpdateInline = options.UpdateInline,
-                RemoveEscapeCharacters = options.RemoveEscapeCharacters,
-                ModifierValueResolver = ResolveModifier
-            };
             string? value;
-            using (aggregate.UsesCustomResolution
-                ? options.UseModifierValueResolver(escapeChar, bindings, ResolveModifier) : null)
+            using (options.UseModifierValueResolver(escapeChar, bindings, ResolveModifier))
             {
-                value = aggregate.ResolveVariables(escapeChar, bindings, tokenOptions);
+                value = aggregate.ResolveVariables(escapeChar, bindings, options);
             }
             if (aggregate.UsesCustomResolution)
             {

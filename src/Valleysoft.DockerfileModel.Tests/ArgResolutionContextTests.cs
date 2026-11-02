@@ -655,6 +655,165 @@ public class ArgResolutionContextTests
         Assert.Equal(4 * count + 3, serializations);
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void ModifierCallbacksCanChangeFormattingOptions(bool stageScope, bool updateInline, bool removeEscapes)
+    {
+        ResolutionOptions options = new()
+        {
+            UpdateInline = updateInline,
+            RemoveEscapeCharacters = !removeEscapes
+        };
+        VariableRefToken reference = new("UNSET", ":-", "placeholder")
+        {
+            ModifierValueToken = new OptionsEditingLiteral(receivedOptions =>
+            {
+                Assert.Same(options, receivedOptions);
+                receivedOptions.RemoveEscapeCharacters = removeEscapes;
+                return "\\";
+            })
+        };
+        Dockerfile dockerfile = Document(stageScope, reference);
+        if (stageScope)
+        {
+            dockerfile.Items.OfType<EnvInstruction>().Single().Variables.Single().Value = "${X:+wrong}";
+        }
+        else
+        {
+            dockerfile.Items.OfType<FromInstruction>().Single().ImageName = "prefix${X:+wrong}";
+        }
+        string original = dockerfile.ToString();
+
+        string value = removeEscapes ? "" : "wrong";
+        Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
+            dockerfile.ResolveVariables(options: options));
+        Assert.Equal(removeEscapes, options.RemoveEscapeCharacters);
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ModifierCallbacksCanDisableInlineUpdates(bool stageScope)
+    {
+        ResolutionOptions options = new() { UpdateInline = true };
+        VariableRefToken reference = new("UNSET", ":-", "placeholder")
+        {
+            ModifierValueToken = new OptionsEditingLiteral(receivedOptions =>
+            {
+                Assert.Same(options, receivedOptions);
+                receivedOptions.UpdateInline = false;
+                return "new";
+            })
+        };
+        Dockerfile dockerfile = Document(stageScope, reference);
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=new" : "FROM prefixnew",
+            dockerfile.ResolveVariables(options: options));
+        Assert.False(options.UpdateInline);
+        Assert.Equal(original, dockerfile.ToString());
+        Assert.Equal("UNSET", reference.VariableName);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void SuppressedSerializersCanChangePendingDefaults(bool leaf, bool singleQuoted)
+    {
+        bool active = false;
+        LiteralToken pending = Literal(new VariableRefToken("MISSING", "?", "stale"));
+        Token first = leaf ? new SerializedLeaf(() => active ? "new" : "old") : pending;
+        VariableRefToken suppressed = new("IGNORED", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new MutableSerializedString(() =>
+            {
+                active = true;
+                if (!leaf) pending.Value = "new";
+                return "p";
+            }))
+        };
+        Dockerfile dockerfile = Document(true, first, new StringToken(singleQuoted ? "'" : "\\"),
+            suppressed, new StringToken(singleQuoted ? "'" : ""));
+
+        Assert.Equal("ENV RESULT=new${IGNORED:-p}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+    }
+
+    [Fact]
+    public void CompletedSuppressedSerializationSurvivesPendingSyntaxEdits()
+    {
+        string text = "old";
+        LiteralToken pending = Literal(new StringToken("old"));
+        VariableRefToken suppressed = new("IGNORED", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new MutableSerializedString(() => text))
+        };
+        Dockerfile dockerfile = Document(true, pending, new CallbackVariable(() =>
+        {
+            text = "new";
+            pending.Value = "new";
+        }), new StringToken("\\"), suppressed);
+
+        Assert.Equal("ENV RESULT=newleft${IGNORED:-old}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+    }
+
+    [Fact]
+    public void PendingSuppressedReferenceCanBecomeActiveAfterCallback()
+    {
+        LiteralToken escape = Literal(new StringToken("\\"));
+        Dockerfile dockerfile = Document(true, escape, new VariableRefToken("MISSING", "?", "active"),
+            new CallbackVariable(() => escape.Value = ""));
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+
+        Assert.Equal("Variable 'MISSING' is not set. Error detail: 'active'.", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void RefreshedSerializerUsesPostSerializationQuotes(bool stageScope, bool updateInline)
+    {
+        bool active = false;
+        Dockerfile dockerfile = Document(stageScope, new SerializationQuotedString(() => active),
+            new CallbackVariable(() => active = true));
+
+        Assert.Equal(stageScope ? "ENV RESULT=\\qleft" : "FROM prefix\\qleft",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SpeculativeQuoteFailuresRemainStickyAfterCallbacks(bool throwOnce)
+    {
+        bool fail = true;
+        InvalidOperationException expected = new("Speculative quote.");
+        Dockerfile dockerfile = Document(true, new QuotedString(() =>
+        {
+            if (!fail) return null;
+            if (throwOnce) fail = false;
+            throw expected;
+        }), new CallbackVariable(() => { }));
+
+        Assert.Same(expected, Assert.Throws<InvalidOperationException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true })));
+    }
+
     [Fact]
     public void InitialPrimitiveQuoteFailurePreservesRequiredError()
     {
@@ -769,6 +928,32 @@ public class ArgResolutionContextTests
             this.serialize = serialize;
 
         protected override string GetUnderlyingValue(TokenStringOptions options) => serialize(options);
+    }
+
+    private sealed class OptionsEditingLiteral : LiteralToken
+    {
+        private readonly Func<ResolutionOptions, string> resolve;
+
+        public OptionsEditingLiteral(Func<ResolutionOptions, string> resolve) : base("placeholder") =>
+            this.resolve = resolve;
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null) => resolve(options!);
+    }
+
+    private sealed class SerializationQuotedString : StringToken, IQuotableToken
+    {
+        private readonly Func<bool> active;
+
+        public SerializationQuotedString(Func<bool> active) : base("placeholder") => this.active = active;
+
+        public char? QuoteChar { get; set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            QuoteChar = active() ? '"' : null;
+            return active() ? "\\q" : "p";
+        }
     }
 
     private static LiteralToken Literal(params Token[] tokens) =>
