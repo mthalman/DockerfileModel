@@ -154,15 +154,21 @@ Nested literal and variable-reference overrides also retain virtual dispatch,
 both directly in a path and inside selected modifier values, even when their
 rendered text is empty. Each occurrence is evaluated
 independently, including occurrences that share the same token instance.
+Custom occurrences sharing a decoded JSON character replace that character
+together, preserving the order of their results and evaluating each occurrence.
 Decoded single quotes and escapes still protect these references from evaluation.
 Sibling callbacks run from right to left, matching ordinary aggregate resolution.
 Changes a right-hand callback makes to the variable dictionary are visible to
 left-hand references.
+Changes to `RemoveEscapeCharacters` also affect subsequent references and source
+formatting in that evaluation order.
 Selected modifier branches do not change if a callback updates the variable
 dictionary during their evaluation.
 Resolution context passes the caller's original `ResolutionOptions` instance
 without cloning it. Selected custom modifier overrides receive the caller's `UpdateInline`
 and `RemoveEscapeCharacters` settings; the overrides manage their own side effects.
+Required-variable errors distinguish a custom modifier returning `null`
+(`'<empty>'`) from an aggregate modifier resolving to an empty string (`''`).
 `ResolveVariables()` preserves the original model unless
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
 references but retains untouched child tokens, including empty primitive tokens.
@@ -170,6 +176,8 @@ Empty primitive siblings retain their order around zero-width substitutions.
 Zero-width references inside nonempty nested literals are replaced only once.
 Unrelated empty literals retain their identity, including those inside an
 ancestor whose expanded references are replaced.
+Inline expansion also retains untouched children of nonempty nested literals.
+Non-inline resolution does not reconstruct the source token tree.
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
 retained. Decoded single quotes protect their contents from expansion; quote

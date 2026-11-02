@@ -6,8 +6,9 @@ internal static class DecodedVariableParsers
 {
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
         string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null, char? initialQuote = null,
-        Dictionary<int, (int End, Token Token)>? customTokens = null,
-        Dictionary<int, List<AggregateToken>>? emptyReferences = null)
+        Dictionary<int, (int End, List<AggregateToken> Tokens)>? customTokens = null,
+        Dictionary<int, List<AggregateToken>>? emptyReferences = null,
+        Dictionary<int, LiteralToken>? customModifiers = null)
     {
         Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
         bool blocked = false;
@@ -41,12 +42,9 @@ internal static class DecodedVariableParsers
             int index = input.Position.Absolute;
             int end = !input.IsAtEnd ? literalEnds?[index] ?? index : index;
             return end > index
-                ? Result.Value<IEnumerable<Token>>(new Token[]
-                    {
-                        preserveReferences && customTokens is not null &&
-                            customTokens.TryGetValue(index, out var custom)
-                            ? custom.Token : new StringToken(text.Substring(index, end - index))
-                    },
+                ? Result.Value<IEnumerable<Token>>(
+                    preserveReferences && customTokens is not null && customTokens.TryGetValue(index, out var custom)
+                        ? custom.Tokens : new Token[] { new StringToken(text.Substring(index, end - index)) },
                     input, input.Skip(end - index))
                 : Result.Empty<IEnumerable<Token>>(input, "non-variable literal");
         };
@@ -141,8 +139,21 @@ internal static class DecodedVariableParsers
             opaqueLiteral.Or(singleQuoted.Try()).Or(doubleQuoted.Try()).Or(Parts(null));
 
         TextParser<IEnumerable<Token>> modifierTokens = Sequence(value);
-        TextParser<LiteralToken> modifierValue = modifierTokens.Select(tokens =>
-            new LiteralToken(TokenHelper.CollapseStringTokens(tokens), canContainVariables: true, escapeChar));
+        TextParser<LiteralToken> modifierValue = input =>
+        {
+            Result<IEnumerable<Token>> result = modifierTokens(input);
+            if (!result.HasValue)
+            {
+                return Result.CastEmpty<IEnumerable<Token>, LiteralToken>(result);
+            }
+            Token[] tokens = TokenHelper.CollapseStringTokens(result.Value).ToArray();
+            // Wrapping a whole custom modifier would turn its nullable result into an empty string.
+            LiteralToken value = tokens.Length == 1 && customModifiers is not null &&
+                customModifiers.TryGetValue(input.Position.Absolute, out LiteralToken? custom) &&
+                ReferenceEquals(tokens[0], custom)
+                    ? custom : new LiteralToken(tokens, canContainVariables: true, escapeChar);
+            return Result.Value(value, input, result.Remainder);
+        };
         TextParser<IEnumerable<Token>> modifier =
             from operation in VariableRefToken.ValidModifiers
                 .Select(text => text.Select(Symbol)
