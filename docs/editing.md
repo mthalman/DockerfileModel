@@ -150,6 +150,9 @@ Derived literals that inherit the default rendering preserve these policies
 in nested modifier values. A modifier's overridden `ResolveVariables()` is
 called only when its branch is selected, even if its rendered text is empty.
 Its result is JSON-escaped without recognizing new variable references.
+Resolution context preserves the caller's `ResolutionOptions` subtype and custom
+fields. Selected custom modifier overrides receive the caller's `UpdateInline`
+and `RemoveEscapeCharacters` settings; the overrides manage their own side effects.
 `ResolveVariables()` preserves the original model unless
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
 references but retains untouched child tokens.

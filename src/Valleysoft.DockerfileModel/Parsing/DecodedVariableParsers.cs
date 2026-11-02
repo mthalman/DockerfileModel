@@ -76,9 +76,12 @@ internal static class DecodedVariableParsers
 
         TextParser<IEnumerable<Token>> singleQuoted =
             from open in Symbol('\'')
-            from quotedText in character.Where(ch => ch != '\'', "single-quoted character").Many().Text()
+            from tokens in opaqueLiteral.Or(
+                from quotedText in character.Where(ch => ch != '\'', "single-quoted character").AtLeastOnce().Text()
+                select (IEnumerable<Token>)new Token[] { new StringToken(quotedText) }).Many().Flatten()
             from close in Symbol('\'')
-            select (IEnumerable<Token>)new Token[] { new StringToken($"'{quotedText}'") };
+            select ConcatTokens(new Token[] { new StringToken("'") }, tokens,
+                new Token[] { new StringToken("'") });
         TextParser<IEnumerable<Token>> doubleQuoted =
             from open in Symbol('"')
             from tokens in Parts('"').Try().Many().Flatten()
@@ -144,7 +147,7 @@ internal static class DecodedVariableParsers
                 continue;
             }
             char current = text[index];
-            if (current == '$')
+            if (VariableParsers.IsVariableReferenceStart(text, index))
             {
                 candidates.Add((remaining, quote != '\'' && !escaped));
             }

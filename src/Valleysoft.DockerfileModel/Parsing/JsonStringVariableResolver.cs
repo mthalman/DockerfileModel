@@ -27,7 +27,7 @@ internal static class JsonStringVariableResolver
                 input = input.Skip(2);
                 continue;
             }
-            if (physical[start] == '$' &&
+            if (VariableParsers.IsVariableReferenceStart(physical, start) &&
                 (physical[start + 1] != '{' || completeBraces.Contains(start)))
             {
                 candidates.Add(input);
@@ -57,7 +57,7 @@ internal static class JsonStringVariableResolver
                 input = input.Skip(2);
                 continue;
             }
-            if (physical[start] == '$')
+            if (VariableParsers.IsVariableReferenceStart(physical, start))
             {
                 if (start + 1 < physical.Length && physical[start + 1] == '{' && !completeBraces.Contains(start))
                 {
@@ -245,7 +245,7 @@ internal static class JsonStringVariableResolver
             {
                 quote = quote == current ? null : current;
             }
-            if (expandVariables && current == '$')
+            if (expandVariables && VariableParsers.IsVariableReferenceStart(decoded, index))
             {
                 blocked = false;
                 variableParser ??= DecodedVariableParsers.Variable(escapeChar, character, decoded,
@@ -257,7 +257,7 @@ internal static class JsonStringVariableResolver
                     int end = variable.Remainder.Position.Absolute;
                     if (!VariableRefToken.IsPatternModifier(variable.Value.Modifier))
                     {
-                        string value = ResolveReference(variable.Value, escapeChar, variables, valueOptions);
+                        string value = ResolveReference(variable.Value, escapeChar, variables, valueOptions, options);
                         replacements.Add((starts[index], ends[end - 1], new StringToken(Encode(value)), true));
                     }
                     input = variable.Remainder;
@@ -332,7 +332,7 @@ internal static class JsonStringVariableResolver
     }
 
     internal static string ResolveReference(VariableRefToken root, char escapeChar,
-        IDictionary<string, string?> variables, ResolutionOptions options)
+        IDictionary<string, string?> variables, ResolutionOptions options, ResolutionOptions? customOptions = null)
     {
         if (root.ModifierValueToken is null || root.GetRequiredModifierValue(variables) is null)
         {
@@ -354,10 +354,15 @@ internal static class JsonStringVariableResolver
                 continue;
             }
             LiteralToken? modifier = reference.GetRequiredModifierValue(variables);
-            if (modifier is null || modifier.HasCustomResolution)
+            if (modifier is null)
             {
                 resolved.Add(reference, new Expansion(reference.ResolveVariables(escapeChar, variables, options)
                     ?? string.Empty));
+            }
+            else if (modifier.HasCustomResolution)
+            {
+                resolved.Add(reference, new Expansion(reference.ResolveVariables(escapeChar, variables,
+                    customOptions ?? options) ?? string.Empty));
             }
             else if (!ready)
             {

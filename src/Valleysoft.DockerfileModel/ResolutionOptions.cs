@@ -289,12 +289,16 @@ public class ResolutionOptions
 
     internal bool? JsonStringResolution { get; private set; }
 
-    internal ResolutionOptions WithJsonStringResolution(bool enabled) => JsonStringResolution == enabled ? this : new()
+    internal ResolutionOptions WithJsonStringResolution(bool enabled)
     {
-        UpdateInline = UpdateInline,
-        RemoveEscapeCharacters = RemoveEscapeCharacters,
-        JsonStringResolution = enabled
-    };
+        if (JsonStringResolution == enabled)
+        {
+            return this;
+        }
+        ResolutionOptions copy = (ResolutionOptions)MemberwiseClone();
+        copy.JsonStringResolution = enabled;
+        return copy;
+    }
 
     internal string FormatValue(char escapeChar, string value) =>
         FormatValue(escapeChar, value, RemoveEscapeCharacters);

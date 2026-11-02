@@ -128,6 +128,11 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
             return JsonStringVariableResolver.RenderToken(this);
         }
         string physical = JsonStringVariableResolver.RenderToken(this);
+        PruneResolvedJsonLiterals();
+        if (IsPlainJsonString(physical, escapeChar))
+        {
+            return physical;
+        }
         List<int> offsets = new();
         string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out int consumed, offsets);
         // Legacy constructors accept non-JSON strings; keep their token-based resolution.
@@ -137,9 +142,25 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         }
         options ??= new ResolutionOptions();
         variables ??= new Dictionary<string, string?>();
-        PruneResolvedJsonLiterals();
         return JsonStringVariableResolver.Resolve(this, physical, logical, offsets, escapeChar, variables, options,
             expandVariables: canContainVariables);
+    }
+
+    private static bool IsPlainJsonString(string physical, char escapeChar)
+    {
+        if (physical.Length < 2 || physical[0] != '"' || physical[physical.Length - 1] != '"')
+        {
+            return false;
+        }
+        for (int index = 1; index < physical.Length - 1; index++)
+        {
+            char current = physical[index];
+            if (current < ' ' || current == escapeChar || current is '$' or '\'' or '"' or '\\')
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     internal bool IsResolvedJsonLiteral(Token token) => resolvedJsonLiterals?.Contains(token) == true;

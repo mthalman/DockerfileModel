@@ -4,6 +4,10 @@ namespace Valleysoft.DockerfileModel.Parsing;
 
 internal static class VariableParsers
 {
+    internal static bool IsVariableReferenceStart(string text, int index) =>
+        text[index] == '$' && index + 1 < text.Length &&
+        (char.IsLetterOrDigit(text[index + 1]) || text[index + 1] is '_' or '{');
+
     /// <summary>
     /// Parses the characters of a variable reference.
     /// </summary>
