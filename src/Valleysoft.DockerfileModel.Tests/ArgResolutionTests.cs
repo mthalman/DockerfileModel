@@ -1435,7 +1435,7 @@ public class ArgResolutionTests
     }
 
     [Fact]
-    public void ResolveVariables_UnchangedCustomCallbacksDoNotRebuildLexicalPlan()
+    public void ResolveVariables_CustomCallbacksRecheckPendingSerializersLinearly()
     {
         const int count = 256;
         int serializations = 0;
@@ -1449,7 +1449,7 @@ public class ArgResolutionTests
 
         Assert.Equal("FROM prefix" + String.Concat(Enumerable.Repeat("pfirst", count)),
             dockerfile.ResolveVariables());
-        Assert.Equal(2 * count, serializations);
+        Assert.Equal(3 * count, serializations);
     }
 
     private sealed class ChangingSerializedStringToken : StringToken

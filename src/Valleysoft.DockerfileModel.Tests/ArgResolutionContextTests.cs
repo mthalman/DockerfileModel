@@ -292,6 +292,176 @@ public class ArgResolutionContextTests
         Assert.Equal(1, literal.ResolutionCount);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ConsumerLeafSuppliesSerializedDefault(bool stageScope, bool updateInline)
+    {
+        Dockerfile dockerfile = Document(stageScope, new SerializedLeaf());
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=computed" : "FROM prefixcomputed",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        if (!updateInline)
+        {
+            Assert.Equal(original, dockerfile.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void PendingSuppressedSerializerFailurePreservesRequiredError(bool stageScope, bool updateInline)
+    {
+        bool fail = false;
+        VariableRefToken suppressed = new("A", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new MutableSerializedString(() =>
+                fail ? throw new InvalidOperationException("Suppressed serialization.") : "placeholder"))
+        };
+        Dockerfile dockerfile = Document(stageScope, new StringToken("\\"), suppressed,
+            new VariableRefToken("UNSET", "?", "right"), new CallbackVariable(() => fail = true));
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'right'.", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PendingSuppressedSerializerFailureIsRethrownUnchanged(bool throwOnce)
+    {
+        bool fail = false;
+        InvalidOperationException expected = new("Suppressed serialization.");
+        VariableRefToken suppressed = new("A", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new MutableSerializedString(() =>
+            {
+                if (!fail) return "placeholder";
+                if (throwOnce) fail = false;
+                throw expected;
+            }))
+        };
+        Dockerfile dockerfile = Document(false, new StringToken("\\"), suppressed,
+            new CallbackVariable(() => fail = true));
+
+        Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => dockerfile.ResolveVariables()));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void CompletedReferenceCaptureFollowsMovesBetweenOwners(bool stageScope, bool moveLeft)
+    {
+        LiteralToken original = Literal(new VariableRefToken("UNSET", ":-", "old"));
+        LiteralToken destination = Literal();
+        CallbackVariable callback = new(() =>
+        {
+            destination.TokenList.Add(original.TokenList[0]);
+            original.TokenList.RemoveAt(0);
+        });
+        Dockerfile dockerfile = moveLeft
+            ? Document(stageScope, callback, destination, original)
+            : Document(stageScope, callback, original, destination);
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal("ARG X=leftold\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.IsType<ResolvedStringToken>(Assert.Single(destination.Tokens));
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void PendingConsumerSerializationObservesCallbackEdits(bool stageScope, bool updateInline, bool leaf)
+    {
+        string text = "old";
+        Token primitive = leaf ? new SerializedLeaf(() => text) : new MutableSerializedString(() => text);
+        Dockerfile dockerfile = Document(stageScope, primitive, new CallbackVariable(() => text = "new"));
+
+        Assert.Equal(stageScope ? "ENV RESULT=newleft" : "FROM prefixnewleft",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("new", text);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void CompletedConsumerSerializationIgnoresLaterCallbackEdits(bool stageScope, bool updateInline)
+    {
+        string text = "old";
+        Dockerfile dockerfile = Document(stageScope, new CallbackVariable(() => text = "new"),
+            new MutableSerializedString(() => text));
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("new", text);
+    }
+
+    [Fact]
+    public void NonInlineStageDoesNotSerializeUnusedOriginalCaptures()
+    {
+        CountingContinuation continuation = new();
+        VariableRefToken variable = new("UNSET", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(continuation, new StringToken("value"))
+        };
+        Dockerfile dockerfile = Document(true, variable);
+        continuation.SerializationCount = 0;
+
+        Assert.Equal("ENV RESULT=value", dockerfile.ResolveVariables());
+        Assert.Equal(2, continuation.SerializationCount);
+        Assert.Same(variable, Assert.Single(dockerfile.Items.OfType<ArgInstruction>()
+            .Single().ArgTokens[0].ValueToken!.Tokens));
+    }
+
+    private sealed class CountingContinuation : LineContinuationToken
+    {
+        public CountingContinuation() : base("\n") { }
+
+        public int SerializationCount { get; set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            SerializationCount++;
+            return base.GetUnderlyingValue(options);
+        }
+    }
+
+    private sealed class SerializedLeaf : Token
+    {
+        private readonly Func<string> serialize;
+
+        public SerializedLeaf(Func<string>? serialize = null) => this.serialize = serialize ?? (() => "computed");
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => serialize();
+    }
+
+    private sealed class MutableSerializedString : StringToken
+    {
+        private readonly Func<string> serialize;
+
+        public MutableSerializedString(Func<string> serialize) : base("placeholder") => this.serialize = serialize;
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => serialize();
+    }
+
     private static LiteralToken Literal(params Token[] tokens) =>
         new(tokens, canContainVariables: true, Dockerfile.DefaultEscapeChar);
 

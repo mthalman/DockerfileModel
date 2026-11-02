@@ -94,6 +94,16 @@ internal static class AnalysisExpressionEvaluator
             ResolutionSnapshot reference = references[i];
             reference.SerializationFailure?.Throw();
             int version = getCustomResolutionVersion?.Invoke() ?? 0;
+            if (reference.IsConsumerLeaf)
+            {
+                bool changed = reference.RefreshSerialization(version);
+                if (changed)
+                {
+                    Scan();
+                    i = references.Count;
+                }
+                continue;
+            }
             reference.ResolvedValue = reference.Source is VariableRefToken variable
                 ? resolveVariable(variable)
                 : resolveAggregate is not null ? resolveAggregate((AggregateToken)reference.Source)
@@ -105,7 +115,7 @@ internal static class AnalysisExpressionEvaluator
                 reference.PendingSyntaxChanged())
             {
                 // Reverse traversal has already consumed the suffix; only pending syntax can be refreshed.
-                reference.RefreshPendingSyntax();
+                reference.RefreshPendingSyntax(getCustomResolutionVersion());
                 Scan();
                 i = references.Count;
             }
@@ -135,23 +145,27 @@ internal static class AnalysisExpressionEvaluator
         private readonly string? primitiveValue;
         private char? capturedQuote;
         private readonly ResolvedStringToken? resolvedString;
-        private readonly string? serializedText;
-        private ExceptionDispatchInfo? quoteReadFailure;
+        private string? serializedText;
+        private int serializationVersion;
+        private ExceptionDispatchInfo? syntaxReadFailure;
         private ResolutionSnapshot? parent;
         private int index;
         private List<ResolutionSnapshot> children = new();
 
-        public ResolutionSnapshot(Token source, bool resolveCustomLiterals, ResolutionSnapshot? previous = null)
+        public ResolutionSnapshot(Token source, bool resolveCustomLiterals, ResolutionSnapshot? previous = null,
+            int serializationVersion = 0)
         {
             Source = source;
             this.resolveCustomLiterals = resolveCustomLiterals;
+            this.serializationVersion = serializationVersion;
             if (previous?.Source != source)
             {
                 previous = null;
             }
-            if (previous?.quoteReadFailure is { } failure)
+            if (previous?.syntaxReadFailure is { } failure)
             {
                 SerializationFailure = failure;
+                SuppressedSyntax = previous.SuppressedSyntax;
                 return;
             }
             IsReference = source is VariableRefToken ||
@@ -178,19 +192,19 @@ internal static class AnalysisExpressionEvaluator
                 {
                     ResolutionSnapshot? previousChild = previous is not null && childIndex < previous.children.Count
                         ? previous.children[childIndex] : null;
-                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild));
+                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild, serializationVersion));
                     childIndex++;
                 }
             }
-            else if (source is PrimitiveToken primitive)
+            else
             {
-                primitiveValue = primitive.Value;
+                primitiveValue = (source as PrimitiveToken)?.Value;
                 if (source is not LineContinuationToken and not CommentToken and not NewLineToken)
                 {
                     resolvedString = (source as ResolvedStringToken)?.CreateSnapshot();
                     try
                     {
-                        serializedText = primitive.ToString(new TokenStringOptions(excludeQuotes: true));
+                        serializedText = source.ToString(new TokenStringOptions(excludeQuotes: true));
                     }
                     catch (Exception error) when (resolveCustomLiterals &&
                         error is not OutOfMemoryException and not OperationCanceledException)
@@ -205,6 +219,9 @@ internal static class AnalysisExpressionEvaluator
         public Token Source { get; }
         public ExceptionDispatchInfo? SerializationFailure { get; }
         public bool IsReference { get; }
+        public bool IsConsumerLeaf => resolveCustomLiterals && Source is not AggregateToken &&
+            Source.GetType().Assembly != typeof(Token).Assembly;
+        public bool SerializationConsumed { get; private set; }
         public bool IsResolved { get; set; }
         public string? ResolvedValue { get; set; }
         public string? ResolvedSyntaxValue { get; set; }
@@ -224,10 +241,22 @@ internal static class AnalysisExpressionEvaluator
         {
             if (IsReference)
             {
-                return Source == token &&
-                    (SuppressedSyntax is null || SuppressedSyntax == token.ToString());
+                if (Source != token || syntaxReadFailure is not null)
+                {
+                    return false;
+                }
+                try
+                {
+                    return SuppressedSyntax is null || SuppressedSyntax == token.ToString();
+                }
+                catch (Exception error) when (resolveCustomLiterals &&
+                    error is not OutOfMemoryException and not OperationCanceledException)
+                {
+                    syntaxReadFailure = ExceptionDispatchInfo.Capture(error);
+                    return false;
+                }
             }
-            if (Source != token || quoteReadFailure is not null)
+            if (Source != token || syntaxReadFailure is not null)
             {
                 return false;
             }
@@ -239,7 +268,7 @@ internal static class AnalysisExpressionEvaluator
             catch (Exception error) when (resolveCustomLiterals &&
                 error is not OutOfMemoryException and not OperationCanceledException)
             {
-                quoteReadFailure = ExceptionDispatchInfo.Capture(error);
+                syntaxReadFailure = ExceptionDispatchInfo.Capture(error);
                 return false;
             }
             if (capturedQuote != liveQuote || token is PrimitiveToken primitive && primitiveValue != primitive.Value)
@@ -285,7 +314,24 @@ internal static class AnalysisExpressionEvaluator
             return false;
         }
 
-        public void RefreshPendingSyntax()
+        public bool RefreshSerialization(int version)
+        {
+            // Consumer serializers can change independently of Value; recheck only at their pending position.
+            SerializationConsumed = true;
+            if (serializationVersion == version)
+            {
+                return false;
+            }
+            char? quote = (Source as IQuotableToken)?.QuoteChar;
+            string text = Source.ToString(new TokenStringOptions(excludeQuotes: true));
+            bool changed = capturedQuote != quote || serializedText != text;
+            capturedQuote = OpeningQuote = ClosingQuote = quote;
+            serializedText = text;
+            serializationVersion = version;
+            return changed;
+        }
+
+        public void RefreshPendingSyntax(int version)
         {
             for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
             {
@@ -295,7 +341,7 @@ internal static class AnalysisExpressionEvaluator
                 for (int i = 0; i < Math.Min(child.index, liveChildren.Count); i++)
                 {
                     owner.AddChild(previous[i].Matches(liveChildren[i])
-                        ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, previous[i]));
+                        ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, previous[i], version));
                 }
                 for (int i = child.index; i < previous.Count; i++)
                 {
@@ -312,38 +358,76 @@ internal static class AnalysisExpressionEvaluator
         public void RecordTokenResolutions(char escapeChar, ResolutionOptions options,
             Action<AggregateToken, int, TokenResolution> record)
         {
-            if (IsReference || Source is not AggregateToken owner)
+            List<(AggregateToken Owner, int Index, AggregateToken Source, ResolutionSnapshot? Snapshot)> captures = new();
+            Dictionary<AggregateToken, Queue<ResolutionSnapshot>>? displaced = null;
+            void Collect(ResolutionSnapshot node)
             {
-                return;
+                if (node.IsReference || node.Source is not AggregateToken owner)
+                {
+                    return;
+                }
+                Dictionary<AggregateToken, Queue<int>> positions = new(ReferenceComparer<AggregateToken>.Instance);
+                for (int liveIndex = 0; liveIndex < owner.TokenList.Count; liveIndex++)
+                {
+                    if (owner.TokenList[liveIndex] is not AggregateToken aggregate)
+                    {
+                        continue;
+                    }
+                    if (!positions.TryGetValue(aggregate, out Queue<int>? occurrences))
+                    {
+                        occurrences = new();
+                        positions.Add(aggregate, occurrences);
+                    }
+                    occurrences.Enqueue(liveIndex);
+                }
+                foreach (ResolutionSnapshot child in node.children)
+                {
+                    if (child.Source is not AggregateToken aggregate)
+                    {
+                        continue;
+                    }
+                    if (positions.TryGetValue(aggregate, out Queue<int>? occurrences) && occurrences.Count > 0)
+                    {
+                        captures.Add((owner, occurrences.Dequeue(), aggregate, child));
+                    }
+                    else
+                    {
+                        displaced ??= new(ReferenceComparer<AggregateToken>.Instance);
+                        if (!displaced.TryGetValue(aggregate, out Queue<ResolutionSnapshot>? moved))
+                        {
+                            moved = new();
+                            displaced.Add(aggregate, moved);
+                        }
+                        moved.Enqueue(child);
+                    }
+                    Collect(child);
+                }
+                foreach (var position in positions)
+                {
+                    foreach (int liveIndex in position.Value)
+                    {
+                        captures.Add((owner, liveIndex, position.Key, null));
+                    }
+                }
             }
-            // Callbacks can move consumed tokens; appended aliases must not steal their occurrence captures.
-            Dictionary<AggregateToken, Queue<int>> positions = new(ReferenceComparer<AggregateToken>.Instance);
-            for (int liveIndex = 0; liveIndex < owner.TokenList.Count; liveIndex++)
+            Collect(this);
+            foreach (var capture in captures)
             {
-                if (owner.TokenList[liveIndex] is not AggregateToken aggregate)
+                ResolutionSnapshot? child = capture.Snapshot;
+                if (child is null && displaced is not null &&
+                    displaced.TryGetValue(capture.Source, out Queue<ResolutionSnapshot>? moved) && moved.Count > 0)
+                {
+                    child = moved.Dequeue();
+                }
+                if (child is null)
                 {
                     continue;
                 }
-                if (!positions.TryGetValue(aggregate, out Queue<int>? occurrences))
-                {
-                    occurrences = new();
-                    positions.Add(aggregate, occurrences);
-                }
-                occurrences.Enqueue(liveIndex);
-            }
-            foreach (ResolutionSnapshot child in children)
-            {
-                if (child.Source is not AggregateToken aggregate ||
-                    !positions.TryGetValue(aggregate, out Queue<int>? occurrences) || occurrences.Count == 0)
-                {
-                    continue;
-                }
-                (string Value, char? QuoteChar, bool Escaped)? semanticValue = child.Source is VariableRefToken
+                (string Value, char? QuoteChar, bool Escaped)? semanticValue = capture.Source is VariableRefToken
                     ? (child.ResolvedValue ?? child.SuppressedSyntax ?? String.Empty,
                         child.Context.QuoteChar, child.Context.Escaped) : null;
-                record(owner, occurrences.Dequeue(), new TokenResolution(aggregate,
+                record(capture.Owner, capture.Index, new TokenResolution(capture.Source,
                     child.IsReference ? child.GetResolvedSyntax(escapeChar, options) : null, semanticValue));
-                child.RecordTokenResolutions(escapeChar, options, record);
             }
         }
 
@@ -355,7 +439,7 @@ internal static class AnalysisExpressionEvaluator
                 return IsResolved ? ResolvedSyntaxValue
                     : options.FormatValue(escapeChar, SuppressedSyntax ?? Source.ToString());
             }
-            if (Source is PrimitiveToken)
+            if (Source is not AggregateToken)
             {
                 string syntax = Source is LineContinuationToken or CommentToken or NewLineToken
                     ? Source.ToString() : $"{OpeningQuote}{serializedText}{ClosingQuote}";
@@ -518,6 +602,10 @@ internal static class AnalysisExpressionEvaluator
                 if (resolveSnapshot is not null)
                 {
                     resolveSnapshot(snapshot);
+                    if (snapshot.SuppressedSyntax is not null)
+                    {
+                        AppendText(snapshot.SuppressedSyntax);
+                    }
                 }
                 else
                 {
@@ -528,6 +616,10 @@ internal static class AnalysisExpressionEvaluator
             if (snapshot.Source is LineContinuationToken or CommentToken or NewLineToken)
             {
                 return;
+            }
+            if (resolveSnapshot is not null && snapshot.IsConsumerLeaf && !snapshot.SerializationConsumed)
+            {
+                resolveSnapshot(snapshot);
             }
             if (snapshot.IsReference)
             {

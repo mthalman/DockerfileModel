@@ -163,6 +163,7 @@ public class Dockerfile : IConstructContainer
     /// Consumer-defined aggregate tokens retain their public variable-resolution behavior and call context.
     /// Default references resolve
     /// right-to-left; custom callbacks can edit pending syntax but do not rewrite already-resolved output.
+    /// Pending consumer serializers are rechecked after custom callbacks, without re-reading consumed output.
     /// Inline updates retain each reference's captured binding and modifier branch.
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
     /// </remarks>
@@ -338,7 +339,7 @@ public class Dockerfile : IConstructContainer
             }
         }
         string value = ResolveArgValue(valueToken, escapeChar, bindings, options,
-            recordResolution: resolveSyntax ? RecordResolution : null,
+            recordResolution: options.UpdateInline ? RecordResolution : null,
             onBeforeCustomResolution: CaptureSyntaxBindings) ?? String.Empty;
 
         if (resolutions is not null)
