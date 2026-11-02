@@ -271,7 +271,6 @@ public abstract class AggregateToken : Token
         StringBuilder builder = new();
         using ResolutionOptions.ModifierResolutionTraversal? traversal =
             options.TrackModifierResolutionTraversal(this, escapeChar, variables);
-        ResolutionOptions? literalOptions = null;
 
         for (int i = TokenList.Count - 1; i >= 0; i--)
         {
@@ -308,10 +307,11 @@ public abstract class AggregateToken : Token
                     }
                     else
                     {
-                        value = ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, token is LiteralToken
-                            ? literalOptions ??= options.WithJsonStringResolution(
-                                this is VolumeInstruction && InstructionCollectionEditing.IsJson(this))
-                            : options);
+                        value = token is LiteralToken literal
+                            ? literal.ResolveVariablesInContext(
+                                this is VolumeInstruction && InstructionCollectionEditing.IsJson(this),
+                                escapeChar, variables, options)
+                            : ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
                     }
                 }
                 if (token is VariableRefToken && options.UpdateInline && !suppressExpansion &&

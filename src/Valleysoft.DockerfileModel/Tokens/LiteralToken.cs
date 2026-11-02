@@ -3,6 +3,10 @@ namespace Valleysoft.DockerfileModel.Tokens;
 /// <summary>A literal with optional quote syntax, continuations, and recognized variable-reference children.</summary>
 public class LiteralToken : AggregateToken, IQuotableValueToken
 {
+    // Resolution is synchronous; scoped thread-local context avoids cloning consumer-owned options.
+    [ThreadStatic]
+    private static (LiteralToken? Token, bool Json) resolutionContext;
+
     private readonly bool canContainVariables;
     private readonly char escapeChar;
     private readonly bool preserveRawValue;
@@ -116,10 +120,26 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     internal bool HasDefaultRendering =>
         ((Func<TokenStringOptions, string>)GetUnderlyingValue).Method.DeclaringType == typeof(AggregateToken);
 
+    internal string? ResolveVariablesInContext(bool json, char escapeChar,
+        IDictionary<string, string?>? variables, ResolutionOptions? options)
+    {
+        var previous = resolutionContext;
+        resolutionContext = (this, json);
+        try
+        {
+            return ResolveVariables(escapeChar, variables, options);
+        }
+        finally
+        {
+            resolutionContext = previous;
+        }
+    }
+
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
         ResolutionOptions? options = null)
     {
-        if (!(options?.JsonStringResolution ?? ResolveAsJsonString) || QuoteChar != '"')
+        bool json = ReferenceEquals(resolutionContext.Token, this) ? resolutionContext.Json : ResolveAsJsonString;
+        if (!json || QuoteChar != '"')
         {
             return base.ResolveVariables(escapeChar, variables, options);
         }
@@ -129,7 +149,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         }
         string physical = JsonStringVariableResolver.RenderToken(this);
         PruneResolvedJsonLiterals();
-        if (IsPlainJsonString(physical, escapeChar))
+        if (IsPlainJsonString(physical, escapeChar) &&
+            !Tokens.Any(token => token is VariableRefToken { HasCustomResolution: true }))
         {
             return physical;
         }

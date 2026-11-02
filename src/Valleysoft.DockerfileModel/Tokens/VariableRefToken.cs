@@ -177,7 +177,7 @@ public class VariableRefToken : AggregateToken
             options = new ResolutionOptions();
         }
 
-        return ResolveVariablesCore(escapeChar, variables, options, null, modifierResolved: false);
+        return ResolveVariablesCore(escapeChar, variables, options);
     }
 
     internal LiteralToken? GetRequiredModifierValue(IDictionary<string, string?> variables)
@@ -196,16 +196,13 @@ public class VariableRefToken : AggregateToken
     private static bool IsVariableSet(string? modifier, bool exists, string? value) =>
         modifier is not null && modifier[0] == ':' ? exists && !String.IsNullOrEmpty(value) : exists;
 
-    internal string? ResolveWithModifierValue(char escapeChar, IDictionary<string, string?> variables,
-        ResolutionOptions options, string modifierValue) =>
-        ResolveVariablesCore(escapeChar, variables, options, modifierValue, modifierResolved: true);
+    internal static VariableSubstitutionException MissingVariable(string name, string? detail) =>
+        new($"Variable '{name}' is not set. Error detail: '{detail ?? "<empty>"}'.");
 
     private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables,
-        ResolutionOptions options, string? modifierValue, bool modifierResolved)
+        ResolutionOptions options)
     {
-        string? ResolveModifier() => modifierResolved
-            ? modifierValue
-            : ResolveModifierValue(escapeChar, variables, options);
+        string? ResolveModifier() => ResolveModifierValue(escapeChar, variables, options);
         string variableName = VariableName;
         string? modifier = Modifier;
 
@@ -246,8 +243,7 @@ public class VariableRefToken : AggregateToken
                     if (!isVariableSet)
                     {
                         string? errorDetail = ResolveModifier();
-                        throw new VariableSubstitutionException(
-                            $"Variable '{variableName}' is not set. Error detail: '{errorDetail ?? "<empty>"}'.");
+                        throw MissingVariable(variableName, errorDetail);
                     }
                     break;
                 default:
@@ -280,7 +276,7 @@ public class VariableRefToken : AggregateToken
         {
             return modifierResolver(modifier);
         }
-        return ResolutionGuard.Resolve(modifier, escapeChar, variables, options);
+        return modifier.ResolveVariablesInContext(false, escapeChar, variables, options);
     }
 
     public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>

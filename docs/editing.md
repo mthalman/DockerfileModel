@@ -151,9 +151,13 @@ in nested modifier values. A modifier's overridden `ResolveVariables()` is
 called only when its branch is selected, even if its rendered text is empty.
 Its result is JSON-escaped without recognizing new variable references.
 Variable-reference overrides inside selected modifier values also retain virtual
-dispatch. Decoded single quotes still protect these references from evaluation.
-Resolution context preserves the caller's `ResolutionOptions` subtype and custom
-fields. Selected custom modifier overrides receive the caller's `UpdateInline`
+dispatch, even when their rendered text is empty. Each occurrence is evaluated
+independently, including occurrences that share the same token instance.
+Decoded single quotes and escapes still protect these references from evaluation.
+Selected modifier branches do not change if a callback updates the variable
+dictionary during their evaluation.
+Resolution context passes the caller's original `ResolutionOptions` instance
+without cloning it. Selected custom modifier overrides receive the caller's `UpdateInline`
 and `RemoveEscapeCharacters` settings; the overrides manage their own side effects.
 `ResolveVariables()` preserves the original model unless
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded

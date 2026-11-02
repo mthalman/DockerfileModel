@@ -6,10 +6,12 @@ internal static class DecodedVariableParsers
 {
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
         string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null, char? initialQuote = null,
-        Dictionary<int, (int End, Token Token)>? customTokens = null)
+        Dictionary<int, (int End, Token Token)>? customTokens = null,
+        Dictionary<int, List<VariableRefToken>>? emptyReferences = null)
     {
         Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
         bool blocked = false;
+        int allowedEmptyReference = -1;
         TextParser<char> sourceCharacter = character;
         character = input =>
         {
@@ -50,10 +52,51 @@ internal static class DecodedVariableParsers
         };
         TextParser<IEnumerable<Token>> opaqueLiteral = OpaqueLiteral(preserveReferences: true);
 
+        TextParser<IEnumerable<Token>> Sequence(TextParser<IEnumerable<Token>> part)
+        {
+            TextParser<IEnumerable<Token>> attempt = part.Try();
+            return input =>
+            {
+                List<Token> tokens = new();
+                TextSpan remaining = input;
+                while (true)
+                {
+                    int index = remaining.Position.Absolute;
+                    if (emptyReferences is not null && emptyReferences.TryGetValue(index, out var references))
+                    {
+                        tokens.AddRange(references);
+                    }
+                    int previous = allowedEmptyReference;
+                    allowedEmptyReference = index;
+                    Result<IEnumerable<Token>> result;
+                    try
+                    {
+                        result = attempt(remaining);
+                    }
+                    finally
+                    {
+                        allowedEmptyReference = previous;
+                    }
+                    if (!result.HasValue)
+                    {
+                        return Result.Value<IEnumerable<Token>>(tokens, input, remaining);
+                    }
+                    if (result.Remainder.Position.Absolute <= index)
+                    {
+                        throw new InvalidOperationException("A modifier part must consume source text.");
+                    }
+                    tokens.AddRange(result.Value);
+                    remaining = result.Remainder;
+                }
+            };
+        }
+
         TextParser<IEnumerable<Token>> Escaped() =>
             from escape in Symbol(escapeChar)
-            from value in character
-            select (IEnumerable<Token>)new Token[] { new StringToken(new string(new[] { escape, value })) };
+            from value in OpaqueLiteral(preserveReferences: false)
+                .Select(tokens => string.Concat(tokens.Select(token => token.ToString())))
+                .Or(character.Select(ch => ch.ToString()))
+            select (IEnumerable<Token>)new Token[] { new StringToken(escape + value) };
 
         TextParser<IEnumerable<Token>> Plain(char? quote)
         {
@@ -64,7 +107,9 @@ internal static class DecodedVariableParsers
                 "modifier value character");
             TextParser<char> plain = input =>
             {
-                if (variableStart(input).HasValue)
+                int index = input.Position.Absolute;
+                if (index != allowedEmptyReference && emptyReferences?.ContainsKey(index) == true ||
+                    variableStart(input).HasValue)
                 {
                     return Result.Empty<char>(input, "literal character");
                 }
@@ -90,14 +135,14 @@ internal static class DecodedVariableParsers
                 new Token[] { new StringToken("'") });
         TextParser<IEnumerable<Token>> doubleQuoted =
             from open in Symbol('"')
-            from tokens in Parts('"').Try().Many().Flatten()
+            from tokens in Sequence(Parts('"'))
             from close in Symbol('"')
             select ConcatTokens(new Token[] { new StringToken("\"") }, tokens,
                 new Token[] { new StringToken("\"") });
         TextParser<IEnumerable<Token>> value =
             opaqueLiteral.Or(singleQuoted.Try()).Or(doubleQuoted.Try()).Or(Parts(null));
 
-        TextParser<IEnumerable<Token>> modifierTokens = value.Try().Many().Flatten();
+        TextParser<IEnumerable<Token>> modifierTokens = Sequence(value);
         TextParser<LiteralToken> modifierValue = input =>
         {
             int index = input.Position.Absolute;
@@ -145,6 +190,7 @@ internal static class DecodedVariableParsers
             if (literalEnds?[index] > index)
             {
                 remaining = remaining.Skip(literalEnds[index] - index);
+                escaped = false;
                 continue;
             }
             if (!sourceCharacter(remaining).HasValue)
