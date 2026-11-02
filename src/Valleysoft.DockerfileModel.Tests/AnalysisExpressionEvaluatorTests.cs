@@ -307,6 +307,49 @@ public class AnalysisExpressionEvaluatorTests
         Assert.InRange(allocated, 0, 2048L * count);
     }
 
+    [Theory]
+    [InlineData(512)]
+    [InlineData(2048)]
+    public void ChangedPendingSerializersDoNotAllocateRepeatedScans(int count)
+    {
+        bool active = false;
+        int version = 0;
+        long before = 0;
+        LiteralToken token = new(Enumerable.Range(0, count)
+            .Select(_ => (Token)new MutableSerializedString(() => active ? "new" : "old"))
+            .Append(new VariableRefToken("X")), canContainVariables: true, '\\');
+        string Resolve(VariableRefToken variable)
+        {
+            active = true;
+            version++;
+            before = GC.GetAllocatedBytesForCurrentThread();
+            return "left";
+        }
+        string Run()
+        {
+            active = false;
+            version = 0;
+            return AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+                getCustomResolutionVersion: () => version, resolveAggregate: _ => String.Empty);
+        }
+        Run();
+
+        string result = Run();
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(String.Concat(Enumerable.Repeat("new", count)) + "left", result);
+        Assert.InRange(allocated, 0, 96L * count + 4096);
+    }
+
+    private sealed class MutableSerializedString : StringToken
+    {
+        private readonly Func<string> serialize;
+
+        public MutableSerializedString(Func<string> serialize) : base("placeholder") => this.serialize = serialize;
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => serialize();
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);

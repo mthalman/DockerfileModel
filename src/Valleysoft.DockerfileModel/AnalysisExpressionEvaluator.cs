@@ -94,28 +94,26 @@ internal static class AnalysisExpressionEvaluator
             ResolutionSnapshot reference = references[i];
             reference.SerializationFailure?.Throw();
             int version = getCustomResolutionVersion?.Invoke() ?? 0;
+            bool checkPendingSyntax;
             if (reference.IsConsumerLeaf)
             {
-                bool changed = reference.RefreshSerialization(version);
-                if (changed)
-                {
-                    Scan();
-                    i = references.Count;
-                }
-                continue;
+                checkPendingSyntax = reference.RefreshSerialization(version);
             }
-            reference.ResolvedValue = reference.Source is VariableRefToken variable
-                ? resolveVariable(variable)
-                : resolveAggregate is not null ? resolveAggregate((AggregateToken)reference.Source)
-                : resolveLiteral!((LiteralToken)reference.Source);
-            reference.ResolvedSyntaxValue = getResolvedSyntax is null
-                ? reference.ResolvedValue : getResolvedSyntax();
-            reference.IsResolved = true;
-            if (getCustomResolutionVersion is not null && version != getCustomResolutionVersion() &&
-                reference.PendingSyntaxChanged())
+            else
+            {
+                reference.ResolvedValue = reference.Source is VariableRefToken variable
+                    ? resolveVariable(variable)
+                    : resolveAggregate is not null ? resolveAggregate((AggregateToken)reference.Source)
+                    : resolveLiteral!((LiteralToken)reference.Source);
+                reference.ResolvedSyntaxValue = getResolvedSyntax is null
+                    ? reference.ResolvedValue : getResolvedSyntax();
+                reference.IsResolved = true;
+                checkPendingSyntax = getCustomResolutionVersion is not null && version != getCustomResolutionVersion();
+            }
+            if (checkPendingSyntax && reference.PendingSyntaxChanged())
             {
                 // Reverse traversal has already consumed the suffix; only pending syntax can be refreshed.
-                reference.RefreshPendingSyntax(getCustomResolutionVersion());
+                reference.RefreshPendingSyntax(getCustomResolutionVersion?.Invoke() ?? version);
                 Scan();
                 i = references.Count;
             }
@@ -166,6 +164,9 @@ internal static class AnalysisExpressionEvaluator
             {
                 SerializationFailure = failure;
                 SuppressedSyntax = previous.SuppressedSyntax;
+                OpeningQuote = previous.OpeningQuote;
+                ClosingQuote = previous.ClosingQuote;
+                serializedText = previous.serializedText;
                 return;
             }
             IsReference = source is VariableRefToken ||
@@ -324,11 +325,10 @@ internal static class AnalysisExpressionEvaluator
             }
             char? quote = (Source as IQuotableToken)?.QuoteChar;
             string text = Source.ToString(new TokenStringOptions(excludeQuotes: true));
-            bool changed = capturedQuote != quote || serializedText != text;
             capturedQuote = OpeningQuote = ClosingQuote = quote;
             serializedText = text;
             serializationVersion = version;
-            return changed;
+            return true;
         }
 
         public void RefreshPendingSyntax(int version)
@@ -358,6 +358,29 @@ internal static class AnalysisExpressionEvaluator
         public void RecordTokenResolutions(char escapeChar, ResolutionOptions options,
             Action<AggregateToken, int, TokenResolution> record)
         {
+            if (IsReference || Source is not AggregateToken root)
+            {
+                return;
+            }
+            HashSet<AggregateToken> liveOwners = new(ReferenceComparer<AggregateToken>.Instance);
+            List<AggregateToken> ownerOrder = new();
+            void CollectLiveOwners(AggregateToken owner)
+            {
+                if (!liveOwners.Add(owner))
+                {
+                    return;
+                }
+                foreach (Token token in owner.Tokens)
+                {
+                    if (token is AggregateToken aggregate and not VariableRefToken && !aggregate.UsesCustomResolution)
+                    {
+                        CollectLiveOwners(aggregate);
+                    }
+                }
+                ownerOrder.Add(owner);
+            }
+            CollectLiveOwners(root);
+            HashSet<AggregateToken> snapshotOwners = new(ReferenceComparer<AggregateToken>.Instance);
             List<(AggregateToken Owner, int Index, AggregateToken Source, ResolutionSnapshot? Snapshot)> captures = new();
             Dictionary<AggregateToken, Queue<ResolutionSnapshot>>? displaced = null;
             void Collect(ResolutionSnapshot node)
@@ -366,19 +389,23 @@ internal static class AnalysisExpressionEvaluator
                 {
                     return;
                 }
+                snapshotOwners.Add(owner);
                 Dictionary<AggregateToken, Queue<int>> positions = new(ReferenceComparer<AggregateToken>.Instance);
-                for (int liveIndex = 0; liveIndex < owner.TokenList.Count; liveIndex++)
+                if (liveOwners.Contains(owner))
                 {
-                    if (owner.TokenList[liveIndex] is not AggregateToken aggregate)
+                    for (int liveIndex = 0; liveIndex < owner.TokenList.Count; liveIndex++)
                     {
-                        continue;
+                        if (owner.TokenList[liveIndex] is not AggregateToken aggregate)
+                        {
+                            continue;
+                        }
+                        if (!positions.TryGetValue(aggregate, out Queue<int>? occurrences))
+                        {
+                            occurrences = new();
+                            positions.Add(aggregate, occurrences);
+                        }
+                        occurrences.Enqueue(liveIndex);
                     }
-                    if (!positions.TryGetValue(aggregate, out Queue<int>? occurrences))
-                    {
-                        occurrences = new();
-                        positions.Add(aggregate, occurrences);
-                    }
-                    occurrences.Enqueue(liveIndex);
                 }
                 foreach (ResolutionSnapshot child in node.children)
                 {
@@ -411,16 +438,58 @@ internal static class AnalysisExpressionEvaluator
                 }
             }
             Collect(this);
-            foreach (var capture in captures)
+            foreach (AggregateToken owner in ownerOrder)
             {
+                if (snapshotOwners.Contains(owner))
+                {
+                    continue;
+                }
+                for (int i = 0; i < owner.TokenList.Count; i++)
+                {
+                    if (owner.TokenList[i] is AggregateToken aggregate)
+                    {
+                        captures.Add((owner, i, aggregate, null));
+                    }
+                }
+            }
+            HashSet<AggregateToken> ownersWithCaptures = new(ReferenceComparer<AggregateToken>.Instance);
+            for (int i = 0; i < captures.Count; i++)
+            {
+                var capture = captures[i];
                 ResolutionSnapshot? child = capture.Snapshot;
                 if (child is null && displaced is not null &&
                     displaced.TryGetValue(capture.Source, out Queue<ResolutionSnapshot>? moved) && moved.Count > 0)
                 {
                     child = moved.Dequeue();
+                    captures[i] = (capture.Owner, capture.Index, capture.Source, child);
                 }
+                if (child is not null)
+                {
+                    ownersWithCaptures.Add(capture.Owner);
+                }
+            }
+            foreach (AggregateToken owner in ownerOrder)
+            {
+                foreach (Token token in owner.Tokens)
+                {
+                    if (token is AggregateToken child &&
+                        !snapshotOwners.Contains(child) && ownersWithCaptures.Contains(child))
+                    {
+                        ownersWithCaptures.Add(owner);
+                        break;
+                    }
+                }
+            }
+            foreach (var capture in captures)
+            {
+                ResolutionSnapshot? child = capture.Snapshot;
                 if (child is null)
                 {
+                    // New ordinary wrappers need a replay path only when they contain completed captures.
+                    if (!snapshotOwners.Contains(capture.Source) && ownersWithCaptures.Contains(capture.Source))
+                    {
+                        record(capture.Owner, capture.Index, new TokenResolution(capture.Source, null, null));
+                    }
                     continue;
                 }
                 (string Value, char? QuoteChar, bool Escaped)? semanticValue = capture.Source is VariableRefToken
@@ -605,6 +674,21 @@ internal static class AnalysisExpressionEvaluator
                     if (snapshot.SuppressedSyntax is not null)
                     {
                         AppendText(snapshot.SuppressedSyntax);
+                    }
+                    else
+                    {
+                        if (snapshot.OpeningQuote is char failedOpeningQuote)
+                        {
+                            AppendCharacter(failedOpeningQuote);
+                        }
+                        if (serializedText is not null)
+                        {
+                            AppendText(serializedText);
+                        }
+                        if (snapshot.ClosingQuote is char failedClosingQuote)
+                        {
+                            AppendCharacter(failedClosingQuote);
+                        }
                     }
                 }
                 else

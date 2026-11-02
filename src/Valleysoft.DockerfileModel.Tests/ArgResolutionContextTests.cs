@@ -431,6 +431,100 @@ public class ArgResolutionContextTests
             .Single().ArgTokens[0].ValueToken!.Tokens));
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void PendingSerializerEditsRefreshEarlierSyntax(bool stageScope, bool updateInline, bool changesText)
+    {
+        bool active = false;
+        LiteralToken pending = Literal(new VariableRefToken("UNSET", "?", "stale"));
+        Dockerfile dockerfile = Document(stageScope, pending, new MutableSerializedString(() =>
+        {
+            if (active) pending.Value = "new";
+            return active && changesText ? "q" : "p";
+        }), new CallbackVariable(() => active = true));
+
+        string value = $"new{(changesText ? "q" : "p")}left";
+        Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("new", pending.Value);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void PendingPrimitiveQuoteFailurePreservesRequiredError(bool stageScope, bool updateInline)
+    {
+        bool fail = false;
+        Dockerfile dockerfile = Document(stageScope, new StringToken("\\"),
+            new QuotedString(() => fail ? throw new InvalidOperationException("Primitive quote.") : null),
+            new VariableRefToken("UNSET", "?", "right"), new CallbackVariable(() => fail = true));
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'right'.", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void PendingPrimitiveQuoteFailurePreservesSuppressedReference(bool stageScope, bool updateInline)
+    {
+        bool fail = false;
+        InvalidOperationException expected = new("Primitive quote.");
+        Dockerfile dockerfile = Document(stageScope, new StringToken("\\"),
+            new QuotedString(() => fail ? throw expected : '\''),
+            new VariableRefToken("UNSET", "?", "suppressed"), new StringToken("'"),
+            new CallbackVariable(() => fail = true));
+
+        Assert.Same(expected, Assert.Throws<InvalidOperationException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline })));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void CompletedCaptureLeavesDetachedOwner(bool stageScope, bool newOwner)
+    {
+        LiteralToken original = Literal(new VariableRefToken("UNSET", ":-", "old"));
+        LiteralToken destination = Literal();
+        LiteralToken? root = null;
+        Dockerfile dockerfile = Document(stageScope, new CallbackVariable(() =>
+        {
+            Token child = Assert.Single(original.Tokens);
+            root!.TokenList.Remove(original);
+            if (newOwner) root.TokenList.Add(Literal(Literal(child, new VariableRefToken("UNSET", "?", "inserted"))));
+            else destination.TokenList.Add(child);
+        }), original, destination);
+        root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal(newOwner ? "ARG X=leftold${UNSET?inserted}\n" : "ARG X=leftold\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.IsType<VariableRefToken>(Assert.Single(original.Tokens));
+    }
+
+    private sealed class QuotedString : StringToken, IQuotableToken
+    {
+        private readonly Func<char?> getQuote;
+
+        public QuotedString(Func<char?> getQuote) : base("p") => this.getQuote = getQuote;
+
+        public char? QuoteChar { get => getQuote(); set { } }
+    }
+
     private sealed class CountingContinuation : LineContinuationToken
     {
         public CountingContinuation() : base("\n") { }
