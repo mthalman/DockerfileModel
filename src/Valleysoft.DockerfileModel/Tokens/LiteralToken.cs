@@ -107,6 +107,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     }
 
     internal bool ResolveAsJsonString { get; set; }
+    internal bool CanContainVariables => canContainVariables;
 
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
         ResolutionOptions? options = null)

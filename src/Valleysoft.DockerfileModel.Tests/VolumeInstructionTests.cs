@@ -1046,6 +1046,158 @@ public class VolumeInstructionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void JsonBlockedReferenceNamesDoNotHideLaterVariables(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"\\u0022${NAME}suffix\\u0022\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["NAME"] = "X" },
+            new ResolutionOptions { UpdateInline = true });
+        Assert.IsType<StringToken>(path.Tokens.First()).Value = "\\u0022${";
+        Assert.IsType<StringToken>(path.Tokens.Last()).Value = "'$ROOT\\u0022";
+        string original = instruction.ToString();
+        string expected = original.Replace("$ROOT", "value");
+
+        Assert.Equal(expected, instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "value" },
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? expected : original, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonModifierLiteralPolicyIsRetained(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"${MISSING:-$ROOT}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        LiteralToken literal = new("$ROOT", canContainVariables: false);
+        reference.ModifierValueToken = literal;
+        const string expected = "VOLUME [\"$ROOT\"]";
+
+        Assert.Equal("$ROOT", literal.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" }));
+        Assert.Equal(expected, instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "unexpected" },
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? expected : "VOLUME [\"${MISSING:-$ROOT}\"]", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void JsonNestedOpaqueModifiersPreserveDecodedContents(bool inline, bool removeEscapes)
+    {
+        string[] contents =
+        {
+            "$ROOT", "'$ROOT", "\\u0024ROOT", "\\u0022$ROOT", "\\\\$ROOT",
+            "${BROKEN", "}\\u0024ROOT", "\\u0027$ROOT", "\\\\", "\\n$ROOT"
+        };
+        foreach (string modifier in new[] { ":-", "-", ":+", "+" })
+        {
+            foreach (string content in contents)
+            {
+                VolumeInstruction instruction = VolumeInstruction.Parse(
+                    $"VOLUME [\"${{OUTER:-${{INNER{modifier}placeholder}}}}/$ROOT\"]");
+                VariableRefToken outer = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>(),
+                    token => token.VariableName == "OUTER");
+                VariableRefToken inner = Assert.Single(outer.ModifierValueToken!.Tokens.OfType<VariableRefToken>());
+                LiteralToken literal = new(new[] { new StringToken(content) }, canContainVariables: false, '\\');
+                inner.ModifierValueToken = literal;
+                string original = instruction.ToString();
+                Dictionary<string, string?> variables = new() { ["ROOT"] = "value" };
+                if (modifier.Last() == '+')
+                {
+                    variables["INNER"] = "set";
+                }
+                string decoded = System.Text.Json.JsonSerializer.Deserialize<string>($"\"{content}\"")!;
+                VariableRefToken expectedInner = new("INNER", modifier, "placeholder");
+                expectedInner.ModifierValueToken = new LiteralToken(new[] { new StringToken(decoded) },
+                    canContainVariables: false, '\\');
+                VariableRefToken expectedOuter = new("OUTER", ":-", "placeholder");
+                expectedOuter.ModifierValueToken = new LiteralToken(new Token[] { expectedInner },
+                    canContainVariables: true, '\\');
+                string expectedValue = expectedOuter.ResolveVariables('\\', variables,
+                    new ResolutionOptions { RemoveEscapeCharacters = removeEscapes }) + "/value";
+                string expected = $"VOLUME [\"{System.Text.Json.JsonEncodedText.Encode(expectedValue)}\"]";
+
+                Assert.Equal(expected, instruction.ResolveVariables('\\', variables,
+                    new ResolutionOptions { UpdateInline = inline, RemoveEscapeCharacters = removeEscapes }));
+                Assert.Equal(inline ? expected : original, instruction.ToString());
+                if (inline)
+                {
+                    Assert.Equal(expected, instruction.ResolveVariables('\\',
+                        new Dictionary<string, string?> { ["ROOT"] = "unexpected" }));
+                }
+                else
+                {
+                    Assert.Same(literal, inner.ModifierValueToken);
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("?", false)]
+    [InlineData(":?", true)]
+    public void JsonOpaqueRequiredModifierRemainsLazy(string modifier, bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"${{ROOT{modifier}placeholder}}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        reference.ModifierValueToken = new LiteralToken("$DETAIL");
+        string original = instruction.ToString();
+        ResolutionOptions options = new() { UpdateInline = inline };
+
+        Assert.Equal("VOLUME [\"value\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "value" }, new ResolutionOptions()));
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            instruction.ResolveVariables('\\', new Dictionary<string, string?> { ["DETAIL"] = "unexpected" }, options));
+        Assert.Contains("'$DETAIL'", error.Message);
+        Assert.Equal(original, instruction.ToString());
+    }
+
+    [Fact]
+    public void JsonDisabledExpansionAvoidsDecodedModelAllocations()
+    {
+        string content = new('a', 65_536);
+        LiteralToken path = new(content, canContainVariables: false) { QuoteChar = '"' };
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME []");
+        instruction.PathTokens.Add(path);
+        string physical = path.ToString();
+        string logical = ConstructReader.FoldHeader(physical, 0, '\\', out _, new List<int>());
+        List<int> offsets = Enumerable.Range(0, physical.Length).ToList();
+        ResolutionOptions options = new();
+        Dictionary<string, string?> variables = new();
+        JsonStringVariableResolver.Resolve(path, physical, logical, offsets, '\\', variables, options,
+            expandVariables: false);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        string resolved = JsonStringVariableResolver.Resolve(path, physical, logical, offsets, '\\', variables, options,
+            expandVariables: false);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Same(physical, resolved);
+        Assert.True(allocated < 1_000, $"Disabled expansion allocated {allocated} bytes.");
+    }
+
+    [Theory]
+    [InlineData("/data")]
+    [InlineData("`$ROOT")]
+    public void JsonRawPathsWithoutReferenceCandidatesAvoidParserAllocations(string content)
+    {
+        LiteralToken path = new(content, escapeChar: '`') { QuoteChar = '"' };
+        JsonStringVariableResolver.Tokenize(path, '`');
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        LiteralToken result = JsonStringVariableResolver.Tokenize(path, '`');
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(path.ToString(), result.ToString());
+        Assert.True(allocated < 2_500, $"Candidate-free tokenization allocated {allocated} bytes.");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void JsonDeepRawReferencesUseStackSafeResolutionSerialization(bool protectedText)
     {
         string content = string.Concat(Enumerable.Repeat("${X:-", 4096)) + "value" + new string('}', 4096);

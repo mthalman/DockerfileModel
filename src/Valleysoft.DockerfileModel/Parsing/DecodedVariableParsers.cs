@@ -5,13 +5,17 @@ namespace Valleysoft.DockerfileModel.Parsing;
 internal static class DecodedVariableParsers
 {
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
-        string text, Action? onBlocked = null, int start = 0, char? initialQuote = null)
+        string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null)
     {
         Dictionary<int, (Result<VariableRefToken> Result, bool Blocked)> parsed = new();
         bool blocked = false;
         TextParser<char> sourceCharacter = character;
         character = input =>
         {
+            if (!input.IsAtEnd && literalEnds?[input.Position.Absolute] > input.Position.Absolute)
+            {
+                return Result.Empty<char>(input, "variable-aware source character");
+            }
             Result<char> result = sourceCharacter(input);
             blocked |= !input.IsAtEnd && !result.HasValue;
             return result;
@@ -29,6 +33,15 @@ internal static class DecodedVariableParsers
             return Result.Empty<VariableRefToken>(input, "variable reference");
         }
         TextParser<VariableRefToken> nested = CachedReference;
+        TextParser<IEnumerable<Token>> opaqueLiteral = input =>
+        {
+            int index = input.Position.Absolute;
+            int end = !input.IsAtEnd ? literalEnds?[index] ?? index : index;
+            return end > index
+                ? Result.Value<IEnumerable<Token>>(new Token[] { new StringToken(text.Substring(index, end - index)) },
+                    input, input.Skip(end - index))
+                : Result.Empty<IEnumerable<Token>>(input, "non-variable literal");
+        };
 
         TextParser<IEnumerable<Token>> Escaped() =>
             from escape in Symbol(escapeChar)
@@ -56,7 +69,7 @@ internal static class DecodedVariableParsers
         }
 
         TextParser<IEnumerable<Token>> Parts(char? quote) =>
-            nested.Cast<VariableRefToken, Token>().AsEnumerable().Try()
+            opaqueLiteral.Or(nested.Cast<VariableRefToken, Token>().AsEnumerable().Try())
                 .Or(Escaped().Try())
                 .Or(Plain(quote));
 
@@ -72,7 +85,7 @@ internal static class DecodedVariableParsers
             select ConcatTokens(new Token[] { new StringToken("\"") }, tokens,
                 new Token[] { new StringToken("\"") });
         TextParser<IEnumerable<Token>> value =
-            singleQuoted.Try().Or(doubleQuoted.Try()).Or(Parts(null));
+            opaqueLiteral.Or(singleQuoted.Try()).Or(doubleQuoted.Try()).Or(Parts(null));
 
         TextParser<IEnumerable<Token>> modifier =
             from operation in VariableRefToken.ValidModifiers
@@ -97,46 +110,17 @@ internal static class DecodedVariableParsers
             select new VariableRefToken(tokens, escapeChar);
         List<TextSpan> candidates = new();
         TextSpan remaining = new TextSpan(text).Skip(start);
-        char? quote = initialQuote;
-        Stack<char?> quotes = new();
         while (!remaining.IsAtEnd)
         {
             int index = remaining.Position.Absolute;
-            char current = text[index];
-            if (!sourceCharacter(remaining).HasValue)
+            if (literalEnds?[index] > index)
             {
-                remaining = remaining.Skip(1);
+                remaining = remaining.Skip(literalEnds[index] - index);
                 continue;
             }
-            if (quote == '\'')
-            {
-                if (current == '\'')
-                {
-                    quote = null;
-                }
-            }
-            else if (current == escapeChar && index + 1 < text.Length)
-            {
-                remaining = remaining.Skip(2);
-                continue;
-            }
-            else if (current == '"' || current == '\'' && quote is null)
-            {
-                quote = quote == current ? null : current;
-            }
-            else if (current == '$')
+            if (text[index] == '$' && sourceCharacter(remaining).HasValue)
             {
                 candidates.Add(remaining);
-                if (index + 1 < text.Length && text[index + 1] == '{' &&
-                    sourceCharacter(remaining.Skip(1)).HasValue)
-                {
-                    quotes.Push(quote);
-                    quote = null;
-                }
-            }
-            else if (current == '}' && quote is null && quotes.Count > 0)
-            {
-                quote = quotes.Pop();
             }
             remaining = remaining.Skip(1);
         }

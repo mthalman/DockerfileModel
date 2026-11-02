@@ -17,7 +17,6 @@ internal static class JsonStringVariableResolver
             parsed.TryGetValue(span.Position.Absolute, out Result<VariableRefToken> result)
                 ? result
                 : Result.Empty<VariableRefToken>(span, "variable reference");
-        TextParser<VariableRefToken> parser = VariableRefToken.GetParser(escapeChar, ParseReference);
         List<TextSpan> candidates = new();
         TextSpan input = new TextSpan(physical).Skip(1);
         while (input.Position.Absolute < physical.Length - 1)
@@ -35,6 +34,14 @@ internal static class JsonStringVariableResolver
             }
             input = input.Skip(1);
         }
+        if (candidates.Count == 0)
+        {
+            return new LiteralToken(path.Tokens, canContainVariables: true, escapeChar)
+            {
+                QuoteChar = path.QuoteChar
+            };
+        }
+        TextParser<VariableRefToken> parser = VariableRefToken.GetParser(escapeChar, ParseReference);
         // Bottom-up parsing avoids CLR recursion even for balanced, deeply nested modifiers.
         for (int index = candidates.Count - 1; index >= 0; index--)
         {
@@ -104,10 +111,22 @@ internal static class JsonStringVariableResolver
     internal static string Resolve(LiteralToken path, string physical, string logical, List<int> offsets, char escapeChar,
         IDictionary<string, string?> variables, ResolutionOptions options, bool expandVariables)
     {
+        if (!expandVariables && !options.RemoveEscapeCharacters)
+        {
+            return physical;
+        }
         string decoded = Decode(logical, offsets, out List<int> starts, out List<int> ends);
         Position PhysicalPosition(int decodedOffset) => new TextSpan(physical).Skip(
             decodedOffset < starts.Count ? starts[decodedOffset] : offsets[logical.Length - 1]).Position;
-        (Token Token, string Text)[] source = path.Tokens.Select(token => (token, RenderToken(token))).ToArray();
+        List<(int Start, int End)>? literalSpans = expandVariables ? new() : null;
+        int sourcePosition = 1;
+        (Token Token, string Text)[] source = path.Tokens.Select(token =>
+        {
+            string text = RenderToken(token, literalSpans, sourcePosition);
+            sourcePosition += text.Length;
+            return (token, text);
+        }).ToArray();
+        int[]? literalEnds = FindLiteralEnds(literalSpans, starts, ends);
         int[] resolvedCounts = new int[decoded.Length + 1];
         int sourceIndex = 0;
         int sourceStart = 1;
@@ -153,9 +172,9 @@ internal static class JsonStringVariableResolver
                 tokenStart += source[tokenIndex].Text.Length;
                 tokenIndex++;
             }
-            if (resolvedCounts[index + 1] != resolvedCounts[index])
+            if (resolvedCounts[index + 1] != resolvedCounts[index] || literalEnds?[index] > index)
             {
-                int end = index + 1;
+                int end = literalEnds?[index] > index ? literalEnds[index] : index + 1;
                 int tokenEnd = tokenStart + source[tokenIndex].Text.Length;
                 while (end < decoded.Length && starts[end] < tokenEnd &&
                     resolvedCounts[end + 1] != resolvedCounts[end])
@@ -226,7 +245,7 @@ internal static class JsonStringVariableResolver
             {
                 blocked = false;
                 variableParser ??= DecodedVariableParsers.Variable(escapeChar, character, decoded,
-                    () => blocked = true, index, quote);
+                    () => blocked = true, index, literalEnds);
                 Result<VariableRefToken> variable = variableParser(input);
                 if (variable.HasValue &&
                     resolvedCounts[variable.Remainder.Position.Absolute] == resolvedCounts[index])
@@ -272,6 +291,33 @@ internal static class JsonStringVariableResolver
             path.RecordResolvedJsonLiterals(substitutions);
         }
         return result;
+    }
+
+    private static int[]? FindLiteralEnds(List<(int Start, int End)>? spans, List<int> starts, List<int> ends)
+    {
+        if (spans is null || spans.Count == 0)
+        {
+            return null;
+        }
+        int[] literalEnds = new int[starts.Count];
+        int index = 0;
+        foreach ((int start, int end) in spans)
+        {
+            while (index < ends.Count && ends[index] <= start)
+            {
+                index++;
+            }
+            int first = index;
+            while (index < starts.Count && starts[index] < end)
+            {
+                index++;
+            }
+            for (int current = first; current < index; current++)
+            {
+                literalEnds[current] = index;
+            }
+        }
+        return literalEnds;
     }
 
     internal static string ResolveReference(VariableRefToken root, char escapeChar,
@@ -407,7 +453,9 @@ internal static class JsonStringVariableResolver
         return builder.ToString();
     }
 
-    internal static string RenderToken(Token token)
+    internal static string RenderToken(Token token) => RenderToken(token, null, 0);
+
+    private static string RenderToken(Token token, List<(int Start, int End)>? literalSpans, int offset)
     {
         if (token.GetType() != typeof(VariableRefToken) && token.GetType() != typeof(LiteralToken))
         {
@@ -422,6 +470,16 @@ internal static class JsonStringVariableResolver
             if (close)
             {
                 builder.Append(((IQuotableToken)current).QuoteChar);
+            }
+            else if (literalSpans is not null && current.GetType() == typeof(LiteralToken) &&
+                current is LiteralToken literal && !literal.CanContainVariables)
+            {
+                int start = builder.Length;
+                builder.Append(RenderToken(literal));
+                if (builder.Length > start)
+                {
+                    literalSpans.Add((offset + start, offset + builder.Length));
+                }
             }
             else if ((current.GetType() == typeof(VariableRefToken) || current.GetType() == typeof(LiteralToken)) &&
                 current is AggregateToken aggregate)

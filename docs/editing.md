@@ -141,7 +141,10 @@ with a backtick Dockerfile escape directive.
 
 `VOLUME` paths recognize variable references and supported variable modifiers in
 both shell and JSON form, including paths created or updated through the editable
-views. Typed `LiteralToken` paths retain their variable-recognition policy.
+views. Typed `LiteralToken` paths and modifier values retain their
+variable-recognition policy. A modifier value constructed with
+`canContainVariables: false` remains literal after JSON decoding, including
+any dollar signs, quotes, or braces in its contents.
 `ResolveVariables()` preserves the original model unless
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
 references but retains untouched child tokens.
