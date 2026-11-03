@@ -2168,6 +2168,226 @@ public class ArgResolutionContextTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
+    public void SerializedDeclarationBoundariesCanChangeWithoutChangingNames(bool updateInline, bool targetArg)
+    {
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=one A=two\nENV RESULT=$A");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
+        SerializedLiteral left = new("\"one", "first");
+        SerializedLiteral right = new("two\" A=three", "second");
+        instruction.ArgTokens[0].ValueToken = left;
+        instruction.ArgTokens[1].ValueToken = right;
+        string original = document.ToString();
+
+        string result = targetArg ? document.ResolveVariables(instruction,
+            options: new ResolutionOptions { UpdateInline = updateInline })
+            : document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline });
+
+        Assert.Equal(targetArg ? "ARG A=\"one A=two\" A=three\n"
+            : updateInline ? "ENV RESULT=second" : "ENV RESULT=three", result);
+        Assert.Equal(updateInline ? 1 : 0, left.ResolutionCount);
+        Assert.Equal(updateInline ? 1 : 0, right.ResolutionCount);
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeclarationLayoutDoesNotReadLaterNamesBeforeRequiredDefaults(bool updateInline)
+    {
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=${MISSING?first} B=two\nENV RESULT=$A");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
+        CallbackName name = new(() => throw new InvalidOperationException("Later name."));
+        instruction.ArgTokens[1].NameToken = name;
+        string original = document.ToString();
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'MISSING' is not set. Error detail: 'first'.", error.Message);
+        Assert.Equal(0, name.ValueReadCount);
+        Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeclarationNamesRemainLazyAndObserveEarlierCallbacks(bool updateInline)
+    {
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=one B=two\nENV RESULT=$A/$B/$C");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
+        bool resolvedFirst = false;
+        CallbackName name = new(() => Assert.True(resolvedFirst));
+        instruction.ArgTokens[1].NameToken = name;
+        instruction.ArgTokens[0].ValueToken = new SerializedLiteral("one", "first", _ =>
+        {
+            resolvedFirst = true;
+            name.Value = "C";
+        });
+
+        Assert.Equal("ENV RESULT=first//two", document.ResolveVariables(
+            options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("C", name.Value);
+    }
+
+    private sealed class CallbackName : Variable
+    {
+        private readonly Action beforeValueRead;
+
+        public CallbackName(Action beforeValueRead) : base("B") => this.beforeValueRead = beforeValueRead;
+
+        public int ValueReadCount { get; private set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            if (options.ExcludeQuotes)
+            {
+                ValueReadCount++;
+                beforeValueRead();
+            }
+            return base.GetUnderlyingValue(options);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, "one ")]
+    [InlineData(false, "one\t")]
+    [InlineData(true, "one ")]
+    [InlineData(true, "one\t")]
+    public void DeclarationTrailingWhitespaceDoesNotDiscardCustomResolvers(bool updateInline, string syntax)
+    {
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=one B=two\nENV RESULT=$A/$B");
+        SerializedLiteral value = new(syntax, "custom");
+        document.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken = value;
+        string original = document.ToString();
+
+        Assert.Equal("ENV RESULT=custom/two", document.ResolveVariables(
+            options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(1, value.ResolutionCount);
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeclarationSerializationObserverDoesNotEscape(bool throwDuringSerialization)
+    {
+        TokenStringOptions? captured = null;
+        FormatException expected = new("Declaration serialization.");
+        OptionSerializedString text = new(options =>
+        {
+            if (options.OnTokenSerialized is not null)
+            {
+                captured = options;
+                if (throwDuringSerialization) throw expected;
+            }
+            return "value";
+        });
+        Dockerfile document = Document(true, text);
+
+        if (throwDuringSerialization)
+        {
+            Assert.Same(expected, Assert.Throws<FormatException>(() => document.ResolveVariables()));
+        }
+        else
+        {
+            Assert.Equal("ENV RESULT=value", document.ResolveVariables());
+        }
+        Assert.NotNull(captured);
+        Assert.Null(captured.OnTokenSerialized);
+        Assert.Equal("value", new StringToken("value").ToString(captured));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CompletedInheritedScopesDoNotTrackTraversal(bool originalContext)
+    {
+        ResolutionOptions options = new();
+        Dictionary<string, string?> variables = new();
+        LiteralToken owner = Literal(new VariableRefToken("UNSET"));
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task worker;
+        using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
+        {
+            worker = Task.Run(async () =>
+            {
+                await gate.Task;
+                ResolutionOptions requestedOptions = originalContext ? options : new();
+                Dictionary<string, string?> requestedVariables = originalContext ? variables : new();
+                using var traversal = requestedOptions.TrackModifierResolutionTraversal(owner, '\\', requestedVariables);
+                Assert.Null(traversal);
+                Assert.Equal(String.Empty, owner.ResolveVariables('\\', requestedVariables, requestedOptions));
+            });
+        }
+        gate.SetResult();
+        await worker.WaitAsync(TimeSpan.FromSeconds(30));
+    }
+
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public void UnrelatedModifierContextsDoNotTrackTraversal(bool differentOptions,
+        bool differentVariables, bool differentEscape)
+    {
+        ResolutionOptions options = new();
+        Dictionary<string, string?> variables = new();
+        LiteralToken owner = Literal(new VariableRefToken("UNSET"));
+        using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
+        {
+            ResolutionOptions requestedOptions = differentOptions ? new() : options;
+            Dictionary<string, string?> requestedVariables = differentVariables ? new() : variables;
+            using var traversal = requestedOptions.TrackModifierResolutionTraversal(owner,
+                differentEscape ? '`' : '\\', requestedVariables);
+            Assert.Null(traversal);
+        }
+    }
+
+    [Fact]
+    public void ExplicitModifierResolverDoesNotNeedTraversal()
+    {
+        ResolutionOptions options = new() { ModifierValueResolver = _ => "explicit" };
+        Dictionary<string, string?> variables = new();
+        LiteralToken owner = Literal(new VariableRefToken("UNSET", ":-", "fallback"));
+        using (options.UseModifierValueResolver(owner, '\\', variables, _ => "ambient"))
+        {
+            using var traversal = options.TrackModifierResolutionTraversal(owner, '\\', variables);
+            Assert.Null(traversal);
+            Assert.Equal("explicit", owner.ResolveVariables('\\', variables, options));
+        }
+    }
+
+    [Fact]
+    public async Task TraversalCanUseActiveParentOfDisposedInheritedScope()
+    {
+        ResolutionOptions options = new();
+        Dictionary<string, string?> variables = new();
+        LiteralToken owner = Literal(new VariableRefToken("UNSET", ":-", "fallback"));
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
+        {
+            Task worker;
+            using (new ResolutionOptions().UseModifierValueResolver(Literal(), '\\',
+                new Dictionary<string, string?>(), _ => "unrelated"))
+            {
+                worker = Task.Run(async () =>
+                {
+                    await gate.Task;
+                    using var traversal = options.TrackModifierResolutionTraversal(owner, '\\', variables);
+                    Assert.NotNull(traversal);
+                    Assert.Equal("owned", owner.ResolveVariables('\\', variables, options));
+                });
+            }
+            gate.SetResult();
+            await worker.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void ModifierOwnershipChecksAllocateLinearly(bool updateInline, bool nested)
     {
         long Measure(int count)

@@ -20,9 +20,10 @@ public abstract class Token
 
         if (!options.ExcludeQuotes && this is IQuotableToken quotableToken)
         {
-            return $"{quotableToken.QuoteChar}{value}{quotableToken.QuoteChar}";
+            value = $"{quotableToken.QuoteChar}{value}{quotableToken.QuoteChar}";
         }
 
+        options.OnTokenSerialized?.Invoke(this, value);
         return value;
     }
 

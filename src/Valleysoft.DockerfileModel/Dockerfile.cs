@@ -165,7 +165,7 @@ public class Dockerfile : IConstructContainer
     /// References in defaults resolve right-to-left. Callbacks can change pending tokens and options,
     /// but not completed results. Inline updates happen as references resolve; enabling them later
     /// does not update earlier references.
-    /// Non-inline stage resolution uses serialized declarations if custom serializers change their layout.
+    /// Non-inline stage resolution uses serialized declarations if custom serializers change their boundaries.
     /// </para>
     /// <para>
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
@@ -250,19 +250,55 @@ public class Dockerfile : IConstructContainer
         Dictionary<string, string?> stageArgs, IDictionary<string, string?> globalArgs,
         IDictionary<string, string?> variableOverrides, ResolutionOptions options)
     {
-        ArgInstruction resolvedInstruction = options.UpdateInline
-            ? instruction
-            : ArgInstruction.Parse(instruction.ToString(), escapeChar);
-
-        ArgDeclaration[] args = instruction.ArgTokens.ToArray();
-        ArgDeclaration[] resolvedArgs = resolvedInstruction == instruction
-            ? args : resolvedInstruction.ArgTokens.ToArray();
-        if (resolvedInstruction != instruction &&
-            !args.Select(arg => arg.Name).SequenceEqual(resolvedArgs.Select(arg => arg.Name)))
+        ArgInstruction resolvedInstruction;
+        ArgDeclaration[] args;
+        ArgDeclaration[] resolvedArgs;
+        if (options.UpdateInline)
         {
-            // Changed declaration boundaries cannot be paired with the original defaults.
-            return ResolveArgInstruction(resolvedInstruction, escapeChar, stageArgs, globalArgs, variableOverrides,
-                new ResolutionOptions { UpdateInline = true, RemoveEscapeCharacters = options.RemoveEscapeCharacters });
+            resolvedInstruction = instruction;
+            args = instruction.ArgTokens.ToArray();
+            resolvedArgs = args;
+        }
+        else
+        {
+            List<(ArgDeclaration Declaration, string Syntax)> serializedArgs = new();
+            TokenStringOptions serializationOptions = new((token, text) =>
+            {
+                if (token is ArgDeclaration declaration)
+                {
+                    serializedArgs.Add((declaration, text));
+                }
+            });
+            string syntax;
+            try
+            {
+                syntax = instruction.ToString(serializationOptions);
+            }
+            finally
+            {
+                serializationOptions.OnTokenSerialized = null;
+            }
+            List<string> parsedArgs = new();
+            resolvedInstruction = ArgInstruction.Parse(syntax, escapeChar, parsedArgs.Add);
+            args = instruction.ArgTokens.ToArray();
+            resolvedArgs = resolvedInstruction.ArgTokens.ToArray();
+            bool sameLayout = args.Length == resolvedArgs.Length && args.Length == serializedArgs.Count;
+            for (int i = 0; sameLayout && i < args.Length; i++)
+            {
+                string originalSyntax = serializedArgs[i].Syntax.TrimEnd();
+                string parsedSyntax = parsedArgs[i].TrimEnd();
+                // Standalone ARG parsing can leave a final suffix unconsumed; preserve that acceptance boundary.
+                sameLayout = ReferenceEquals(args[i], serializedArgs[i].Declaration) &&
+                    args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator &&
+                    (i == args.Length - 1
+                        ? originalSyntax.StartsWith(parsedSyntax, StringComparison.Ordinal)
+                        : String.Equals(originalSyntax, parsedSyntax, StringComparison.Ordinal));
+            }
+            if (!sameLayout)
+            {
+                return ResolveArgInstruction(resolvedInstruction, escapeChar, stageArgs, globalArgs, variableOverrides,
+                    new ResolutionOptions { UpdateInline = true, RemoveEscapeCharacters = options.RemoveEscapeCharacters });
+            }
         }
         for (int i = 0; i < args.Length; i++)
         {

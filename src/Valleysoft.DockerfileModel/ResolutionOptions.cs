@@ -36,8 +36,22 @@ public class ResolutionOptions
         new ModifierResolutionScope(owner, this, escapeChar, variables, resolver);
 
     internal ModifierResolutionTraversal? TrackModifierResolutionTraversal(Tokens.AggregateToken owner,
-        char escapeChar, IDictionary<string, string?> variables) =>
-        ModifierResolutionScope.Current.Value is null ? null : new(owner, this, escapeChar, variables);
+        char escapeChar, IDictionary<string, string?> variables)
+    {
+        if (ModifierValueResolver is not null)
+        {
+            return null;
+        }
+        for (ModifierResolutionScope? scope = ModifierResolutionScope.Current.Value;
+            scope is not null; scope = scope.Parent)
+        {
+            if (scope.GetContextResolver(this, escapeChar, variables) is not null)
+            {
+                return new(owner, this, escapeChar, variables);
+            }
+        }
+        return null;
+    }
 
     internal sealed class ModifierResolutionTraversal : IDisposable
     {
@@ -124,14 +138,22 @@ public class ResolutionOptions
             ResolutionOptions requestedOptions,
             char requestedEscapeChar, IDictionary<string, string?> requestedVariables)
         {
-            Func<Tokens.LiteralToken, string?>? activeResolver = Volatile.Read(ref resolver);
+            Func<Tokens.LiteralToken, string?>? activeResolver =
+                GetContextResolver(requestedOptions, requestedEscapeChar, requestedVariables);
             Tokens.AggregateToken? activeOwner = owner;
-            return activeResolver is not null && ReferenceEquals(options, requestedOptions) &&
-                escapeChar == requestedEscapeChar && ReferenceEquals(variables, requestedVariables) &&
-                activeOwner is not null && (ReferenceEquals(activeOwner, variable) ||
+            return activeResolver is not null && activeOwner is not null && (ReferenceEquals(activeOwner, variable) ||
                     ModifierResolutionTraversal.ContainsCurrentReference(activeOwner, variable, requestedOptions,
                         requestedEscapeChar, requestedVariables) ||
                     ContainsVariable(activeOwner, variable))
+                ? activeResolver : null;
+        }
+
+        public Func<Tokens.LiteralToken, string?>? GetContextResolver(ResolutionOptions requestedOptions,
+            char requestedEscapeChar, IDictionary<string, string?> requestedVariables)
+        {
+            Func<Tokens.LiteralToken, string?>? activeResolver = Volatile.Read(ref resolver);
+            return activeResolver is not null && ReferenceEquals(options, requestedOptions) &&
+                escapeChar == requestedEscapeChar && ReferenceEquals(variables, requestedVariables)
                 ? activeResolver : null;
         }
 
