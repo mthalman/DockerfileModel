@@ -230,18 +230,19 @@ public class ArgResolutionContextTests
         Func<LiteralToken, string?> explicitResolver = _ => "explicit";
         ResolutionOptions options = new() { ModifierValueResolver = explicitResolver };
         Dictionary<string, string?> variables = new();
+        VariableRefToken variable = new("UNSET", ":-", "unused");
         Stack<IDisposable> scopes = new();
         try
         {
-            scopes.Push(options.UseModifierValueResolver('\\', variables, _ => "ambient"));
+            scopes.Push(options.UseModifierValueResolver(variable, '\\', variables, _ => "ambient"));
             for (int i = 1; i < depth; i++)
             {
-                scopes.Push(new ResolutionOptions().UseModifierValueResolver('\\', variables, _ => "unrelated"));
+                scopes.Push(new ResolutionOptions().UseModifierValueResolver(new VariableRefToken("OTHER"),
+                    '\\', variables, _ => "unrelated"));
             }
 
-            Assert.Same(explicitResolver, options.GetModifierValueResolver('\\', variables));
-            Assert.Equal("explicit", new VariableRefToken("UNSET", ":-", "unused")
-                .ResolveVariables('\\', variables, options));
+            Assert.Same(explicitResolver, options.GetModifierValueResolver(variable, '\\', variables));
+            Assert.Equal("explicit", variable.ResolveVariables('\\', variables, options));
         }
         finally
         {
@@ -249,6 +250,45 @@ public class ArgResolutionContextTests
             {
                 scopes.Pop().Dispose();
             }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ModifierScopesFollowLiveOwnerMembership(bool nested)
+    {
+        LiteralToken owner = Literal();
+        LiteralToken children = nested ? Literal() : owner;
+        if (nested) owner.TokenList.Add(children);
+        VariableRefToken variable = new("UNSET", ":-", "\"kept\"");
+        ResolutionOptions options = new();
+        Dictionary<string, string?> variables = new();
+
+        using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
+        {
+            Assert.Equal("\"kept\"", variable.ResolveVariables('\\', variables, options));
+            children.TokenList.Add(variable);
+            Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
+            children.TokenList.Remove(variable);
+            Assert.Equal("\"kept\"", variable.ResolveVariables('\\', variables, options));
+        }
+    }
+
+    [Fact]
+    public void ModifierScopeOwnershipIgnoresCyclesInOpaqueOwners()
+    {
+        PassthroughAggregate owner = new();
+        owner.TokenList.Add(owner);
+        VariableRefToken variable = new("UNSET", ":-", "\"kept\"");
+        ResolutionOptions options = new();
+        Dictionary<string, string?> variables = new();
+
+        using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
+        {
+            Assert.Equal("\"kept\"", variable.ResolveVariables('\\', variables, options));
+            owner.TokenList.Add(variable);
+            Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
         }
     }
 
@@ -1833,6 +1873,158 @@ public class ArgResolutionContextTests
         Assert.Equal(original, dockerfile.ToString());
     }
 
+    [Theory]
+    [InlineData(false, false, "#")]
+    [InlineData(false, true, "#")]
+    [InlineData(true, false, "#")]
+    [InlineData(true, true, "#")]
+    [InlineData(false, false, "##")]
+    [InlineData(false, true, "##")]
+    [InlineData(true, false, "##")]
+    [InlineData(true, true, "##")]
+    [InlineData(false, false, "%")]
+    [InlineData(false, true, "%")]
+    [InlineData(true, false, "%")]
+    [InlineData(true, true, "%")]
+    [InlineData(false, false, "%%")]
+    [InlineData(false, true, "%%")]
+    [InlineData(true, false, "%%")]
+    [InlineData(true, true, "%%")]
+    [InlineData(false, false, "/")]
+    [InlineData(false, true, "/")]
+    [InlineData(true, false, "/")]
+    [InlineData(true, true, "/")]
+    [InlineData(false, false, "//")]
+    [InlineData(false, true, "//")]
+    [InlineData(true, false, "//")]
+    [InlineData(true, true, "//")]
+    public void RawPatternSerializationRefreshesPendingDefaults(
+        bool stageScope, bool updateInline, string modifier)
+    {
+        bool armed = false;
+        LiteralToken pending = Literal(new VariableRefToken("MISSING", "?", "stale"));
+        VariableRefToken pattern = new("IGNORED", modifier, "placeholder")
+        {
+            ModifierValueToken = Literal(new MutableSerializedString(() =>
+            {
+                if (armed) pending.Value = "new";
+                return "p";
+            }))
+        };
+        Dockerfile dockerfile = Document(stageScope, pending, pattern,
+            new CallbackVariable(() => armed = true));
+
+        if (stageScope && !updateInline)
+        {
+            VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+                dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+            Assert.Equal("Variable 'MISSING' is not set. Error detail: 'stale'.", error.Message);
+        }
+        else
+        {
+            string value = $"new${{IGNORED{modifier}p}}left";
+            Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
+                dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        }
+        Assert.True(armed);
+        Assert.Equal("new", pending.Value);
+    }
+
+    [Theory]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, false, true)]
+    [InlineData(false, true, true, false)]
+    [InlineData(false, true, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, true, true, false)]
+    [InlineData(true, true, true, true)]
+    public void NativeTriviaReferencesRetainPublicRequiredChecks(
+        bool stageScope, bool updateInline, bool comment, bool consumerOwner)
+    {
+        AggregateToken trivia;
+        if (comment)
+        {
+            CommentToken owner = consumerOwner ? new SerializerOnlyComment() : new CommentToken("comment");
+            owner.TokenList.Add(new VariableRefToken("MISSING", "?", "required"));
+            trivia = owner;
+        }
+        else
+        {
+            LineContinuationToken owner = consumerOwner ? new CountingContinuation() : new LineContinuationToken("\n");
+            owner.TokenList.Insert(1, new VariableRefToken("MISSING", "?", "required"));
+            trivia = owner;
+        }
+        Dockerfile dockerfile = Document(stageScope, new StringToken("ok"), trivia);
+        string original = dockerfile.ToString();
+
+        if (stageScope && !updateInline && !comment)
+        {
+            Assert.Equal("ENV RESULT=ok", dockerfile.ResolveVariables());
+        }
+        else
+        {
+            VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+                dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+            Assert.Equal("Variable 'MISSING' is not set. Error detail: 'required'.", error.Message);
+        }
+        Assert.Equal(original, dockerfile.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void UnrelatedModifierResolutionRetainsPublicQuoteSyntax(bool stageScope, bool updateInline)
+    {
+        ResolutionOptions options = new() { UpdateInline = updateInline };
+        VariableRefToken unrelated = new("UNSET", ":-", "\"kept\"");
+        ComputingVariable callback = new((escapeChar, variables, receivedOptions) =>
+        {
+            Assert.Same(options, receivedOptions);
+            return unrelated.ResolveVariables(escapeChar, variables, receivedOptions);
+        });
+        Dockerfile dockerfile = Document(stageScope, callback);
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=\"kept\"" : "FROM prefix\"kept\"",
+            dockerfile.ResolveVariables(options: options));
+        if (!updateInline) Assert.Equal(original, dockerfile.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void CustomAggregateDescendantsKeepArgModifierSemantics(
+        bool stageScope, bool updateInline, bool nested)
+    {
+        PassthroughAggregate owner = new();
+        VariableRefToken variable = new("UNSET", ":-", "\"owned\"");
+        owner.TokenList.Add(nested ? Literal(variable) : variable);
+        Dockerfile dockerfile = Document(stageScope, owner);
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=owned" : "FROM prefixowned",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(1, owner.ResolutionCount);
+        if (!updateInline) Assert.Equal(original, dockerfile.ToString());
+    }
+
     [Fact]
     public void SimpleReferencesDoNotAllocateModifierScopes()
     {
@@ -1921,12 +2113,15 @@ public class ArgResolutionContextTests
 
     private sealed class ComputingVariable : VariableRefToken
     {
-        private readonly Func<string> resolve;
+        private readonly Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolve;
 
-        public ComputingVariable(Func<string> resolve) : base("LEFT") => this.resolve = resolve;
+        public ComputingVariable(Func<string> resolve) : this((_, _, _) => resolve()) { }
+
+        public ComputingVariable(Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolve)
+            : base("LEFT") => this.resolve = resolve;
 
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
-            ResolutionOptions? options = null) => resolve();
+            ResolutionOptions? options = null) => resolve(escapeChar, variables, options);
     }
 
     private sealed class PassthroughAggregate : AggregateToken

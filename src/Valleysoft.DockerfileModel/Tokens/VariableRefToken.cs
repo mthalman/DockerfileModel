@@ -97,6 +97,9 @@ public class VariableRefToken : AggregateToken
 
     private static bool IsModifierToken(SymbolToken token) => token.Value != "{" && token.Value != "}";
 
+    internal static bool IsPatternModifier(string? modifier) =>
+        modifier is "#" or "##" or "%" or "%%" or "/" or "//";
+
     public string? ModifierValue
     {
         get => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());
@@ -169,16 +172,7 @@ public class VariableRefToken : AggregateToken
         string variableName = VariableName;
         string? modifier = Modifier;
 
-        bool varExists;
-        string? value;
-        if (options.VariableBindingResolver is not null)
-        {
-            (varExists, value) = options.VariableBindingResolver(this);
-        }
-        else
-        {
-            varExists = variables.TryGetValue(variableName, out value);
-        }
+        bool varExists = variables.TryGetValue(variableName, out string? value);
 
         if (modifier is not null)
         {
@@ -187,9 +181,7 @@ public class VariableRefToken : AggregateToken
             // Dockerfile variable resolution capabilities. Since Docker/BuildKit does not
             // support these modifiers, we return the raw variable reference text unchanged
             // rather than silently losing the modifier and its pattern.
-            if (modifier == "#" || modifier == "##" ||
-                modifier == "%" || modifier == "%%" ||
-                modifier == "/" || modifier == "//")
+            if (IsPatternModifier(modifier))
             {
                 return ToString();
             }
@@ -256,13 +248,9 @@ public class VariableRefToken : AggregateToken
         ResolutionOptions options)
     {
         LiteralToken modifier = ModifierValueToken!;
-        if (options.GetModifierValueResolver(escapeChar, variables) is { } modifierResolver)
+        if (options.GetModifierValueResolver(this, escapeChar, variables) is { } modifierResolver)
         {
             return modifierResolver(modifier);
-        }
-        if (modifier.UsesCustomResolution && options.CustomValueResolver is not null)
-        {
-            return options.CustomValueResolver(modifier);
         }
         return modifier.ResolveVariables(escapeChar, variables, options);
     }

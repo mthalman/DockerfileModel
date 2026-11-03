@@ -1051,14 +1051,23 @@ public class ArgResolutionTests
         Assert.Contains(nameof(ConditionalQuoteStringToken), error.StackTrace);
     }
 
-    [Fact]
-    public void ResolveVariables_ConstantStageDefaultsAllocateLinearly()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolveVariables_ConstantStageDefaultsAllocateLinearly(bool custom)
     {
-        static long Measure(int count)
+        long Measure(int count)
         {
             Dockerfile dockerfile = Dockerfile.Parse("FROM alpine\n" +
                 String.Concat(Enumerable.Range(0, count).Select(i => $"ARG X{i:D4}=value\n")) +
                 "ENV RESULT=ok");
+            if (custom)
+            {
+                foreach (ArgInstruction arg in dockerfile.Items.OfType<ArgInstruction>())
+                {
+                    arg.ArgTokens[0].ValueToken = new ComputingLiteralToken("value");
+                }
+            }
             long before = GC.GetAllocatedBytesForCurrentThread();
             Assert.Equal("ENV RESULT=ok", dockerfile.ResolveVariables());
             return GC.GetAllocatedBytesForCurrentThread() - before;

@@ -70,11 +70,13 @@ internal static class AnalysisExpressionEvaluator
         Func<Func<string?>?>? getResolvedSyntaxFactory = null, ResolutionOptions? syntaxOptions = null,
         Action<AggregateToken, int, TokenResolution>? recordTokenResolution = null,
         Action<Func<string?>>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null,
-        Action? onConsumerSerialization = null, Func<bool>? shouldRecordSyntax = null)
+        Action? onConsumerSerialization = null, Func<bool>? shouldRecordSyntax = null,
+        bool resolveTriviaVariables = true)
     {
         Dictionary<string, AnalysisValue> variables = new();
         ResolutionSnapshot snapshot = new(token, resolveLiteral is not null || resolveAggregate is not null,
-            getSerializationVersion: getCustomResolutionVersion, onConsumerSerialization: onConsumerSerialization);
+            getSerializationVersion: getCustomResolutionVersion, onConsumerSerialization: onConsumerSerialization,
+            resolveTriviaVariables: resolveTriviaVariables);
         List<ResolutionSnapshot> references = new();
         string CollectReference(ResolutionSnapshot reference)
         {
@@ -156,9 +158,15 @@ internal static class AnalysisExpressionEvaluator
         return result.Value!;
     }
 
+    internal static bool ContainsConsumerSerialization(Token token) =>
+        token.GetType().Assembly != typeof(Token).Assembly ||
+        token is AggregateToken aggregate &&
+            (aggregate.UsesCustomResolution || aggregate.Tokens.Any(ContainsConsumerSerialization));
+
     private sealed class ResolutionSnapshot
     {
         private readonly bool resolveCustomLiterals;
+        private readonly bool resolveTriviaVariables;
         private readonly Func<int>? getSerializationVersion;
         private readonly Action? onConsumerSerialization;
         private readonly string? primitiveValue;
@@ -174,11 +182,13 @@ internal static class AnalysisExpressionEvaluator
         public ResolutionSnapshot(Token source, bool resolveCustomLiterals, ResolutionSnapshot? previous = null,
             int serializationVersion = 0, Func<int>? getSerializationVersion = null,
             Action? onConsumerSerialization = null,
-            Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null)
+            Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null,
+            bool resolveTriviaVariables = true)
         {
             Source = source;
             IsIgnoredTrivia = source is LineContinuationToken or CommentToken or NewLineToken;
             this.resolveCustomLiterals = resolveCustomLiterals;
+            this.resolveTriviaVariables = resolveTriviaVariables;
             this.getSerializationVersion = getSerializationVersion;
             this.onConsumerSerialization = onConsumerSerialization;
             this.serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
@@ -267,7 +277,7 @@ internal static class AnalysisExpressionEvaluator
                     ResolutionSnapshot? previousChild = previous is not null && childIndex < previous.children.Count
                         ? previous.children[childIndex] : null;
                     AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild, serializationVersion,
-                        getSerializationVersion, onConsumerSerialization, pendingFailures));
+                        getSerializationVersion, onConsumerSerialization, pendingFailures, resolveTriviaVariables));
                     childIndex++;
                 }
             }
@@ -433,11 +443,6 @@ internal static class AnalysisExpressionEvaluator
             return token.ToString();
         }
 
-        private static bool ContainsConsumerSerialization(Token token) =>
-            token.GetType().Assembly != typeof(Token).Assembly ||
-            token is AggregateToken aggregate &&
-                (aggregate.UsesCustomResolution || aggregate.Tokens.Any(ContainsConsumerSerialization));
-
         public void RefreshPendingSyntax(int version)
         {
             Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null;
@@ -478,7 +483,7 @@ internal static class AnalysisExpressionEvaluator
                 {
                     owner.AddChild(previous[i].Matches(liveChildren[i])
                         ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, previous[i], version,
-                            getSerializationVersion, onConsumerSerialization, pendingFailures));
+                            getSerializationVersion, onConsumerSerialization, pendingFailures, resolveTriviaVariables));
                 }
                 for (int i = child.index; i < previous.Count; i++)
                 {
@@ -511,7 +516,8 @@ internal static class AnalysisExpressionEvaluator
         public void CollectTriviaResolutions(Func<ResolutionSnapshot, string> collect)
         {
             if (SerializationFailure is not null || IsConsumerLeaf && !SerializationConsumed ||
-                IsReference && !IsResolved && Source is AggregateToken { UsesCustomResolution: true })
+                IsReference && !IsResolved &&
+                    (resolveTriviaVariables || Source is AggregateToken { UsesCustomResolution: true }))
             {
                 collect(this);
             }

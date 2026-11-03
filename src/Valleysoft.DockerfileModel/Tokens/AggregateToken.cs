@@ -198,12 +198,10 @@ public abstract class AggregateToken : Token
                 bool useCapturedValue = options.TokenValueResolver is not null;
                 TokenResolution? capturedValue = useCapturedValue
                     ? options.TokenValueResolver!(this, i, aggregateToken) : null;
-                (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken variable
-                    ? capturedValue?.SemanticValue ?? options.SemanticValueResolver?.Invoke(variable) : null;
+                (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken
+                    ? capturedValue?.SemanticValue : null;
                 // Uncaptured references were inserted into an already-consumed suffix by a custom callback.
-                bool suppressExpansion = token is VariableRefToken && options.SemanticValueResolver is not null &&
-                    semanticValue is null ||
-                    semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped) ||
+                bool suppressExpansion = semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped) ||
                     token is VariableRefToken && useCapturedValue && capturedValue is null;
                 if (useCapturedValue &&
                     (capturedValue is null || token is VariableRefToken || aggregateToken.UsesCustomResolution))
@@ -214,10 +212,6 @@ public abstract class AggregateToken : Token
                 else if (suppressExpansion)
                 {
                     value = options.FormatValue(escapeChar, token.ToString());
-                }
-                else if (aggregateToken.UsesCustomResolution && options.CustomValueResolver is not null)
-                {
-                    value = options.CustomValueResolver(aggregateToken);
                 }
                 else
                 {

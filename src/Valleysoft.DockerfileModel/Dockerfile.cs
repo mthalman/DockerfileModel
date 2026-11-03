@@ -156,23 +156,19 @@ public class Dockerfile : IConstructContainer
     /// <param name="options">Resolution behavior; null leaves the model unchanged.</param>
     /// <returns>The last processed instruction's text, or an empty string if no stage instruction was processed. This is not the complete Dockerfile.</returns>
     /// <remarks>
-    /// Global ARGs supply FROM values; each stage starts a fresh local ARG scope. Stage declarations without
-    /// defaults can import global values, otherwise they retain an existing local binding.
-    /// Explicit empty assignments are set; null overrides are unset. Defaults contribute shell-decoded
-    /// contents, excluding syntax quotes and ordinary continuation/comment trivia. Runtime command expansion is not performed.
-    /// Consumer-defined aggregate tokens retain their public variable-resolution behavior and call context;
-    /// changes they make to the supplied options affect subsequent resolution. Explicit consumer resolution overrides
-    /// on trivia tokens also contribute binding contents. Inline replay does not enable updates retroactively for
-    /// references consumed while updates were disabled.
-    /// An enclosing reference can retain earlier modifier syntax when a later callback enables inline updates,
-    /// without reinterpreting already-resolved contents.
-    /// Default references resolve
-    /// right-to-left; custom callbacks can edit pending syntax but do not rewrite already-resolved output.
-    /// Pending consumer serializers are rechecked after custom callbacks or later consumer serialization,
-    /// including serialization of suppressed reference syntax;
-    /// edits to earlier syntax are honored without re-reading consumed output. Inline substitutions are visible to later callbacks as references
-    /// are consumed; moved references retain their resolved syntax and semantic contents.
+    /// Global ARGs apply to FROM. Each stage has its own ARG scope. A declaration without a default
+    /// uses a global value when available, otherwise it keeps the current local value.
+    /// Empty defaults count as set; null overrides leave an ARG unset. Ordinary defaults exclude
+    /// quote syntax, line continuations, and comments. Runtime command variables are not expanded.
+    /// <para>
+    /// Custom token resolvers receive the supplied options, and their results are treated as values.
+    /// References in defaults resolve right-to-left. Callbacks can change pending tokens and options,
+    /// but not completed results. Inline updates happen as references resolve; enabling them later
+    /// does not update earlier references.
+    /// </para>
+    /// <para>
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
+    /// </para>
     /// </remarks>
     public string ResolveVariables(IDictionary<string, string?>? variableOverrides = null, ResolutionOptions? options = null) =>
         ResolveVariables(
@@ -342,16 +338,22 @@ public class Dockerfile : IConstructContainer
             occurrences.Push(resolution);
         }
         IDictionary<string, string?> syntaxBindings = bindings;
+        bool? syntaxUsesVariables = null;
         void CaptureSyntaxBindings()
         {
-            if (syntaxArg is not null && syntaxArg != arg && ReferenceEquals(syntaxBindings, bindings))
+            if (syntaxArg is not null && syntaxArg != arg && ReferenceEquals(syntaxBindings, bindings) &&
+                (syntaxUsesVariables ??= syntaxArg.ValueToken is { } syntaxValue &&
+                    InstructionCollectionEditing.Descendants(syntaxValue)
+                        .Any(child => child is VariableRefToken)) == true)
             {
                 syntaxBindings = new Dictionary<string, string?>(bindings);
             }
         }
+        // Non-inline stage defaults leave native trivia references to their reparsed copy.
         string value = ResolveArgValue(valueToken, escapeChar, bindings, options,
             recordResolution: updateInline ? RecordResolution : null,
-            onBeforeCustomResolution: CaptureSyntaxBindings) ?? String.Empty;
+            onBeforeCustomResolution: CaptureSyntaxBindings,
+            resolveTriviaVariables: syntaxArg is null || syntaxArg == arg || updateInline) ?? String.Empty;
 
         if (resolutions is not null && (updateInline || !options.UpdateInline))
         {
@@ -392,7 +394,8 @@ public class Dockerfile : IConstructContainer
         IDictionary<string, string?> bindings, ResolutionOptions options,
         Action<AggregateToken, int, TokenResolution>? recordResolution = null,
         Action? onCustomResolution = null, Action? onBeforeCustomResolution = null,
-        Action<Func<string?>>? recordSyntax = null, Func<bool>? shouldRecordSyntax = null)
+        Action<Func<string?>>? recordSyntax = null, Func<bool>? shouldRecordSyntax = null,
+        bool resolveTriviaVariables = true)
     {
         int customResolutionVersion = 0;
         bool hasResolvedReference = false;
@@ -411,7 +414,11 @@ public class Dockerfile : IConstructContainer
         bool resolvedRoot = false;
         string? ResolveToken(AggregateToken aggregate)
         {
-            if (aggregate.UsesCustomResolution)
+            bool hasConsumerSerialization = aggregate.UsesCustomResolution ||
+                aggregate is VariableRefToken serializedVariable && serializedVariable.HasModifierTokens &&
+                VariableRefToken.IsPatternModifier(serializedVariable.Modifier) &&
+                AnalysisExpressionEvaluator.ContainsConsumerSerialization(aggregate);
+            if (hasConsumerSerialization)
             {
                 onBeforeCustomResolution?.Invoke();
             }
@@ -424,16 +431,17 @@ public class Dockerfile : IConstructContainer
                 selectedModifier = true;
                 return ResolveArgValue(modifier, escapeChar, bindings, options,
                     recordResolution, RecordCustomResolution, onBeforeCustomResolution,
-                    syntax => modifierSyntax = syntax, shouldRecordSyntax ?? ShouldRecordModifierSyntax);
+                    syntax => modifierSyntax = syntax, shouldRecordSyntax ?? ShouldRecordModifierSyntax,
+                    resolveTriviaVariables);
             }
             string? value;
             using (aggregate.UsesCustomResolution ||
                 aggregate is VariableRefToken variable && variable.HasModifierTokens
-                ? options.UseModifierValueResolver(escapeChar, bindings, ResolveModifier) : null)
+                ? options.UseModifierValueResolver(aggregate, escapeChar, bindings, ResolveModifier) : null)
             {
                 value = aggregate.ResolveVariables(escapeChar, bindings, options);
             }
-            if (aggregate.UsesCustomResolution)
+            if (hasConsumerSerialization)
             {
                 RecordCustomResolution();
             }
@@ -454,7 +462,8 @@ public class Dockerfile : IConstructContainer
             resolveAggregate: ResolveToken, getCustomResolutionVersion: () => customResolutionVersion,
             getResolvedSyntaxFactory: () => resolvedSyntax, syntaxOptions: options,
             recordTokenResolution: recordResolution, recordSyntax: recordSyntax,
-            onConsumerSerialization: RecordCustomResolution, shouldRecordSyntax: shouldRecordSyntax);
+            onConsumerSerialization: RecordCustomResolution, shouldRecordSyntax: shouldRecordSyntax,
+            resolveTriviaVariables: resolveTriviaVariables);
         return resolvedRoot ? resolvedRootValue : result;
     }
 }
