@@ -118,7 +118,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
             .Method.DeclaringType != typeof(LiteralToken);
     internal bool HasDefaultRendering =>
-        ((Func<TokenStringOptions, string>)GetUnderlyingValue).Method.DeclaringType == typeof(AggregateToken);
+        HasDefaultAggregateRendering;
 
     internal string? ResolveVariablesInContext(bool json, char escapeChar,
         IDictionary<string, string?>? variables, ResolutionOptions? options)
@@ -193,7 +193,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
                     return true;
                 }
                 if (token is LiteralToken { CanContainVariables: true, HasDefaultRendering: true } or
-                    VariableRefToken { HasDefaultRendering: true })
+                    VariableRefToken { HasDefaultRendering: true } ||
+                    token is AggregateToken { HasDefaultAggregateRendering: true } and not LiteralToken and not VariableRefToken)
                 {
                     pending ??= new();
                     pending.Push((AggregateToken)token);

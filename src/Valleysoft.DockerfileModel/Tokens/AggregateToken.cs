@@ -82,6 +82,9 @@ public abstract class AggregateToken : Token
         ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
             .Method.DeclaringType != typeof(AggregateToken);
 
+    internal bool HasDefaultAggregateRendering =>
+        ((Func<TokenStringOptions, string>)GetUnderlyingValue).Method.DeclaringType == typeof(AggregateToken);
+
     protected override string GetUnderlyingValue(TokenStringOptions options)
     {
         Guard.NotNull(options, nameof(options));

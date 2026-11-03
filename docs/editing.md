@@ -155,6 +155,8 @@ also retain virtual dispatch,
 both directly in a path and inside selected modifier values, even when their
 rendered text is empty. Each occurrence is evaluated
 independently, including occurrences that share the same token instance.
+Aggregate containers that inherit the default rendering and resolution also
+preserve their descendants' overrides, variable policies, and quote protection.
 References derived from `VariableRefToken` that inherit its rendering also retain
 their nested modifier policies and overrides. Custom occurrences whose rendered
 text consists only of folded continuations remain evaluable and retain their
@@ -174,6 +176,9 @@ changes to those tokens' names and modifier values, including nested references.
 Custom rendering still determines decoded modifier contents.
 Changes to `RemoveEscapeCharacters` also affect subsequent references and source
 formatting in that evaluation order.
+Each path occurrence uses the value of `UpdateInline` after its evaluation.
+A callback changing that option does not retroactively change whether
+already evaluated path occurrences are replaced.
 Selected modifier branches do not change if a callback updates the variable
 dictionary during their evaluation.
 Resolution context passes the caller's original `ResolutionOptions` instance
@@ -192,6 +197,9 @@ Inline expansion also retains untouched children of nonempty nested literals.
 Non-inline resolution does not reconstruct the source token tree.
 Inline reconstruction skips source ranges that cannot contain a replacement,
 including unrelated sibling subtrees beside a zero-width substitution.
+Reconstruction retains pre-callback occurrence boundaries, so changes to a
+nested reference's name or modifier length do not shift neighboring replacements.
+Untouched subtrees are retained without traversing them again during publication.
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
 retained. Decoded single quotes protect their contents from expansion; quote
@@ -212,6 +220,8 @@ JSON strings retain token-based resolution.
 JSON path resolution renders built-in literal and variable-reference trees
 iteratively. This does not change the recursion limits of general token
 `ToString()` calls.
+Live-reference binding checks decoded spans using precomputed character counts,
+without rescanning enclosing modifier text for every nested reference.
 
 `RemoveEscapeCharacters` affects returned JSON text, including single-quoted
 contents and trailing escape characters, without rewriting untouched path
