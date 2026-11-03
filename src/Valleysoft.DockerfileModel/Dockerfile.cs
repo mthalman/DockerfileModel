@@ -253,6 +253,7 @@ public class Dockerfile : IConstructContainer
         ArgInstruction resolvedInstruction;
         ArgDeclaration[] args;
         ArgDeclaration[] resolvedArgs;
+        ArgNameSnapshot[]? originalNames = null;
         if (options.UpdateInline)
         {
             resolvedInstruction = instruction;
@@ -261,38 +262,35 @@ public class Dockerfile : IConstructContainer
         }
         else
         {
+            args = instruction.ArgTokens.ToArray();
+            HashSet<ArgDeclaration> declarations = new(args, ReferenceComparer<ArgDeclaration>.Instance);
             List<(ArgDeclaration Declaration, string Syntax)> serializedArgs = new();
-            TokenStringOptions serializationOptions = new((token, text) =>
+            string syntax;
+            using (Token.ObserveSerialization((token, text) =>
             {
-                if (token is ArgDeclaration declaration)
+                if (token is ArgDeclaration declaration && declarations.Contains(declaration))
                 {
                     serializedArgs.Add((declaration, text));
                 }
-            });
-            string syntax;
-            try
+            }))
             {
-                syntax = instruction.ToString(serializationOptions);
+                syntax = instruction.ToString();
             }
-            finally
-            {
-                serializationOptions.OnTokenSerialized = null;
-            }
-            List<string> parsedArgs = new();
+            List<(int Start, int Length)> parsedArgs = new();
             resolvedInstruction = ArgInstruction.Parse(syntax, escapeChar, parsedArgs.Add);
             args = instruction.ArgTokens.ToArray();
             resolvedArgs = resolvedInstruction.ArgTokens.ToArray();
-            bool sameLayout = args.Length == resolvedArgs.Length && args.Length == serializedArgs.Count;
-            for (int i = 0; sameLayout && i < args.Length; i++)
+            originalNames = args.Select(arg => new ArgNameSnapshot(arg)).ToArray();
+            bool sameLayout = args.Length == resolvedArgs.Length;
+            if (serializedArgs.Count == args.Length)
             {
-                string originalSyntax = serializedArgs[i].Syntax.TrimEnd();
-                string parsedSyntax = parsedArgs[i].TrimEnd();
-                // Standalone ARG parsing can leave a final suffix unconsumed; preserve that acceptance boundary.
-                sameLayout = ReferenceEquals(args[i], serializedArgs[i].Declaration) &&
-                    args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator &&
-                    (i == args.Length - 1
-                        ? originalSyntax.StartsWith(parsedSyntax, StringComparison.Ordinal)
-                        : String.Equals(originalSyntax, parsedSyntax, StringComparison.Ordinal));
+                for (int i = 0; sameLayout && i < args.Length; i++)
+                {
+                    sameLayout = ReferenceEquals(args[i], serializedArgs[i].Declaration) &&
+                        args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator &&
+                        MatchesArgDeclarationSyntax(serializedArgs[i].Syntax, syntax, parsedArgs[i],
+                            i == args.Length - 1);
+                }
             }
             if (!sameLayout)
             {
@@ -303,13 +301,28 @@ public class Dockerfile : IConstructContainer
         for (int i = 0; i < args.Length; i++)
         {
             ArgDeclaration arg = args[i];
-            if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
+            ResolutionOptions argOptions = options;
+            string name = arg.Name;
+            if (resolvedInstruction != instruction && name != resolvedArgs[i].Name)
+            {
+                if (originalNames![i].Matches(arg.NameToken))
+                {
+                    arg = resolvedArgs[i];
+                    name = arg.Name;
+                    argOptions = new ResolutionOptions
+                    {
+                        UpdateInline = true,
+                        RemoveEscapeCharacters = options.RemoveEscapeCharacters
+                    };
+                }
+            }
+            if (variableOverrides.TryGetValue(name, out string? overrideArgValue))
             {
                 SetArgBinding(stageArgs, arg.Name, overrideArgValue);
             }
             else if (arg.HasAssignmentOperator)
             {
-                string value = ResolveArgDefault(arg, escapeChar, stageArgs, options,
+                string value = ResolveArgDefault(arg, escapeChar, stageArgs, argOptions,
                     resolvedArgs[i]);
                 stageArgs[arg.Name] = value;
             }
@@ -321,6 +334,53 @@ public class Dockerfile : IConstructContainer
 
         return options.FormatValue(escapeChar,
             (options.UpdateInline ? instruction : resolvedInstruction).ToString());
+    }
+
+    private static bool MatchesArgDeclarationSyntax(string original, string syntax,
+        (int Start, int Length) parsed, bool lastDeclaration)
+    {
+        int originalLength = original.Length;
+        while (originalLength > 0 && Char.IsWhiteSpace(original[originalLength - 1])) originalLength--;
+        int parsedLength = parsed.Length;
+        while (parsedLength > 0 && Char.IsWhiteSpace(syntax[parsed.Start + parsedLength - 1])) parsedLength--;
+        // The standalone ARG parser may leave a final suffix unconsumed.
+        return (lastDeclaration ? originalLength >= parsedLength : originalLength == parsedLength) &&
+            String.CompareOrdinal(original, 0, syntax, parsed.Start, parsedLength) == 0;
+    }
+
+    // Stored name edits can be checked without repeating a consumer serializer.
+    private sealed class ArgNameSnapshot
+    {
+        private readonly Variable? name;
+        private readonly char? quote;
+        private readonly (Token Source, string? Value)[] children;
+
+        public ArgNameSnapshot(ArgDeclaration declaration)
+        {
+            name = declaration.Tokens.OfType<Variable>().FirstOrDefault();
+            quote = name?.QuoteChar;
+            children = name is null ? Array.Empty<(Token, string?)>() :
+                name.Tokens.Select(token => (token, (token as PrimitiveToken)?.Value)).ToArray();
+        }
+
+        public bool Matches(Variable current)
+        {
+            if (!ReferenceEquals(name, current) || quote != current.QuoteChar ||
+                children.Length != current.TokenList.Count)
+            {
+                return false;
+            }
+            for (int i = 0; i < children.Length; i++)
+            {
+                Token child = current.TokenList[i];
+                if (!ReferenceEquals(children[i].Source, child) ||
+                    children[i].Value != (child as PrimitiveToken)?.Value)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     private static Dictionary<string, string?> GetGlobalArgs(StagesView stagesView, char escapeChar, IDictionary<string, string?> variables,

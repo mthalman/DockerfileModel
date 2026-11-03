@@ -17,11 +17,6 @@ public class TokenStringOptions
         this.ExcludeNewLines = excludeNewLines;
     }
 
-    internal TokenStringOptions(Action<Token, string> onTokenSerialized) : this()
-    {
-        OnTokenSerialized = onTokenSerialized;
-    }
-
     /// <summary>Gets whether aggregate serialization omits line-continuation tokens.</summary>
     public bool ExcludeLineContinuations { get; }
     /// <summary>Gets whether quote wrappers are omitted.</summary>
@@ -30,8 +25,6 @@ public class TokenStringOptions
     public bool ExcludeComments { get; }
     /// <summary>Gets whether aggregate serialization omits newline tokens.</summary>
     public bool ExcludeNewLines { get; }
-
-    internal Action<Token, string>? OnTokenSerialized { get; set; }
 
     /// <summary>Creates filters excluding continuations, quotes, comments, and newlines for semantic value access.</summary>
     /// <remarks>This does not perform general shell expansion or JSON unescaping.</remarks>

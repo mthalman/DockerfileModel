@@ -893,7 +893,6 @@ public class ArgResolutionTests
             dockerfile.ResolveVariables(options: options));
         Assert.Equal(1, variable.ResolutionCount);
         Assert.Equal(updateInline, options.UpdateInline);
-        Assert.Null(options.ModifierValueResolver);
     }
 
     [Theory]
@@ -911,7 +910,6 @@ public class ArgResolutionTests
             dockerfile.ResolveVariables(options: options));
         Assert.Equal(1, literal.ResolutionCount);
         Assert.Equal(updateInline, options.UpdateInline);
-        Assert.Null(options.ModifierValueResolver);
     }
 
     [Fact]
@@ -924,7 +922,6 @@ public class ArgResolutionTests
 
         Assert.Same(expected, Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: options)));
-        Assert.Null(options.ModifierValueResolver);
         Assert.True(options.UpdateInline);
     }
 
@@ -953,7 +950,6 @@ public class ArgResolutionTests
 
         Assert.Equal("FROM prefixone", results[0]);
         Assert.Equal("FROM prefixtwo", results[1]);
-        Assert.Null(options.ModifierValueResolver);
         Assert.Equal(updateInline, options.UpdateInline);
     }
 
@@ -973,7 +969,6 @@ public class ArgResolutionTests
             }, canContainVariables: true, Dockerfile.DefaultEscapeChar);
 
         Assert.Equal("FROM prefixouter", outer.ResolveVariables(options: options));
-        Assert.Null(options.ModifierValueResolver);
         Assert.Equal(updateInline, options.UpdateInline);
     }
 

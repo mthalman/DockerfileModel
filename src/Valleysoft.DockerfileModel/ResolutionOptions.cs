@@ -8,15 +8,9 @@ namespace Valleysoft.DockerfileModel;
 /// <remarks>Consumer-defined token resolvers receive this options instance, including during document ARG evaluation.</remarks>
 public class ResolutionOptions
 {
-    internal Func<Tokens.LiteralToken, string?>? ModifierValueResolver { get; set; }
-
     internal Func<Tokens.LiteralToken, string?>? GetModifierValueResolver(Tokens.VariableRefToken variable, char escapeChar,
         IDictionary<string, string?> variables)
     {
-        if (ModifierValueResolver is { } explicitResolver)
-        {
-            return explicitResolver;
-        }
         for (ModifierResolutionScope? scope = ModifierResolutionScope.Current.Value;
             scope is not null; scope = scope.Parent)
         {
@@ -38,10 +32,6 @@ public class ResolutionOptions
     internal ModifierResolutionTraversal? TrackModifierResolutionTraversal(Tokens.AggregateToken owner,
         char escapeChar, IDictionary<string, string?> variables)
     {
-        if (ModifierValueResolver is not null)
-        {
-            return null;
-        }
         for (ModifierResolutionScope? scope = ModifierResolutionScope.Current.Value;
             scope is not null; scope = scope.Parent)
         {

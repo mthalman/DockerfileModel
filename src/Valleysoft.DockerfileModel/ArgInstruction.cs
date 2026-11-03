@@ -43,7 +43,7 @@ public class ArgInstruction : Instruction
     public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
-    internal static ArgInstruction Parse(string text, char escapeChar, Action<string> onDeclarationParsed) =>
+    internal static ArgInstruction Parse(string text, char escapeChar, Action<(int Start, int Length)> onDeclarationParsed) =>
         new(GetTokens(text, GetInnerParser(escapeChar, onDeclarationParsed)), escapeChar);
 
     internal static TextParser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
@@ -64,17 +64,17 @@ public class ArgInstruction : Instruction
     }
 
     private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar,
-        Action<string>? onDeclarationParsed = null) =>
+        Action<(int Start, int Length)>? onDeclarationParsed = null) =>
         Instruction("ARG", escapeChar, GetArgsParser(escapeChar, onDeclarationParsed));
 
     private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar,
-        Action<string>? onDeclarationParsed) =>
+        Action<(int Start, int Length)>? onDeclarationParsed) =>
         from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
         from variables in VariablesParser(escapeChar, onDeclarationParsed)
         select ConcatTokens(whitespace, variables);
 
     internal static TextParser<IEnumerable<Token>> VariablesParser(char escapeChar,
-        Action<string>? onDeclarationParsed = null)
+        Action<(int Start, int Length)>? onDeclarationParsed = null)
     {
         TextParser<ArgDeclaration> declarationParser = ArgDeclaration.GetParser(escapeChar);
         if (onDeclarationParsed is not null)
@@ -85,7 +85,7 @@ public class ArgInstruction : Instruction
                 Result<ArgDeclaration> result = parser(input);
                 if (result.HasValue)
                 {
-                    onDeclarationParsed(input.Source!.Substring(input.Position.Absolute,
+                    onDeclarationParsed((input.Position.Absolute,
                         result.Remainder.Position.Absolute - input.Position.Absolute));
                 }
                 return result;
