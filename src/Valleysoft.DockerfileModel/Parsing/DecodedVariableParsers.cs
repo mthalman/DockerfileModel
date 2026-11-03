@@ -7,7 +7,7 @@ internal static class DecodedVariableParsers
     internal static TextParser<VariableRefToken> Variable(char escapeChar, TextParser<char> character,
         string text, Action? onBlocked = null, int start = 0, int[]? literalEnds = null, char? initialQuote = null,
         Dictionary<int, (int End, List<AggregateToken> Tokens)>? customTokens = null,
-        Dictionary<int, List<(AggregateToken Token, int Start, int End, int Position, Token Owner)>>? emptyReferences = null,
+        Dictionary<int, List<(AggregateToken Token, int Start, int End, int Position, int Occurrence)>>? emptyReferences = null,
         Dictionary<int, LiteralToken>? customModifiers = null,
         Func<int, int, VariableRefToken, VariableRefToken>? bindReference = null)
     {

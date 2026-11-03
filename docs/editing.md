@@ -179,6 +179,14 @@ formatting in that evaluation order.
 Each path occurrence uses the value of `UpdateInline` after its evaluation.
 A callback changing that option does not retroactively change whether
 already evaluated path occurrences are replaced.
+The same rule applies to reference children in selected modifiers, including
+children of default aggregate containers. These children are published before
+the next sibling callback runs, even if that callback prevents replacement of
+the containing reference. Retained JSON modifier substitutions are encoded
+non-variable literals, so later edits cannot reactivate their contents.
+Source publication locations are tracked independently of live-reference binding.
+Nested updates still reach the exact source occurrence when quoted or
+JSON-escaped modifier text requires evaluation through a decoded token tree.
 Selected modifier branches do not change if a callback updates the variable
 dictionary during their evaluation.
 Resolution context passes the caller's original `ResolutionOptions` instance
@@ -190,6 +198,8 @@ Required-variable errors distinguish a custom modifier returning `null`
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
 references but retains untouched child tokens, including empty primitive tokens.
 Empty primitive siblings retain their order around zero-width substitutions.
+Repeated occurrences of the same empty token remain distinct, including when
+only one occurrence is eligible for inline replacement.
 Zero-width references inside nonempty nested literals are replaced only once.
 Unrelated empty literals retain their identity, including those inside an
 ancestor whose expanded references are replaced.
@@ -199,6 +209,8 @@ Inline reconstruction skips source ranges that cannot contain a replacement,
 including unrelated sibling subtrees beside a zero-width substitution.
 Reconstruction retains pre-callback occurrence boundaries, so changes to a
 nested reference's name or modifier length do not shift neighboring replacements.
+Returned text reads retained child tokens' live values using those same original
+boundaries; a callback's edit to an untouched primitive is not lost in a source slice.
 Untouched subtrees are retained without traversing them again during publication.
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
