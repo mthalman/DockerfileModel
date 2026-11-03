@@ -375,6 +375,22 @@ public class AnalysisExpressionEvaluatorTests
         Assert.InRange(withCaptures, 0, baseline + 128 * count);
     }
 
+    [Fact]
+    public void ReferenceCollectionDoesNotAllocateAnalysisValues()
+    {
+        const int count = 2048;
+        LiteralToken token = new(Enumerable.Range(0, count)
+            .Select(_ => new VariableRefToken("X")), canContainVariables: true, '\\');
+        string Run() => AnalysisExpressionEvaluator.ResolveVariables(token, '\\', static _ => "x");
+        Run();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        Assert.Equal(new string('x', count), Run());
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(allocated, 0, 300L * count + 8192);
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);

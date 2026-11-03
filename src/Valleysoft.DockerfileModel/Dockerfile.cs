@@ -264,13 +264,22 @@ public class Dockerfile : IConstructContainer
         {
             args = instruction.ArgTokens.ToArray();
             HashSet<ArgDeclaration> declarations = new(args, ReferenceComparer<ArgDeclaration>.Instance);
-            List<(ArgDeclaration Declaration, string Syntax)> serializedArgs = new();
+            Dictionary<ArgDeclaration, List<string>> serializedArgs =
+                new(ReferenceComparer<ArgDeclaration>.Instance);
             string syntax;
             using (Token.ObserveSerialization((token, text) =>
             {
                 if (token is ArgDeclaration declaration && declarations.Contains(declaration))
                 {
-                    serializedArgs.Add((declaration, text));
+                    lock (serializedArgs)
+                    {
+                        if (!serializedArgs.TryGetValue(declaration, out List<string>? observations))
+                        {
+                            observations = new();
+                            serializedArgs.Add(declaration, observations);
+                        }
+                        observations.Add(text);
+                    }
                 }
             }))
             {
@@ -282,14 +291,24 @@ public class Dockerfile : IConstructContainer
             resolvedArgs = resolvedInstruction.ArgTokens.ToArray();
             originalNames = args.Select(arg => new ArgNameSnapshot(arg)).ToArray();
             bool sameLayout = args.Length == resolvedArgs.Length;
-            if (serializedArgs.Count == args.Length)
+            for (int i = 0; sameLayout && i < args.Length; i++)
             {
-                for (int i = 0; sameLayout && i < args.Length; i++)
+                sameLayout = args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator;
+                bool observed;
+                lock (serializedArgs)
                 {
-                    sameLayout = ReferenceEquals(args[i], serializedArgs[i].Declaration) &&
-                        args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator &&
-                        MatchesArgDeclarationSyntax(serializedArgs[i].Syntax, syntax, parsedArgs[i],
-                            i == args.Length - 1);
+                    observed = serializedArgs.TryGetValue(args[i], out List<string>? observations);
+                    if (observed)
+                    {
+                        // Helper calls and worker completion order do not determine emitted order.
+                        sameLayout &= observations!.Any(text =>
+                            MatchesArgDeclarationSyntax(text, syntax, parsedArgs[i], i == args.Length - 1));
+                    }
+                }
+                if (!observed && !AnalysisExpressionEvaluator.ContainsConsumerSerialization(args[i]))
+                {
+                    sameLayout &= MatchesArgDeclarationSyntax(args[i].ToString(), syntax, parsedArgs[i],
+                        i == args.Length - 1);
                 }
             }
             if (!sameLayout)
@@ -353,30 +372,48 @@ public class Dockerfile : IConstructContainer
     {
         private readonly Variable? name;
         private readonly char? quote;
-        private readonly (Token Source, string? Value)[] children;
+        private readonly (Token Source, string? Value, Token[]? Children)[] descendants;
 
         public ArgNameSnapshot(ArgDeclaration declaration)
         {
             name = declaration.Tokens.OfType<Variable>().FirstOrDefault();
             quote = name?.QuoteChar;
-            children = name is null ? Array.Empty<(Token, string?)>() :
-                name.Tokens.Select(token => (token, (token as PrimitiveToken)?.Value)).ToArray();
+            List<(Token Source, string? Value, Token[]? Children)> captured = new();
+            HashSet<Token> visited = new(ReferenceComparer<Token>.Instance);
+            void Capture(Token token)
+            {
+                if (!visited.Add(token)) return;
+                Token[]? children = (token as AggregateToken)?.Tokens.ToArray();
+                captured.Add((token, (token as PrimitiveToken)?.Value, children));
+                if (children is not null)
+                {
+                    foreach (Token child in children) Capture(child);
+                }
+            }
+            if (name is not null) Capture(name);
+            descendants = captured.ToArray();
         }
 
         public bool Matches(Variable current)
         {
-            if (!ReferenceEquals(name, current) || quote != current.QuoteChar ||
-                children.Length != current.TokenList.Count)
+            if (!ReferenceEquals(name, current) || quote != current.QuoteChar)
             {
                 return false;
             }
-            for (int i = 0; i < children.Length; i++)
+            foreach (var captured in descendants)
             {
-                Token child = current.TokenList[i];
-                if (!ReferenceEquals(children[i].Source, child) ||
-                    children[i].Value != (child as PrimitiveToken)?.Value)
+                if (captured.Value != (captured.Source as PrimitiveToken)?.Value)
                 {
                     return false;
+                }
+                if (captured.Children is { } children && captured.Source is AggregateToken aggregate)
+                {
+                    List<Token> live = aggregate.TokenList;
+                    if (children.Length != live.Count) return false;
+                    for (int i = 0; i < children.Length; i++)
+                    {
+                        if (!ReferenceEquals(children[i], live[i])) return false;
+                    }
                 }
             }
             return true;
@@ -476,6 +513,10 @@ public class Dockerfile : IConstructContainer
             LiteralToken syntaxValue = options.UpdateInline ? valueToken : syntaxArg?.ValueToken ?? valueToken;
             if (syntaxValue != valueToken)
             {
+                if (IsNativeConstant(valueToken) && IsNativeConstant(syntaxValue))
+                {
+                    return value;
+                }
                 // Reparsed copies have distinct token owners and need their own occurrence snapshots.
                 ResolveArgValue(syntaxValue, escapeChar, syntaxBindings, options,
                     recordResolution: RecordResolution, shouldRecordSyntax: static () => true);
@@ -505,6 +546,11 @@ public class Dockerfile : IConstructContainer
 
         return value;
     }
+
+    private static bool IsNativeConstant(Token token) =>
+        token is LiteralToken literal && !literal.UsesCustomResolution && literal.Tokens.All(IsNativeConstant) ||
+        token is PrimitiveToken and not ResolvedStringToken and not NewLineToken &&
+            token.GetType().Assembly == typeof(Token).Assembly;
 
     private static string? ResolveArgValue(Token token, char escapeChar,
         IDictionary<string, string?> bindings, ResolutionOptions options,

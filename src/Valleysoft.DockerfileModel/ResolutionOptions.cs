@@ -108,6 +108,8 @@ public class ResolutionOptions
         private IDictionary<string, string?>? variables;
         private readonly char escapeChar;
         private Func<Tokens.LiteralToken, string?>? resolver;
+        private readonly object ownershipLock = new();
+        private Dictionary<Tokens.VariableRefToken, OwnershipPath>? ownershipPaths;
 
         public ModifierResolutionScope(Tokens.AggregateToken owner, ResolutionOptions options, char escapeChar,
             IDictionary<string, string?> variables,
@@ -147,32 +149,76 @@ public class ResolutionOptions
                 ? activeResolver : null;
         }
 
-        private static bool ContainsVariable(Tokens.AggregateToken root, Tokens.VariableRefToken variable)
+        private bool ContainsVariable(Tokens.AggregateToken root, Tokens.VariableRefToken variable)
         {
-            HashSet<Tokens.AggregateToken> visited = new(ReferenceComparer<Tokens.AggregateToken>.Instance) { root };
-            Stack<Tokens.AggregateToken> pending = new();
-            pending.Push(root);
-            while (pending.Count > 0)
+            lock (ownershipLock)
             {
-                foreach (Tokens.Token child in pending.Pop().Tokens)
+                if (!ReferenceEquals(owner, root) || resolver is null) return false;
+                if (ownershipPaths is not null && ownershipPaths.TryGetValue(variable, out OwnershipPath? cached) &&
+                    cached.Matches(root, variable))
                 {
-                    if (ReferenceEquals(child, variable)) return true;
-                    if (child is Tokens.AggregateToken aggregate && visited.Add(aggregate))
+                    return true;
+                }
+                ownershipPaths = new(ReferenceComparer<Tokens.VariableRefToken>.Instance);
+                HashSet<Tokens.AggregateToken> visited = new(ReferenceComparer<Tokens.AggregateToken>.Instance) { root };
+                Stack<(Tokens.AggregateToken Owner, OwnershipPath? Path)> pending = new();
+                pending.Push((root, null));
+                while (pending.Count > 0)
+                {
+                    var current = pending.Pop();
+                    for (int i = 0; i < current.Owner.TokenList.Count; i++)
                     {
-                        pending.Push(aggregate);
+                        if (current.Owner.TokenList[i] is not Tokens.AggregateToken aggregate) continue;
+                        OwnershipPath path = new(current.Owner, i, current.Path);
+                        if (aggregate is Tokens.VariableRefToken reference && !ownershipPaths.ContainsKey(reference))
+                        {
+                            ownershipPaths.Add(reference, path);
+                        }
+                        if (visited.Add(aggregate)) pending.Push((aggregate, path));
                     }
                 }
+                return ownershipPaths.TryGetValue(variable, out OwnershipPath? captured) &&
+                    captured.Matches(root, variable);
             }
-            return false;
+        }
+
+        private sealed class OwnershipPath
+        {
+            private readonly Tokens.AggregateToken owner;
+            private readonly int index;
+            private readonly OwnershipPath? parent;
+
+            public OwnershipPath(Tokens.AggregateToken owner, int index, OwnershipPath? parent)
+            {
+                this.owner = owner;
+                this.index = index;
+                this.parent = parent;
+            }
+
+            public bool Matches(Tokens.AggregateToken root, Tokens.VariableRefToken variable)
+            {
+                Tokens.Token child = variable;
+                for (OwnershipPath? path = this; path is not null; path = path.parent)
+                {
+                    if (path.index >= path.owner.TokenList.Count ||
+                        !ReferenceEquals(path.owner.TokenList[path.index], child)) return false;
+                    child = path.owner;
+                }
+                return ReferenceEquals(child, root);
+            }
         }
 
         public void Dispose()
         {
             // Child execution contexts share this scope object after inheriting the AsyncLocal chain.
-            Interlocked.Exchange(ref resolver, null);
-            owner = null;
-            options = null;
-            variables = null;
+            lock (ownershipLock)
+            {
+                Interlocked.Exchange(ref resolver, null);
+                ownershipPaths = null;
+                owner = null;
+                options = null;
+                variables = null;
+            }
             Current.Value = Parent;
         }
     }

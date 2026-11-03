@@ -2364,6 +2364,327 @@ public class ArgResolutionContextTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void EarlierCallbacksCanEditNestedNameSyntax(bool updateInline, bool replaceChild)
+    {
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG X=one B=two\nENV RESULT=$X/$B/$C");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
+        NestedName name = new();
+        instruction.ArgTokens[1].NameToken = name;
+        instruction.ArgTokens[0].ValueToken = new SerializedLiteral("one", "computed", _ =>
+        {
+            if (replaceChild) name.Inner.TokenList[0] = new StringToken("C");
+            else Assert.IsType<StringToken>(Assert.Single(name.Inner.Tokens)).Value = "C";
+        });
+
+        Assert.Equal("ENV RESULT=computed//two", document.ResolveVariables(
+            options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("C", name.Value);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MissingObservationsStillDetectNativeBoundaryChanges(bool updateInline)
+    {
+        CachedLayoutArgInstruction instruction = new();
+        Dockerfile document = new(new DockerfileConstruct[]
+        {
+            FromInstruction.Parse("FROM alpine\n"), instruction, EnvInstruction.Parse("ENV RESULT=$A")
+        });
+        string original = document.ToString();
+
+        Assert.Equal(updateInline ? "ENV RESULT=two" : "ENV RESULT=three",
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void AuthoritativeHelperObservationsDoNotHideBoundaryChanges(bool updateInline, bool changesBoundary)
+    {
+        Dockerfile document = Dockerfile.Parse(changesBoundary
+            ? "FROM alpine\nARG A=one A=two\nENV RESULT=$A"
+            : "FROM alpine\nARG A=one B=two\nENV RESULT=$A/$B");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
+        instruction.ArgTokens[0].ValueToken = new SerializedLiteral(changesBoundary ? "\"one" : "one", "first");
+        instruction.ArgTokens[1].ValueToken = new AuthoritativeHelperLiteral(instruction.ArgTokens[0],
+            changesBoundary ? "two\" A=three" : "two");
+        string original = document.ToString();
+
+        Assert.Equal(changesBoundary ? updateInline ? "ENV RESULT=second" : "ENV RESULT=three"
+            : "ENV RESULT=first/second",
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void WorkerCompletionOrderDoesNotChangeDeclarationLayout(bool updateInline, bool concurrent)
+    {
+        OrderedWorkerArgInstruction instruction = new(concurrent);
+        SerializedLiteral first = new("one", "first");
+        SerializedLiteral second = new("two", "second");
+        instruction.ArgTokens[0].ValueToken = first;
+        instruction.ArgTokens[1].ValueToken = second;
+        Dockerfile document = new(new DockerfileConstruct[]
+        {
+            FromInstruction.Parse("FROM alpine\n"), instruction, EnvInstruction.Parse("ENV RESULT=$X/$Y")
+        });
+        string original = document.ToString();
+
+        Assert.Equal("ENV RESULT=first/second",
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(1, first.ResolutionCount);
+        Assert.Equal(1, second.ResolutionCount);
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, 16)]
+    [InlineData(false, 128)]
+    [InlineData(true, 16)]
+    [InlineData(true, 128)]
+    public void ConcurrentSerializationCapturesEveryDeclaration(bool updateInline, int count)
+    {
+        ParallelArgInstruction instruction = new(count);
+        SerializedLiteral[] values = instruction.ArgTokens.Select((declaration, i) =>
+        {
+            SerializedLiteral value = new("one", $"value{i}");
+            declaration.ValueToken = value;
+            return value;
+        }).ToArray();
+        Dockerfile document = new(new DockerfileConstruct[]
+        {
+            FromInstruction.Parse("FROM alpine\n"), instruction,
+            EnvInstruction.Parse($"ENV RESULT=$X0/$X{count - 1}")
+        });
+        string original = document.ToString();
+
+        Assert.Equal($"ENV RESULT=value0/value{count - 1}",
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.All(values, value => Assert.Equal(1, value.ResolutionCount));
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void SerializerOnlyTriviaOwnerQuoteFailuresPreserveRequiredErrors(bool stageScope, bool updateInline)
+    {
+        bool fail = false;
+        QuotedTriviaComment owner = new(() => fail ? throw new InvalidOperationException("Owner quote.") : null,
+            new VariableRefToken("UNSET", "?", "left"), new CallbackVariable(() => fail = true));
+        Dockerfile document = Document(stageScope, owner);
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'left'.", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeferredTriviaOwnerQuoteFailuresKeepTheirIdentity(bool throwOnce)
+    {
+        bool fail = false;
+        InvalidOperationException expected = new("Owner quote.");
+        QuotedTriviaComment owner = new(() =>
+        {
+            if (!fail) return null;
+            if (throwOnce) fail = false;
+            throw expected;
+        }, new CallbackVariable(() => fail = true));
+        Dockerfile document = Document(false, owner);
+
+        Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => document.ResolveVariables()));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnchangedOpaqueReferencesResolveOnce(bool updateInline)
+    {
+        const int count = 4096;
+        int calls = 0;
+        Dockerfile document = Document(false, Enumerable.Range(0, count)
+            .Select(_ => (Token)new ComputingVariable(() =>
+            {
+                calls++;
+                return "x";
+            })).ToArray());
+        string original = document.ToString();
+
+        Assert.Equal("FROM prefix" + new string('x', count),
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(count, calls);
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SyntaxGetterEditsInvalidateOpaqueReferencePositions(bool updateInline)
+    {
+        bool edit = false;
+        LiteralToken? root = null;
+        QuotedString text = new(() =>
+        {
+            if (edit)
+            {
+                edit = false;
+                root!.TokenList[1] = new VariableRefToken("UNSET", "?", "new");
+            }
+            return null;
+        });
+        Dockerfile document = Document(false, text, new VariableRefToken("UNSET", "?", "old"),
+            new CallbackVariable(() => edit = true));
+        root = document.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
+
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+
+        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'new'.", error.Message);
+    }
+
+    [Theory]
+    [InlineData("constant", "constant")]
+    [InlineData("\"quoted\"", "quoted")]
+    public void NativeConstantCopiesOnlySerializeForFinalOutput(string syntax, string leafValue)
+    {
+        Dockerfile document = Dockerfile.Parse($"FROM alpine\nARG X={syntax}\nENV RESULT=$X");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
+        Token source = Assert.Single(instruction.ArgTokens[0].ValueToken!.Tokens);
+        Dictionary<Token, int> copySerializations = new(ReferenceComparer<Token>.Instance);
+        StringToken? returnedLeaf = null;
+        using (Token.ObserveSerialization((token, text) =>
+        {
+            if (token is StringToken && !ReferenceEquals(source, token) && text == leafValue)
+            {
+                copySerializations.TryGetValue(token, out int count);
+                copySerializations[token] = count + 1;
+            }
+            if (token is ArgInstruction copy && !ReferenceEquals(copy, instruction))
+                returnedLeaf = copy.ArgTokens[0].ValueToken!.Tokens.OfType<StringToken>().Single();
+        }))
+        {
+            Assert.Equal($"ARG X={syntax}\n", document.ResolveVariables(instruction));
+        }
+        Assert.NotNull(returnedLeaf);
+        Assert.Equal(1, copySerializations[returnedLeaf]);
+        Assert.Equal($"FROM alpine\nARG X={syntax}\nENV RESULT=$X", document.ToString());
+    }
+
+    private sealed class NestedName : Variable
+    {
+        public NestedName() : base("B") => ReplaceWithToken(Inner);
+
+        public LiteralToken Inner { get; } = new("B");
+    }
+
+    private sealed class CachedLayoutArgInstruction : ArgInstruction
+    {
+        public CachedLayoutArgInstruction() : base("A", "one") =>
+            TokenList.AddRange(new Token[] { new WhitespaceToken(" "), new ArgDeclaration("A", "two") });
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) =>
+            "ARG A=\"one A=two\" A=three\n";
+    }
+
+    private sealed class AuthoritativeHelperLiteral : LiteralToken
+    {
+        private readonly ArgDeclaration helper;
+        private readonly string syntax;
+
+        public AuthoritativeHelperLiteral(ArgDeclaration helper, string syntax) : base("placeholder")
+        {
+            this.helper = helper;
+            this.syntax = syntax;
+        }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            helper.ToString(options);
+            return syntax;
+        }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null) => "second";
+    }
+
+    private sealed class OrderedWorkerArgInstruction : ArgInstruction
+    {
+        private readonly bool concurrent;
+
+        public OrderedWorkerArgInstruction(bool concurrent) : base("X", "one")
+        {
+            this.concurrent = concurrent;
+            TokenList.AddRange(new Token[]
+            {
+                new WhitespaceToken(" "), new ArgDeclaration("Y", "two"), new NewLineToken("\n")
+            });
+        }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options)
+        {
+            if (!concurrent)
+            {
+                string second = Task.Run(() => ArgTokens[1].ToString(options)).GetAwaiter().GetResult();
+                string first = Task.Run(() => ArgTokens[0].ToString(options)).GetAwaiter().GetResult();
+                return $"ARG {first} {second}\n";
+            }
+            TaskCompletionSource renderedSecond = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            Task<string> firstTask = Task.Run(async () =>
+            {
+                await renderedSecond.Task;
+                return ArgTokens[0].ToString(options);
+            });
+            Task<string> secondTask = Task.Run(() =>
+            {
+                try { return ArgTokens[1].ToString(options); }
+                finally { renderedSecond.SetResult(); }
+            });
+            string[] results = Task.WhenAll(firstTask, secondTask).GetAwaiter().GetResult();
+            return $"ARG {results[0]} {results[1]}\n";
+        }
+    }
+
+    private sealed class ParallelArgInstruction : ArgInstruction
+    {
+        public ParallelArgInstruction(int count) : base(Enumerable.Range(0, count)
+            .ToDictionary(i => $"X{i}", _ => (string?)"one")) { }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) =>
+            "ARG " + String.Join(" ", Task.WhenAll(ArgTokens.Select(declaration =>
+                Task.Run(() => declaration.ToString(options)))).GetAwaiter().GetResult()) + "\n";
+    }
+
+    private sealed class QuotedTriviaComment : CommentToken, IQuotableToken
+    {
+        private readonly Func<char?> getQuote;
+
+        public QuotedTriviaComment(Func<char?> getQuote, params Token[] tokens) : base("comment")
+        {
+            this.getQuote = getQuote;
+            ReplaceWithTokens(tokens);
+        }
+
+        public char? QuoteChar { get => getQuote(); set { } }
+    }
+
+    [Theory]
     [InlineData(8192)]
     [InlineData(32768)]
     public void DeclarationBoundaryCaptureDoesNotCopySourceText(int length)
@@ -2652,6 +2973,66 @@ public class ArgResolutionContextTests
         long large = Measure(512);
 
         Assert.InRange(large, 0, 4 * small + 500_000);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DirectModifierForwardingChecksAllocateLinearly(bool updateInline)
+    {
+        long Measure(int count)
+        {
+            DirectForwardingAggregate owner = new(Enumerable.Range(0, count)
+                .Select(_ => new VariableRefToken("UNSET", ":-", "x")));
+            Dockerfile document = Document(false, owner);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            Assert.Equal("FROM prefix" + new string('x', count),
+                document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        Measure(16);
+        long small = Measure(128);
+        long large = Measure(512);
+
+        Assert.InRange(large, 0, 4 * small + 500_000);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CachedModifierOwnershipRechecksAliasesAndMoves(bool aliasRemains)
+    {
+        ResolutionOptions options = new();
+        Dictionary<string, string?> variables = new();
+        VariableRefToken variable = new("UNSET", ":-", "\"kept\"");
+        LiteralToken first = Literal(variable);
+        LiteralToken second = Literal();
+        LiteralToken owner = Literal(first, second);
+        using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
+        {
+            Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
+            second.TokenList.Add(variable);
+            first.TokenList.Clear();
+            Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
+            first.TokenList.Add(variable);
+            second.TokenList.Clear();
+            Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
+            owner.TokenList.Remove(first);
+            if (aliasRemains) second.TokenList.Add(variable);
+            Assert.Equal(aliasRemains ? "owned" : "\"kept\"",
+                variable.ResolveVariables('\\', variables, options));
+        }
+    }
+
+    private sealed class DirectForwardingAggregate : AggregateToken
+    {
+        public DirectForwardingAggregate(IEnumerable<Token> tokens) : base(tokens) { }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null) =>
+            String.Concat(Tokens.OfType<AggregateToken>().Select(token =>
+                token.ResolveVariables(escapeChar, variables, options)));
     }
 
     [Theory]
