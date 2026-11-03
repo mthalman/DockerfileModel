@@ -44,6 +44,7 @@ public abstract class AggregateToken : Token
     internal virtual void MaterializeTokens() { }
 
     internal List<Token> ResolutionChildren => TokenList;
+    internal event Action<int>? ResolutionChildRemoved;
 
     /// <summary>Gets the live ordered child sequence, not a snapshot or a deep copy.</summary>
     /// <remarks>Structural edits during enumeration can invalidate the enumerator.</remarks>
@@ -250,6 +251,7 @@ public abstract class AggregateToken : Token
         ResolutionGuard.BeforeChildPublication(this, index);
         TokenList.RemoveAt(index);
         ResolutionGuard.ChildPublished(this, index, null);
+        ResolutionChildRemoved?.Invoke(index);
     }
 
     internal void ReplaceResolvedChild(int index, Token replacement)

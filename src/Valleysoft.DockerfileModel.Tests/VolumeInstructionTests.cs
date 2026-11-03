@@ -4005,6 +4005,133 @@ public class VolumeInstructionTests
         Assert.True(allocated < 400_000, $"Semantic reuse allocated {allocated} bytes.");
     }
 
+    [Theory]
+    [InlineData("'protected'/", "'protected'/")]
+    [InlineData("\\u002F", "/")]
+    public void JsonDelegatedRemovalKeepsDecodedSourceSlotsCurrent(string prefix, string decodedPrefix)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        int calls = 0;
+        DefaultRenderingCallback removed = new(_ => { calls++; return null; });
+        TokenSequenceLiteral modifier = new(new StringToken(prefix), removed, new StringToken("/"),
+            new VariableRefToken("VALUE"));
+        VariableRefToken left = new("LEFT", ":-", "placeholder") { ModifierValueToken = modifier };
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[]
+        {
+            left, new StringToken("|"), new DelegatingAggregate(modifier)
+        });
+
+        string result = instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["VALUE"] = "value" },
+            new ResolutionOptions { UpdateInline = true })!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+        Assert.Equal($"{decodedPrefix}/value|{prefix}/value", json.RootElement[0].GetString());
+        Assert.Equal(1, calls);
+        Assert.DoesNotContain(removed, modifier.Tokens);
+        Assert.Equal(result, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData("'prefix'/", "'prefix'/")]
+    [InlineData("\\u002F", "/")]
+    public void JsonNonLiveReferencesReusePublishedSourceValues(string prefix, string decodedPrefix)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        TokenSequenceLiteral innerModifier = new(new StringToken(prefix), new VariableRefToken("VALUE"));
+        VariableRefToken inner = new("INNER", ":-", "placeholder") { ModifierValueToken = innerModifier };
+        TokenSequenceLiteral modifier = new(inner);
+        VariableRefToken left = new("LEFT", ":-", "placeholder") { ModifierValueToken = modifier };
+        VariableRefToken right = new("RIGHT", ":-", "placeholder") { ModifierValueToken = modifier };
+        DefaultRenderingCallback callback = new(variables => { variables!["INNER"] = "changed"; return ""; });
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[] { left, new StringToken("|"), callback, right });
+
+        string result = instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["VALUE"] = "value" },
+            new ResolutionOptions { UpdateInline = true })!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+        Assert.Equal($"{decodedPrefix}value|{decodedPrefix}value", json.RootElement[0].GetString());
+        Assert.Equal(result, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void JsonSnapshotRetainsReplacementPrimitiveObjects(bool inline, bool partial)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        VariableRefToken root = new("ROOT");
+        StringToken replacement = new(partial ? "$ROOT/new" : "/new");
+        TokenSequenceLiteral container = new();
+        DefaultRenderingCallback callback = new(_ =>
+        {
+            container.ReplaceWithTokens(partial ? new Token[] { replacement, container.Tokens.Last() } :
+                new Token[] { root, replacement, container.Tokens.Last() });
+            return "";
+        });
+        container.ReplaceWithTokens(partial ? new Token[] { new StringToken("$ROOT/old"), callback } :
+            new Token[] { root, new StringToken("/old"), callback });
+        instruction.PathTokens[0].ReplaceWithToken(container);
+
+        Assert.Equal("VOLUME [\"value/new\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "value" },
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? "VOLUME [\"value/new\"]" : "VOLUME [\"$ROOT/new$SWITCH\"]",
+            instruction.ToString());
+        if (!inline || !partial)
+        {
+            Assert.Contains(replacement, inline ? instruction.PathTokens[0].Tokens : container.Tokens);
+        }
+    }
+
+    [Fact]
+    public void JsonSourceSlotRemovalBookkeepingScalesWithActiveSlots()
+    {
+        int Measure(int count)
+        {
+            DefaultAggregate parent = new(Enumerable.Range(0, count)
+                .Select(_ => (Token)new StringToken("")).ToArray());
+            using JsonStringVariableResolver.SourceSlots slots = new();
+            for (int index = 0; index < count; index++)
+            {
+                slots.Get(parent, index);
+            }
+            int work = 0;
+            for (int index = count - 1; index >= 0; index--)
+            {
+                work += slots.Remove(parent, index);
+            }
+            return work;
+        }
+
+        Assert.Equal(16_384, Measure(16_384));
+        Assert.Equal(65_536, Measure(65_536));
+    }
+
+    [Fact]
+    public void JsonSourceSlotsObserveDelegatedRemovalAndReleaseSubscriptions()
+    {
+        StringToken first = new("first");
+        StringToken last = new("last");
+        DefaultAggregate parent = new(first, new StringToken("middle"), last);
+        JsonStringVariableResolver.SourceSlots outer = new();
+        JsonStringVariableResolver.SourceSlot firstSlot = outer.Get(parent, 0)!;
+        JsonStringVariableResolver.SourceSlot lastSlot = outer.Get(parent, 2)!;
+        using (JsonStringVariableResolver.SourceSlots inner = new())
+        {
+            JsonStringVariableResolver.SourceSlot innerLast = inner.Get(parent, 2)!;
+            parent.RemoveResolvedChild(1);
+            Assert.Same(last, innerLast.Current);
+            Assert.Equal(1, innerLast.Index);
+        }
+        Assert.Same(first, firstSlot.Current);
+        Assert.Same(last, lastSlot.Current);
+        outer.Dispose();
+        parent.RemoveResolvedChild(0);
+        Assert.Equal(1, lastSlot.Index);
+    }
+
     private sealed class DelegatingAggregate(params Token[] tokens) : AggregateToken(tokens)
     {
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,

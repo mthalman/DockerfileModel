@@ -125,7 +125,7 @@ internal static class JsonStringVariableResolver
         List<(int Start, int End, Token? Custom, bool Modifier, int Occurrence)>? literalSpans = expandVariables ? new() : null;
         Dictionary<int, (int End, VariableRefToken Token, bool Compatible, AggregateToken? Parent, int Index)>? sourceReferences =
             expandVariables && (options.UpdateInline || path.HasCustomDescendant()) ? new() : null;
-        SourceSlots? sourceSlots = sourceReferences is not null ? new() : null;
+        using SourceSlots? sourceSlots = sourceReferences is not null ? new() : null;
         Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null;
         SourceSnapshot? snapshot = expandVariables && (options.UpdateInline || sourceReferences is not null)
             ? new(physical) : null;
@@ -341,7 +341,7 @@ internal static class JsonStringVariableResolver
                     LiteralToken literal => literal.ResolveVariablesInContext(false, escapeChar, variables, options)
                         ?? string.Empty,
                     VariableRefToken reference => ResolveReference(reference, escapeChar, variables, valueOptions, options,
-                        referenceSources, sourceSlots),
+                        referenceSources),
                     _ => pending.Reference.ResolveVariables(escapeChar, variables, options) ?? string.Empty
                 };
                 inlineReplacements[index] = options.UpdateInline;
@@ -476,7 +476,7 @@ internal static class JsonStringVariableResolver
 
     internal static string ResolveReference(VariableRefToken root, char escapeChar,
         IDictionary<string, string?> variables, ResolutionOptions options, ResolutionOptions? customOptions = null,
-        Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null, SourceSlots? sourceSlots = null)
+        Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null)
     {
         Token rootValue = GetSourceToken(root, referenceSources);
         if (rootValue is not VariableRefToken { HasCustomResolution: false } rootReference)
@@ -508,8 +508,7 @@ internal static class JsonStringVariableResolver
                 }
                 if (remove)
                 {
-                    parent.TokenList.RemoveAt(index);
-                    sourceSlots?.Remove(parent, index);
+                    parent.RemoveResolvedChild(index);
                 }
                 else
                 {
@@ -717,7 +716,8 @@ internal static class JsonStringVariableResolver
             token is not Tokens.LiteralToken && token is not AggregateToken { HasCustomVariableResolution: true }))
         {
             string text = token.ToString();
-            occurrences?.Add(new(token, offset, offset + text.Length, occurrences.Count + 1, false));
+            occurrences?.Add(new(token, offset, offset + text.Length, occurrences.Count + 1, false,
+                token is PrimitiveToken ? sourceSlots?.Get(ownerParent, ownerIndex) : null));
             return text;
         }
         StringBuilder builder = new();
@@ -732,7 +732,8 @@ internal static class JsonStringVariableResolver
             if (!close && capture)
             {
                 occurrence = occurrences!.Count;
-                occurrences.Add(new(current, offset + builder.Length, 0, 0, IsTransparentContainer(current)));
+                occurrences.Add(new(current, offset + builder.Length, 0, 0, IsTransparentContainer(current),
+                    current is PrimitiveToken ? sourceSlots?.Get(parent, childIndex) : null));
             }
             if (!close && current is AggregateToken && !HasDefaultRendering(current))
             {
@@ -768,7 +769,7 @@ internal static class JsonStringVariableResolver
                 {
                     SourceOccurrence original = occurrences![occurrence];
                     occurrences[occurrence] = new(current, original.Start, offset + builder.Length,
-                        occurrences.Count, original.Transparent);
+                        occurrences.Count, original.Transparent, original.Slot);
                 }
             }
             else if (literalSpans is not null && current is LiteralToken literal &&
@@ -835,7 +836,7 @@ internal static class JsonStringVariableResolver
             {
                 SourceOccurrence original = occurrences![occurrence];
                 occurrences[occurrence] = new(current, original.Start, offset + builder.Length,
-                    occurrences.Count, original.Transparent);
+                    occurrences.Count, original.Transparent, original.Slot);
             }
         }
         return builder.ToString();
@@ -898,7 +899,9 @@ internal static class JsonStringVariableResolver
         Dictionary<VariableRefToken, ReferenceSource>? sources)
     {
         ReferenceSource? source = reference is CustomReferenceOccurrence custom ? custom.Source :
-            sources?.TryGetValue(reference, out var bound) == true && bound.Live ? bound : null;
+            sources?.TryGetValue(reference, out var bound) == true &&
+                (bound.Live || bound.Slot is { Removed: true } || bound.Slot?.Current is ResolvedJsonLiteral)
+                    ? bound : null;
         return source is ReferenceSource location
             ? location.Slot is null ? location.Token : location.Slot.Current
             : reference;
@@ -989,9 +992,9 @@ internal static class JsonStringVariableResolver
         internal Token Current => Removed ? removedToken : Parent.TokenList[Index];
     }
 
-    internal sealed class SourceSlots
+    internal sealed class SourceSlots : IDisposable
     {
-        private readonly Dictionary<AggregateToken, Dictionary<int, SourceSlot>> parents =
+        private readonly Dictionary<AggregateToken, ParentSlots> parents =
             new(ReferenceComparer<AggregateToken>.Instance);
 
         internal SourceSlot? Get(AggregateToken? parent, int index)
@@ -1002,46 +1005,85 @@ internal static class JsonStringVariableResolver
             }
             if (!parents.TryGetValue(parent, out var slots))
             {
-                slots = new();
+                slots = new(parent);
                 parents.Add(parent, slots);
             }
-            if (!slots.TryGetValue(index, out var slot))
+            if (!slots.Active.TryGetValue(index, out var slot))
             {
                 slot = new(parent, index);
-                slots.Add(index, slot);
+                slots.Active.Add(index, slot);
             }
             return slot;
         }
 
-        internal void Remove(AggregateToken parent, int index)
+        internal int Remove(AggregateToken parent, int index) =>
+            parents.TryGetValue(parent, out var slots) ? slots.Remove(index) : 0;
+
+        public void Dispose()
         {
-            if (parents.TryGetValue(parent, out var slots))
+            foreach (ParentSlots slots in parents.Values)
             {
-                foreach (SourceSlot slot in slots.Values)
+                slots.Dispose();
+            }
+        }
+
+        private sealed class ParentSlots : IDisposable
+        {
+            private readonly AggregateToken parent;
+            internal SortedList<int, SourceSlot> Active { get; } = new();
+
+            internal ParentSlots(AggregateToken parent)
+            {
+                this.parent = parent;
+                parent.ResolutionChildRemoved += OnRemove;
+            }
+
+            private void OnRemove(int index) => Remove(index);
+
+            internal int Remove(int index)
+            {
+                int low = 0;
+                int high = Active.Count;
+                while (low < high)
                 {
-                    if (!slot.Removed && slot.Index >= index)
+                    int middle = low + (high - low) / 2;
+                    if (Active.Values[middle].Index < index)
                     {
-                        if (slot.Index == index)
-                        {
-                            slot.Removed = true;
-                        }
-                        else
-                        {
-                            slot.Index--;
-                        }
+                        low = middle + 1;
+                    }
+                    else
+                    {
+                        high = middle;
                     }
                 }
+                int work = 0;
+                if (low < Active.Count && Active.Values[low].Index == index)
+                {
+                    Active.Values[low].Removed = true;
+                    Active.RemoveAt(low);
+                    work++;
+                }
+                for (int current = low; current < Active.Count; current++)
+                {
+                    Active.Values[current].Index--;
+                    work++;
+                }
+                return work;
             }
+
+            public void Dispose() => parent.ResolutionChildRemoved -= OnRemove;
         }
     }
 
-    private readonly struct SourceOccurrence(Token token, int start, int end, int following, bool transparent)
+    private readonly struct SourceOccurrence(Token token, int start, int end, int following, bool transparent,
+        SourceSlot? slot = null)
     {
         internal Token Token { get; } = token;
         internal int Start { get; } = start;
         internal int End { get; } = end;
         internal int Following { get; } = following;
         internal bool Transparent { get; } = transparent;
+        internal SourceSlot? Slot { get; } = slot;
     }
 
     private sealed class SourceSnapshot(string physical)
@@ -1108,7 +1150,8 @@ internal static class JsonStringVariableResolver
             }
             else
             {
-                expanded.Add((occurrence.Token, snapshot.Physical.Substring(occurrence.Start, occurrence.End - occurrence.Start), index));
+                expanded.Add((occurrence.Slot?.Current ?? occurrence.Token,
+                    snapshot.Physical.Substring(occurrence.Start, occurrence.End - occurrence.Start), index));
                 index = occurrence.Following;
             }
         }
