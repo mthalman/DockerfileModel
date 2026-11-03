@@ -4132,6 +4132,140 @@ public class VolumeInstructionTests
         Assert.Equal(1, lastSlot.Index);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonCallbackValueReplacementDoesNotLeaveStaleSourceSlots(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        DefaultRenderingCallback callback = new(_ => { path.Value = "$ROOT"; return ""; });
+        path.ReplaceWithTokens(new Token[] { new VariableRefToken("ROOT"), callback, new StringToken("/old") });
+
+        Assert.Equal("VOLUME [\"value\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "value" },
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? "VOLUME [\"value\"]" : "VOLUME [\"$ROOT\"]", instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void JsonSnapshotRetainsReplacementAggregateObjects(bool inline, bool transparent)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        VariableRefToken root = new("ROOT");
+        LiteralToken replacement = transparent ? new TokenSequenceLiteral(new StringToken("/new")) :
+            new LiteralToken("/new");
+        DefaultRenderingCallback callback = new(_ =>
+        {
+            instruction.PathTokens[0].ReplaceWithTokens(new Token[]
+                { root, replacement, instruction.PathTokens[0].Tokens.Last() });
+            return "";
+        });
+        LiteralToken original = transparent ? new TokenSequenceLiteral(new StringToken("/old")) :
+            new LiteralToken("/old");
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[] { root, original, callback });
+
+        Assert.Equal("VOLUME [\"value/new\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "value" },
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Contains(replacement, instruction.PathTokens[0].Tokens);
+        Assert.DoesNotContain(original, instruction.PathTokens[0].Tokens);
+    }
+
+    [Fact]
+    public void JsonSourceSlotCaptureDoesNotShiftExistingSlots()
+    {
+        const int count = 65_536;
+        DefaultAggregate parent = new(Enumerable.Range(0, count).Select(_ => (Token)new StringToken("")).ToArray());
+        using JsonStringVariableResolver.SourceSlots slots = new();
+        for (int index = count - 1; index >= 0; index--)
+        {
+            slots.Get(parent, index);
+        }
+        Assert.False(slots.Get(parent, 0)!.Removed);
+        Assert.Equal(1, slots.Remove(parent, count - 1));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonBulkReplacementMapsSharedSurvivorsWithoutStaleIndices(bool prefix)
+    {
+        StringToken shared = new("shared");
+        StringToken middle = new("middle");
+        DefaultAggregate parent = new(shared, middle, shared);
+        using JsonStringVariableResolver.SourceSlots slots = new();
+        JsonStringVariableResolver.SourceSlot first = slots.Get(parent, 0)!;
+        JsonStringVariableResolver.SourceSlot center = slots.Get(parent, 1)!;
+        JsonStringVariableResolver.SourceSlot last = slots.Get(parent, 2)!;
+
+        parent.ReplaceWithTokens(prefix ? new Token[] { middle, shared } : new Token[] { shared, middle });
+        Assert.Equal(prefix, first.Removed);
+        Assert.Equal(!prefix, last.Removed);
+        Assert.Same(middle, center.Current);
+        Assert.Same(shared, prefix ? last.Current : first.Current);
+    }
+
+    [Fact]
+    public void JsonBulkReplacementSubscriptionsHaveIndependentLifetimes()
+    {
+        StringToken first = new("first");
+        StringToken last = new("last");
+        DefaultAggregate parent = new(first, new StringToken("middle"), last);
+        using JsonStringVariableResolver.SourceSlots outer = new();
+        JsonStringVariableResolver.SourceSlot firstSlot = outer.Get(parent, 0)!;
+        JsonStringVariableResolver.SourceSlot lastSlot = outer.Get(parent, 2)!;
+        JsonStringVariableResolver.SourceSlot? innerLast = null;
+        void ReplaceThenThrow()
+        {
+            using JsonStringVariableResolver.SourceSlots inner = new();
+            innerLast = inner.Get(parent, 2)!;
+            parent.ReplaceWithTokens(new Token[] { first, last });
+            Assert.Same(last, innerLast.Current);
+            throw new InvalidOperationException("callback");
+        }
+        Assert.Throws<InvalidOperationException>(ReplaceThenThrow);
+
+        parent.ReplaceWithToken(first);
+        Assert.True(lastSlot.Removed);
+        Assert.Same(first, firstSlot.Current);
+        Assert.False(innerLast!.Removed);
+        Assert.Equal(1, innerLast.Index);
+
+        outer.Dispose();
+        parent.ReplaceWithTokens(Array.Empty<Token>());
+        Assert.False(firstSlot.Removed);
+    }
+
+    [Fact]
+    public void JsonSourceSlotCaptureIsIndependentOfTraversalOrder()
+    {
+        const int count = 65_536;
+        long Measure(bool descending)
+        {
+            DefaultAggregate parent = new(Enumerable.Range(0, count)
+                .Select(_ => (Token)new StringToken("")).ToArray());
+            using JsonStringVariableResolver.SourceSlots slots = new();
+            System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
+            for (int index = 0; index < count; index++)
+            {
+                slots.Get(parent, descending ? count - index - 1 : index);
+            }
+            return timer.ElapsedTicks;
+        }
+
+        Measure(false);
+        Measure(true);
+        long ascending = Enumerable.Range(0, 3).Select(_ => Measure(false)).OrderBy(value => value).ElementAt(1);
+        long descending = Enumerable.Range(0, 3).Select(_ => Measure(true)).OrderBy(value => value).ElementAt(1);
+        Assert.True(descending < ascending * 8 + System.Diagnostics.Stopwatch.Frequency / 20,
+            $"Slot capture took {ascending} ticks ascending and {descending} ticks descending.");
+    }
+
     private sealed class DelegatingAggregate(params Token[] tokens) : AggregateToken(tokens)
     {
         public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,

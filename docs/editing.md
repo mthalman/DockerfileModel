@@ -194,6 +194,8 @@ Inline removal updates the captured slots of shared modifiers. Later occurrences
 skip removed children instead of reading a neighboring token or a stale index.
 This tracking also covers removals through custom aggregates that delegate to
 the ordinary resolver. Tracking subscriptions end when resolution returns or throws.
+Bulk child replacement through value setters reconciles captured slots with the
+new child sequence. Removed occurrences are not read through stale indices.
 Shared modifiers reuse the semantic values of earlier inline substitutions in
 the same call, rather than treating their encoded JSON spelling as expanded text.
 Published substitutions remain visible even when quoted or escaped syntax prevents
@@ -225,6 +227,7 @@ Retained primitive slices observe callback edits while keeping the original
 reference boundaries; a retained trailing slice includes the primitive's new end.
 Replacing a primitive object in its source slot also updates retained text and
 preserves the replacement object's identity when the whole primitive is retained.
+Whole retained aggregate occurrences likewise preserve replacement objects.
 Non-inline resolution does not reconstruct the source token tree.
 Inline reconstruction skips source ranges that cannot contain a replacement,
 including unrelated sibling subtrees beside a zero-width substitution.

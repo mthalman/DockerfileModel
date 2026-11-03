@@ -45,6 +45,7 @@ public abstract class AggregateToken : Token
 
     internal List<Token> ResolutionChildren => TokenList;
     internal event Action<int>? ResolutionChildRemoved;
+    internal event Action<IReadOnlyList<Token>>? ResolutionChildrenReplaced;
 
     /// <summary>Gets the live ordered child sequence, not a snapshot or a deep copy.</summary>
     /// <remarks>Structural edits during enumeration can invalidate the enumerator.</remarks>
@@ -242,8 +243,17 @@ public abstract class AggregateToken : Token
     internal void ReplaceWithTokens(IEnumerable<Token> tokens)
     {
         ResolutionGuard.BeforeMutation(this);
+        Token[]? previous = ResolutionChildrenReplaced is not null ? TokenList.ToArray() : null;
+        if (previous is not null)
+        {
+            tokens = tokens.ToArray();
+        }
         TokenList.Clear();
         TokenList.AddRange(tokens);
+        if (previous is not null)
+        {
+            ResolutionChildrenReplaced?.Invoke(previous);
+        }
     }
 
     internal void RemoveResolvedChild(int index)

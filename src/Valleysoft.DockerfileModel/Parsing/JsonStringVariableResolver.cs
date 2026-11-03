@@ -717,7 +717,7 @@ internal static class JsonStringVariableResolver
         {
             string text = token.ToString();
             occurrences?.Add(new(token, offset, offset + text.Length, occurrences.Count + 1, false,
-                token is PrimitiveToken ? sourceSlots?.Get(ownerParent, ownerIndex) : null));
+                sourceSlots?.Get(ownerParent, ownerIndex)));
             return text;
         }
         StringBuilder builder = new();
@@ -733,7 +733,7 @@ internal static class JsonStringVariableResolver
             {
                 occurrence = occurrences!.Count;
                 occurrences.Add(new(current, offset + builder.Length, 0, 0, IsTransparentContainer(current),
-                    current is PrimitiveToken ? sourceSlots?.Get(parent, childIndex) : null));
+                    sourceSlots?.Get(parent, childIndex)));
             }
             if (!close && current is AggregateToken && !HasDefaultRendering(current))
             {
@@ -1008,10 +1008,10 @@ internal static class JsonStringVariableResolver
                 slots = new(parent);
                 parents.Add(parent, slots);
             }
-            if (!slots.Active.TryGetValue(index, out var slot))
+            if (!slots.Captured.TryGetValue(index, out var slot))
             {
                 slot = new(parent, index);
-                slots.Active.Add(index, slot);
+                slots.Captured.Add(index, slot);
             }
             return slot;
         }
@@ -1030,12 +1030,16 @@ internal static class JsonStringVariableResolver
         private sealed class ParentSlots : IDisposable
         {
             private readonly AggregateToken parent;
-            internal SortedList<int, SourceSlot> Active { get; } = new();
+            private List<SourceSlot>? active;
+            internal Dictionary<int, SourceSlot> Captured { get; } = new();
+            private List<SourceSlot> Active => active ??= Captured.Values
+                .Where(slot => !slot.Removed).OrderBy(slot => slot.Index).ToList();
 
             internal ParentSlots(AggregateToken parent)
             {
                 this.parent = parent;
                 parent.ResolutionChildRemoved += OnRemove;
+                parent.ResolutionChildrenReplaced += OnReplace;
             }
 
             private void OnRemove(int index) => Remove(index);
@@ -1047,7 +1051,7 @@ internal static class JsonStringVariableResolver
                 while (low < high)
                 {
                     int middle = low + (high - low) / 2;
-                    if (Active.Values[middle].Index < index)
+                    if (Active[middle].Index < index)
                     {
                         low = middle + 1;
                     }
@@ -1057,21 +1061,105 @@ internal static class JsonStringVariableResolver
                     }
                 }
                 int work = 0;
-                if (low < Active.Count && Active.Values[low].Index == index)
+                if (low < Active.Count && Active[low].Index == index)
                 {
-                    Active.Values[low].Removed = true;
+                    Active[low].Removed = true;
                     Active.RemoveAt(low);
                     work++;
                 }
                 for (int current = low; current < Active.Count; current++)
                 {
-                    Active.Values[current].Index--;
+                    Active[current].Index--;
                     work++;
                 }
                 return work;
             }
 
-            public void Dispose() => parent.ResolutionChildRemoved -= OnRemove;
+            private void OnReplace(IReadOnlyList<Token> previous)
+            {
+                List<Token> current = parent.TokenList;
+                int[] positions = new int[previous.Count];
+                for (int index = 0; index < positions.Length; index++)
+                {
+                    positions[index] = -1;
+                }
+                if (previous.Count == current.Count)
+                {
+                    for (int index = 0; index < positions.Length; index++)
+                    {
+                        positions[index] = index;
+                    }
+                }
+                else
+                {
+                    Dictionary<Token, Queue<int>> candidates = new(ReferenceComparer<Token>.Instance);
+                    for (int index = 0; index < previous.Count; index++)
+                    {
+                        if (!candidates.TryGetValue(previous[index], out var indices))
+                        {
+                            indices = new();
+                            candidates.Add(previous[index], indices);
+                        }
+                        indices.Enqueue(index);
+                    }
+                    int oldStart = 0;
+                    int newStart = 0;
+                    for (int index = 0; index <= current.Count; index++)
+                    {
+                        int next = previous.Count;
+                        if (index < current.Count)
+                        {
+                            if (!candidates.TryGetValue(current[index], out var indices))
+                            {
+                                continue;
+                            }
+                            while (indices.Count > 0 && indices.Peek() < oldStart)
+                            {
+                                indices.Dequeue();
+                            }
+                            if (indices.Count == 0)
+                            {
+                                continue;
+                            }
+                            next = indices.Dequeue();
+                        }
+                        int replacements = Math.Min(next - oldStart, index - newStart);
+                        for (int offset = 0; offset < replacements; offset++)
+                        {
+                            positions[oldStart + offset] = newStart + offset;
+                        }
+                        if (index < current.Count)
+                        {
+                            positions[next] = index;
+                        }
+                        oldStart = next + 1;
+                        newStart = index + 1;
+                    }
+                }
+                foreach (SourceSlot slot in Captured.Values)
+                {
+                    if (slot.Removed)
+                    {
+                        continue;
+                    }
+                    int replacement = positions[slot.Index];
+                    if (replacement < 0)
+                    {
+                        slot.Removed = true;
+                    }
+                    else
+                    {
+                        slot.Index = replacement;
+                    }
+                }
+                active = null;
+            }
+
+            public void Dispose()
+            {
+                parent.ResolutionChildRemoved -= OnRemove;
+                parent.ResolutionChildrenReplaced -= OnReplace;
+            }
         }
     }
 
