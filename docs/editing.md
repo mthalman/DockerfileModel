@@ -187,6 +187,15 @@ non-variable literals, so later edits cannot reactivate their contents.
 Source publication locations are tracked independently of live-reference binding.
 Nested updates still reach the exact source occurrence when quoted or
 JSON-escaped modifier text requires evaluation through a decoded token tree.
+This includes custom references and required-variable failures without callbacks.
+Live bindings read the current token in the source slot, so replacing a reference
+object in a callback affects subsequent evaluation.
+Shared modifiers reuse the semantic values of earlier inline substitutions in
+the same call, rather than treating their encoded JSON spelling as expanded text.
+Nested JSON substitutions defer text materialization until their contents are
+read. Reading `Tokens`, `Value`, or serialized text materializes ordinary editable
+children and releases the deferred expansion tree. This avoids repeatedly
+rendering growing modifier subtrees during inline publication.
 Selected modifier branches do not change if a callback updates the variable
 dictionary during their evaluation.
 Resolution context passes the caller's original `ResolutionOptions` instance

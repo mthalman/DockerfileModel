@@ -11,12 +11,13 @@ namespace Valleysoft.DockerfileModel.Tokens;
 public abstract class AggregateToken : Token
 {
     private GuardedChildren? childrenView;
+    private readonly List<Token> tokenList;
 
     protected AggregateToken(IEnumerable<Token> tokens)
     {
         Guard.NotNull(tokens, nameof(tokens));
 
-        this.TokenList = tokens.ToList();
+        tokenList = tokens.ToList();
     }
 
     protected static IEnumerable<Token> GetTokens<TToken>(string text, TextParser<IEnumerable<TToken>> parser)
@@ -31,7 +32,16 @@ public abstract class AggregateToken : Token
             .ToList();
     }
 
-    protected internal List<Token> TokenList { get; }
+    protected internal List<Token> TokenList
+    {
+        get
+        {
+            MaterializeTokens();
+            return tokenList;
+        }
+    }
+
+    internal virtual void MaterializeTokens() { }
 
     internal List<Token> ResolutionChildren => TokenList;
 

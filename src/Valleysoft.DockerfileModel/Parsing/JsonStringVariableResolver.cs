@@ -124,7 +124,7 @@ internal static class JsonStringVariableResolver
             decodedOffset < starts.Count ? starts[decodedOffset] : offsets[logical.Length - 1]).Position;
         List<(int Start, int End, Token? Custom, bool Modifier, int Occurrence)>? literalSpans = expandVariables ? new() : null;
         Dictionary<int, (int End, VariableRefToken Token, bool Compatible, AggregateToken? Parent, int Index)>? sourceReferences =
-            expandVariables && path.HasCustomDescendant() ? new() : null;
+            expandVariables && (options.UpdateInline || path.HasCustomDescendant()) ? new() : null;
         Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null;
         SourceSnapshot? snapshot = expandVariables && (options.UpdateInline || sourceReferences is not null)
             ? new(physical) : null;
@@ -476,16 +476,14 @@ internal static class JsonStringVariableResolver
         IDictionary<string, string?> variables, ResolutionOptions options, ResolutionOptions? customOptions = null,
         Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null)
     {
-        VariableRefToken rootValue = referenceSources?.TryGetValue(root, out var rootSource) == true && rootSource.Live
-            ? rootSource.Token : root;
-        if (rootValue.HasCustomResolution)
+        Token rootValue = GetSourceToken(root, referenceSources);
+        if (rootValue is not VariableRefToken { HasCustomResolution: false } rootReference)
         {
-            return rootValue.ResolveVariables(escapeChar, variables,
-                customOptions ?? options) ?? string.Empty;
+            return ResolveSourceToken(rootValue, escapeChar, variables, customOptions ?? options);
         }
-        if (rootValue.ModifierValueToken is null || rootValue.GetRequiredModifierValue(variables) is null)
+        if (rootReference.ModifierValueToken is null || rootReference.GetRequiredModifierValue(variables) is null)
         {
-            return rootValue.ResolveVariables(escapeChar, variables, options) ?? string.Empty;
+            return rootReference.ResolveVariables(escapeChar, variables, options) ?? string.Empty;
         }
         Stack<Expansion> resolved = new();
         Stack<(Token? Token, Token[]? Tokens, string? RequiredName, AggregateToken? Parent, int Index)> pending = new();
@@ -495,10 +493,12 @@ internal static class JsonStringVariableResolver
             resolved.Push(value);
             if (token is VariableRefToken reference && parent is not null && (customOptions ?? options).UpdateInline)
             {
-                if (referenceSources?.TryGetValue(reference, out var source) == true && source.Parent is not null)
+                ReferenceSource? source = reference is CustomReferenceOccurrence custom ? custom.Source :
+                    referenceSources?.TryGetValue(reference, out var bound) == true ? bound : null;
+                if (source is ReferenceSource { Parent: not null } location)
                 {
-                    parent = source.Parent;
-                    index = source.Index;
+                    parent = location.Parent;
+                    index = location.Index;
                 }
                 if (remove)
                 {
@@ -506,11 +506,9 @@ internal static class JsonStringVariableResolver
                 }
                 else
                 {
-                    string text = value.Text ?? RenderExpansion(value, escapeChar);
                     parent.TokenList[index] = customOptions is null
-                        ? new StringToken(text)
-                        : new LiteralToken(new Token[] { new StringToken(Encode(text)) },
-                            canContainVariables: false, escapeChar);
+                        ? new StringToken(value.Text ?? RenderExpansion(value, escapeChar))
+                        : new ResolvedJsonLiteral(value, escapeChar);
                 }
             }
         }
@@ -542,10 +540,9 @@ internal static class JsonStringVariableResolver
                 frame.Token = frame.Parent.TokenList[frame.Index];
             }
             Token? syntax = frame.Token;
-            if (syntax is VariableRefToken parsed &&
-                referenceSources?.TryGetValue(parsed, out var source) == true && source.Live)
+            if (syntax is VariableRefToken parsed)
             {
-                frame.Token = source.Token;
+                frame.Token = GetSourceToken(parsed, referenceSources);
             }
             if (frame.Token is AggregateToken container && IsTransparentContainer(container) &&
                 container is not IQuotableToken { QuoteChar: not null })
@@ -560,8 +557,8 @@ internal static class JsonStringVariableResolver
             }
             if (frame.Token is LiteralToken customLiteral)
             {
-                resolved.Push(new Expansion(customLiteral.ResolveVariablesInContext(
-                    false, escapeChar, variables, customOptions ?? options) ?? string.Empty));
+                resolved.Push(new Expansion(ResolveSourceToken(customLiteral,
+                    escapeChar, variables, customOptions ?? options)));
                 continue;
             }
             if (frame.Token is not VariableRefToken reference)
@@ -781,7 +778,8 @@ internal static class JsonStringVariableResolver
             {
                 int start = builder.Length;
                 builder.Append(RenderToken(reference));
-                literalSpans.Add((offset + start, offset + builder.Length, reference, false, occurrence));
+                literalSpans.Add((offset + start, offset + builder.Length,
+                    new CustomReferenceOccurrence(new(reference, true, parent, childIndex)), false, occurrence));
             }
             else if (literalSpans is not null &&
                 current is AggregateToken { HasCustomVariableResolution: true } and not Tokens.LiteralToken and not VariableRefToken)
@@ -887,6 +885,79 @@ internal static class JsonStringVariableResolver
     }
 
     private static string Encode(string value) => JsonEncodedText.Encode(value).ToString();
+
+    private static Token GetSourceToken(VariableRefToken reference,
+        Dictionary<VariableRefToken, ReferenceSource>? sources)
+    {
+        ReferenceSource? source = reference is CustomReferenceOccurrence custom ? custom.Source :
+            sources?.TryGetValue(reference, out var bound) == true && bound.Live ? bound : null;
+        return source is ReferenceSource location
+            ? location.Parent is null ? location.Token : location.Parent.TokenList[location.Index]
+            : reference;
+    }
+
+    private static string ResolveSourceToken(Token token, char escapeChar,
+        IDictionary<string, string?>? variables, ResolutionOptions options) => token switch
+    {
+        ResolvedJsonLiteral literal => literal.ResolveValue(escapeChar, variables, options),
+        LiteralToken literal => literal.ResolveVariablesInContext(false, escapeChar, variables, options) ?? string.Empty,
+        AggregateToken aggregate => aggregate.ResolveVariables(escapeChar, variables, options) ?? string.Empty,
+        _ => options.FormatValue(escapeChar, token.ToString())
+    };
+
+    private sealed class ResolvedJsonLiteral : LiteralToken
+    {
+        private readonly char sourceEscapeChar;
+        private Expansion? pending;
+
+        internal ResolvedJsonLiteral(Expansion value, char escapeChar)
+            : base(Array.Empty<Token>(), canContainVariables: false, escapeChar)
+        {
+            pending = value;
+            sourceEscapeChar = escapeChar;
+        }
+
+        internal override void MaterializeTokens()
+        {
+            if (pending is Expansion expansion)
+            {
+                string text = Encode(RenderExpansion(expansion, sourceEscapeChar));
+                pending = null;
+                ReplaceWithToken(new StringToken(text));
+            }
+        }
+
+        protected override IEnumerable<Token> GetInnerTokens(string value)
+        {
+            IEnumerable<Token> tokens = base.GetInnerTokens(value);
+            pending = null;
+            return tokens;
+        }
+
+        internal string ResolveValue(char escapeChar, IDictionary<string, string?>? variables, ResolutionOptions options)
+        {
+            string physical = "\"" + RenderToken(this) + "\"";
+            List<int> offsets = new();
+            string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out int end, offsets);
+            if (end != physical.Length || !JsonStringValidation.IsValidLogical(logical))
+            {
+                return ResolveVariablesInContext(false, escapeChar, variables, options) ?? string.Empty;
+            }
+            return options.FormatValue(escapeChar, Decode(logical, offsets, out _, out _));
+        }
+    }
+
+    private sealed class CustomReferenceOccurrence(ReferenceSource source)
+        : VariableRefToken(Array.Empty<Token>(), Dockerfile.DefaultEscapeChar)
+    {
+        internal ReferenceSource Source { get; } = source;
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => RenderToken(Source.Token);
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null) =>
+            ResolveSourceToken(GetSourceToken(this, null), escapeChar, variables, options ?? new());
+    }
 
     internal readonly struct ReferenceSource(VariableRefToken token, bool live, AggregateToken? parent, int index)
     {
