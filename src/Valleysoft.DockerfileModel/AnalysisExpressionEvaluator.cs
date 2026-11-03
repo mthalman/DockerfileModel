@@ -508,15 +508,16 @@ internal static class AnalysisExpressionEvaluator
         public void Visit(Evaluation evaluation) => evaluation.VisitSnapshot(this,
             children, resolvedString, serializedText);
 
-        public void CollectTriviaSerializers(Func<ResolutionSnapshot, string> collect)
+        public void CollectTriviaResolutions(Func<ResolutionSnapshot, string> collect)
         {
-            if (SerializationFailure is not null || IsConsumerLeaf && !SerializationConsumed)
+            if (SerializationFailure is not null || IsConsumerLeaf && !SerializationConsumed ||
+                IsReference && !IsResolved && Source is AggregateToken { UsesCustomResolution: true })
             {
                 collect(this);
             }
             foreach (ResolutionSnapshot child in children)
             {
-                child.CollectTriviaSerializers(collect);
+                child.CollectTriviaResolutions(collect);
             }
         }
 
@@ -886,7 +887,7 @@ internal static class AnalysisExpressionEvaluator
             {
                 if (resolveSnapshot is not null)
                 {
-                    snapshot.CollectTriviaSerializers(resolveSnapshot);
+                    snapshot.CollectTriviaResolutions(resolveSnapshot);
                 }
                 return;
             }

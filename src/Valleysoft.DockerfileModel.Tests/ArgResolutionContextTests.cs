@@ -1537,6 +1537,302 @@ public class ArgResolutionContextTests
         Assert.Equal(original, dockerfile.ToString());
     }
 
+    [Theory]
+    [InlineData(false, false, false, 0)]
+    [InlineData(false, false, false, 1)]
+    [InlineData(false, false, false, 2)]
+    [InlineData(false, false, true, 0)]
+    [InlineData(false, false, true, 1)]
+    [InlineData(false, false, true, 2)]
+    [InlineData(false, true, false, 0)]
+    [InlineData(false, true, false, 1)]
+    [InlineData(false, true, false, 2)]
+    [InlineData(false, true, true, 0)]
+    [InlineData(false, true, true, 1)]
+    [InlineData(false, true, true, 2)]
+    [InlineData(true, false, false, 0)]
+    [InlineData(true, false, false, 1)]
+    [InlineData(true, false, false, 2)]
+    [InlineData(true, false, true, 0)]
+    [InlineData(true, false, true, 1)]
+    [InlineData(true, false, true, 2)]
+    [InlineData(true, true, false, 0)]
+    [InlineData(true, true, false, 1)]
+    [InlineData(true, true, false, 2)]
+    [InlineData(true, true, true, 0)]
+    [InlineData(true, true, true, 1)]
+    [InlineData(true, true, true, 2)]
+    public void IgnoredTriviaConsumesCustomAggregateCallbacks(
+        bool stageScope, bool updateInline, bool comment, int callbackKind)
+    {
+        LiteralToken pending = Literal(new VariableRefToken("MISSING", "?", "pending"));
+        int calls = 0;
+        ResolutionOptions options = new() { UpdateInline = updateInline };
+        void Consume(ResolutionOptions? receivedOptions)
+        {
+            Assert.Same(options, receivedOptions);
+            calls++;
+            pending.Value = "new";
+        }
+        AggregateToken callback;
+        if (callbackKind == 0)
+        {
+            callback = new OptionsEditingLiteral(receivedOptions =>
+            {
+                Consume(receivedOptions);
+                return "computed";
+            });
+        }
+        else
+        {
+            CallbackVariable variable = new((_, _, receivedOptions) => Consume(receivedOptions));
+            if (callbackKind == 1) callback = variable;
+            else
+            {
+                PassthroughAggregate aggregate = new();
+                aggregate.TokenList.Add(variable);
+                callback = aggregate;
+            }
+        }
+        AggregateToken trivia;
+        if (comment)
+        {
+            SerializerOnlyComment owner = new();
+            owner.TokenList.Add(callback);
+            trivia = owner;
+        }
+        else
+        {
+            CountingContinuation owner = new();
+            owner.TokenList.Insert(1, callback);
+            trivia = owner;
+        }
+        Dockerfile dockerfile = Document(stageScope, pending, trivia);
+
+        if (stageScope && !updateInline)
+        {
+            VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+                dockerfile.ResolveVariables(options: options));
+            Assert.Equal("Variable 'MISSING' is not set. Error detail: 'pending'.", error.Message);
+        }
+        else
+        {
+            Assert.Equal(stageScope ? "ENV RESULT=new" : "FROM prefixnew",
+                dockerfile.ResolveVariables(options: options));
+        }
+        Assert.Equal(1, calls);
+        Assert.Equal("new", pending.Value);
+        if (callback is PassthroughAggregate passthrough) Assert.Equal(1, passthrough.ResolutionCount);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void IgnoredTriviaCustomCallbacksRetainConsumedModifierSyntax(
+        bool stageScope, bool updateInline, bool comment)
+    {
+        string state = "consumed";
+        int calls = 0;
+        ResolutionOptions options = new() { UpdateInline = updateInline };
+        OptionsEditingLiteral callback = new(receivedOptions =>
+        {
+            Assert.Same(options, receivedOptions);
+            calls++;
+            return state;
+        }) { Value = String.Empty };
+        AggregateToken trivia;
+        if (comment)
+        {
+            CommentToken owner = new(String.Empty);
+            owner.TokenList.Add(callback);
+            trivia = owner;
+        }
+        else
+        {
+            CountingContinuation owner = new();
+            owner.TokenList.Insert(1, callback);
+            trivia = owner;
+        }
+        VariableRefToken inner = new("INNER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(trivia, new StringToken("ok"))
+        };
+        VariableRefToken outer = new("OUTER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new CallbackVariable((_, _, receivedOptions) =>
+            {
+                state = "late";
+                receivedOptions!.UpdateInline = true;
+            }), inner)
+        };
+        Dockerfile dockerfile = Document(stageScope, outer);
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftok" : "FROM prefixleftok",
+            dockerfile.ResolveVariables(options: options));
+        Assert.Equal(comment ? "ARG X=left#consumedok\n" : "ARG X=left\\consumed\nok\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal(1, calls);
+        Assert.Equal("late", state);
+        Assert.Equal(String.Empty, callback.Value);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void IgnoredTriviaCallbacksCanDisablePendingInlineUpdates(
+        bool stageScope, bool updateInline, bool comment)
+    {
+        int calls = 0;
+        ResolutionOptions options = new() { UpdateInline = updateInline };
+        CallbackVariable callback = new((_, _, receivedOptions) =>
+        {
+            Assert.Same(options, receivedOptions);
+            calls++;
+            receivedOptions!.UpdateInline = false;
+        });
+        AggregateToken trivia;
+        if (comment)
+        {
+            CommentToken owner = new(String.Empty);
+            owner.TokenList.Add(callback);
+            trivia = owner;
+        }
+        else
+        {
+            LineContinuationToken owner = new("\n");
+            owner.TokenList.Insert(1, callback);
+            trivia = owner;
+        }
+        VariableRefToken pending = new("MISSING", ":-", "ok");
+        Dockerfile dockerfile = Document(stageScope, pending, trivia);
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=ok" : "FROM prefixok",
+            dockerfile.ResolveVariables(options: options));
+        Assert.Equal(1, calls);
+        Assert.False(options.UpdateInline);
+        Assert.Equal(original, dockerfile.ToString());
+        Assert.Equal("ok", pending.ModifierValue);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void InactiveModifiersDoNotConsumeIgnoredTriviaCallbacks(
+        bool stageScope, bool updateInline, bool comment)
+    {
+        int calls = 0;
+        OptionsEditingLiteral callback = new(_ =>
+        {
+            calls++;
+            throw new FormatException("Inactive trivia callback.");
+        }) { Value = String.Empty };
+        AggregateToken trivia;
+        if (comment)
+        {
+            CommentToken owner = new(String.Empty);
+            owner.TokenList.Add(callback);
+            trivia = owner;
+        }
+        else
+        {
+            LineContinuationToken owner = new("\n");
+            owner.TokenList.Insert(1, callback);
+            trivia = owner;
+        }
+        VariableRefToken variable = new("UNSET", ":+", "placeholder")
+        {
+            ModifierValueToken = Literal(trivia)
+        };
+        Dockerfile dockerfile = Document(stageScope, variable);
+        string original = dockerfile.ToString();
+
+        Assert.Equal(stageScope ? "ENV RESULT=" : "FROM prefix",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(0, calls);
+        if (!updateInline) Assert.Equal(original, dockerfile.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, false, true)]
+    [InlineData(false, true, true, false)]
+    [InlineData(false, true, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, true, true, false)]
+    [InlineData(true, true, true, true)]
+    public void IgnoredTriviaCallbacksPreserveRightmostErrorPrecedence(
+        bool stageScope, bool updateInline, bool comment, bool callbackOnRight)
+    {
+        int calls = 0;
+        FormatException expected = new("Trivia callback.");
+        OptionsEditingLiteral callback = new(_ =>
+        {
+            calls++;
+            throw expected;
+        }) { Value = String.Empty };
+        AggregateToken trivia;
+        if (comment)
+        {
+            CommentToken owner = new(String.Empty);
+            owner.TokenList.Add(callback);
+            trivia = owner;
+        }
+        else
+        {
+            LineContinuationToken owner = new("\n");
+            owner.TokenList.Insert(1, callback);
+            trivia = owner;
+        }
+        VariableRefToken required = new("MISSING", "?", "required");
+        Dockerfile dockerfile = callbackOnRight ? Document(stageScope, required, trivia)
+            : Document(stageScope, trivia, required);
+        string original = dockerfile.ToString();
+        ResolutionOptions options = new() { UpdateInline = updateInline };
+
+        if (callbackOnRight)
+        {
+            Assert.Same(expected, Assert.Throws<FormatException>(() =>
+                dockerfile.ResolveVariables(options: options)));
+            Assert.Equal(1, calls);
+        }
+        else
+        {
+            VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+                dockerfile.ResolveVariables(options: options));
+            Assert.Equal("Variable 'MISSING' is not set. Error detail: 'required'.", error.Message);
+            Assert.Equal(0, calls);
+        }
+        Assert.Equal(original, dockerfile.ToString());
+    }
+
     [Fact]
     public void SimpleReferencesDoNotAllocateModifierScopes()
     {
