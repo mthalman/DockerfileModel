@@ -35,6 +35,66 @@ public class ResolutionOptions
         Func<Tokens.LiteralToken, string?> resolver) =>
         new ModifierResolutionScope(owner, this, escapeChar, variables, resolver);
 
+    internal ModifierResolutionTraversal? TrackModifierResolutionTraversal(Tokens.AggregateToken owner,
+        char escapeChar, IDictionary<string, string?> variables) =>
+        ModifierResolutionScope.Current.Value is null ? null : new(owner, this, escapeChar, variables);
+
+    internal sealed class ModifierResolutionTraversal : IDisposable
+    {
+        private static readonly AsyncLocal<ModifierResolutionTraversal?> Current = new();
+        private readonly ModifierResolutionTraversal? parent;
+        private Tokens.AggregateToken? owner;
+        private ResolutionOptions? options;
+        private IDictionary<string, string?>? variables;
+        private readonly char escapeChar;
+
+        public ModifierResolutionTraversal(Tokens.AggregateToken owner, ResolutionOptions options,
+            char escapeChar, IDictionary<string, string?> variables)
+        {
+            this.owner = owner;
+            this.options = options;
+            this.escapeChar = escapeChar;
+            this.variables = variables;
+            parent = Current.Value;
+            Current.Value = this;
+        }
+
+        public int Index { get; set; } = -1;
+
+        public static bool ContainsCurrentReference(Tokens.AggregateToken root, Tokens.VariableRefToken variable,
+            ResolutionOptions options, char escapeChar, IDictionary<string, string?> variables)
+        {
+            // Validate live positions because callbacks can move or detach an owner.
+            Tokens.Token child = variable;
+            for (ModifierResolutionTraversal? traversal = Current.Value;
+                traversal is not null; traversal = traversal.parent)
+            {
+                Tokens.AggregateToken? owner = traversal.owner;
+                if (owner is null || !ReferenceEquals(traversal.options, options) ||
+                    traversal.escapeChar != escapeChar || !ReferenceEquals(traversal.variables, variables) ||
+                    traversal.Index < 0 || traversal.Index >= owner.TokenList.Count ||
+                    !ReferenceEquals(owner.TokenList[traversal.Index], child))
+                {
+                    return false;
+                }
+                if (ReferenceEquals(owner, root))
+                {
+                    return true;
+                }
+                child = owner;
+            }
+            return false;
+        }
+
+        public void Dispose()
+        {
+            owner = null;
+            options = null;
+            variables = null;
+            Current.Value = parent;
+        }
+    }
+
     private sealed class ModifierResolutionScope : IDisposable
     {
         public static readonly AsyncLocal<ModifierResolutionScope?> Current = new();
@@ -68,13 +128,15 @@ public class ResolutionOptions
             Tokens.AggregateToken? activeOwner = owner;
             return activeResolver is not null && ReferenceEquals(options, requestedOptions) &&
                 escapeChar == requestedEscapeChar && ReferenceEquals(variables, requestedVariables) &&
-                activeOwner is not null && ContainsVariable(activeOwner, variable)
+                activeOwner is not null && (ReferenceEquals(activeOwner, variable) ||
+                    ModifierResolutionTraversal.ContainsCurrentReference(activeOwner, variable, requestedOptions,
+                        requestedEscapeChar, requestedVariables) ||
+                    ContainsVariable(activeOwner, variable))
                 ? activeResolver : null;
         }
 
         private static bool ContainsVariable(Tokens.AggregateToken root, Tokens.VariableRefToken variable)
         {
-            if (ReferenceEquals(root, variable)) return true;
             HashSet<Tokens.AggregateToken> visited = new(ReferenceComparer<Tokens.AggregateToken>.Instance) { root };
             Stack<Tokens.AggregateToken> pending = new();
             pending.Push(root);

@@ -65,8 +65,7 @@ internal static class AnalysisExpressionEvaluator
 
     internal static string ResolveVariables(Token token, char escapeChar,
         Func<VariableRefToken, string?> resolveVariable,
-        Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null,
-        Func<LiteralToken, string>? resolveLiteral = null, Func<int>? getCustomResolutionVersion = null,
+        Func<int>? getCustomResolutionVersion = null,
         Func<Func<string?>?>? getResolvedSyntaxFactory = null, ResolutionOptions? syntaxOptions = null,
         Action<AggregateToken, int, TokenResolution>? recordTokenResolution = null,
         Action<Func<string?>>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null,
@@ -74,7 +73,7 @@ internal static class AnalysisExpressionEvaluator
         bool resolveTriviaVariables = true)
     {
         Dictionary<string, AnalysisValue> variables = new();
-        ResolutionSnapshot snapshot = new(token, resolveLiteral is not null || resolveAggregate is not null,
+        ResolutionSnapshot snapshot = new(token, resolveAggregate is not null,
             getSerializationVersion: getCustomResolutionVersion, onConsumerSerialization: onConsumerSerialization,
             resolveTriviaVariables: resolveTriviaVariables);
         List<ResolutionSnapshot> references = new();
@@ -108,8 +107,7 @@ internal static class AnalysisExpressionEvaluator
             {
                 reference.ResolvedValue = reference.Source is VariableRefToken variable
                     ? resolveVariable(variable)
-                    : resolveAggregate is not null ? resolveAggregate((AggregateToken)reference.Source)
-                    : resolveLiteral!((LiteralToken)reference.Source);
+                    : resolveAggregate!((AggregateToken)reference.Source);
                 reference.ResolvedSyntaxValue = reference.ResolvedValue;
                 reference.ResolvedSyntaxFactory = getResolvedSyntaxFactory?.Invoke();
                 reference.IsResolved = true;
@@ -129,7 +127,7 @@ internal static class AnalysisExpressionEvaluator
             }
         }
 
-        Evaluation evaluation = new(variables, escapeChar, recordResolution: recordResolution);
+        Evaluation evaluation = new(variables, escapeChar);
         snapshot.Visit(evaluation);
         AnalysisValue result = evaluation.GetResult();
         if (!result.IsKnown)
@@ -764,7 +762,6 @@ internal static class AnalysisExpressionEvaluator
     {
         private readonly IReadOnlyDictionary<string, AnalysisValue> variables;
         private readonly char escapeChar;
-        private readonly Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution;
         private readonly Func<ResolutionSnapshot, string>? resolveSnapshot;
         private readonly StringBuilder? text;
         private readonly List<string> unresolvedVariables = new();
@@ -773,13 +770,11 @@ internal static class AnalysisExpressionEvaluator
         private bool escaped;
 
         public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar,
-            Action<VariableRefToken, (string Value, char? QuoteChar, bool Escaped)>? recordResolution = null,
             bool collectText = true,
             Func<ResolutionSnapshot, string>? resolveSnapshot = null)
         {
             this.variables = variables;
             this.escapeChar = escapeChar;
-            this.recordResolution = recordResolution;
             this.resolveSnapshot = resolveSnapshot;
             text = collectText ? new StringBuilder() : null;
         }
@@ -803,17 +798,11 @@ internal static class AnalysisExpressionEvaluator
                 if (quote == '\'' || escaped)
                 {
                     string syntax = variable.ToString();
-                    recordResolution?.Invoke(variable, (syntax, quote, escaped));
                     AppendText(syntax);
                 }
                 else
                 {
-                    AnalysisValue value = EvaluateVariable(variable, variables, escapeChar);
-                    if (value.IsKnown)
-                    {
-                        recordResolution?.Invoke(variable, (value.Value ?? String.Empty, quote, escaped));
-                    }
-                    AppendValue(value);
+                    AppendValue(EvaluateVariable(variable, variables, escapeChar));
                 }
                 return;
             }
@@ -910,13 +899,8 @@ internal static class AnalysisExpressionEvaluator
                 if (snapshot.IsResolved)
                 {
                     text?.Append(snapshot.ResolvedValue);
-                    if (snapshot.Source is VariableRefToken resolvedVariable)
-                    {
-                        recordResolution?.Invoke(resolvedVariable,
-                            (snapshot.ResolvedValue!, snapshot.Context.QuoteChar, snapshot.Context.Escaped));
-                    }
                 }
-                else if (snapshot.Source is VariableRefToken variable &&
+                else if (snapshot.Source is VariableRefToken &&
                     (quote == '\'' || escaped ||
                         (resolveSnapshot is null || snapshot.SerializationConsumed) && snapshot.SuppressedSyntax is not null))
                 {
@@ -941,8 +925,6 @@ internal static class AnalysisExpressionEvaluator
                     {
                         resolveSnapshot(snapshot);
                     }
-                    recordResolution?.Invoke(variable,
-                        (syntax, snapshot.Context.QuoteChar, snapshot.Context.Escaped));
                     AppendText(syntax);
                 }
                 else

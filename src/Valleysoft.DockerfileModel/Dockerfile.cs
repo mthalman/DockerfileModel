@@ -165,6 +165,7 @@ public class Dockerfile : IConstructContainer
     /// References in defaults resolve right-to-left. Callbacks can change pending tokens and options,
     /// but not completed results. Inline updates happen as references resolve; enabling them later
     /// does not update earlier references.
+    /// Non-inline stage resolution uses serialized declarations if custom serializers change their layout.
     /// </para>
     /// <para>
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
@@ -256,6 +257,13 @@ public class Dockerfile : IConstructContainer
         ArgDeclaration[] args = instruction.ArgTokens.ToArray();
         ArgDeclaration[] resolvedArgs = resolvedInstruction == instruction
             ? args : resolvedInstruction.ArgTokens.ToArray();
+        if (resolvedInstruction != instruction &&
+            !args.Select(arg => arg.Name).SequenceEqual(resolvedArgs.Select(arg => arg.Name)))
+        {
+            // Changed declaration boundaries cannot be paired with the original defaults.
+            return ResolveArgInstruction(resolvedInstruction, escapeChar, stageArgs, globalArgs, variableOverrides,
+                new ResolutionOptions { UpdateInline = true, RemoveEscapeCharacters = options.RemoveEscapeCharacters });
+        }
         for (int i = 0; i < args.Length; i++)
         {
             ArgDeclaration arg = args[i];
@@ -338,15 +346,27 @@ public class Dockerfile : IConstructContainer
             occurrences.Push(resolution);
         }
         IDictionary<string, string?> syntaxBindings = bindings;
-        bool? syntaxUsesVariables = null;
+        string[]? syntaxVariableNames = null;
         void CaptureSyntaxBindings()
         {
-            if (syntaxArg is not null && syntaxArg != arg && ReferenceEquals(syntaxBindings, bindings) &&
-                (syntaxUsesVariables ??= syntaxArg.ValueToken is { } syntaxValue &&
-                    InstructionCollectionEditing.Descendants(syntaxValue)
-                        .Any(child => child is VariableRefToken)) == true)
+            if (syntaxArg is not null && syntaxArg != arg && ReferenceEquals(syntaxBindings, bindings))
             {
-                syntaxBindings = new Dictionary<string, string?>(bindings);
+                syntaxVariableNames ??= syntaxArg.ValueToken is { } syntaxValue
+                    ? InstructionCollectionEditing.Descendants(syntaxValue).OfType<VariableRefToken>()
+                        .Select(variable => variable.VariableName).Distinct(StringComparer.Ordinal).ToArray()
+                    : Array.Empty<string>();
+                if (syntaxVariableNames.Length > 0)
+                {
+                    Dictionary<string, string?> captured = new(syntaxVariableNames.Length, StringComparer.Ordinal);
+                    foreach (string name in syntaxVariableNames)
+                    {
+                        if (bindings.TryGetValue(name, out string? binding))
+                        {
+                            captured.Add(name, binding);
+                        }
+                    }
+                    syntaxBindings = captured;
+                }
             }
         }
         // Non-inline stage defaults leave native trivia references to their reparsed copy.

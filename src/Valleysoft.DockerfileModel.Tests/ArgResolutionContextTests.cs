@@ -2043,6 +2043,243 @@ public class ArgResolutionContextTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void SerializedDeclarationMergesUseTheirOwnLayout(bool updateInline, bool targetArg)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "FROM alpine\nARG SOURCE=value\nARG A=one B=two C=$SOURCE\nENV RESULT=$A/$B/$C");
+        ArgInstruction instruction = dockerfile.Items.OfType<ArgInstruction>().Last();
+        SerializedLiteral left = new("\"one", "first");
+        SerializedLiteral right = new("two\"", "second");
+        instruction.ArgTokens[0].ValueToken = left;
+        instruction.ArgTokens[1].ValueToken = right;
+        string original = dockerfile.ToString();
+
+        string result = targetArg ? dockerfile.ResolveVariables(instruction,
+            options: new ResolutionOptions { UpdateInline = updateInline })
+            : dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline });
+
+        Assert.Equal(targetArg ? "ARG A=\"one B=two\" C=value\n"
+            : updateInline ? "ENV RESULT=first/second/value" : "ENV RESULT=one B=two//value", result);
+        Assert.Equal(updateInline ? 1 : 0, left.ResolutionCount);
+        Assert.Equal(updateInline ? 1 : 0, right.ResolutionCount);
+        if (!updateInline) Assert.Equal(original, dockerfile.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void SerializedDeclarationSplitsResolveAllDetachedDefaults(bool updateInline, bool targetArg)
+    {
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "FROM alpine\nARG SOURCE=value\nARG A=one B=$SOURCE\nENV RESULT=$A/$EXTRA/$B");
+        ArgInstruction instruction = dockerfile.Items.OfType<ArgInstruction>().Last();
+        SerializedLiteral literal = new("one EXTRA=$SOURCE", "custom");
+        instruction.ArgTokens[0].ValueToken = literal;
+        string original = dockerfile.ToString();
+
+        string result = targetArg ? dockerfile.ResolveVariables(instruction,
+            options: new ResolutionOptions { UpdateInline = updateInline })
+            : dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline });
+
+        Assert.Equal(targetArg ? $"ARG A=one EXTRA={(updateInline ? "$SOURCE" : "value")} B=value\n"
+            : updateInline ? "ENV RESULT=custom//value" : "ENV RESULT=one/value/value", result);
+        Assert.Equal(updateInline ? 1 : 0, literal.ResolutionCount);
+        if (!updateInline) Assert.Equal(original, dockerfile.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void SerializedDeclarationLayoutDoesNotDependOnCountAlone(bool updateInline, bool targetArg)
+    {
+        Dockerfile document = Dockerfile.Parse(
+            "FROM alpine\nARG SOURCE=value\nARG A=one B=two C=$SOURCE\nENV RESULT=$A/$B/$EXTRA/$C");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Last();
+        instruction.ArgTokens[0].ValueToken = new SerializedLiteral("\"one", "first");
+        instruction.ArgTokens[1].ValueToken = new SerializedLiteral("two\" EXTRA=$SOURCE", "second");
+        string original = document.ToString();
+
+        string result = targetArg ? document.ResolveVariables(instruction,
+            options: new ResolutionOptions { UpdateInline = updateInline })
+            : document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline });
+
+        Assert.Equal(targetArg
+            ? $"ARG A=\"one B=two\" EXTRA={(updateInline ? "$SOURCE" : "value")} C=value\n"
+            : updateInline ? "ENV RESULT=first/second//value" : "ENV RESULT=one B=two//value/value", result);
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(null, "ARG A=\"one B=two\" EXTRA= C=fallback\n")]
+    [InlineData("override", "ARG A=\"one B=two\" EXTRA= C=override\n")]
+    public void SerializedDeclarationLayoutRetainsOverridesAndUnsetBindings(string? overrideValue, string expected)
+    {
+        Dockerfile document = Dockerfile.Parse(
+            "ARG GLOBAL=global\nFROM alpine\nARG GLOBAL\nARG SOURCE=old\n" +
+            "ARG A=one C=${SOURCE-fallback}\nENV RESULT=$C");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Last();
+        instruction.ArgTokens[0].ValueToken = new SerializedLiteral("\"one B=two\" EXTRA=${MISSING:+unused}",
+            "custom");
+        string original = document.ToString();
+        Dictionary<string, string?> overrides = new() { ["SOURCE"] = overrideValue };
+
+        Assert.Equal(expected, document.ResolveVariables(instruction, overrides));
+        Assert.Equal(original, document.ToString());
+        Assert.Equal(overrideValue, overrides["SOURCE"]);
+    }
+
+    private sealed class SerializedLiteral : LiteralToken
+    {
+        private readonly string syntax;
+        private readonly string result;
+        private readonly Action<IDictionary<string, string?>?>? beforeResolution;
+
+        public SerializedLiteral(string syntax, string result,
+            Action<IDictionary<string, string?>?>? beforeResolution = null) : base("placeholder")
+        {
+            this.syntax = syntax;
+            this.result = result;
+            this.beforeResolution = beforeResolution;
+        }
+
+        public int ResolutionCount { get; private set; }
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => syntax;
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            ResolutionCount++;
+            beforeResolution?.Invoke(variables);
+            return result;
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ModifierOwnershipChecksAllocateLinearly(bool updateInline, bool nested)
+    {
+        long Measure(int count)
+        {
+            PassthroughAggregate owner = new();
+            for (int i = 0; i < count; i++)
+            {
+                VariableRefToken variable = new("UNSET", ":-", "x");
+                owner.TokenList.Add(nested ? Literal(variable) : variable);
+            }
+            Dockerfile document = Document(false, owner);
+            string expected = "FROM prefix" + new string('x', count);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            Assert.Equal(expected, document.ResolveVariables(
+                options: new ResolutionOptions { UpdateInline = updateInline }));
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        Measure(16);
+        long small = Measure(128);
+        long large = Measure(512);
+
+        Assert.InRange(large, 0, 4 * small + 500_000);
+    }
+
+    [Theory]
+    [InlineData("$SHARED")]
+    [InlineData("${SHARED:-$UNUSED}")]
+    public void ReferencedSyntaxBindingsAllocateLinearly(string syntax)
+    {
+        long Measure(int count)
+        {
+            Dockerfile document = Dockerfile.Parse("FROM alpine\nARG SHARED=value\n" +
+                String.Concat(Enumerable.Range(0, count).Select(i => $"ARG X{i:D4}=placeholder\n")) +
+                "ENV RESULT=ok");
+            foreach (ArgInstruction instruction in document.Items.OfType<ArgInstruction>().Skip(1))
+            {
+                instruction.ArgTokens[0].ValueToken = new SerializedLiteral(syntax, "value");
+            }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            Assert.Equal("ENV RESULT=ok", document.ResolveVariables());
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        Measure(16);
+        long small = Measure(512);
+        long large = Measure(1024);
+
+        Assert.InRange(large, 0, 2 * small + 2_000_000);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SelectiveSyntaxBindingsPreserveAbsentEmptyAndNestedNames(bool targetArg)
+    {
+        Dockerfile document = Dockerfile.Parse(
+            "FROM alpine\nARG EMPTY=\"\"\nARG UPPER=upper\nARG lower=lower\nARG INNER=inner\n" +
+            "ARG X=placeholder\nENV RESULT=$X");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Last();
+        instruction.ArgTokens[0].ValueToken = new SerializedLiteral(
+            "${EMPTY+set}/${UNSET-fallback}/${UPPER}/${lower}/${NESTED:-${INNER}}", "custom", variables =>
+            {
+                variables!["EMPTY"] = null;
+                variables["UNSET"] = "new";
+                variables["UPPER"] = "new";
+                variables["lower"] = "new";
+                variables["NESTED"] = "new";
+                variables["INNER"] = "new";
+            });
+        string original = document.ToString();
+
+        Assert.Equal(targetArg ? "ARG X=set/fallback/upper/lower/inner\n" : "ENV RESULT=custom",
+            targetArg ? document.ResolveVariables(instruction) : document.ResolveVariables());
+        Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ModifierTraversalRechecksRemovedOwners(bool nested)
+    {
+        PassthroughAggregate owner = new();
+        LiteralToken? wrapper = null;
+        DelegatingVariable variable = new(() =>
+        {
+            if (nested) owner.TokenList.Remove(wrapper!);
+            else owner.TokenList.Clear();
+        });
+        owner.TokenList.Add(nested ? wrapper = Literal(variable) : variable);
+        Dockerfile document = Document(false, owner);
+
+        Assert.Equal("FROM prefix\"kept\"", document.ResolveVariables());
+        Assert.Empty(owner.Tokens);
+    }
+
+    private sealed class DelegatingVariable : VariableRefToken
+    {
+        private readonly Action beforeResolution;
+
+        public DelegatingVariable(Action beforeResolution) : base("UNSET", ":-", "\"kept\"") =>
+            this.beforeResolution = beforeResolution;
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            beforeResolution();
+            return base.ResolveVariables(escapeChar, variables, options);
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void SpeculativeQuoteFailuresRemainStickyAfterCallbacks(bool throwOnce)

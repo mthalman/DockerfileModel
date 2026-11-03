@@ -188,10 +188,16 @@ public abstract class AggregateToken : Token
     private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
     {
         StringBuilder builder = new();
+        using ResolutionOptions.ModifierResolutionTraversal? traversal =
+            options.TrackModifierResolutionTraversal(this, escapeChar, variables);
 
         for (int i = TokenList.Count - 1; i >= 0; i--)
         {
             Token token = TokenList[i];
+            if (traversal is not null)
+            {
+                traversal.Index = i;
+            }
             string? value;
             if (token is AggregateToken aggregateToken)
             {
