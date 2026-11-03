@@ -125,6 +125,7 @@ internal static class JsonStringVariableResolver
         List<(int Start, int End, Token? Custom, bool Modifier, int Occurrence)>? literalSpans = expandVariables ? new() : null;
         Dictionary<int, (int End, VariableRefToken Token, bool Compatible, AggregateToken? Parent, int Index)>? sourceReferences =
             expandVariables && (options.UpdateInline || path.HasCustomDescendant()) ? new() : null;
+        SourceSlots? sourceSlots = sourceReferences is not null ? new() : null;
         Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null;
         SourceSnapshot? snapshot = expandVariables && (options.UpdateInline || sourceReferences is not null)
             ? new(physical) : null;
@@ -132,7 +133,8 @@ internal static class JsonStringVariableResolver
         (Token Token, string Text, int Occurrence)[] source = path.Tokens.Select((token, index) =>
         {
             int occurrence = snapshot?.Occurrences.Count ?? -1;
-            string text = RenderToken(token, literalSpans, sourcePosition, sourceReferences, snapshot?.Occurrences, path, index);
+            string text = RenderToken(token, literalSpans, sourcePosition, sourceReferences, snapshot?.Occurrences,
+                path, index, sourceSlots);
             sourcePosition += text.Length;
             return (token, text, occurrence);
         }).ToArray();
@@ -198,7 +200,7 @@ internal static class JsonStringVariableResolver
                 bool live = last - first == end - start &&
                     bindingBarriers![end] == bindingBarriers[start] && original.Compatible;
                 referenceSources ??= new(ReferenceComparer<VariableRefToken>.Instance);
-                referenceSources.Add(parsed, new(original.Token, live, original.Parent, original.Index));
+                referenceSources.Add(parsed, new(original.Token, live, sourceSlots!.Get(original.Parent, original.Index)));
             }
             return parsed;
         }
@@ -339,7 +341,7 @@ internal static class JsonStringVariableResolver
                     LiteralToken literal => literal.ResolveVariablesInContext(false, escapeChar, variables, options)
                         ?? string.Empty,
                     VariableRefToken reference => ResolveReference(reference, escapeChar, variables, valueOptions, options,
-                        referenceSources),
+                        referenceSources, sourceSlots),
                     _ => pending.Reference.ResolveVariables(escapeChar, variables, options) ?? string.Empty
                 };
                 inlineReplacements[index] = options.UpdateInline;
@@ -474,7 +476,7 @@ internal static class JsonStringVariableResolver
 
     internal static string ResolveReference(VariableRefToken root, char escapeChar,
         IDictionary<string, string?> variables, ResolutionOptions options, ResolutionOptions? customOptions = null,
-        Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null)
+        Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null, SourceSlots? sourceSlots = null)
     {
         Token rootValue = GetSourceToken(root, referenceSources);
         if (rootValue is not VariableRefToken { HasCustomResolution: false } rootReference)
@@ -495,14 +497,19 @@ internal static class JsonStringVariableResolver
             {
                 ReferenceSource? source = reference is CustomReferenceOccurrence custom ? custom.Source :
                     referenceSources?.TryGetValue(reference, out var bound) == true ? bound : null;
-                if (source is ReferenceSource { Parent: not null } location)
+                if (source?.Slot is SourceSlot location)
                 {
+                    if (location.Removed)
+                    {
+                        return;
+                    }
                     parent = location.Parent;
                     index = location.Index;
                 }
                 if (remove)
                 {
                     parent.TokenList.RemoveAt(index);
+                    sourceSlots?.Remove(parent, index);
                 }
                 else
                 {
@@ -703,7 +710,8 @@ internal static class JsonStringVariableResolver
 
     private static string RenderToken(Token token, List<(int Start, int End, Token? Custom, bool Modifier, int Occurrence)>? literalSpans,
         int offset, Dictionary<int, (int End, VariableRefToken Token, bool Compatible, AggregateToken? Parent, int Index)>? sourceReferences = null,
-        List<SourceOccurrence>? occurrences = null, AggregateToken? ownerParent = null, int ownerIndex = -1)
+        List<SourceOccurrence>? occurrences = null, AggregateToken? ownerParent = null, int ownerIndex = -1,
+        SourceSlots? sourceSlots = null)
     {
         if (!HasDefaultRendering(token) && (literalSpans is null ||
             token is not Tokens.LiteralToken && token is not AggregateToken { HasCustomVariableResolution: true }))
@@ -779,7 +787,7 @@ internal static class JsonStringVariableResolver
                 int start = builder.Length;
                 builder.Append(RenderToken(reference));
                 literalSpans.Add((offset + start, offset + builder.Length,
-                    new CustomReferenceOccurrence(new(reference, true, parent, childIndex)), false, occurrence));
+                    new CustomReferenceOccurrence(new(reference, true, sourceSlots?.Get(parent, childIndex))), false, occurrence));
             }
             else if (literalSpans is not null &&
                 current is AggregateToken { HasCustomVariableResolution: true } and not Tokens.LiteralToken and not VariableRefToken)
@@ -892,14 +900,13 @@ internal static class JsonStringVariableResolver
         ReferenceSource? source = reference is CustomReferenceOccurrence custom ? custom.Source :
             sources?.TryGetValue(reference, out var bound) == true && bound.Live ? bound : null;
         return source is ReferenceSource location
-            ? location.Parent is null ? location.Token : location.Parent.TokenList[location.Index]
+            ? location.Slot is null ? location.Token : location.Slot.Current
             : reference;
     }
 
     private static string ResolveSourceToken(Token token, char escapeChar,
         IDictionary<string, string?>? variables, ResolutionOptions options) => token switch
     {
-        ResolvedJsonLiteral literal => literal.ResolveValue(escapeChar, variables, options),
         LiteralToken literal => literal.ResolveVariablesInContext(false, escapeChar, variables, options) ?? string.Empty,
         AggregateToken aggregate => aggregate.ResolveVariables(escapeChar, variables, options) ?? string.Empty,
         _ => options.FormatValue(escapeChar, token.ToString())
@@ -934,14 +941,20 @@ internal static class JsonStringVariableResolver
             return tokens;
         }
 
-        internal string ResolveValue(char escapeChar, IDictionary<string, string?>? variables, ResolutionOptions options)
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
         {
+            options ??= new();
+            if (pending is Expansion expansion && QuoteChar is null)
+            {
+                return options.FormatValue(escapeChar, expansion.Text ?? RenderExpansion(expansion, sourceEscapeChar));
+            }
             string physical = "\"" + RenderToken(this) + "\"";
             List<int> offsets = new();
             string logical = ConstructReader.FoldHeader(physical, 0, escapeChar, out int end, offsets);
             if (end != physical.Length || !JsonStringValidation.IsValidLogical(logical))
             {
-                return ResolveVariablesInContext(false, escapeChar, variables, options) ?? string.Empty;
+                return base.ResolveVariables(escapeChar, variables, options);
             }
             return options.FormatValue(escapeChar, Decode(logical, offsets, out _, out _));
         }
@@ -959,12 +972,67 @@ internal static class JsonStringVariableResolver
             ResolveSourceToken(GetSourceToken(this, null), escapeChar, variables, options ?? new());
     }
 
-    internal readonly struct ReferenceSource(VariableRefToken token, bool live, AggregateToken? parent, int index)
+    internal readonly struct ReferenceSource(VariableRefToken token, bool live, SourceSlot? slot)
     {
         internal VariableRefToken Token { get; } = token;
         internal bool Live { get; } = live;
-        internal AggregateToken? Parent { get; } = parent;
-        internal int Index { get; } = index;
+        internal SourceSlot? Slot { get; } = slot;
+    }
+
+    internal sealed class SourceSlot(AggregateToken parent, int index)
+    {
+        private static readonly Token removedToken = new StringToken("");
+
+        internal AggregateToken Parent { get; } = parent;
+        internal int Index { get; set; } = index;
+        internal bool Removed { get; set; }
+        internal Token Current => Removed ? removedToken : Parent.TokenList[Index];
+    }
+
+    internal sealed class SourceSlots
+    {
+        private readonly Dictionary<AggregateToken, Dictionary<int, SourceSlot>> parents =
+            new(ReferenceComparer<AggregateToken>.Instance);
+
+        internal SourceSlot? Get(AggregateToken? parent, int index)
+        {
+            if (parent is null)
+            {
+                return null;
+            }
+            if (!parents.TryGetValue(parent, out var slots))
+            {
+                slots = new();
+                parents.Add(parent, slots);
+            }
+            if (!slots.TryGetValue(index, out var slot))
+            {
+                slot = new(parent, index);
+                slots.Add(index, slot);
+            }
+            return slot;
+        }
+
+        internal void Remove(AggregateToken parent, int index)
+        {
+            if (parents.TryGetValue(parent, out var slots))
+            {
+                foreach (SourceSlot slot in slots.Values)
+                {
+                    if (!slot.Removed && slot.Index >= index)
+                    {
+                        if (slot.Index == index)
+                        {
+                            slot.Removed = true;
+                        }
+                        else
+                        {
+                            slot.Index--;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private readonly struct SourceOccurrence(Token token, int start, int end, int following, bool transparent)
@@ -1072,6 +1140,8 @@ internal static class JsonStringVariableResolver
         }
         int tokenIndex = 0;
         int tokenStart = 1;
+        int currentTokenIndex = -1;
+        string currentText = "";
         void CopyUnchanged(int start, int stop, int anchor = -1)
         {
             while (tokenIndex < source.Length &&
@@ -1092,9 +1162,26 @@ internal static class JsonStringVariableResolver
                 int last = Math.Min(stop - tokenStart, text.Length);
                 if (first < last || text.Length == 0 && tokenStart >= start)
                 {
-                    tokens.Add(first == 0 && last == text.Length
-                        ? token
-                        : new StringToken(text.Substring(first, last - first)));
+                    if (first == 0 && last == text.Length)
+                    {
+                        tokens.Add(token);
+                    }
+                    else
+                    {
+                        string current = text;
+                        if (token is PrimitiveToken)
+                        {
+                            if (currentTokenIndex != tokenIndex)
+                            {
+                                currentText = token.ToString();
+                                currentTokenIndex = tokenIndex;
+                            }
+                            current = currentText;
+                        }
+                        int currentFirst = Math.Min(first, current.Length);
+                        int currentLast = last == text.Length ? current.Length : Math.Min(last, current.Length);
+                        tokens.Add(new StringToken(current.Substring(currentFirst, currentLast - currentFirst)));
+                    }
                 }
                 if (tokenEnd > stop)
                 {

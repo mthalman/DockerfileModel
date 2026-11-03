@@ -190,8 +190,12 @@ JSON-escaped modifier text requires evaluation through a decoded token tree.
 This includes custom references and required-variable failures without callbacks.
 Live bindings read the current token in the source slot, so replacing a reference
 object in a callback affects subsequent evaluation.
+Inline removal updates the captured slots of shared modifiers. Later occurrences
+skip removed children instead of reading a neighboring token or a stale index.
 Shared modifiers reuse the semantic values of earlier inline substitutions in
 the same call, rather than treating their encoded JSON spelling as expanded text.
+This also applies when a custom aggregate delegates to `base.ResolveVariables()`.
+Semantic reads do not materialize the encoded text of a deferred substitution.
 Nested JSON substitutions defer text materialization until their contents are
 read. Reading `Tokens`, `Value`, or serialized text materializes ordinary editable
 children and releases the deferred expansion tree. This avoids repeatedly
@@ -213,6 +217,8 @@ Zero-width references inside nonempty nested literals are replaced only once.
 Unrelated empty literals retain their identity, including those inside an
 ancestor whose expanded references are replaced.
 Inline expansion also retains untouched children of nonempty nested literals.
+Retained primitive slices observe callback edits while keeping the original
+reference boundaries; a retained trailing slice includes the primitive's new end.
 Non-inline resolution does not reconstruct the source token tree.
 Inline reconstruction skips source ranges that cannot contain a replacement,
 including unrelated sibling subtrees beside a zero-width substitution.
