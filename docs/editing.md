@@ -196,6 +196,13 @@ This tracking also covers removals through custom aggregates that delegate to
 the ordinary resolver. Tracking subscriptions end when resolution returns or throws.
 Bulk child replacement through value setters reconciles captured slots with the
 new child sequence. Removed occurrences are not read through stale indices.
+Syntax-aware collection edits publish through the same replacement tracking.
+If a callback replaces a container that still has pending references, resolution
+uses the replacement subtree instead of evaluating or restoring detached children.
+The replacement inherits the decoded quote context at the original container's
+start, so enclosing quotes keep their expansion semantics.
+Custom literal and aggregate occurrences also read their live source slots before
+invoking an override.
 Shared modifiers reuse the semantic values of earlier inline substitutions in
 the same call, rather than treating their encoded JSON spelling as expanded text.
 Published substitutions remain visible even when quoted or escaped syntax prevents

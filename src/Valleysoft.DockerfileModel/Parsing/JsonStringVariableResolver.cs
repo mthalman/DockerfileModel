@@ -212,6 +212,7 @@ internal static class JsonStringVariableResolver
         while (true)
         {
             int index = input.Position.Absolute;
+            snapshot?.CaptureQuote(input.IsAtEnd ? physical.Length - 1 : starts[index], quote);
             if (quote != '\'' && emptyReferences is not null &&
                 emptyReferences.TryGetValue(index, out var empty))
             {
@@ -329,9 +330,42 @@ internal static class JsonStringVariableResolver
         }
         Token?[] resolvedReplacements = new Token?[pendingReplacements.Count];
         bool[] inlineReplacements = new bool[pendingReplacements.Count];
+        List<(int Start, int End, Token Token, bool Inline)>? containerReplacements = null;
         for (int index = pendingReplacements.Count - 1; index >= 0; index--)
         {
             var pending = pendingReplacements[index];
+            int anchorOccurrence = pendingAnchors?.TryGetValue(index, out var pendingAnchor) == true
+                ? pendingAnchor.Occurrence : -1;
+            if (snapshot?.IsRedirected(pending.Start, pending.End, anchorOccurrence) == true)
+            {
+                continue;
+            }
+            if (snapshot?.FindReplacedContainer(pending.Start, pending.End, anchorOccurrence) is int containerIndex &&
+                containerIndex >= 0)
+            {
+                SourceOccurrence occurrence = snapshot.Occurrences[containerIndex];
+                Token current = occurrence.Slot!.Current;
+                string guard = snapshot.QuoteBefore(containerIndex) switch
+                {
+                    '"' => "\\u0022",
+                    '\'' => "\\u0027",
+                    _ => ""
+                };
+                Token[] children = guard.Length == 0 ? new[] { current } :
+                    new Token[] { new StringToken(guard), current, new StringToken(guard) };
+                LiteralToken wrapper = new(children, canContainVariables: true, escapeChar)
+                {
+                    QuoteChar = '"'
+                };
+                string text = wrapper.ResolveVariablesInContext(true, escapeChar, variables, options)!;
+                string content = text.Substring(1 + guard.Length, text.Length - 2 - guard.Length * 2);
+                bool inline = options.UpdateInline && !wrapper.Tokens.Contains(current);
+                Token replacement = !inline && content == RenderToken(current) ? current : new StringToken(content);
+                snapshot.RedirectedContainers.Add(containerIndex);
+                containerReplacements ??= new();
+                containerReplacements.Add((occurrence.Start, occurrence.End, replacement, inline));
+                continue;
+            }
             string value;
             if (pending.Reference is not null)
             {
@@ -370,6 +404,12 @@ internal static class JsonStringVariableResolver
             if (resolvedReplacements[index] is Token substitution)
             {
                 var pending = pendingReplacements[index];
+                int anchorOccurrence = pendingAnchors?.TryGetValue(index, out var pendingAnchor) == true
+                    ? pendingAnchor.Occurrence : -1;
+                if (snapshot?.IsRedirected(pending.Start, pending.End, anchorOccurrence) == true)
+                {
+                    continue;
+                }
                 replacements.Add((pending.Start, pending.End, substitution, inlineReplacements[index]));
                 if (pending.Start == pending.End && pending.Reference is AggregateToken &&
                     pendingAnchors?.TryGetValue(index, out var anchor) == true)
@@ -378,6 +418,11 @@ internal static class JsonStringVariableResolver
                     emptyAnchors.Add(substitution, anchor);
                 }
             }
+        }
+        if (containerReplacements is not null)
+        {
+            replacements.AddRange(containerReplacements);
+            replacements = replacements.OrderBy(replacement => replacement.Start).ToList();
         }
         if (replacements.Count == 0)
         {
@@ -780,7 +825,9 @@ internal static class JsonStringVariableResolver
                 bool custom = literal.HasCustomResolution;
                 if (builder.Length > start || custom)
                 {
-                    literalSpans.Add((offset + start, offset + builder.Length, custom ? literal : null, modifier, occurrence));
+                    literalSpans.Add((offset + start, offset + builder.Length, custom
+                        ? new CustomAggregateOccurrence(literal, sourceSlots?.Get(parent, childIndex))
+                        : null, modifier, occurrence));
                 }
             }
             else if (literalSpans is not null && current is VariableRefToken reference && reference.HasCustomResolution)
@@ -795,7 +842,9 @@ internal static class JsonStringVariableResolver
             {
                 int start = builder.Length;
                 builder.Append(RenderToken(current));
-                literalSpans.Add((offset + start, offset + builder.Length, current, false, occurrence));
+                literalSpans.Add((offset + start, offset + builder.Length,
+                    new CustomAggregateOccurrence((AggregateToken)current, sourceSlots?.Get(parent, childIndex)),
+                    false, occurrence));
             }
             else if (current is AggregateToken aggregate && HasDefaultRendering(current))
             {
@@ -963,6 +1012,24 @@ internal static class JsonStringVariableResolver
         }
     }
 
+    private sealed class CustomAggregateOccurrence(AggregateToken original, SourceSlot? slot)
+        : LiteralToken("")
+    {
+        protected override string GetUnderlyingValue(TokenStringOptions options) => RenderToken(original);
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            Token current = slot?.Current ?? original;
+            return current switch
+            {
+                LiteralToken literal => literal.ResolveVariablesInContext(false, escapeChar, variables, options),
+                AggregateToken aggregate => aggregate.ResolveVariables(escapeChar, variables, options),
+                _ => (options ?? new()).FormatValue(escapeChar, current.ToString())
+            };
+        }
+    }
+
     private sealed class CustomReferenceOccurrence(ReferenceSource source)
         : VariableRefToken(Array.Empty<Token>(), Dockerfile.DefaultEscapeChar)
     {
@@ -1078,63 +1145,57 @@ internal static class JsonStringVariableResolver
             private void OnReplace(IReadOnlyList<Token> previous)
             {
                 List<Token> current = parent.TokenList;
+                if (previous.Count == current.Count)
+                {
+                    return;
+                }
                 int[] positions = new int[previous.Count];
                 for (int index = 0; index < positions.Length; index++)
                 {
                     positions[index] = -1;
                 }
-                if (previous.Count == current.Count)
+                Dictionary<Token, Queue<int>> candidates = new(ReferenceComparer<Token>.Instance);
+                for (int index = 0; index < previous.Count; index++)
                 {
-                    for (int index = 0; index < positions.Length; index++)
+                    if (!candidates.TryGetValue(previous[index], out var indices))
                     {
-                        positions[index] = index;
+                        indices = new();
+                        candidates.Add(previous[index], indices);
                     }
+                    indices.Enqueue(index);
                 }
-                else
+                int oldStart = 0;
+                int newStart = 0;
+                for (int index = 0; index <= current.Count; index++)
                 {
-                    Dictionary<Token, Queue<int>> candidates = new(ReferenceComparer<Token>.Instance);
-                    for (int index = 0; index < previous.Count; index++)
+                    int next = previous.Count;
+                    if (index < current.Count)
                     {
-                        if (!candidates.TryGetValue(previous[index], out var indices))
+                        if (!candidates.TryGetValue(current[index], out var indices))
                         {
-                            indices = new();
-                            candidates.Add(previous[index], indices);
+                            continue;
                         }
-                        indices.Enqueue(index);
+                        while (indices.Count > 0 && indices.Peek() < oldStart)
+                        {
+                            indices.Dequeue();
+                        }
+                        if (indices.Count == 0)
+                        {
+                            continue;
+                        }
+                        next = indices.Dequeue();
                     }
-                    int oldStart = 0;
-                    int newStart = 0;
-                    for (int index = 0; index <= current.Count; index++)
+                    int replacements = Math.Min(next - oldStart, index - newStart);
+                    for (int offset = 0; offset < replacements; offset++)
                     {
-                        int next = previous.Count;
-                        if (index < current.Count)
-                        {
-                            if (!candidates.TryGetValue(current[index], out var indices))
-                            {
-                                continue;
-                            }
-                            while (indices.Count > 0 && indices.Peek() < oldStart)
-                            {
-                                indices.Dequeue();
-                            }
-                            if (indices.Count == 0)
-                            {
-                                continue;
-                            }
-                            next = indices.Dequeue();
-                        }
-                        int replacements = Math.Min(next - oldStart, index - newStart);
-                        for (int offset = 0; offset < replacements; offset++)
-                        {
-                            positions[oldStart + offset] = newStart + offset;
-                        }
-                        if (index < current.Count)
-                        {
-                            positions[next] = index;
-                        }
-                        oldStart = next + 1;
-                        newStart = index + 1;
+                        positions[oldStart + offset] = newStart + offset;
                     }
+                    if (index < current.Count)
+                    {
+                        positions[next] = index;
+                    }
+                    oldStart = next + 1;
+                    newStart = index + 1;
                 }
                 foreach (SourceSlot slot in Captured.Values)
                 {
@@ -1178,6 +1239,107 @@ internal static class JsonStringVariableResolver
     {
         internal string Physical { get; } = physical;
         internal List<SourceOccurrence> Occurrences { get; } = new();
+        internal HashSet<int> RedirectedContainers { get; } = new();
+        private int[]? parents;
+        private char?[]? quotes;
+        private int quoteOccurrence;
+
+        internal void CaptureQuote(int position, char? quote)
+        {
+            while (quoteOccurrence < Occurrences.Count && Occurrences[quoteOccurrence].Start <= position)
+            {
+                if (Occurrences[quoteOccurrence].Transparent && (quote is not null || quotes is not null))
+                {
+                    quotes ??= new char?[Occurrences.Count];
+                    quotes[quoteOccurrence] = quote;
+                }
+                quoteOccurrence++;
+            }
+        }
+
+        internal char? QuoteBefore(int occurrence) => quotes?[occurrence];
+
+        private int[] Parents
+        {
+            get
+            {
+                if (parents is not null)
+                {
+                    return parents;
+                }
+                parents = new int[Occurrences.Count];
+                Stack<int> ancestors = new();
+                for (int index = 0; index < Occurrences.Count; index++)
+                {
+                    while (ancestors.Count > 0 && Occurrences[ancestors.Peek()].Following <= index)
+                    {
+                        ancestors.Pop();
+                    }
+                    parents[index] = ancestors.Count > 0 ? ancestors.Peek() : -1;
+                    ancestors.Push(index);
+                }
+                return parents;
+            }
+        }
+
+        private int FindOccurrence(int start, int end, int anchor)
+        {
+            if (anchor >= 0)
+            {
+                return anchor;
+            }
+            int low = 0;
+            int high = Occurrences.Count;
+            while (low < high)
+            {
+                int middle = low + (high - low) / 2;
+                if (Occurrences[middle].Start <= start)
+                {
+                    low = middle + 1;
+                }
+                else
+                {
+                    high = middle;
+                }
+            }
+            int index = low - 1;
+            while (index >= 0 && Occurrences[index].End < end)
+            {
+                index = Parents[index];
+            }
+            return index;
+        }
+
+        internal bool IsRedirected(int start, int end, int anchor)
+        {
+            if (RedirectedContainers.Count == 0)
+            {
+                return false;
+            }
+            for (int index = FindOccurrence(start, end, anchor); index >= 0; index = Parents[index])
+            {
+                if (RedirectedContainers.Contains(index))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        internal int FindReplacedContainer(int start, int end, int anchor)
+        {
+            int replacement = -1;
+            for (int index = FindOccurrence(start, end, anchor); index >= 0; index = Parents[index])
+            {
+                SourceOccurrence occurrence = Occurrences[index];
+                if (occurrence.Transparent && occurrence.Slot is SourceSlot slot &&
+                    !ReferenceEquals(slot.Current, occurrence.Token))
+                {
+                    replacement = index;
+                }
+            }
+            return replacement;
+        }
     }
 
     private static bool IsTransparentContainer(Token token) =>
@@ -1232,7 +1394,8 @@ internal static class JsonStringVariableResolver
         for (int index = 0; index < occurrences.Count;)
         {
             SourceOccurrence occurrence = occurrences[index];
-            if (containsReplacement[index] && occurrence.Transparent)
+            if (containsReplacement[index] && occurrence.Transparent &&
+                !snapshot.RedirectedContainers.Contains(index))
             {
                 index++;
             }
