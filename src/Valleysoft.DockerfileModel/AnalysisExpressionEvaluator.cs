@@ -227,7 +227,7 @@ internal static class AnalysisExpressionEvaluator
                 {
                     serializedText = primitiveValue;
                 }
-                if (source is not LineContinuationToken and not CommentToken and not NewLineToken)
+                if (!IsIgnoredTrivia || IsConsumerLeaf)
                 {
                     resolvedString = (source as ResolvedStringToken)?.CreateSnapshot();
                     if (IsConsumerLeaf)
@@ -508,6 +508,18 @@ internal static class AnalysisExpressionEvaluator
         public void Visit(Evaluation evaluation) => evaluation.VisitSnapshot(this,
             children, resolvedString, serializedText);
 
+        public void CollectTriviaSerializers(Func<ResolutionSnapshot, string> collect)
+        {
+            if (SerializationFailure is not null || IsConsumerLeaf && !SerializationConsumed)
+            {
+                collect(this);
+            }
+            foreach (ResolutionSnapshot child in children)
+            {
+                child.CollectTriviaSerializers(collect);
+            }
+        }
+
         public void RecordTokenResolutions(char escapeChar, ResolutionOptions options,
             Action<AggregateToken, int, TokenResolution> record, bool captureSyntax)
         {
@@ -666,8 +678,7 @@ internal static class AnalysisExpressionEvaluator
             }
             if (Source is not AggregateToken)
             {
-                string syntax = Source is LineContinuationToken or CommentToken or NewLineToken
-                    ? serializedText ?? Source.ToString() : $"{OpeningQuote}{serializedText}{ClosingQuote}";
+                string syntax = $"{OpeningQuote}{serializedText}{ClosingQuote}";
                 return options.FormatValue(escapeChar, syntax);
             }
             StringBuilder builder = new();
@@ -873,6 +884,10 @@ internal static class AnalysisExpressionEvaluator
             }
             if (snapshot.IsIgnoredTrivia)
             {
+                if (resolveSnapshot is not null)
+                {
+                    snapshot.CollectTriviaSerializers(resolveSnapshot);
+                }
                 return;
             }
             if (resolveSnapshot is not null && snapshot.IsConsumerLeaf && !snapshot.SerializationConsumed)

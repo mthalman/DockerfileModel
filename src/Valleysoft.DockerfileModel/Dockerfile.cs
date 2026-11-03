@@ -395,8 +395,13 @@ public class Dockerfile : IConstructContainer
         Action<Func<string?>>? recordSyntax = null, Func<bool>? shouldRecordSyntax = null)
     {
         int customResolutionVersion = 0;
+        bool hasResolvedReference = false;
         void RecordCustomResolution()
         {
+            if (hasResolvedReference)
+            {
+                onBeforeCustomResolution?.Invoke();
+            }
             customResolutionVersion++;
             onCustomResolution?.Invoke();
         }
@@ -441,6 +446,7 @@ public class Dockerfile : IConstructContainer
                 resolvedRootValue = value;
                 resolvedRoot = true;
             }
+            hasResolvedReference = true;
             return value;
         }
 

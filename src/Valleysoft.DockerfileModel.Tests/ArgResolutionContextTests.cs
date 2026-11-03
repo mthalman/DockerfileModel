@@ -1373,6 +1373,170 @@ public class ArgResolutionContextTests
         }
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void DelayedModifierSyntaxRetainsConsumedCustomNewLine(
+        bool stageScope, bool updateInline, bool throwAfterConsumption)
+    {
+        bool consumed = false;
+        int lateSerializations = 0;
+        SerializedNewLine newLine = new(_ =>
+        {
+            if (!consumed) return "\r\n";
+            lateSerializations++;
+            if (throwAfterConsumption) throw new FormatException("Consumed newline syntax.");
+            return "\n";
+        });
+        LineContinuationToken continuation = new("\n");
+        continuation.TokenList[continuation.TokenList.FindIndex(token => token is NewLineToken)] = newLine;
+        VariableRefToken inner = new("INNER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(continuation, new StringToken("ok"))
+        };
+        VariableRefToken outer = new("OUTER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new CallbackVariable((_, _, options) =>
+            {
+                consumed = true;
+                options!.UpdateInline = true;
+            }), inner)
+        };
+        Dockerfile dockerfile = Document(stageScope, outer);
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftok" : "FROM prefixleftok",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("ARG X=left\\\r\nok\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal("\n", newLine.Value);
+        Assert.Equal(0, lateSerializations);
+    }
+
+    [Theory]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, false, true)]
+    [InlineData(false, true, true, false)]
+    [InlineData(false, true, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, true, true, false)]
+    [InlineData(true, true, true, true)]
+    public void IgnoredTriviaConsumesPendingConsumerSerializers(
+        bool stageScope, bool updateInline, bool comment, bool consumerOwner)
+    {
+        string state = "old";
+        MutableSerializedString text = new(() => comment ? state : state switch
+        {
+            "old" => " ",
+            "new" => "\t",
+            _ => "  "
+        });
+        AggregateToken trivia;
+        if (comment)
+        {
+            CommentToken commentToken = consumerOwner ? new SerializerOnlyComment() : new CommentToken("old");
+            commentToken.TextToken = text;
+            trivia = commentToken;
+        }
+        else
+        {
+            LineContinuationToken continuation = consumerOwner ? new CountingContinuation() : new LineContinuationToken("\n");
+            continuation.TokenList.Insert(1, text);
+            trivia = continuation;
+        }
+        VariableRefToken inner = new("INNER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(trivia, new CallbackVariable(() => state = "new"))
+        };
+        VariableRefToken outer = new("OUTER", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new CallbackVariable((_, _, options) =>
+            {
+                state = "late";
+                options!.UpdateInline = true;
+            }), inner)
+        };
+        Dockerfile dockerfile = Document(stageScope, outer);
+
+        Assert.Equal(stageScope ? "ENV RESULT=leftleft" : "FROM prefixleftleft",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(comment ? "ARG X=left#newleft\n" : "ARG X=left\\\t\nleft\n",
+            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal("late", state);
+    }
+
+    [Theory]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, true, false)]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, true, false, true)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, true, false, true)]
+    public void NonInlineReplayCapturesBindingsBeforeConsumerSerialization(
+        bool removeBinding, bool targetArg, bool mutateBeforeConsumption, bool nestedSerializer)
+    {
+        IDictionary<string, string?>? captured = null;
+        int serializations = 0;
+        ResolutionOptions options = new() { UpdateInline = true };
+        Dockerfile dockerfile = Dockerfile.Parse(
+            "FROM alpine\nARG B=old\nARG SAVE=placeholder\nARG X=placeholder\nENV RESULT=$X");
+        ArgInstruction[] args = dockerfile.Items.OfType<ArgInstruction>().ToArray();
+        args[1].ArgTokens[0].ValueToken = Literal(new CallbackVariable((_, variables, receivedOptions) =>
+        {
+            captured = variables;
+            Assert.Same(options, receivedOptions);
+            receivedOptions!.UpdateInline = false;
+        }));
+        VariableRefToken right = new("UNSET", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new MutableSerializedString(() => "p"))
+        };
+        OptionSerializedString serializer = new(format =>
+        {
+            if (format.ExcludeQuotes && ++serializations == (mutateBeforeConsumption || nestedSerializer ? 1 : 2))
+            {
+                if (removeBinding) captured!.Remove("B");
+                else captured!["B"] = "new";
+            }
+            return "m";
+        });
+        Token left = nestedSerializer ? new VariableRefToken("LEFT", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(serializer)
+        } : serializer;
+        args[2].ArgTokens[0].ValueToken = Literal(left, new VariableRefToken("B"), right);
+        string original = dockerfile.ToString();
+
+        string expected = mutateBeforeConsumption ? removeBinding ? "mp" : "mnewp" : "moldp";
+        Assert.Equal(targetArg ? $"ARG X={expected}\n" : $"ENV RESULT={expected}",
+            targetArg ? dockerfile.ResolveVariables(args[2], options: options)
+                : dockerfile.ResolveVariables(options: options));
+        Assert.Equal(nestedSerializer ? 1 : 2, serializations);
+        Assert.False(options.UpdateInline);
+        Assert.Equal(!removeBinding, captured!.ContainsKey("B"));
+        if (!removeBinding) Assert.Equal("new", captured["B"]);
+        Assert.Equal(original, dockerfile.ToString());
+    }
+
     [Fact]
     public void SimpleReferencesDoNotAllocateModifierScopes()
     {
@@ -1481,6 +1645,20 @@ public class ArgResolutionContextTests
             ResolutionCount++;
             return base.ResolveVariables(escapeChar, variables, options);
         }
+    }
+
+    private sealed class SerializedNewLine : NewLineToken
+    {
+        private readonly Func<TokenStringOptions, string> serialize;
+
+        public SerializedNewLine(Func<TokenStringOptions, string> serialize) : base("\n") => this.serialize = serialize;
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => serialize(options);
+    }
+
+    private sealed class SerializerOnlyComment : CommentToken
+    {
+        public SerializerOnlyComment() : base("old") { }
     }
 
     private sealed class FailingContinuation : LineContinuationToken
