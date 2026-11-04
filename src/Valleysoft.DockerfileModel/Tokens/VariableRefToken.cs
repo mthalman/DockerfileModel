@@ -183,11 +183,18 @@ public class VariableRefToken : AggregateToken
         return ResolveVariablesCore(escapeChar, variables, options);
     }
 
-    internal LiteralToken? GetRequiredModifierValue(IDictionary<string, string?> variables)
+    internal LiteralToken? GetRequiredModifierValue(IDictionary<string, string?> variables, out string? value,
+        out string? requiredName)
     {
         string? modifier = Modifier;
-        bool exists = variables.TryGetValue(VariableName, out string? value);
+        string name = VariableName;
+        bool exists = variables.TryGetValue(name, out value);
         bool isSet = IsVariableSet(modifier, exists, value);
+        requiredName = modifier?.Last() == '?' && !isSet ? name : null;
+        if (modifier?.Last() == '+' && !isSet)
+        {
+            value = null;
+        }
         return modifier?.Last() switch
         {
             '-' or '?' when !isSet => ModifierValueToken,

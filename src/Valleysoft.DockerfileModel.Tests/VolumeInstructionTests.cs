@@ -4438,6 +4438,290 @@ public class VolumeInstructionTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonRedirectedAncestorsSupersedeEarlierDescendantResults(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken inner = new("$RIGHT", canContainVariables: true);
+        LiteralToken final = new("/outer");
+        TokenSequenceLiteral outer = new();
+        DefaultRenderingCallback replaceOuter = new(_ =>
+        {
+            instruction.PathTokens[0].ReplaceWithTokens(new Token[] { final,
+                instruction.PathTokens[0].Tokens.Last() });
+            return "";
+        });
+        outer.ReplaceWithTokens(new Token[] { new VariableRefToken("LEFT"), replaceOuter, inner });
+        DefaultRenderingCallback replaceInner = new(_ =>
+        {
+            outer.ReplaceWithTokens(new Token[] { outer.Tokens.First(), replaceOuter, new LiteralToken("/inner") });
+            return "";
+        });
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[] { outer, replaceInner });
+
+        Assert.Equal("VOLUME [\"/outer\"]", instruction.ResolveVariables('\\',
+            options: new ResolutionOptions { UpdateInline = inline }));
+        Assert.Same(final, instruction.PathTokens[0].Tokens.First());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonReplacementContainersCanCloseAnEnclosingQuote(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken replacement = new("$NEW\\u0022tail", canContainVariables: true);
+        StringToken open = new("\\u0022");
+        DefaultRenderingCallback callback = new(_ =>
+        {
+            instruction.PathTokens[0].ReplaceWithTokens(new Token[] { open, replacement,
+                instruction.PathTokens[0].Tokens.Last() });
+            return "";
+        });
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[] { open,
+            new LiteralToken("$OLD\\u0022tail", canContainVariables: true), callback });
+
+        string result = instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["NEW"] = "value" },
+            new ResolutionOptions { UpdateInline = inline })!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+        Assert.Equal("\"value\"tail", json.RootElement[0].GetString());
+        if (inline)
+        {
+            Assert.Equal(result, instruction.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonRedirectedContainersPublishEachEligibleChild(bool initiallyInline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        ResolutionOptions options = new() { UpdateInline = initiallyInline };
+        VariableRefToken left = new("LEFT");
+        VariableRefToken right = new("RIGHT");
+        DefaultRenderingCallback toggle = new(_ => { options.UpdateInline = !initiallyInline; return ""; });
+        TokenSequenceLiteral replacement = new(left, new StringToken("/"), toggle, new StringToken("/"), right);
+        bool replaced = false;
+        DefaultRenderingCallback replace = new(_ =>
+        {
+            if (!replaced)
+            {
+                replaced = true;
+                instruction.PathTokens[0].ReplaceWithTokens(new Token[] { replacement,
+                    instruction.PathTokens[0].Tokens.Last() });
+            }
+            return "";
+        });
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[]
+            { new LiteralToken("$OLD", canContainVariables: true), replace });
+
+        Assert.Equal("VOLUME [\"left//right\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["LEFT"] = "left", ["RIGHT"] = "right" }, options));
+        Assert.Equal(initiallyInline ? "VOLUME [\"$LEFT/$SWITCH/right\"]" : "VOLUME [\"left//$RIGHT$SWITCH\"]",
+            instruction.ToString());
+        Assert.Equal(initiallyInline ? "VOLUME [\"later-left//right\"]" : "VOLUME [\"left//later-right\"]",
+            instruction.ResolveVariables('\\',
+                new Dictionary<string, string?> { ["LEFT"] = "later-left", ["RIGHT"] = "later-right" }));
+    }
+
+    [Fact]
+    public void JsonSourceSlotsRetainReorderedSurvivors()
+    {
+        VariableRefToken left = new("LEFT");
+        VariableRefToken right = new("RIGHT");
+        StringToken callback = new("callback");
+        DefaultAggregate parent = new(left, right, callback);
+        using JsonStringVariableResolver.SourceSlots slots = new();
+        JsonStringVariableResolver.SourceSlot leftSlot = slots.Get(parent, 0)!;
+        JsonStringVariableResolver.SourceSlot rightSlot = slots.Get(parent, 1)!;
+        parent.ReplaceWithTokens(new Token[] { right, left, new StringToken("extra"), callback });
+
+        Assert.False(leftSlot.Removed);
+        Assert.False(rightSlot.Removed);
+        Assert.Same(left, leftSlot.Current);
+        Assert.Same(right, rightSlot.Current);
+    }
+
+    [Theory]
+    [InlineData(":-", false, "fallback")]
+    [InlineData("-", false, "fallback")]
+    [InlineData(":+", false, "")]
+    [InlineData("+", false, "")]
+    [InlineData(":-", true, "initial")]
+    [InlineData("-", true, "initial")]
+    [InlineData(":+", true, "fallback")]
+    [InlineData("+", true, "fallback")]
+    [InlineData(":?", true, "initial")]
+    [InlineData("?", true, "initial")]
+    public void JsonModifierSelectionReadsTheEnvironmentOnce(string modifier, bool initiallySet, string expected)
+    {
+        foreach (bool json in new[] { false, true })
+        {
+            ChangingLookupDictionary variables = new(initiallySet);
+            VariableRefToken reference = new("ROOT", modifier, "fallback");
+            if (json)
+            {
+                VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"${{ROOT{modifier}fallback}}\"]");
+                Assert.Equal($"VOLUME [\"{expected}\"]", instruction.ResolveVariables('\\', variables));
+            }
+            else
+            {
+                Assert.Equal(expected, reference.ResolveVariables('\\', variables));
+            }
+            Assert.Equal(1, variables.Lookups);
+        }
+    }
+
+    private sealed class ChangingLookupDictionary(bool initiallySet)
+        : Dictionary<string, string?>, IDictionary<string, string?>
+    {
+        internal int Lookups { get; private set; }
+
+        public new bool TryGetValue(string key, out string? value)
+        {
+            Lookups++;
+            bool exists = Lookups == 1 ? initiallySet : !initiallySet;
+            value = exists ? Lookups == 1 ? "initial" : "changed" : null;
+            return exists;
+        }
+    }
+
+    [Theory]
+    [InlineData(":?")]
+    [InlineData("?")]
+    public void JsonRequiredModifierLookupAndBranchRemainStable(string operation)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"${{ROOT{operation}fallback}}\"]");
+        VariableRefToken reference = Assert.Single(instruction.PathTokens[0].Tokens.OfType<VariableRefToken>());
+        reference.ModifierValueToken = new ModifierMutatingLiteral(() =>
+        {
+            reference.Modifier = ":-";
+            reference.VariableName = "CHANGED";
+        });
+        ChangingLookupDictionary variables = new(false);
+        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+            instruction.ResolveVariables('\\', variables));
+        Assert.Contains("Variable 'ROOT' is not set. Error detail: 'detail'.", error.Message);
+        Assert.Equal(1, variables.Lookups);
+    }
+
+    private sealed class ModifierMutatingLiteral(Action mutate) : LiteralToken("fallback")
+    {
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            mutate();
+            return "detail";
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonReplacementContainersCanOpenAQuoteClosedByTheirSibling(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken replacement = new("$NEW'", canContainVariables: true);
+        StringToken close = new("'");
+        DefaultRenderingCallback callback = new(_ =>
+        {
+            instruction.PathTokens[0].ReplaceWithTokens(new Token[] { replacement, close,
+                instruction.PathTokens[0].Tokens.Last() });
+            return "";
+        });
+        instruction.PathTokens[0].ReplaceWithTokens(new Token[]
+            { new LiteralToken("$OLD'", canContainVariables: true), close, callback });
+        string result = instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["NEW"] = "value" },
+            new ResolutionOptions { UpdateInline = inline })!;
+        using System.Text.Json.JsonDocument json = System.Text.Json.JsonDocument.Parse(result.Substring(7));
+        Assert.Equal("value''", json.RootElement[0].GetString());
+    }
+
+    [Fact]
+    public void JsonAncestorBindingCacheObservesDictionaryCallbackEdits()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        instruction.PathTokens[0].ReplaceWithToken(new TokenSequenceLiteral(
+            new VariableRefToken("LEFT"), new StringToken("/"), new VariableRefToken("RIGHT")));
+        LookupCallbackDictionary variables = new("RIGHT",
+            () => instruction.PathTokens[0].TokenList[0] = new LiteralToken("/new"))
+        {
+            ["LEFT"] = "left",
+            ["RIGHT"] = "right"
+        };
+        Assert.Equal("VOLUME [\"/new\"]", instruction.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal("VOLUME [\"/new\"]", instruction.ToString());
+    }
+
+    [Fact]
+    public void JsonAncestorBindingCacheObservesDictionaryComparerEdits()
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        instruction.PathTokens[0].ReplaceWithToken(new TokenSequenceLiteral(
+            new VariableRefToken("LEFT"), new StringToken("/"), new VariableRefToken("RIGHT")));
+        bool armed = false;
+        Dictionary<string, string?> variables = new(new CallbackStringComparer(key =>
+        {
+            if (armed && key == "RIGHT")
+            {
+                armed = false;
+                instruction.PathTokens[0].TokenList[0] = new LiteralToken("/new");
+            }
+        }))
+        {
+            ["LEFT"] = "left",
+            ["RIGHT"] = "right"
+        };
+        armed = true;
+        Assert.Equal("VOLUME [\"/new\"]", instruction.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = true }));
+        Assert.Equal("VOLUME [\"/new\"]", instruction.ToString());
+    }
+
+    private sealed class CallbackStringComparer(Action<string> callback) : IEqualityComparer<string>
+    {
+        public bool Equals(string? left, string? right) => StringComparer.Ordinal.Equals(left, right);
+
+        public int GetHashCode(string value)
+        {
+            callback(value);
+            return StringComparer.Ordinal.GetHashCode(value);
+        }
+    }
+
+    [Fact]
+    public void JsonUnchangedAncestorLookupHasLinearSourceReads()
+    {
+        const int count = 128;
+        CountingAccessAggregate[] ancestors = new CountingAccessAggregate[count];
+        Token current = new DefaultAggregate(Enumerable.Range(0, count)
+            .Select(_ => (Token)new VariableRefToken("ROOT")).ToArray());
+        for (int index = 0; index < count; index++)
+        {
+            ancestors[index] = new CountingAccessAggregate(current);
+            current = ancestors[index];
+        }
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        instruction.PathTokens[0].ReplaceWithToken(current);
+        Assert.Equal($"VOLUME [\"{new string('x', count)}\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "x" },
+            new ResolutionOptions { UpdateInline = true }));
+        int reads = ancestors.Sum(ancestor => ancestor.Reads);
+        Assert.True(reads < count * 30, $"Unchanged ancestors were read {reads} times.");
+    }
+
+    private sealed class CountingAccessAggregate(params Token[] tokens) : AggregateToken(tokens)
+    {
+        internal int Reads { get; private set; }
+        internal override void MaterializeTokens() => Reads++;
+    }
+
     private sealed class LookupCallbackDictionary(string key, Action action)
         : Dictionary<string, string?>, IDictionary<string, string?>
     {

@@ -196,11 +196,16 @@ This tracking also covers removals through custom aggregates that delegate to
 the ordinary resolver. Tracking subscriptions end when resolution returns or throws.
 Bulk child replacement through value setters reconciles captured slots with the
 new child sequence. Removed occurrences are not read through stale indices.
+Reordered surviving children retain their source bindings during replacements
+that change the child count.
 Syntax-aware collection edits publish through the same replacement tracking.
 If a callback replaces a container that still has pending references, resolution
 uses the replacement subtree instead of evaluating or restoring detached children.
+Replacing an ancestor supersedes earlier results from its detached descendants.
 The replacement inherits the decoded quote context at the original container's
-start, so enclosing quotes keep their expansion semantics.
+start; quotes may open or close across container boundaries.
+Each replacement child retains its own inline-publication decision, including
+literal protection for substituted values and expandability for retained references.
 Custom literal and aggregate occurrences also read their live source slots before
 invoking an override.
 Shared modifiers reuse the semantic values of earlier inline substitutions in
@@ -213,8 +218,9 @@ Nested JSON substitutions defer text materialization until their contents are
 read. Reading `Tokens`, `Value`, or serialized text materializes ordinary editable
 children and releases the deferred expansion tree. This avoids repeatedly
 rendering growing modifier subtrees during inline publication.
-Selected modifier branches do not change if a callback updates the variable
-dictionary during their evaluation.
+Modifier selection reads the environment once per reference evaluation.
+Selected branches and required-variable error names do not change if a callback
+updates the variable dictionary or reference during their evaluation.
 Resolution context passes the caller's original `ResolutionOptions` instance
 without cloning it. Selected custom modifier overrides receive the caller's `UpdateInline`
 and `RemoveEscapeCharacters` settings; the overrides manage their own side effects.
@@ -265,6 +271,9 @@ iteratively. This does not change the recursion limits of general token
 `ToString()` calls.
 Live-reference binding checks decoded spans using precomputed character counts,
 without rescanning enclosing modifier text for every nested reference.
+Ancestor replacement lookups reuse unchanged bindings. Structural replacement
+notifications and consumer callbacks invalidate those bindings before subsequent
+references are evaluated.
 
 `RemoveEscapeCharacters` affects returned JSON text, including single-quoted
 contents and trailing escape characters, without rewriting untouched path
