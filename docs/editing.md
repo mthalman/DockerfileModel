@@ -314,8 +314,9 @@ or change an active document's construct membership. Violations throw
 edit before publication. A subclass can still access its protected raw
 `List<Token>`; edits through that list are detected after the callback returns
 or throws, including edits that restore the original sequence. Detection does
-not roll back those raw edits. Custom quote overrides that bypass the native
-setters are also checked at callback boundaries without rollback. An exception
+not roll back those raw edits. Custom quote implementations that bypass native
+setters, including quotable primitive subclasses, are also checked at callback
+boundaries without rollback. An exception
 does not undo eligible inline substitutions already published by the library.
 
 `AggregateToken.Tokens` returns a cached, live guarded view, not a `List<Token>`.

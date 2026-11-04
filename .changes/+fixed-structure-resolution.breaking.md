@@ -13,7 +13,7 @@ Callbacks may change variable dictionaries and resolution options, but may not
 edit source token values, quotes, child lists, or active document constructs.
 Source edits throw
 `InvalidOperationException`. Guarded setters and views reject before mutation;
-protected raw-list edits and custom quote overrides that bypass native setters
+protected raw-list edits and custom quote implementations that bypass native setters
 are detected at callback boundaries without rollback. Already-published inline
 substitutions remain published.
 
