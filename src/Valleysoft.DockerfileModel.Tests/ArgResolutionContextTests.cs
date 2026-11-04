@@ -89,86 +89,9 @@ public class ArgResolutionContextTests
             dockerfile.ResolveVariables(options: options));
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void CompletedReferencesFollowTheirLivePositions(bool stageScope, bool removePrefix)
-    {
-        VariableRefToken variable = new("UNSET", ":-", "old");
-        LiteralToken right = Literal(removePrefix
-            ? new Token[] { new StringToken("p"), variable } : new Token[] { variable });
-        CallbackVariable left = new(() =>
-        {
-            if (removePrefix) right.TokenList.RemoveAt(0);
-            else right.TokenList.Insert(0, new StringToken("p"));
-        });
-        Dockerfile dockerfile = Document(stageScope, left, right);
 
-        Assert.Equal(stageScope ? $"ENV RESULT=left{(removePrefix ? "p" : "")}old"
-            : $"FROM prefixleft{(removePrefix ? "p" : "")}old",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal(removePrefix ? "ARG X=leftold\n" : "ARG X=leftpold\n",
-            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
-        Assert.IsType<ResolvedStringToken>(right.TokenList[removePrefix ? 0 : 1]);
-    }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CompletedReferencesFollowReorderedChildren(bool stageScope)
-    {
-        LiteralToken right = Literal(new VariableRefToken("A", ":-", "a"), new VariableRefToken("B", ":-", "b"));
-        Dockerfile dockerfile = Document(stageScope, new CallbackVariable(() => right.TokenList.Reverse()), right);
 
-        Assert.Equal(stageScope ? "ENV RESULT=leftab" : "FROM prefixleftab",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal("ARG X=leftba\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void InsertedAggregateAliasDoesNotConsumeCompletedChildCapture(bool stageScope)
-    {
-        LiteralToken right = Literal(new VariableRefToken("UNSET", ":-", "old"));
-        LiteralToken? root = null;
-        Dockerfile dockerfile = Document(stageScope, new CallbackVariable(() => root!.TokenList.Add(right)), right);
-        root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
-
-        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal("ARG X=leftoldold\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
-        Assert.IsType<ResolvedStringToken>(Assert.Single(right.Tokens));
-    }
-
-    [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public void PendingSuppressedReferenceUsesEditedName(bool stageScope, bool updateInline, bool singleQuoted)
-    {
-        VariableRefToken pending = new("OLD");
-        Token[] left = singleQuoted
-            ? new Token[] { new LiteralToken(new[] { pending }, true, '\\') { QuoteChar = '\'' } }
-            : new Token[] { new StringToken("\\"), pending };
-        Dockerfile dockerfile = Dockerfile.Parse(stageScope
-            ? "FROM alpine\nARG NEW=placeholder\nARG X=placeholder\nENV RESULT=$X"
-            : "ARG NEW=placeholder\nARG X=placeholder\nFROM prefix$X");
-        dockerfile.Items.OfType<ArgInstruction>().Last().ArgTokens[0].ValueToken =
-            Literal(left.Concat(new Token[] { new CallbackVariable(() => pending.VariableName = "NEW") }).ToArray());
-
-        Assert.Equal(stageScope ? "ENV RESULT=$NEWleft" : "FROM prefix$NEWleft",
-            dockerfile.ResolveVariables(new Dictionary<string, string?> { ["NEW"] = "$NEW" },
-                new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal("NEW", pending.VariableName);
-    }
 
     [Theory]
     [InlineData(false)]
@@ -292,23 +215,6 @@ public class ArgResolutionContextTests
         }
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void ConsumerOwnerQuoteGetterPreservesRequiredError(bool stageScope, bool updateInline)
-    {
-        bool fail = false;
-        QuotedAggregate owner = new(() => fail ? throw new InvalidOperationException("Owner quote.") : null,
-            new VariableRefToken("UNSET", "?", "left"), new CallbackVariable(() => fail = true));
-        Dockerfile dockerfile = Document(stageScope, owner);
-
-        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-
-        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'left'.", error.Message);
-    }
 
     [Theory]
     [InlineData(false, false, "?")]
@@ -394,29 +300,6 @@ public class ArgResolutionContextTests
         Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => dockerfile.ResolveVariables()));
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void CompletedReferenceCaptureFollowsMovesBetweenOwners(bool stageScope, bool moveLeft)
-    {
-        LiteralToken original = Literal(new VariableRefToken("UNSET", ":-", "old"));
-        LiteralToken destination = Literal();
-        CallbackVariable callback = new(() =>
-        {
-            destination.TokenList.Add(original.TokenList[0]);
-            original.TokenList.RemoveAt(0);
-        });
-        Dockerfile dockerfile = moveLeft
-            ? Document(stageScope, callback, destination, original)
-            : Document(stageScope, callback, original, destination);
-
-        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal("ARG X=leftold\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
-        Assert.IsType<ResolvedStringToken>(Assert.Single(destination.Tokens));
-    }
 
     [Theory]
     [InlineData(false, false, false)]
@@ -471,45 +354,24 @@ public class ArgResolutionContextTests
             .Single().ArgTokens[0].ValueToken!.Tokens));
     }
 
-    [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public void PendingSerializerEditsRefreshEarlierSyntax(bool stageScope, bool updateInline, bool changesText)
-    {
-        bool active = false;
-        LiteralToken pending = Literal(new VariableRefToken("UNSET", "?", "stale"));
-        Dockerfile dockerfile = Document(stageScope, pending, new MutableSerializedString(() =>
-        {
-            if (active) pending.Value = "new";
-            return active && changesText ? "q" : "p";
-        }), new CallbackVariable(() => active = true));
-
-        string value = $"new{(changesText ? "q" : "p")}left";
-        Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal("new", pending.Value);
-    }
 
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void PendingPrimitiveQuoteFailurePreservesRequiredError(bool stageScope, bool updateInline)
+    public void PendingPrimitiveQuoteChangesAreRejected(bool stageScope, bool updateInline)
     {
-        bool fail = false;
+        bool changed = false;
         Dockerfile dockerfile = Document(stageScope, new StringToken("\\"),
-            new QuotedString(() => fail ? throw new InvalidOperationException("Primitive quote.") : null),
-            new VariableRefToken("UNSET", "?", "right"), new CallbackVariable(() => fail = true));
+            new QuotedString(() => changed ? '"' : null),
+            new VariableRefToken("UNSET", "?", "right"), new CallbackVariable(() => changed = true));
 
-        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
 
-        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'right'.", error.Message);
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+        Assert.True(changed);
     }
 
     [Theory]
@@ -517,44 +379,18 @@ public class ArgResolutionContextTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void PendingPrimitiveQuoteFailurePreservesSuppressedReference(bool stageScope, bool updateInline)
+    public void PrimitiveQuoteFailureAtCallbackBoundaryIsRethrownUnchanged(bool stageScope, bool updateInline)
     {
-        bool fail = false;
+        bool callbackEntered = false;
         InvalidOperationException expected = new("Primitive quote.");
-        Dockerfile dockerfile = Document(stageScope, new StringToken("\\"),
-            new QuotedString(() => fail ? throw expected : '\''),
-            new VariableRefToken("UNSET", "?", "suppressed"), new StringToken("'"),
-            new CallbackVariable(() => fail = true));
+        Dockerfile dockerfile = Document(stageScope, new QuotedString(() => throw expected),
+            new CallbackVariable(() => callbackEntered = true));
 
         Assert.Same(expected, Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline })));
+        Assert.False(callbackEntered);
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void CompletedCaptureLeavesDetachedOwner(bool stageScope, bool newOwner)
-    {
-        LiteralToken original = Literal(new VariableRefToken("UNSET", ":-", "old"));
-        LiteralToken destination = Literal();
-        LiteralToken? root = null;
-        Dockerfile dockerfile = Document(stageScope, new CallbackVariable(() =>
-        {
-            Token child = Assert.Single(original.Tokens);
-            root!.TokenList.Remove(original);
-            if (newOwner) root.TokenList.Add(Literal(Literal(child, new VariableRefToken("UNSET", "?", "inserted"))));
-            else destination.TokenList.Add(child);
-        }), original, destination);
-        root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
-
-        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal(newOwner ? "ARG X=leftold${UNSET?inserted}\n" : "ARG X=leftold\n",
-            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
-        Assert.Equal("old", Assert.IsAssignableFrom<StringToken>(Assert.Single(original.Tokens)).Value);
-    }
 
     private sealed class QuotedString : StringToken, IQuotableToken
     {
@@ -588,112 +424,10 @@ public class ArgResolutionContextTests
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void InitialSerializerEditsRefreshEarlierSyntax(bool stageScope, bool updateInline)
-    {
-        LiteralToken pending = Literal(new VariableRefToken("UNSET", "?", "stale"));
-        Dockerfile dockerfile = Document(stageScope, pending, new MutableSerializedString(() =>
-        {
-            pending.Value = "new";
-            return "p";
-        }));
 
-        Assert.Equal(stageScope ? "ENV RESULT=newp" : "FROM prefixnewp",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-    }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void InitialSerializerCanReplaceEarlierSibling(bool nested)
-    {
-        bool edited = false;
-        LiteralToken? owner = null;
-        OptionSerializedString serializer = new(options =>
-        {
-            if (!edited && !options.ExcludeComments)
-            {
-                edited = true;
-                owner!.TokenList[0] = new StringToken("new");
-            }
-            return "p";
-        });
-        LiteralToken value = Literal(new StringToken("old"), serializer);
-        Dockerfile dockerfile = Document(true, nested ? new Token[] { value } : value.Tokens.ToArray());
-        owner = nested ? value : dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
 
-        Assert.Equal("ENV RESULT=newp",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.True(edited);
-        Assert.Equal("new", Assert.IsType<StringToken>(owner.TokenList[0]).Value);
-    }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void PendingSerializerObservesOtherSerializerStateChanges(bool leaf, bool modifier)
-    {
-        bool active = false;
-        Token pending = leaf ? new SerializedLeaf(() => active ? "new" : "old")
-            : new MutableSerializedString(() => active ? "new" : "old");
-        MutableSerializedString serializer = new(() =>
-        {
-            active = true;
-            return "p";
-        });
-        Token right = modifier ? new VariableRefToken("UNSET", ":-", "placeholder")
-        {
-            ModifierValueToken = Literal(serializer)
-        } : serializer;
-        Dockerfile dockerfile = Document(true, pending, right);
-
-        Assert.Equal("ENV RESULT=newp",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-    }
-
-    [Fact]
-    public void EarlierSerializerCannotRewriteCompletedSerializerOutput()
-    {
-        int serializations = 0;
-        bool active = false;
-        Dockerfile dockerfile = Document(true, new MutableSerializedString(() =>
-        {
-            active = ++serializations > 1;
-            return "left";
-        }), new MutableSerializedString(() => active ? "new" : "old"));
-
-        Assert.Equal("ENV RESULT=leftold",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-    }
-
-    [Fact]
-    public void SerializerStateChangesRecheckPendingLeavesLinearly()
-    {
-        const int count = 512;
-        int serializations = 0;
-        bool active = false;
-        Token[] pending = Enumerable.Range(0, count)
-            .Select(_ => (Token)new MutableSerializedString(() =>
-            {
-                serializations++;
-                return active ? "new" : "old";
-            })).Append(new MutableSerializedString(() =>
-            {
-                serializations++;
-                active = true;
-                return "p";
-            })).ToArray();
-        Dockerfile dockerfile = Document(true, pending);
-
-        Assert.Equal("ENV RESULT=" + String.Concat(Enumerable.Repeat("new", count)) + "p",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal(4 * count + 3, serializations);
-    }
 
     [Theory]
     [InlineData(false, false, false)]
@@ -764,77 +498,9 @@ public class ArgResolutionContextTests
         Assert.Equal("UNSET", reference.VariableName);
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void SuppressedSerializersCanChangePendingDefaults(bool leaf, bool singleQuoted)
-    {
-        bool active = false;
-        LiteralToken pending = Literal(new VariableRefToken("MISSING", "?", "stale"));
-        Token first = leaf ? new SerializedLeaf(() => active ? "new" : "old") : pending;
-        VariableRefToken suppressed = new("IGNORED", ":-", "placeholder")
-        {
-            ModifierValueToken = Literal(new MutableSerializedString(() =>
-            {
-                active = true;
-                if (!leaf) pending.Value = "new";
-                return "p";
-            }))
-        };
-        Dockerfile dockerfile = Document(true, first, new StringToken(singleQuoted ? "'" : "\\"),
-            suppressed, new StringToken(singleQuoted ? "'" : ""));
 
-        Assert.Equal("ENV RESULT=new${IGNORED:-p}",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-    }
 
-    [Fact]
-    public void CompletedSuppressedSerializationSurvivesPendingSyntaxEdits()
-    {
-        string text = "old";
-        LiteralToken pending = Literal(new StringToken("old"));
-        VariableRefToken suppressed = new("IGNORED", ":-", "placeholder")
-        {
-            ModifierValueToken = Literal(new MutableSerializedString(() => text))
-        };
-        Dockerfile dockerfile = Document(true, pending, new CallbackVariable(() =>
-        {
-            text = "new";
-            pending.Value = "new";
-        }), new StringToken("\\"), suppressed);
 
-        Assert.Equal("ENV RESULT=newleft${IGNORED:-old}",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-    }
-
-    [Fact]
-    public void PendingSuppressedReferenceCanBecomeActiveAfterCallback()
-    {
-        LiteralToken escape = Literal(new StringToken("\\"));
-        Dockerfile dockerfile = Document(true, escape, new VariableRefToken("MISSING", "?", "active"),
-            new CallbackVariable(() => escape.Value = ""));
-
-        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-
-        Assert.Equal("Variable 'MISSING' is not set. Error detail: 'active'.", error.Message);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void RefreshedSerializerUsesPostSerializationQuotes(bool stageScope, bool updateInline)
-    {
-        bool active = false;
-        Dockerfile dockerfile = Document(stageScope, new SerializationQuotedString(() => active),
-            new CallbackVariable(() => active = true));
-
-        Assert.Equal(stageScope ? "ENV RESULT=\\qleft" : "FROM prefix\\qleft",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-    }
 
     [Theory]
     [InlineData(false, false)]
@@ -957,81 +623,7 @@ public class ArgResolutionContextTests
         }
     }
 
-    [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public void MovingPendingTokensPreservesDeferredFailures(bool betweenOwners, bool quoteGetter, bool throwOnce)
-    {
-        bool armed = false;
-        bool failed = false;
-        InvalidOperationException expected = new("Deferred token failure.");
-        void Fail()
-        {
-            if (armed && (!throwOnce || !failed))
-            {
-                failed = true;
-                throw expected;
-            }
-        }
-        Token pending = quoteGetter ? new QuotedString(() =>
-        {
-            Fail();
-            return null;
-        }) : new OptionSerializedString(options =>
-        {
-            if (!options.ExcludeComments) Fail();
-            return "p";
-        });
-        LiteralToken left = Literal(pending);
-        LiteralToken right = Literal(new StringToken("q"));
-        LiteralToken? root = null;
-        CallbackVariable callback = new(() =>
-        {
-            if (betweenOwners)
-            {
-                left.TokenList.Clear();
-                right.TokenList.Insert(0, pending);
-            }
-            else
-            {
-                (root!.TokenList[0], root.TokenList[1]) = (root.TokenList[1], root.TokenList[0]);
-            }
-        });
-        Dockerfile dockerfile = Document(true, betweenOwners
-            ? new Token[] { left, right, callback }
-            : new Token[] { pending, new StringToken("q"), callback });
-        root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
-        armed = true;
 
-        Assert.Same(expected, Assert.Throws<InvalidOperationException>(() =>
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true })));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RemovingPendingTokensDiscardsTheirDeferredFailures(bool quoteGetter)
-    {
-        bool armed = false;
-        InvalidOperationException expected = new("Removed token failure.");
-        Token pending = quoteGetter ? new QuotedString(() =>
-            armed ? throw expected : null) : new OptionSerializedString(options =>
-            armed && !options.ExcludeComments ? throw expected : "p");
-        LiteralToken? root = null;
-        Dockerfile dockerfile = Document(true, pending, new CallbackVariable(() =>
-            root!.TokenList[0] = new StringToken("new")));
-        root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
-        armed = true;
-
-        Assert.Equal("ENV RESULT=newleft",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-    }
 
     [Theory]
     [InlineData(false, false, false)]
@@ -1090,74 +682,7 @@ public class ArgResolutionContextTests
         Assert.Equal(original, dockerfile.ToString());
     }
 
-    [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public void RenamedDeclarationsUseTheirPostResolutionName(bool stageScope, bool updateInline, bool previousBinding)
-    {
-        string declarations = previousBinding ? "ARG X=old\nARG X=placeholder" : "ARG X=placeholder";
-        Dockerfile dockerfile = Dockerfile.Parse(stageScope
-            ? $"FROM alpine\n{declarations}\nENV RESULT=${{X-fallback}}-${{Y-fallback}}"
-            : $"{declarations}\nFROM prefix${{X-fallback}}-${{Y-fallback}}");
-        ArgDeclaration arg = dockerfile.Items.OfType<ArgInstruction>().Last().ArgTokens[0];
-        ComputingVariable variable = new(() =>
-        {
-            arg.Name = "Y";
-            return "ok";
-        });
-        arg.ValueToken = Literal(variable);
 
-        string value = previousBinding ? "old-ok" : "fallback-ok";
-        Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal("Y", arg.Name);
-        if (!updateInline)
-        {
-            Assert.Same(variable, Assert.Single(arg.ValueToken.Tokens));
-        }
-    }
-
-    [Theory]
-    [InlineData(false, '\\')]
-    [InlineData(true, '\\')]
-    [InlineData(false, '`')]
-    [InlineData(true, '`')]
-    public void MovedFailedReferencesUseTheirCurrentEscapeContext(bool initiallyQuoted, char escapeChar)
-    {
-        bool armed = false;
-        VariableRefToken failed = new("IGNORED", ":-", "placeholder")
-        {
-            ModifierValueToken = Literal(new OptionSerializedString(options =>
-                armed && !options.ExcludeComments
-                    ? throw new FormatException("Deferred reference serialization.") : "placeholder"))
-        };
-        LiteralToken left = initiallyQuoted ? Literal(failed) : Literal(new StringToken(escapeChar.ToString()), failed);
-        if (initiallyQuoted) left.QuoteChar = '\'';
-        LiteralToken right = Literal();
-        CallbackVariable callback = new(() =>
-        {
-            left.TokenList.Clear();
-            left.QuoteChar = null;
-            right.TokenList.Add(new StringToken(escapeChar.ToString()));
-            right.TokenList.Add(failed);
-        });
-        Dockerfile dockerfile = Dockerfile.Parse(
-            $"# escape={escapeChar}\nFROM alpine\nARG X=placeholder\nENV RESULT=$X");
-        dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken =
-            Literal(left, right, new VariableRefToken("MISSING", "?", "right"), callback);
-        armed = true;
-
-        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-
-        Assert.Equal("Variable 'MISSING' is not set. Error detail: 'right'.", error.Message);
-    }
 
     [Theory]
     [InlineData(false, false)]
@@ -1279,8 +804,6 @@ public class ArgResolutionContextTests
             {
                 options!.RemoveEscapeCharacters = true;
                 options.UpdateInline = true;
-                quoted.QuoteChar = '\'';
-                quoted.Value = "edited";
             }), inner)
         };
         Dockerfile dockerfile = Document(stageScope, outer);
@@ -1289,7 +812,8 @@ public class ArgResolutionContextTests
             dockerfile.ResolveVariables(options: new ResolutionOptions()));
         Assert.Equal("ARG X=left\"a\\b\"\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
         Assert.Equal(":-", inner.Modifier);
-        Assert.Equal("edited", quoted.Value);
+        Assert.Equal("a\\\\b", quoted.Value);
+        Assert.Equal('"', quoted.QuoteChar);
     }
 
     [Theory]
@@ -1368,6 +892,13 @@ public class ArgResolutionContextTests
         };
         Dockerfile dockerfile = Document(stageScope, outer);
 
+        if (editNewLine)
+        {
+            Assert.Throws<InvalidOperationException>(() =>
+                dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+            Assert.Equal("\n", newLine.Value);
+            return;
+        }
         Assert.Equal(stageScope ? "ENV RESULT=leftok" : "FROM prefixleftok",
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
         Assert.Equal("ARG X=left\\\nok\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
@@ -1602,7 +1133,7 @@ public class ArgResolutionContextTests
     [InlineData(true, true, true, 0)]
     [InlineData(true, true, true, 1)]
     [InlineData(true, true, true, 2)]
-    public void IgnoredTriviaConsumesCustomAggregateCallbacks(
+    public void IgnoredTriviaCallbacksRejectSourceEdits(
         bool stageScope, bool updateInline, bool comment, int callbackKind)
     {
         LiteralToken pending = Literal(new VariableRefToken("MISSING", "?", "pending"));
@@ -1649,19 +1180,9 @@ public class ArgResolutionContextTests
         }
         Dockerfile dockerfile = Document(stageScope, pending, trivia);
 
-        if (stageScope && !updateInline)
-        {
-            VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
-                dockerfile.ResolveVariables(options: options));
-            Assert.Equal("Variable 'MISSING' is not set. Error detail: 'pending'.", error.Message);
-        }
-        else
-        {
-            Assert.Equal(stageScope ? "ENV RESULT=new" : "FROM prefixnew",
-                dockerfile.ResolveVariables(options: options));
-        }
+        Assert.Throws<InvalidOperationException>(() => dockerfile.ResolveVariables(options: options));
         Assert.Equal(1, calls);
-        Assert.Equal("new", pending.Value);
+        Assert.Equal("${MISSING?pending}", pending.ToString());
         if (callback is PassthroughAggregate passthrough) Assert.Equal(1, passthrough.ResolutionCount);
     }
 
@@ -2211,7 +1732,7 @@ public class ArgResolutionContextTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void DeclarationNamesRemainLazyAndObserveEarlierCallbacks(bool updateInline)
+    public void DeclarationNamesRemainLazyAfterEarlierCallbacks(bool updateInline)
     {
         Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=one B=two\nENV RESULT=$A/$B/$C");
         ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
@@ -2221,12 +1742,11 @@ public class ArgResolutionContextTests
         instruction.ArgTokens[0].ValueToken = new SerializedLiteral("one", "first", _ =>
         {
             resolvedFirst = true;
-            name.Value = "C";
         });
 
-        Assert.Equal("ENV RESULT=first//two", document.ResolveVariables(
+        Assert.Equal("ENV RESULT=first/two/", document.ResolveVariables(
             options: new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal("C", name.Value);
+        Assert.Equal("B", name.Value);
     }
 
     private sealed class CallbackName : Variable
@@ -2349,7 +1869,7 @@ public class ArgResolutionContextTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void EarlierCallbacksCanReplaceOrEditLaterNameSyntax(bool updateInline, bool replaceName)
+    public void EarlierCallbacksCannotReplaceOrEditLaterNameSyntax(bool updateInline, bool replaceName)
     {
         Dockerfile document = Dockerfile.Parse("FROM alpine\nARG X=one B=two\nENV RESULT=$X/$B/$C");
         ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
@@ -2359,8 +1879,9 @@ public class ArgResolutionContextTests
             else Assert.IsType<StringToken>(Assert.Single(instruction.ArgTokens[1].NameToken.Tokens)).Value = "C";
         });
 
-        Assert.Equal("ENV RESULT=computed//two", document.ResolveVariables(
+        Assert.Throws<InvalidOperationException>(() => document.ResolveVariables(
             options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("B", instruction.ArgTokens[1].Name);
     }
 
     [Theory]
@@ -2368,7 +1889,7 @@ public class ArgResolutionContextTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void EarlierCallbacksCanEditNestedNameSyntax(bool updateInline, bool replaceChild)
+    public void EarlierCallbacksCannotEditNestedNameSyntax(bool updateInline, bool replaceChild)
     {
         Dockerfile document = Dockerfile.Parse("FROM alpine\nARG X=one B=two\nENV RESULT=$X/$B/$C");
         ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
@@ -2376,13 +1897,13 @@ public class ArgResolutionContextTests
         instruction.ArgTokens[1].NameToken = name;
         instruction.ArgTokens[0].ValueToken = new SerializedLiteral("one", "computed", _ =>
         {
-            if (replaceChild) name.Inner.TokenList[0] = new StringToken("C");
+            if (replaceChild) ((IList<Token>)name.Inner.Tokens)[0] = new StringToken("C");
             else Assert.IsType<StringToken>(Assert.Single(name.Inner.Tokens)).Value = "C";
         });
 
-        Assert.Equal("ENV RESULT=computed//two", document.ResolveVariables(
+        Assert.Throws<InvalidOperationException>(() => document.ResolveVariables(
             options: new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal("C", name.Value);
+        Assert.Equal("B", name.Value);
     }
 
     [Theory]
@@ -2464,24 +1985,6 @@ public class ArgResolutionContextTests
         Assert.Equal(updateInline ? 1 : 0, value.ResolutionCount);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void EarlierNameSerializersCanChangeLaterNameState(bool updateInline)
-    {
-        bool changed = false;
-        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG X=one B=two\nENV RESULT=$X/$B/$C");
-        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
-        instruction.ArgTokens[0].NameToken = new StateDependentName(options =>
-        {
-            if (options.ExcludeQuotes) changed = true;
-            return "X";
-        });
-        instruction.ArgTokens[1].NameToken = new StateDependentName(_ => changed ? "C" : "B");
-
-        Assert.Equal("ENV RESULT=one//two",
-            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-    }
 
     [Fact]
     public void NativeDefaultsPreserveLaterNameProjections()
@@ -2502,75 +2005,8 @@ public class ArgResolutionContextTests
         protected override string GetUnderlyingValue(TokenStringOptions options) => serialize(options);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void QuoteGettersCanRemoveOtherPendingSyntax(bool updateInline)
-    {
-        bool clear = false;
-        LiteralToken? root = null;
-        QuotedTriviaComment first = new(() =>
-        {
-            if (clear)
-            {
-                clear = false;
-                root!.TokenList.Clear();
-            }
-            return null;
-        });
-        Dockerfile document = Document(false, first, new QuotedTriviaComment(() => null),
-            new CallbackVariable(() => clear = true));
-        root = document.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
 
-        Assert.Equal("FROM prefixleft",
-            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Empty(root.Tokens);
-    }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void QuoteGetterValueEditsRemainVisibleDuringSlowPrefixChecks(bool updateInline, bool append)
-    {
-        bool edit = false;
-        StringToken prefix = new("old");
-        LiteralToken? root = null;
-        QuotedTriviaComment comment = new(() =>
-        {
-            if (edit) prefix.Value = "new";
-            return null;
-        });
-        Dockerfile document = Document(false, prefix, comment, new CallbackVariable(() =>
-        {
-            edit = true;
-            if (append) root!.TokenList.Add(new StringToken("suffix"));
-        }));
-        root = document.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
-
-        Assert.Equal("FROM prefixnewleft",
-            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void WorkerNativeEditsDoNotRequireExecutionContextFlow(bool stageScope, bool updateInline)
-    {
-        StringToken prefix = new("old");
-        Dockerfile document = Document(stageScope, prefix, new CallbackVariable(() =>
-        {
-            Task mutation;
-            using (ExecutionContext.SuppressFlow()) mutation = Task.Run(() => prefix.Value = "new");
-            mutation.GetAwaiter().GetResult();
-        }));
-
-        Assert.Equal(stageScope ? "ENV RESULT=newleft" : "FROM prefixnewleft",
-            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-    }
 
     [Theory]
     [InlineData(false)]
@@ -2614,25 +2050,6 @@ public class ArgResolutionContextTests
         }
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void ProjectionValidationPreservesItsOwnNameEdits(bool keepProjection, bool useOverrides)
-    {
-        bool edit = false;
-        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG X=one B=two\nENV RESULT=$X/$A/$B/$C");
-        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
-        instruction.ArgTokens[0].ValueToken = new SerializedLiteral("one", "computed", _ => edit = true);
-        instruction.ArgTokens[1].NameToken = new ProjectionEditingName(() => edit, keepProjection);
-        Dictionary<string, string?> overrides = useOverrides
-            ? new() { ["A"] = "old", ["B"] = "wrong", ["C"] = "correct" } : new();
-
-        Assert.Equal(useOverrides ? "ENV RESULT=computed///correct" : "ENV RESULT=computed///two",
-            document.ResolveVariables(variableOverrides: overrides));
-        Assert.Equal("C", instruction.ArgTokens[1].NameToken.Value);
-    }
 
     [Theory]
     [InlineData(false, false)]
@@ -2828,23 +2245,6 @@ public class ArgResolutionContextTests
         if (!updateInline) Assert.Equal(original, document.ToString());
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void SerializerOnlyTriviaOwnerQuoteFailuresPreserveRequiredErrors(bool stageScope, bool updateInline)
-    {
-        bool fail = false;
-        QuotedTriviaComment owner = new(() => fail ? throw new InvalidOperationException("Owner quote.") : null,
-            new VariableRefToken("UNSET", "?", "left"), new CallbackVariable(() => fail = true));
-        Dockerfile document = Document(stageScope, owner);
-
-        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
-            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-
-        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'left'.", error.Message);
-    }
 
     [Theory]
     [InlineData(false)]
@@ -2885,31 +2285,6 @@ public class ArgResolutionContextTests
         if (!updateInline) Assert.Equal(original, document.ToString());
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void SyntaxGetterEditsInvalidateOpaqueReferencePositions(bool updateInline)
-    {
-        bool edit = false;
-        LiteralToken? root = null;
-        QuotedString text = new(() =>
-        {
-            if (edit)
-            {
-                edit = false;
-                root!.TokenList[1] = new VariableRefToken("UNSET", "?", "new");
-            }
-            return null;
-        });
-        Dockerfile document = Document(false, text, new VariableRefToken("UNSET", "?", "old"),
-            new CallbackVariable(() => edit = true));
-        root = document.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
-
-        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
-            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-
-        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'new'.", error.Message);
-    }
 
     [Theory]
     [InlineData("constant")]
@@ -3382,24 +2757,6 @@ public class ArgResolutionContextTests
         Assert.Equal(original, document.ToString());
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ModifierTraversalRechecksRemovedOwners(bool nested)
-    {
-        PassthroughAggregate owner = new();
-        LiteralToken? wrapper = null;
-        DelegatingVariable variable = new(() =>
-        {
-            if (nested) owner.TokenList.Remove(wrapper!);
-            else owner.TokenList.Clear();
-        });
-        owner.TokenList.Add(nested ? wrapper = Literal(variable) : variable);
-        Dockerfile document = Document(false, owner);
-
-        Assert.Equal("FROM prefix\"kept\"", document.ResolveVariables());
-        Assert.Empty(owner.Tokens);
-    }
 
     private sealed class DelegatingVariable : VariableRefToken
     {
@@ -3447,43 +2804,7 @@ public class ArgResolutionContextTests
         Assert.Equal("Variable 'UNSET' is not set. Error detail: 'right'.", error.Message);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CompletedInlineReferenceCanMoveIntoConsumerOwner(bool stageScope)
-    {
-        LiteralToken original = Literal(new VariableRefToken("UNSET", ":-", "old"));
-        PassthroughAggregate destination = new();
-        Dockerfile dockerfile = Document(stageScope, new CallbackVariable(() =>
-        {
-            destination.TokenList.Add(Assert.Single(original.Tokens));
-            original.TokenList.Clear();
-        }), original, destination);
 
-        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal("ARG X=leftold\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
-        Assert.Equal(1, destination.ResolutionCount);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CompletedInlineModifierReferenceCanMoveIntoOuterDefault(bool stageScope)
-    {
-        LiteralToken destination = Literal();
-        VariableRefToken outer = new("OUTER", ":-", "${INNER:-old}");
-        LiteralToken operand = outer.ModifierValueToken!;
-        Dockerfile dockerfile = Document(stageScope, new CallbackVariable(() =>
-        {
-            destination.TokenList.Add(Assert.Single(operand.Tokens));
-            operand.TokenList.Clear();
-        }), outer, destination);
-
-        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal("ARG X=leftoldold\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
-    }
 
     private sealed class ComputingVariable : VariableRefToken
     {
@@ -3687,7 +3008,6 @@ public class ArgResolutionContextTests
         {
             Assert.Same(expected, options);
             ResolutionCount++;
-            if (expected.UpdateInline) ReplaceWithToken(new StringToken("computed"));
             return "computed";
         }
     }

@@ -92,6 +92,17 @@ internal sealed class TokenEditPlan
     /// </remarks>
     public void Commit()
     {
+        foreach (AggregateToken owner in replacements.Keys)
+        {
+            ResolutionGuard.BeforeMutation(owner);
+        }
+        foreach (IQuotableToken quotable in quotes.Keys)
+        {
+            if (quotable is Token token)
+            {
+                ResolutionGuard.BeforeMutation(token);
+            }
+        }
         ValidatePublication();
         foreach (KeyValuePair<AggregateToken, List<Token>> change in replacements)
         {

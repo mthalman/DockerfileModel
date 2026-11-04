@@ -16,7 +16,17 @@ public abstract class IdentifierToken : AggregateToken, IQuotableValueToken
         }
     }
 
-    public char? QuoteChar { get; set; }
+    private char? quoteChar;
+
+    public char? QuoteChar
+    {
+        get => quoteChar;
+        set
+        {
+            ResolutionGuard.BeforeMutation(this);
+            quoteChar = value;
+        }
+    }
 
     protected abstract IEnumerable<Token> GetInnerTokens(string value);
 

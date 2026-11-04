@@ -582,7 +582,7 @@ public class ArgResolutionTests
 
         Assert.Equal(1, literal.ResolutionCount);
         Assert.Equal(updateInline, literal.UpdateInline);
-        Assert.Equal(updateInline ? "ARG X=computed\n" : "ARG X=placeholder\n",
+        Assert.Equal("ARG X=placeholder\n",
             dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
         if (!updateInline)
         {
@@ -624,10 +624,6 @@ public class ArgResolutionTests
         {
             ResolutionCount++;
             UpdateInline = options?.UpdateInline ?? false;
-            if (UpdateInline)
-            {
-                Value = result ?? String.Empty;
-            }
             return result;
         }
     }
@@ -711,42 +707,40 @@ public class ArgResolutionTests
     }
 
     [Theory]
-    [InlineData(false, false, "${A:-a}${B:-b}", "abright")]
-    [InlineData(false, true, "${A:-a}${B:-b}", "abright")]
-    [InlineData(true, false, "${A:-a}${B:-b}", "abright")]
-    [InlineData(true, true, "${A:-a}${B:-b}", "abright")]
-    [InlineData(false, false, "edited", "editedright")]
-    [InlineData(false, true, "edited", "editedright")]
-    [InlineData(true, false, "edited", "editedright")]
-    [InlineData(true, true, "edited", "editedright")]
-    public void ResolveVariables_CustomResolverCanEditPendingLiteral(
-        bool stageScope, bool updateInline, string edit, string expected)
+    [InlineData(false, false, "${A:-a}${B:-b}")]
+    [InlineData(false, true, "${A:-a}${B:-b}")]
+    [InlineData(true, false, "${A:-a}${B:-b}")]
+    [InlineData(true, true, "${A:-a}${B:-b}")]
+    [InlineData(false, false, "edited")]
+    [InlineData(false, true, "edited")]
+    [InlineData(true, false, "edited")]
+    [InlineData(true, true, "edited")]
+    public void ResolveVariables_CustomResolverRejectsPendingLiteralEdits(
+        bool stageScope, bool updateInline, string edit)
     {
         LiteralToken left = new("$LEFT", canContainVariables: true);
         EditingVariableRefToken right = new(left, edit);
         Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
 
-        Assert.Equal(stageScope ? $"ENV RESULT={expected}" : $"FROM prefix{expected}",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
 
         Assert.Equal(1, right.ResolutionCount);
-        Assert.Equal(updateInline ? $"ARG X={expected}\n" : $"ARG X={edit}$RIGHT\n",
-            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal("$LEFT", left.ToString());
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ResolveVariables_CustomResolverEditsRetainRightmostErrors(bool updateInline)
+    public void ResolveVariables_CustomResolverEditsAreRejectedBeforeNewReferenceErrors(bool updateInline)
     {
         LiteralToken left = new("$LEFT", canContainVariables: true);
         EditingVariableRefToken right = new(left, "${A?left}${B?right}");
         Dockerfile dockerfile = CreateCustomDefault(false, left, right);
 
-        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
 
-        Assert.Equal("Variable 'B' is not set. Error detail: 'right'.", error.Message);
         Assert.Equal(1, right.ResolutionCount);
     }
 
@@ -755,19 +749,18 @@ public class ArgResolutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ResolveVariables_CustomModifierCanEditPendingLiteral(bool stageScope, bool updateInline)
+    public void ResolveVariables_CustomModifierRejectsPendingLiteralEdits(bool stageScope, bool updateInline)
     {
         LiteralToken left = new("$LEFT", canContainVariables: true);
         EditingModifierLiteral modifier = new(left);
         VariableRefToken right = new("UNSET", ":-", "placeholder") { ModifierValueToken = modifier };
         Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
 
-        Assert.Equal(stageScope ? "ENV RESULT=abright" : "FROM prefixabright",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
 
         Assert.Equal(1, modifier.ResolutionCount);
-        Assert.Equal(updateInline ? "ARG X=abright\n" : "ARG X=${A:-a}${B:-b}${UNSET:-placeholder}\n",
-            dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Equal("$LEFT", left.ToString());
     }
 
     [Theory]
@@ -805,17 +798,17 @@ public class ArgResolutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ResolveVariables_CompletedSuffixCanGainCapturedCustomLiteralAlias(bool stageScope, bool updateInline)
+    public void ResolveVariables_CompletedSuffixRejectsCustomLiteralAliasInsertion(bool stageScope, bool updateInline)
     {
         ComputingLiteralToken shared = new();
         LiteralToken right = new(new[] { shared }, canContainVariables: true, Dockerfile.DefaultEscapeChar);
-        CallbackVariableRefToken left = new(() => right.TokenList.Add(shared));
+        CallbackVariableRefToken left = new(() => ((IList<Token>)right.Tokens).Add(shared));
         Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
 
-        Assert.Equal(stageScope ? "ENV RESULT=leftcomputed" : "FROM prefixleftcomputed",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
         Assert.Equal(1, shared.ResolutionCount);
-        Assert.Equal(2, right.TokenList.Count);
+        Assert.Single(right.Tokens);
     }
 
     [Theory]
@@ -823,41 +816,37 @@ public class ArgResolutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ResolveVariables_CompletedSuffixCanGainCapturedVariableAlias(bool stageScope, bool updateInline)
+    public void ResolveVariables_CompletedSuffixRejectsVariableAliasInsertion(bool stageScope, bool updateInline)
     {
         VariableRefToken shared = new("UNSET", ":-", "old");
         LiteralToken right = new(new[] { shared }, canContainVariables: true, Dockerfile.DefaultEscapeChar);
-        CallbackVariableRefToken left = new(() => right.TokenList.Add(shared));
+        CallbackVariableRefToken left = new(() => ((IList<Token>)right.Tokens).Add(shared));
         Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
 
-        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Single(right.Tokens);
         if (updateInline)
         {
             Assert.IsType<ResolvedStringToken>(right.TokenList[0]);
-            Assert.Same(shared, right.TokenList[1]);
-            Assert.Equal("$old", shared.ToString());
-            Assert.Equal("ARG X=leftold$old\n",
-                dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
         }
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ResolveVariables_CompletedSuffixCustomVariableAliasRetainsOccurrenceIdentity(bool stageScope)
+    public void ResolveVariables_CompletedSuffixRejectsCustomVariableAliasInsertion(bool stageScope)
     {
         ChangingVariableRefToken shared = new();
         LiteralToken right = new(new[] { shared }, canContainVariables: true, Dockerfile.DefaultEscapeChar);
-        CallbackVariableRefToken left = new(() => right.TokenList.Add(shared));
+        CallbackVariableRefToken left = new(() => ((IList<Token>)right.Tokens).Add(shared));
         Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
 
-        Assert.Equal(stageScope ? "ENV RESULT=leftfirst" : "FROM prefixleftfirst",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
         Assert.Equal(1, shared.ResolutionCount);
         Assert.IsType<ResolvedStringToken>(right.TokenList[0]);
-        Assert.Same(shared, right.TokenList[1]);
-        Assert.Equal("ARG X=leftfirst$UNSET\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
+        Assert.Single(right.Tokens);
     }
 
     [Theory]
@@ -865,17 +854,16 @@ public class ArgResolutionTests
     [InlineData(true, "\"old\"")]
     [InlineData(false, "\"${B:-old}\"")]
     [InlineData(true, "\"${B:-old}\"")]
-    public void ResolveVariables_InlineReplayPreservesCompletedModifierOperand(bool stageScope, string expression)
+    public void ResolveVariables_CompletedModifierOperandRejectsValueEdits(bool stageScope, string expression)
     {
         LiteralToken operand = new(expression, canContainVariables: true);
         VariableRefToken right = new("UNSET", ":-", "placeholder") { ModifierValueToken = operand };
         CallbackVariableRefToken left = new(() => operand.Value = "new");
         Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
 
-        Assert.Equal(stageScope ? "ENV RESULT=leftold" : "FROM prefixleftold",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
-        Assert.Equal("ARG X=left\"old\"\n", dockerfile.Items.OfType<ArgInstruction>().Single().ToString());
-        Assert.Equal("new", operand.Value);
+        Assert.NotEqual("new", operand.Value);
     }
 
     [Theory]
@@ -1001,49 +989,35 @@ public class ArgResolutionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ResolveVariables_CallbackQuoteGetterFailurePreservesPendingRequiredError(bool throwOnce)
+    public void ResolveVariables_CallbackPrimitiveQuoteChangesAreRejectedBeforePendingReferences(bool updateInline)
     {
-        bool fail = false;
-        ConditionalQuoteStringToken primitive = new(() =>
-        {
-            if (fail)
-            {
-                if (throwOnce) fail = false;
-                throw new InvalidOperationException("Pending quote.");
-            }
-            return null;
-        });
+        bool changed = false;
+        ConditionalQuoteStringToken primitive = new(() => changed ? '"' : null);
         Dockerfile dockerfile = CreateCustomDefault(true, primitive,
-            new VariableRefToken("UNSET", "?", "left"), new CallbackVariableRefToken(() => fail = true));
+            new VariableRefToken("UNSET", "?", "left"), new CallbackVariableRefToken(() => changed = true));
 
-        VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
-            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
 
-        Assert.Equal("Variable 'UNSET' is not set. Error detail: 'left'.", error.Message);
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+        Assert.True(changed);
     }
 
     [Fact]
-    public void ResolveVariables_CallbackQuoteGetterFailureIsNotLostWhenGetterRecovers()
+    public void ResolveVariables_QuoteGetterFailureAtCallbackBoundaryIsRethrownUnchanged()
     {
-        bool fail = false;
+        bool callbackEntered = false;
         InvalidOperationException expected = new("Pending quote.");
-        ConditionalQuoteStringToken primitive = new(() =>
-        {
-            if (fail)
-            {
-                fail = false;
-                throw expected;
-            }
-            return null;
-        });
+        ConditionalQuoteStringToken primitive = new(() => throw expected);
         Dockerfile dockerfile = CreateCustomDefault(true,
-            primitive, new CallbackVariableRefToken(() => fail = true));
+            primitive, new CallbackVariableRefToken(() => callbackEntered = true));
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true }));
 
         Assert.Same(expected, error);
         Assert.Contains(nameof(ConditionalQuoteStringToken), error.StackTrace);
+        Assert.False(callbackEntered);
     }
 
     [Theory]
@@ -1227,7 +1201,7 @@ public class ArgResolutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ResolveVariables_CallbackQuoteEditsKeepBalancedBoundaries(bool stageScope, bool updateInline)
+    public void ResolveVariables_CallbackQuoteEditsAreRejected(bool stageScope, bool updateInline)
     {
         LiteralToken? root = null;
         CallbackVariableRefToken left = new(() => root!.QuoteChar = null);
@@ -1235,9 +1209,9 @@ public class ArgResolutionTests
         root = dockerfile.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken!;
         root.QuoteChar = '"';
 
-        Assert.Equal(stageScope ? "ENV RESULT=leftr" : "FROM prefixleftr",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Null(root.QuoteChar);
+        Assert.Equal('"', root.QuoteChar);
     }
 
     [Fact]
@@ -1389,14 +1363,14 @@ public class ArgResolutionTests
     [InlineData(false, true, "${UNSET?changed}")]
     [InlineData(true, false, "${UNSET?changed}")]
     [InlineData(true, true, "${UNSET?changed}")]
-    public void ResolveVariables_CustomResolverCannotRewriteCompletedSuffix(
+    public void ResolveVariables_CustomResolverRejectsCompletedSuffixEdits(
         bool stageScope, bool updateInline, string edit)
     {
         LiteralToken right = new("${R:-r}", canContainVariables: true);
         EditingVariableRefToken left = new(right, edit);
         Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
 
-        Assert.Equal(stageScope ? "ENV RESULT=rightr" : "FROM prefixrightr",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
         Assert.Equal(1, left.ResolutionCount);
     }
@@ -1406,19 +1380,19 @@ public class ArgResolutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ResolveVariables_CustomLiteralInsertedIntoCompletedSuffixIsNotResolved(
+    public void ResolveVariables_CompletedSuffixRejectsCustomLiteralReplacement(
         bool stageScope, bool updateInline)
     {
         LiteralToken right = new("${R:-r}", canContainVariables: true);
         ComputingLiteralToken inserted = new("wrong");
         CallbackVariableRefToken left = new(() =>
         {
-            right.TokenList.Clear();
-            right.TokenList.Add(inserted);
+            ((IList<Token>)right.Tokens).Clear();
+            ((IList<Token>)right.Tokens).Add(inserted);
         });
         Dockerfile dockerfile = CreateCustomDefault(stageScope, left, right);
 
-        Assert.Equal(stageScope ? "ENV RESULT=leftr" : "FROM prefixleftr",
+        Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
         Assert.Equal(0, inserted.ResolutionCount);
     }

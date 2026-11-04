@@ -69,6 +69,7 @@ public class VariableRefToken : AggregateToken
         set
         {
             ValidateModifier(value);
+            ResolutionGuard.BeforeMutation(this);
             foreach (SymbolToken modifierToken in ModifierTokens.ToArray())
             {
                 TokenList.Remove(modifierToken);
@@ -159,6 +160,7 @@ public class VariableRefToken : AggregateToken
 
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
     {
+        using ResolutionGuard.Scope scope = ResolutionGuard.Enter(this);
         if (variables is null)
         {
             variables = new Dictionary<string, string?>();
@@ -172,7 +174,7 @@ public class VariableRefToken : AggregateToken
         string variableName = VariableName;
         string? modifier = Modifier;
 
-        bool varExists = variables.TryGetValue(variableName, out string? value);
+        bool varExists = ResolutionGuard.TryGetValue(variables, variableName, out string? value);
 
         if (modifier is not null)
         {
@@ -233,11 +235,11 @@ public class VariableRefToken : AggregateToken
         {
             if (String.IsNullOrEmpty(value))
             {
-                this.TokenList.Clear();
+                ReplaceResolvedTokens(Array.Empty<Token>());
             }
             else
             {
-                this.ReplaceWithToken(new StringToken(value));
+                ReplaceResolvedTokens(new[] { new StringToken(value) });
             }
         }
 
@@ -252,7 +254,7 @@ public class VariableRefToken : AggregateToken
         {
             return modifierResolver(modifier);
         }
-        return modifier.ResolveVariables(escapeChar, variables, options);
+        return ResolutionGuard.Resolve(modifier, escapeChar, variables, options);
     }
 
     public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>

@@ -15,6 +15,8 @@ same inputs. Resolver callbacks may change the variable dictionary and resolutio
 options before returning, but cannot edit source tokens. This prohibits scalar
 changes such as `PrimitiveToken.Value` and `QuoteChar`, as well as child-list
 edits. Resolver-owned inline replacements remain supported.
+`AggregateToken.Tokens` exposes a guarded live list view instead of the underlying
+`List<Token>`. Its declared `IEnumerable<Token>` type is unchanged.
 Non-inline stage resolution of an `ArgInstruction` subclass evaluates its parsed
 serialized text, without invoking the original declarations' custom resolvers.
 
@@ -33,7 +35,9 @@ instruction serializer emitted.
 
 Perform all source-token edits before resolution. Use `ResolveVariables()`
 callbacks only for variable-dictionary and option changes. Keep serializers and
-quote getters repeatable. Use an ordinary `ArgInstruction` containing custom
+quote getters repeatable. Replace direct `List<Token>` casts of `Tokens` with
+`IList<Token>` when low-level editing is necessary outside resolution.
+Use an ordinary `ArgInstruction` containing custom
 default tokens to retain original resolver
 behavior in both modes, or use inline resolution when evaluating original
 subclass tokens is required. See [Variable resolution](../docs/variable-resolution.md).

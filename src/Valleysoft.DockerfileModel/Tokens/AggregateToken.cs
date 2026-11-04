@@ -1,4 +1,5 @@
 using System.Text;
+using System.Collections.ObjectModel;
 
 
 namespace Valleysoft.DockerfileModel.Tokens;
@@ -9,6 +10,8 @@ namespace Valleysoft.DockerfileModel.Tokens;
 /// </remarks>
 public abstract class AggregateToken : Token
 {
+    private GuardedChildren? childrenView;
+
     protected AggregateToken(IEnumerable<Token> tokens)
     {
         Guard.NotNull(tokens, nameof(tokens));
@@ -30,9 +33,38 @@ public abstract class AggregateToken : Token
 
     protected internal List<Token> TokenList { get; }
 
+    internal List<Token> ResolutionChildren => TokenList;
+
     /// <summary>Gets the live ordered child sequence, not a snapshot or a deep copy.</summary>
     /// <remarks>Structural edits during enumeration can invalidate the enumerator.</remarks>
-    public IEnumerable<Token> Tokens => this.TokenList;
+    public IEnumerable<Token> Tokens => childrenView ??= new GuardedChildren(this, TokenList);
+
+    private sealed class GuardedChildren(AggregateToken owner, IList<Token> children) : Collection<Token>(children)
+    {
+        protected override void InsertItem(int index, Token item)
+        {
+            ResolutionGuard.BeforeMutation(owner);
+            base.InsertItem(index, item);
+        }
+
+        protected override void SetItem(int index, Token item)
+        {
+            ResolutionGuard.BeforeMutation(owner);
+            base.SetItem(index, item);
+        }
+
+        protected override void RemoveItem(int index)
+        {
+            ResolutionGuard.BeforeMutation(owner);
+            base.RemoveItem(index);
+        }
+
+        protected override void ClearItems()
+        {
+            ResolutionGuard.BeforeMutation(owner);
+            base.ClearItems();
+        }
+    }
 
     internal char EditingEscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
 
@@ -40,6 +72,11 @@ public abstract class AggregateToken : Token
         this is LiteralToken && GetType() != typeof(LiteralToken) ||
         this is VariableRefToken && GetType() != typeof(VariableRefToken) ||
         GetType().Assembly != typeof(Token).Assembly;
+
+    internal bool HasConsumerVariableResolution =>
+        GetType().Assembly != typeof(AggregateToken).Assembly &&
+        ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
+            .Method.DeclaringType?.Assembly != typeof(AggregateToken).Assembly;
 
     protected override string GetUnderlyingValue(TokenStringOptions options)
     {
@@ -61,6 +98,7 @@ public abstract class AggregateToken : Token
     /// <remarks>Command instructions can suppress expansion, and raw command text may contain no variable-reference tokens. Use document resolution when ARG scope matters.</remarks>
     public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
     {
+        using ResolutionGuard.Scope scope = ResolutionGuard.Enter(this);
         variables ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
 
@@ -80,6 +118,7 @@ public abstract class AggregateToken : Token
         Action<TToken>? addToken = null, Action<TToken>? removeToken = null)
         where TToken : Token
     {
+        ResolutionGuard.BeforeMutation(this);
         if (addToken is null)
         {
             addToken = token => this.TokenList.Add(token);
@@ -160,14 +199,36 @@ public abstract class AggregateToken : Token
 
     internal void ReplaceWithToken(Token token)
     {
-        TokenList.Clear();
-        TokenList.Add(token);
+        ReplaceWithTokens(new[] { token });
     }
 
     internal void ReplaceWithTokens(IEnumerable<Token> tokens)
     {
+        ResolutionGuard.BeforeMutation(this);
         TokenList.Clear();
         TokenList.AddRange(tokens);
+    }
+
+    internal void RemoveResolvedChild(int index)
+    {
+        ResolutionGuard.BeforeChildPublication(this, index);
+        TokenList.RemoveAt(index);
+        ResolutionGuard.ChildPublished(this, index, null);
+    }
+
+    internal void ReplaceResolvedChild(int index, Token replacement)
+    {
+        ResolutionGuard.BeforeChildPublication(this, index);
+        TokenList[index] = replacement;
+        ResolutionGuard.ChildPublished(this, index, replacement);
+    }
+
+    internal void ReplaceResolvedTokens(IEnumerable<Token> tokens)
+    {
+        ResolutionGuard.BeforeChildrenPublication(this);
+        TokenList.Clear();
+        TokenList.AddRange(tokens);
+        ResolutionGuard.ChildrenPublished(this);
     }
 
     internal void ReplaceResolvedVariable(int index, string? value,
@@ -175,13 +236,13 @@ public abstract class AggregateToken : Token
     {
         if (value is null)
         {
-            TokenList.RemoveAt(index);
+            RemoveResolvedChild(index);
         }
         else
         {
-            TokenList[index] = semanticValue is { } semantic
+            ReplaceResolvedChild(index, semanticValue is { } semantic
                 ? new ResolvedStringToken(value, semantic.Value, semantic.QuoteChar, semantic.Escaped, escapeChar)
-                : new StringToken(value);
+                : new StringToken(value));
         }
     }
 
@@ -221,7 +282,7 @@ public abstract class AggregateToken : Token
                 }
                 else
                 {
-                    value = aggregateToken.ResolveVariables(escapeChar, variables, options);
+                    value = ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
                 }
                 if (token is VariableRefToken && options.UpdateInline && !suppressExpansion &&
                     (capturedValue?.UpdateInline ?? true))

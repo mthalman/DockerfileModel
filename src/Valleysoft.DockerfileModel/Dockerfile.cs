@@ -37,7 +37,11 @@ public class Dockerfile : IConstructContainer
 
     internal List<DockerfileConstruct> RawItems { get; }
 
-    internal void AddRaw(DockerfileConstruct item) => RawItems.Add(item);
+    internal void AddRaw(DockerfileConstruct item)
+    {
+        ResolutionGuard.BeforeMutation(this);
+        RawItems.Add(item);
+    }
 
     IEnumerable<DockerfileConstruct> IConstructContainer.Items => Items;
 
@@ -200,6 +204,7 @@ public class Dockerfile : IConstructContainer
         Func<Instruction, bool> processInstruction,
         ResolutionOptions? options)
     {
+        using ResolutionGuard.Scope scope = ResolutionGuard.Enter(this);
         variableOverrides ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
 
@@ -216,7 +221,7 @@ public class Dockerfile : IConstructContainer
         {
             if (processInstruction(stage.FromInstruction))
             {
-                resolvedValue = stage.FromInstruction.ResolveVariables(escapeChar, globalArgs, options);
+                resolvedValue = ResolutionGuard.Resolve(stage.FromInstruction, escapeChar, globalArgs, options);
             }
 
             Dictionary<string, string?> stageArgs = new();
@@ -239,7 +244,7 @@ public class Dockerfile : IConstructContainer
                 }
                 else
                 {
-                    resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
+                    resolvedValue = ResolutionGuard.Resolve(instruction, escapeChar, stageArgs, options);
                 }
             }
         }
@@ -285,6 +290,7 @@ public class Dockerfile : IConstructContainer
             }
             originalNames = args.Select(arg => new ArgNameSnapshot(arg)).ToArray();
         }
+        using ResolutionGuard.Scope argScope = ResolutionGuard.Enter(resolvedInstruction);
         bool hasConsumerCallbacks = false;
         Action? recordConsumerCallback = originalNames is null ? null : () => hasConsumerCallbacks = true;
         for (int i = 0; i < args.Length; i++)
@@ -314,7 +320,7 @@ public class Dockerfile : IConstructContainer
                 }
             }
             hasConsumerCallbacks |= customName;
-            if (variableOverrides.TryGetValue(name, out string? overrideArgValue))
+            if (ResolutionGuard.TryGetValue(variableOverrides, name, out string? overrideArgValue))
             {
                 SetArgBinding(stageArgs, arg.Name, overrideArgValue);
             }
@@ -405,7 +411,7 @@ public class Dockerfile : IConstructContainer
         Dictionary<string, string?> globalArgs = new();
         foreach (ArgDeclaration arg in stagesView.GlobalArgs.SelectMany(inst => inst.ArgTokens))
         {
-            if (variables.TryGetValue(arg.Name, out string? overridenValue))
+            if (ResolutionGuard.TryGetValue(variables, arg.Name, out string? overridenValue))
             {
                 SetArgBinding(globalArgs, arg.Name, overridenValue);
             }
@@ -582,7 +588,7 @@ public class Dockerfile : IConstructContainer
                 aggregate is VariableRefToken variable && variable.HasModifierTokens
                 ? options.UseModifierValueResolver(aggregate, escapeChar, bindings, ResolveModifier) : null)
             {
-                value = aggregate.ResolveVariables(escapeChar, bindings, options);
+                value = ResolutionGuard.Resolve(aggregate, escapeChar, bindings, options);
             }
             if (hasConsumerSerialization)
             {

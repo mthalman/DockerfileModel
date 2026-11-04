@@ -42,6 +42,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         set
         {
             Guard.NotNull(value, nameof(value));
+            ResolutionGuard.BeforeMutation(this);
             ReplaceWithTokens(GetInnerTokens(value));
         }
     }
@@ -50,7 +51,11 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     public virtual char? QuoteChar
     {
         get => quoteChar;
-        set => quoteChar = value;
+        set
+        {
+            ResolutionGuard.BeforeMutation(this);
+            quoteChar = value;
+        }
     }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value) =>

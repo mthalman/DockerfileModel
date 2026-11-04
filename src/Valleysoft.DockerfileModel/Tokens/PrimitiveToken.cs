@@ -19,6 +19,7 @@ public abstract class PrimitiveToken : Token, IValueToken
         set
         {
             Guard.NotNull(value, nameof(value));
+            ResolutionGuard.BeforeMutation(this);
             bool changed = this.value != value;
             this.value = value;
             if (changed && Volatile.Read(ref valueObservers) is { } observers)

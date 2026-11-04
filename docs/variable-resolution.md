@@ -40,13 +40,22 @@ This includes assigning an aggregate's `Value`, even when the replacement text
 is equivalent. Perform all source edits before starting resolution.
 Resolver-owned inline replacements are the only exception. Guarded source
 setters and collection operations reject prohibited edits before mutation.
-Edits through a protected raw token list are detected at callback boundaries
-and throw `InvalidOperationException`; they are not rolled back.
+Edits through a protected raw token list or a consumer-defined quote setter are
+detected at callback boundaries and throw `InvalidOperationException`; they are
+not rolled back.
 
-Callbacks must complete their mutations before returning. A callback may wait
-for a worker that performs those mutations; concurrent edits that continue after
-the callback returns are not supported. Separate resolutions may share immutable
-tokens, but callers must synchronize writes to shared tokens.
+`AggregateToken.Tokens` remains a live `IEnumerable<Token>`, backed by a guarded
+`IList<Token>` view rather than a `List<Token>`. Use the list interface for
+low-level edits outside resolution; casting the view to `List<Token>` is no
+longer supported. Syntax-aware editable collections remain the preferred editing
+surface.
+
+Callbacks must complete dictionary and option changes before returning. A callback
+may wait for a worker that performs those permitted changes. Guard checks run on
+the synchronous resolution thread; they are not cross-thread locks. Do not edit
+active source tokens from worker threads or continue mutations after the callback
+returns. Separate resolutions may share immutable tokens, but callers must
+synchronize writes to shared tokens outside resolution.
 
 Perform source-token mutations before calling resolution. Put variable-dictionary
 and option changes in resolver callbacks, not serializers or quote getters.

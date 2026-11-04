@@ -132,6 +132,7 @@ internal sealed class DocumentListAdapter(Dockerfile owner) :
     private void Apply(List<DockerfileConstruct> items, TokenEditPlan plan,
         IReadOnlyList<DockerfileConstruct> incoming, TriviaDisposition trivia)
     {
+        ResolutionGuard.BeforeMutation(owner);
         EditValidation.ValidateSupportedDocument(owner);
         string before = owner.ToString();
         PreserveBom(items, plan, trivia);
