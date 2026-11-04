@@ -43,7 +43,7 @@ public abstract class AggregateToken : Token
 
     internal virtual void MaterializeTokens() { }
 
-    internal List<Token> ResolutionChildren => TokenList;
+    internal IReadOnlyList<Token> ResolutionChildren => tokenList;
     internal event Action<int>? ResolutionChildRemoved;
     internal event Action<IReadOnlyList<Token>>? ResolutionChildrenReplaced;
 
@@ -93,6 +93,10 @@ public abstract class AggregateToken : Token
     internal bool HasCustomVariableResolution =>
         ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
             .Method.DeclaringType != typeof(AggregateToken);
+
+    internal bool HasConsumerVariableResolution =>
+        ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
+            .Method.DeclaringType?.Assembly != typeof(AggregateToken).Assembly;
 
     internal bool HasDefaultAggregateRendering =>
         ((Func<TokenStringOptions, string>)GetUnderlyingValue).Method.DeclaringType == typeof(AggregateToken);
@@ -243,6 +247,11 @@ public abstract class AggregateToken : Token
     internal void ReplaceWithTokens(IEnumerable<Token> tokens)
     {
         ResolutionGuard.BeforeMutation(this);
+        ReplaceChildren(tokens);
+    }
+
+    private void ReplaceChildren(IEnumerable<Token> tokens)
+    {
         Token[]? previous = ResolutionChildrenReplaced is not null ? TokenList.ToArray() : null;
         if (previous is not null)
         {
@@ -274,8 +283,7 @@ public abstract class AggregateToken : Token
     internal void ReplaceResolvedTokens(IEnumerable<Token> tokens)
     {
         ResolutionGuard.BeforeChildrenPublication(this);
-        TokenList.Clear();
-        TokenList.AddRange(tokens);
+        ReplaceChildren(tokens);
         ResolutionGuard.ChildrenPublished(this);
     }
 

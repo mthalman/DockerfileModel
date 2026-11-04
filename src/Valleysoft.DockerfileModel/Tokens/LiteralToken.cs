@@ -134,7 +134,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         contexts.Add((this, json));
         try
         {
-            return ResolveVariables(escapeChar, variables, options);
+            return ResolutionGuard.Resolve(this, escapeChar, variables, options);
         }
         finally
         {
@@ -145,6 +145,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
         ResolutionOptions? options = null)
     {
+        using ResolutionGuard.Scope scope = ResolutionGuard.Enter(this);
         bool json = ResolveAsJsonString;
         if (resolutionContexts is { } contexts)
         {

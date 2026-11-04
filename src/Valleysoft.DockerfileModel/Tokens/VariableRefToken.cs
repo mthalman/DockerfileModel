@@ -188,7 +188,7 @@ public class VariableRefToken : AggregateToken
     {
         string? modifier = Modifier;
         string name = VariableName;
-        bool exists = variables.TryGetValue(name, out value);
+        bool exists = ResolutionGuard.TryGetValue(variables, name, out value);
         bool isSet = IsVariableSet(modifier, exists, value);
         requiredName = modifier?.Last() == '?' && !isSet ? name : null;
         if (modifier?.Last() == '+' && !isSet)
@@ -209,8 +209,11 @@ public class VariableRefToken : AggregateToken
     internal static VariableSubstitutionException MissingVariable(string name, string? detail) =>
         new($"Variable '{name}' is not set. Error detail: '{detail ?? "<empty>"}'.");
 
+    internal string? ResolveValue(char escapeChar, IDictionary<string, string?> variables,
+        ResolutionOptions options) => ResolveVariablesCore(escapeChar, variables, options, publishInline: false);
+
     private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables,
-        ResolutionOptions options)
+        ResolutionOptions options, bool publishInline = true)
     {
         string? ResolveModifier() => ResolveModifierValue(escapeChar, variables, options);
         string variableName = VariableName;
@@ -263,7 +266,7 @@ public class VariableRefToken : AggregateToken
 
         value = options.FormatValue(escapeChar, value ?? String.Empty);
             
-        if (options.UpdateInline)
+        if (publishInline && options.UpdateInline)
         {
             if (String.IsNullOrEmpty(value))
             {
