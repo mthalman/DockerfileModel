@@ -112,12 +112,10 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 
     internal bool ResolveAsJsonString { get; set; }
     internal bool CanContainVariables => canContainVariables;
-    internal int ValueVersion { get; private set; }
 
     internal void OnValueReplaced()
     {
         resolvedJsonLiterals = null;
-        ValueVersion++;
     }
 
     // Bound delegates identify overrides without trim-unsafe member lookup.

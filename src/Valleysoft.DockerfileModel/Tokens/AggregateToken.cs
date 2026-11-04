@@ -45,11 +45,17 @@ public abstract class AggregateToken : Token
 
     internal IReadOnlyList<Token> ResolutionChildren => tokenList;
     internal event Action<int>? ResolutionChildRemoved;
-    internal event Action<IReadOnlyList<Token>>? ResolutionChildrenReplaced;
 
     /// <summary>Gets the live ordered child sequence, not a snapshot or a deep copy.</summary>
     /// <remarks>Structural edits during enumeration can invalidate the enumerator.</remarks>
-    public IEnumerable<Token> Tokens => childrenView ??= new GuardedChildren(this, TokenList);
+    public IEnumerable<Token> Tokens
+    {
+        get
+        {
+            MaterializeTokens();
+            return childrenView ??= new GuardedChildren(this, tokenList);
+        }
+    }
 
     private sealed class GuardedChildren(AggregateToken owner, IList<Token> children) : Collection<Token>(children)
     {
@@ -95,6 +101,7 @@ public abstract class AggregateToken : Token
             .Method.DeclaringType != typeof(AggregateToken);
 
     internal bool HasConsumerVariableResolution =>
+        GetType().Assembly != typeof(AggregateToken).Assembly &&
         ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
             .Method.DeclaringType?.Assembly != typeof(AggregateToken).Assembly;
 
@@ -252,17 +259,8 @@ public abstract class AggregateToken : Token
 
     private void ReplaceChildren(IEnumerable<Token> tokens)
     {
-        Token[]? previous = ResolutionChildrenReplaced is not null ? TokenList.ToArray() : null;
-        if (previous is not null)
-        {
-            tokens = tokens.ToArray();
-        }
         TokenList.Clear();
         TokenList.AddRange(tokens);
-        if (previous is not null)
-        {
-            ResolutionChildrenReplaced?.Invoke(previous);
-        }
     }
 
     internal void RemoveResolvedChild(int index)

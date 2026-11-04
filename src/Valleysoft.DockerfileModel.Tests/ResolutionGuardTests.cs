@@ -8,7 +8,7 @@ public class ResolutionGuardTests
     {
         foreach (bool inline in new[] { false, true })
         foreach (bool dictionaryCallback in new[] { false, true })
-        foreach (string entry in new[] { "aggregate", "literal", "variable", "volume" })
+        foreach (string entry in new[] { "aggregate", "literal", "variable", "json", "volume" })
         foreach (string edit in new[] { "add", "remove", "replace", "reorder", "value", "primitive", "quote" })
         {
             yield return new object[] { inline, dictionaryCallback, entry, edit };
@@ -57,9 +57,16 @@ public class ResolutionGuardTests
             "aggregate" => new Container(target),
             "literal" => target,
             "variable" => new VariableRefToken("UNSET", ":-", "") { ModifierValueToken = target },
+            "json" => JsonSource(),
             "volume" => VolumeSource(),
             _ => throw new ArgumentOutOfRangeException(nameof(entry))
         };
+        AggregateToken JsonSource()
+        {
+            target.QuoteChar = '"';
+            target.ResolveAsJsonString = true;
+            return target;
+        }
         AggregateToken VolumeSource()
         {
             VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"placeholder\"]");

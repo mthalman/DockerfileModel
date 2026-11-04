@@ -173,14 +173,17 @@ Changes a right-hand callback makes to the variable dictionary are visible to
 left-hand references.
 Custom dictionary lookups and comparers may also change resolution options,
 including enabling inline publication during the first lookup.
-References whose original tokens match the decoded syntax also observe callback
-changes to those tokens' names and modifier values, including nested references.
+Lookup changes to `RemoveEscapeCharacters` affect the reference performing that
+lookup as well as references evaluated later.
 Custom rendering still determines decoded modifier contents.
 Changes to `RemoveEscapeCharacters` also affect subsequent references and source
 formatting in that evaluation order.
 Each path occurrence uses the value of `UpdateInline` after its evaluation.
 A callback changing that option does not retroactively change whether
 already evaluated path occurrences are replaced.
+Before a later callback runs, eligible source-backed reference-token children
+are replaced in their live slots. Callbacks can observe those publications but
+cannot edit their token values or structure.
 The same rule applies to reference children in selected modifiers, including
 children of default aggregate containers. These children are published before
 the next sibling callback runs, even if that callback prevents replacement of
@@ -190,28 +193,12 @@ Source publication locations are tracked independently of live-reference binding
 Nested updates still reach the exact source occurrence when quoted or
 JSON-escaped modifier text requires evaluation through a decoded token tree.
 This includes custom references and required-variable failures without callbacks.
-Live bindings read the current token in the source slot, so replacing a reference
-object in a callback affects subsequent evaluation.
 Inline removal updates the captured slots of shared modifiers. Later occurrences
 skip removed children instead of reading a neighboring token or a stale index.
 This tracking also covers removals through custom aggregates that delegate to
 the ordinary resolver. Tracking subscriptions end when resolution returns or throws.
-Bulk child replacement through value setters reconciles captured slots with the
-new child sequence. Removed occurrences are not read through stale indices.
-Reordered surviving children retain their source bindings during replacements
-that change the child count.
-Syntax-aware collection edits publish through the same replacement tracking.
-If a callback replaces a container that still has pending references, resolution
-uses the replacement subtree instead of evaluating or restoring detached children.
-This also applies when the currently evaluated reference replaces its own ancestor,
-including during the last callback.
-Replacing an ancestor supersedes earlier results from its detached descendants.
-The replacement inherits the decoded quote context at the original container's
-start; quotes may open or close across container boundaries.
-Each replacement child retains its own inline-publication decision, including
-literal protection for substituted values and expandability for retained references.
-Custom literal and aggregate occurrences also read their live source slots before
-invoking an override.
+Custom occurrences retain their source anchors even when their physical token
+boundaries split a decoded JSON character.
 Shared modifiers reuse the semantic values of earlier inline substitutions in
 the same call, rather than treating their encoded JSON spelling as expanded text.
 Published substitutions remain visible even when quoted or escaped syntax prevents
@@ -224,7 +211,7 @@ children and releases the deferred expansion tree. This avoids repeatedly
 rendering growing modifier subtrees during inline publication.
 Modifier selection reads the environment once per reference evaluation.
 Selected branches and required-variable error names do not change if a callback
-updates the variable dictionary or reference during their evaluation.
+updates the variable dictionary during their evaluation.
 Resolution context passes the caller's original `ResolutionOptions` instance
 without cloning it. Selected custom modifier overrides receive the caller's `UpdateInline`
 and `RemoveEscapeCharacters` settings; the overrides manage their own side effects.
@@ -236,24 +223,13 @@ references but retains untouched child tokens, including empty primitive tokens.
 Empty primitive siblings retain their order around zero-width substitutions.
 Repeated occurrences of the same empty token remain distinct, including when
 only one occurrence is eligible for inline replacement.
-Redirected empty containers retain their occurrence order, including when their
-replacements share a token or insert text inside an existing JSON escape.
 Zero-width references inside nonempty nested literals are replaced only once.
 Unrelated empty literals retain their identity, including those inside an
 ancestor whose expanded references are replaced.
 Inline expansion also retains untouched children of nonempty nested literals.
-Retained primitive slices observe callback edits while keeping the original
-reference boundaries; a retained trailing slice includes the primitive's new end.
-Replacing a primitive object in its source slot also updates retained text and
-preserves the replacement object's identity when the whole primitive is retained.
-Whole retained aggregate occurrences likewise preserve replacement objects.
 Non-inline resolution does not reconstruct the source token tree.
 Inline reconstruction skips source ranges that cannot contain a replacement,
 including unrelated sibling subtrees beside a zero-width substitution.
-Reconstruction retains pre-callback occurrence boundaries, so changes to a
-nested reference's name or modifier length do not shift neighboring replacements.
-Returned text reads retained child tokens' live values using those same original
-boundaries; a callback's edit to an untouched primitive is not lost in a source slice.
 Untouched subtrees are retained without traversing them again during publication.
 When every substitution is eligible for inline publication, returned text and
 publication reuse the same reconstructed tokens.
@@ -279,9 +255,6 @@ iteratively. This does not change the recursion limits of general token
 `ToString()` calls.
 Live-reference binding checks decoded spans using precomputed character counts,
 without rescanning enclosing modifier text for every nested reference.
-Ancestor replacement lookups reuse unchanged bindings. Structural replacement
-notifications and consumer callbacks invalidate those bindings before subsequent
-references are evaluated.
 
 `RemoveEscapeCharacters` affects returned JSON text, including single-quoted
 contents and trailing escape characters, without rewriting untouched path
@@ -289,8 +262,9 @@ contents, even when `UpdateInline` is `true`. Inline substitutions stay
 literal across later primitive-token edits. Assigning the path's `Value` or
 updating it through `Paths` reparses its contents and makes new references
 eligible for resolution again.
-If a callback performs either assignment during resolution, the new value replaces
-the old syntax for that path or nested literal, including newly inserted children.
+Assignments through `Value` or `Paths` replace child tokens and are therefore
+structural edits. Perform them before or after resolution, not from a callback,
+even when assigning equivalent text.
 Nesting a previously resolved literal under another path or modifier preserves its
 substitution protection; flattening it during inline publication preserves that
 protection too.
@@ -318,6 +292,61 @@ continuations and validate the known instruction grammar.
 `TokenList<TToken>` derives from `EditableList<TToken>` and retains its existing
 read helpers. `TokenBuilder.Tokens` remains a low-level construction list, not a
 structural-editing collection.
+
+## Resolution callbacks
+
+Variable resolution keeps active source tokens unchanged by callbacks. This contract
+applies to document, instruction, aggregate, literal, and variable-reference
+resolution, in both inline modes. A document operation protects the document's
+construct membership and the token trees of its constructs, not only the
+instruction currently being expanded.
+
+Resolver overrides and custom dictionary lookups or comparers may change
+variable dictionaries and `ResolutionOptions`. They may also perform synchronous
+reentrant resolution. They must not assign source token values or quotes,
+including `StringToken.Value`, reference names, modifier contents, or
+`QuoteChar`. Assignments to source properties are rejected even when assigning
+the current value.
+
+Callbacks also must not add, remove, reorder, or replace children of an active source,
+or change an active document's construct membership. Violations throw
+`InvalidOperationException`. Guarded setters and collection views reject the
+edit before publication. A subclass can still access its protected raw
+`List<Token>`; edits through that list are detected after the callback returns
+or throws, including edits that restore the original sequence. Detection does
+not roll back those raw edits. Custom quote overrides that bypass the native
+setters are also checked at callback boundaries without rollback. An exception
+does not undo eligible inline substitutions already published by the library.
+
+`AggregateToken.Tokens` returns a cached, live guarded view, not a `List<Token>`.
+Its declared `IEnumerable<Token>` signature is unchanged. For low-level child
+editing outside resolution, cast to `IList<Token>` rather than `List<Token>`:
+
+```csharp
+IList<Token> children = (IList<Token>)literal.Tokens;
+children.Add(new StringToken("/suffix"));
+```
+
+These low-level writes do not validate grammar or preserve separators; prefer
+the owner's syntax-aware editable collections. The guarded view prevents native
+token lists from escaping, so ordinary callbacks do not require repeated scans
+of native source trees. Protected lists in consumer-defined subclasses still
+require callback-boundary checks. The cost of those checks grows with the number
+of such containers and callbacks.
+
+The library may replace or remove expanded references as part of
+`UpdateInline`; these library-owned publications are not callback edits.
+Callbacks may edit unrelated trees. A completed reentrant operation releases
+protection of its independent source before returning to its caller.
+
+Do not access a shared source concurrently from another thread during resolution.
+The mutable model and its synchronous guard do not provide cross-thread locking.
+
+Custom serializers and quote getters must be side-effect-free and repeatable.
+Consumer overrides must obey the callback contract. The library enforces it
+when dispatching overrides; a direct call that stays entirely inside consumer
+code without entering library resolution remains that implementation's
+responsibility.
 
 ## Choose a trivia policy
 
