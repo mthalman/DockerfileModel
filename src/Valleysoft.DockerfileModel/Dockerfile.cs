@@ -293,22 +293,37 @@ public class Dockerfile : IConstructContainer
             for (int i = 0; sameLayout && i < args.Length; i++)
             {
                 sameLayout = args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator;
+            }
+            bool verifiedSourceSyntax = false;
+            for (int i = 0; sameLayout && i < args.Length; i++)
+            {
                 bool observed;
+                bool ambiguous = false;
                 lock (serializedArgs)
                 {
-                    observed = serializedArgs.TryGetValue(args[i], out List<string>? observations);
-                    if (observed)
+                    serializedArgs.TryGetValue(args[i], out List<string>? observations);
+                    observed = observations is not null;
+                    if (observations is not null)
                     {
-                        // Helper calls and worker completion order do not determine emitted order.
-                        sameLayout &= observations!.Any(text =>
+                        int matching = observations.Count(text =>
                             MatchesArgDeclarationSyntax(text, syntax, parsedArgs[i], i == args.Length - 1));
+                        sameLayout = matching > 0;
+                        ambiguous = matching > 0 && matching < observations.Count;
                     }
                 }
-                if (!observed)
+                if (!observed || ambiguous)
                 {
-                    sameLayout &= MatchesArgDeclarationSyntax(args[i].ToString(), syntax, parsedArgs[i],
+                    // A matching helper result alone cannot establish the emitted declaration's boundaries.
+                    verifiedSourceSyntax = true;
+                    sameLayout = MatchesArgDeclarationSyntax(args[i].ToString(), syntax, parsedArgs[i],
                         i == args.Length - 1);
                 }
+            }
+            if (sameLayout && verifiedSourceSyntax)
+            {
+                sameLayout = instruction.ArgTokens.SequenceEqual(args);
+                for (int i = 0; sameLayout && i < args.Length; i++)
+                    sameLayout = args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator;
             }
             if (!sameLayout)
             {
@@ -327,9 +342,14 @@ public class Dockerfile : IConstructContainer
             string name = arg.Name;
             if (resolvedInstruction != instruction && name != resolvedArgs[i].Name)
             {
-                if (originalNames![i].Matches(arg.NameToken) &&
-                    (!hasConsumerCallbacks || !customName ||
-                        arg.NameToken.ToString() == resolvedArgs[i].NameToken.ToString()))
+                bool useProjection = originalNames![i].Matches(arg.NameToken);
+                if (useProjection && hasConsumerCallbacks && customName)
+                {
+                    useProjection = arg.NameToken.ToString() == resolvedArgs[i].NameToken.ToString();
+                    name = arg.Name;
+                    useProjection &= originalNames[i].Matches(arg.NameToken);
+                }
+                if (useProjection)
                 {
                     arg = resolvedArgs[i];
                     name = arg.Name;

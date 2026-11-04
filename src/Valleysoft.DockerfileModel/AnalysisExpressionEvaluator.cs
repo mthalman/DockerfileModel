@@ -75,7 +75,8 @@ internal static class AnalysisExpressionEvaluator
         Action? onConsumerSerialization = null, Func<bool>? shouldRecordSyntax = null,
         bool resolveTriviaVariables = true)
     {
-        ResolutionSnapshot snapshot = new(token, resolveAggregate is not null,
+        using PrimitiveToken.ValueMutationScope valueChanges = new();
+        ResolutionSnapshot snapshot = new(token, resolveAggregate is not null, valueChanges,
             getSerializationVersion: getCustomResolutionVersion, onConsumerSerialization: onConsumerSerialization,
             resolveTriviaVariables: resolveTriviaVariables);
         List<ResolutionSnapshot> references = new();
@@ -168,6 +169,7 @@ internal static class AnalysisExpressionEvaluator
     {
         private readonly bool resolveCustomLiterals;
         private readonly bool resolveTriviaVariables;
+        private readonly PrimitiveToken.ValueMutationScope valueChanges;
         private readonly Func<int>? getSerializationVersion;
         private readonly Action? onConsumerSerialization;
         private readonly string? primitiveValue;
@@ -181,7 +183,8 @@ internal static class AnalysisExpressionEvaluator
         private List<ResolutionSnapshot> children = new();
         private SyntaxChildren? syntaxChildren;
 
-        public ResolutionSnapshot(Token source, bool resolveCustomLiterals, ResolutionSnapshot? previous = null,
+        public ResolutionSnapshot(Token source, bool resolveCustomLiterals,
+            PrimitiveToken.ValueMutationScope valueChanges, ResolutionSnapshot? previous = null,
             int serializationVersion = 0, Func<int>? getSerializationVersion = null,
             Action? onConsumerSerialization = null,
             Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null,
@@ -191,6 +194,7 @@ internal static class AnalysisExpressionEvaluator
             IsIgnoredTrivia = source is LineContinuationToken or CommentToken or NewLineToken;
             this.resolveCustomLiterals = resolveCustomLiterals;
             this.resolveTriviaVariables = resolveTriviaVariables;
+            this.valueChanges = valueChanges;
             this.getSerializationVersion = getSerializationVersion;
             this.onConsumerSerialization = onConsumerSerialization;
             this.serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
@@ -233,6 +237,11 @@ internal static class AnalysisExpressionEvaluator
             if (source is not AggregateToken)
             {
                 primitiveValue = (source as PrimitiveToken)?.Value;
+                if (source is PrimitiveToken primitive and not IQuotableToken &&
+                    source.GetType().Assembly == typeof(Token).Assembly)
+                {
+                    valueChanges.Track(primitive);
+                }
                 if (IsIgnoredTrivia && !IsConsumerLeaf)
                 {
                     serializedText = primitiveValue;
@@ -276,8 +285,9 @@ internal static class AnalysisExpressionEvaluator
                 {
                     ResolutionSnapshot? previousChild = previous is not null && childIndex < previous.children.Count
                         ? previous.children[childIndex] : null;
-                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild, serializationVersion,
-                        getSerializationVersion, onConsumerSerialization, pendingFailures, resolveTriviaVariables));
+                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, valueChanges, previousChild,
+                        serializationVersion, getSerializationVersion, onConsumerSerialization, pendingFailures,
+                        resolveTriviaVariables));
                     childIndex++;
                 }
             }
@@ -377,11 +387,11 @@ internal static class AnalysisExpressionEvaluator
                 foreach (int i in syntaxChildren.Indices)
                 {
                     if (i >= count) break;
-                    if (!children[i].Matches(liveChildren[i])) return false;
+                    if (i >= liveChildren.Count || !children[i].Matches(liveChildren[i])) return false;
                 }
                 if (syntaxChildren.StructureMatches(count))
                 {
-                    long valueVersion = PrimitiveToken.ValueVersion;
+                    long valueVersion = valueChanges.Version;
                     if (!syntaxChildren.NativeValuesMatch(valueVersion, count))
                     {
                         foreach (int i in syntaxChildren.NativeIndices)
@@ -396,10 +406,19 @@ internal static class AnalysisExpressionEvaluator
             }
             if (liveChildren.Count < count) return false;
             List<Token>.Enumerator structure = liveChildren.GetEnumerator();
-            long nativeValueVersion = PrimitiveToken.ValueVersion;
+            long nativeValueVersion = valueChanges.Version;
             for (int i = 0; i < count; i++)
             {
                 if (i >= liveChildren.Count || !children[i].Matches(liveChildren[i])) return false;
+            }
+            if (syntaxChildren is not null && nativeValueVersion != valueChanges.Version)
+            {
+                foreach (int i in syntaxChildren.NativeIndices)
+                {
+                    if (i >= count) break;
+                    if (i >= liveChildren.Count || !children[i].Matches(liveChildren[i])) return false;
+                }
+                nativeValueVersion = valueChanges.Version;
             }
             if (syntaxChildren is not null && SyntaxChildren.StructureMatches(structure))
             {
@@ -540,8 +559,9 @@ internal static class AnalysisExpressionEvaluator
                 for (int i = 0; i < Math.Min(child.index, liveChildren.Count); i++)
                 {
                     owner.AddChild(previous[i].Matches(liveChildren[i])
-                        ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, previous[i], version,
-                            getSerializationVersion, onConsumerSerialization, pendingFailures, resolveTriviaVariables));
+                        ? previous[i] : new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, valueChanges,
+                            previous[i], version, getSerializationVersion, onConsumerSerialization, pendingFailures,
+                            resolveTriviaVariables));
                 }
                 for (int i = child.index; i < previous.Count; i++)
                 {
@@ -578,7 +598,7 @@ internal static class AnalysisExpressionEvaluator
         {
             private List<Token>.Enumerator structure;
             private int structureCount;
-            private long nativeValueVersion = PrimitiveToken.ValueVersion;
+            private long nativeValueVersion;
             private int nativeValueCount = Int32.MaxValue;
 
             public SyntaxChildren(List<Token> tokens) => CaptureStructure(tokens);

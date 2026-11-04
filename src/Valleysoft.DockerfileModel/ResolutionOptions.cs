@@ -110,6 +110,8 @@ public class ResolutionOptions
         private Func<Tokens.LiteralToken, string?>? resolver;
         private readonly object ownershipLock = new();
         private Dictionary<Tokens.VariableRefToken, OwnershipPath>? ownershipPaths;
+        private HashSet<Tokens.AggregateToken>? ownershipSearchVisited;
+        private List<(Tokens.AggregateToken Owner, int NextIndex)>? ownershipSearchPath;
 
         public ModifierResolutionScope(Tokens.AggregateToken owner, ResolutionOptions options, char escapeChar,
             IDictionary<string, string?> variables,
@@ -159,6 +161,17 @@ public class ResolutionOptions
                 {
                     return true;
                 }
+                if (ownershipPaths is not null)
+                {
+                    OwnershipPath? found = FindOwnershipPath(root, variable);
+                    if (found is not null)
+                    {
+                        ownershipPaths[variable] = found;
+                        return true;
+                    }
+                    ownershipPaths.Remove(variable);
+                    return false;
+                }
                 ownershipPaths = new(ReferenceComparer<Tokens.VariableRefToken>.Instance);
                 HashSet<Tokens.AggregateToken> visited = new(ReferenceComparer<Tokens.AggregateToken>.Instance) { root };
                 Stack<(Tokens.AggregateToken Owner, OwnershipPath? Path)> pending = new();
@@ -179,6 +192,43 @@ public class ResolutionOptions
                 }
                 return ownershipPaths.TryGetValue(variable, out OwnershipPath? captured) &&
                     captured.Matches(root, variable);
+            }
+        }
+
+        private OwnershipPath? FindOwnershipPath(Tokens.AggregateToken root, Tokens.VariableRefToken variable)
+        {
+            ownershipSearchVisited ??= new(ReferenceComparer<Tokens.AggregateToken>.Instance);
+            ownershipSearchPath ??= new();
+            ownershipSearchVisited.Add(root);
+            ownershipSearchPath.Add((root, 0));
+            try
+            {
+                while (ownershipSearchPath.Count > 0)
+                {
+                    int last = ownershipSearchPath.Count - 1;
+                    var current = ownershipSearchPath[last];
+                    if (current.NextIndex >= current.Owner.TokenList.Count)
+                    {
+                        ownershipSearchPath.RemoveAt(last);
+                        continue;
+                    }
+                    ownershipSearchPath[last] = (current.Owner, current.NextIndex + 1);
+                    if (current.Owner.TokenList[current.NextIndex] is not Tokens.AggregateToken aggregate) continue;
+                    if (ReferenceEquals(aggregate, variable))
+                    {
+                        OwnershipPath? found = null;
+                        foreach (var step in ownershipSearchPath)
+                            found = new(step.Owner, step.NextIndex - 1, found);
+                        return found;
+                    }
+                    if (ownershipSearchVisited.Add(aggregate)) ownershipSearchPath.Add((aggregate, 0));
+                }
+                return null;
+            }
+            finally
+            {
+                ownershipSearchVisited.Clear();
+                ownershipSearchPath.Clear();
             }
         }
 
@@ -215,6 +265,8 @@ public class ResolutionOptions
             {
                 Interlocked.Exchange(ref resolver, null);
                 ownershipPaths = null;
+                ownershipSearchVisited = null;
+                ownershipSearchPath = null;
                 owner = null;
                 options = null;
                 variables = null;

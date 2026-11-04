@@ -482,6 +482,133 @@ public class AnalysisExpressionEvaluatorTests
         Assert.Equal(count, resolved.Count);
     }
 
+    [Fact]
+    public async Task NativeValueMutationScopesOnlyTrackTheirOwnSources()
+    {
+        StringToken shared = new("old");
+        StringToken innerOnly = new("inner");
+        StringToken unrelated = new("other");
+        using PrimitiveToken.ValueMutationScope outer = new();
+        outer.Track(shared);
+        PrimitiveToken.ValueMutationScope inner = new();
+        ExecutionContext inherited;
+        using (inner)
+        {
+            inner.Track(shared);
+            inner.Track(innerOnly);
+            inherited = ExecutionContext.Capture()!;
+            unrelated.Value = "edit";
+            string equalValue = new(shared.Value.ToCharArray());
+            shared.Value = equalValue;
+            Assert.Same(equalValue, shared.Value);
+            Assert.Equal(0, outer.Version);
+            Assert.Equal(0, inner.Version);
+            Task mutation;
+            using (ExecutionContext.SuppressFlow()) mutation = Task.Run(() => shared.Value = "new");
+            await mutation;
+            Assert.Equal(1, outer.Version);
+            Assert.Equal(1, inner.Version);
+            innerOnly.Value = "changed";
+            Assert.Equal(1, outer.Version);
+            Assert.Equal(2, inner.Version);
+        }
+
+        ExecutionContext.Run(inherited, _ => shared.Value = "after disposal", null);
+        Assert.Equal(2, outer.Version);
+        Assert.Equal(2, inner.Version);
+    }
+
+    [Fact]
+    public async Task ConcurrentNativeValueSubscriptionsDetachIndependently()
+    {
+        StringToken source = new("old");
+        PrimitiveToken.ValueMutationScope[] scopes = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ =>
+            Task.Run(() =>
+            {
+                PrimitiveToken.ValueMutationScope scope = new();
+                scope.Track(source);
+                scope.Track(source);
+                return scope;
+            })));
+        try
+        {
+            source.Value = "first";
+            Assert.All(scopes, scope => Assert.Equal(1, scope.Version));
+            for (int i = 0; i < scopes.Length; i += 2) scopes[i].Dispose();
+            source.Value = "second";
+            for (int i = 0; i < scopes.Length; i++)
+                Assert.Equal(i % 2 == 0 ? 1 : 2, scopes[i].Version);
+        }
+        finally
+        {
+            foreach (PrimitiveToken.ValueMutationScope scope in scopes) scope.Dispose();
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void NestedResolutionsRetainOuterNativeValueTracking(bool worker, bool shared)
+    {
+        StringToken prefix = new("old");
+        LiteralToken outer = new(new Token[] { prefix, new VariableRefToken("OUTER") }, true, '\\');
+        LiteralToken inner = new(new Token[]
+        {
+            shared ? prefix : new StringToken("inner"), new VariableRefToken("INNER")
+        }, true, '\\');
+        int outerVersion = 0;
+        int innerVersion = 0;
+        string ResolveInner(VariableRefToken variable)
+        {
+            if (worker)
+            {
+                Task mutation;
+                using (ExecutionContext.SuppressFlow()) mutation = Task.Run(() => prefix.Value = "new");
+                mutation.GetAwaiter().GetResult();
+            }
+            else prefix.Value = "new";
+            innerVersion++;
+            return "i";
+        }
+        string ResolveOuter(VariableRefToken variable)
+        {
+            Assert.Equal(shared ? "newi" : "inneri", AnalysisExpressionEvaluator.ResolveVariables(inner, '\\',
+                ResolveInner, getCustomResolutionVersion: () => innerVersion));
+            outerVersion++;
+            return "o";
+        }
+
+        Assert.Equal("newo", AnalysisExpressionEvaluator.ResolveVariables(outer, '\\', ResolveOuter,
+            getCustomResolutionVersion: () => outerVersion));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnrelatedPrimitiveEditsPreserveMixedNativeDefaults(bool updateInline)
+    {
+        const int count = 512;
+        StringToken unrelated = new("other");
+        LiteralToken root = new(Enumerable.Range(0, count).SelectMany(_ => new Token[]
+        {
+            new StringToken("."), new VariableRefToken("X")
+        }), true, '\\');
+        int version = 0;
+        string Resolve(VariableRefToken variable)
+        {
+            unrelated.Value = ++version % 2 == 0 ? "even" : "odd";
+            return "x";
+        }
+
+        Assert.Equal(String.Concat(Enumerable.Repeat(".x", count)),
+            AnalysisExpressionEvaluator.ResolveVariables(root, '\\', Resolve,
+                getCustomResolutionVersion: () => version,
+                syntaxOptions: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(count, version);
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);
