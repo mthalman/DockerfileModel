@@ -73,7 +73,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
                         new LiteralToken(parsed.Value.Tokens, canContainVariables, escapeChar).Value == expectedValue)
                     {
                         ReplaceWithTokens(contents);
-                        resolvedJsonLiterals = null;
+                        OnValueReplaced();
                         QuoteChar = quote;
                         return;
                     }
@@ -81,7 +81,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
                 throw new ArgumentException("The value cannot be serialized as one operand without changing its contents.", nameof(value));
             }
             ReplaceWithTokens(contents);
-            resolvedJsonLiterals = null;
+            OnValueReplaced();
         }
     }
 
@@ -112,6 +112,13 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
 
     internal bool ResolveAsJsonString { get; set; }
     internal bool CanContainVariables => canContainVariables;
+    internal int ValueVersion { get; private set; }
+
+    internal void OnValueReplaced()
+    {
+        resolvedJsonLiterals = null;
+        ValueVersion++;
+    }
 
     // Bound delegates identify overrides without trim-unsafe member lookup.
     internal bool HasCustomResolution => GetType() != typeof(LiteralToken) &&

@@ -329,6 +329,10 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         }
         expected[index] = replacement;
         ValidateAndCommit(plan, expected);
+        if (current is LiteralToken literal)
+        {
+            literal.OnValueReplaced();
+        }
     }
 
     public void Move(int oldIndex, int newIndex)

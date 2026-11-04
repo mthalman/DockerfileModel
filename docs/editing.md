@@ -171,6 +171,8 @@ Decoded single quotes and escapes still protect these references from evaluation
 Sibling callbacks run from right to left, matching ordinary aggregate resolution.
 Changes a right-hand callback makes to the variable dictionary are visible to
 left-hand references.
+Custom dictionary lookups and comparers may also change resolution options,
+including enabling inline publication during the first lookup.
 References whose original tokens match the decoded syntax also observe callback
 changes to those tokens' names and modifier values, including nested references.
 Custom rendering still determines decoded modifier contents.
@@ -201,6 +203,8 @@ that change the child count.
 Syntax-aware collection edits publish through the same replacement tracking.
 If a callback replaces a container that still has pending references, resolution
 uses the replacement subtree instead of evaluating or restoring detached children.
+This also applies when the currently evaluated reference replaces its own ancestor,
+including during the last callback.
 Replacing an ancestor supersedes earlier results from its detached descendants.
 The replacement inherits the decoded quote context at the original container's
 start; quotes may open or close across container boundaries.
@@ -232,6 +236,8 @@ references but retains untouched child tokens, including empty primitive tokens.
 Empty primitive siblings retain their order around zero-width substitutions.
 Repeated occurrences of the same empty token remain distinct, including when
 only one occurrence is eligible for inline replacement.
+Redirected empty containers retain their occurrence order, including when their
+replacements share a token or insert text inside an existing JSON escape.
 Zero-width references inside nonempty nested literals are replaced only once.
 Unrelated empty literals retain their identity, including those inside an
 ancestor whose expanded references are replaced.
@@ -249,6 +255,8 @@ nested reference's name or modifier length do not shift neighboring replacements
 Returned text reads retained child tokens' live values using those same original
 boundaries; a callback's edit to an untouched primitive is not lost in a source slice.
 Untouched subtrees are retained without traversing them again during publication.
+When every substitution is eligible for inline publication, returned text and
+publication reuse the same reconstructed tokens.
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
 retained. Decoded single quotes protect their contents from expansion; quote
@@ -281,6 +289,11 @@ contents, even when `UpdateInline` is `true`. Inline substitutions stay
 literal across later primitive-token edits. Assigning the path's `Value` or
 updating it through `Paths` reparses its contents and makes new references
 eligible for resolution again.
+If a callback performs either assignment during resolution, the new value replaces
+the old syntax for that path or nested literal, including newly inserted children.
+Nesting a previously resolved literal under another path or modifier preserves its
+substitution protection; flattening it during inline publication preserves that
+protection too.
 Successful path replacement also releases tracking references to detached
 substitutions; rejected edits retain the existing tracking state.
 If a JSON escape spans untouched text and an inline substitution, its decoded
