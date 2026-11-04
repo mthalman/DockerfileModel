@@ -47,6 +47,9 @@ syntax, escape, and check directives, header placement rules, and lossless editi
 See [Native AOT and trimming](docs/native-aot.md) for supported targets and
 restrictions on consumer-defined subclasses.
 
+See [Variable resolution](docs/variable-resolution.md) for ARG scopes, callback
+mutation boundaries, and custom serializer requirements.
+
 See [Dockerfile compatibility](docs/dockerfile-compatibility.md) for the pinned
 stable frontend target, upstream conformance corpus, known limitations, and
 maintainer-reviewed upgrade policy.

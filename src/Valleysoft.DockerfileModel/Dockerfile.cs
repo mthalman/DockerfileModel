@@ -165,7 +165,8 @@ public class Dockerfile : IConstructContainer
     /// References in defaults resolve right-to-left. Callbacks can change pending tokens and options,
     /// but not completed results. Inline updates happen as references resolve; enabling them later
     /// does not update earlier references.
-    /// Non-inline stage resolution uses serialized declarations if custom serializers change their boundaries.
+    /// Serializers and quote getters must be side-effect-free and repeatable.
+    /// Non-inline stage resolution uses serialized declarations for instruction subclasses or changed boundaries.
     /// </para>
     /// <para>
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
@@ -263,67 +264,19 @@ public class Dockerfile : IConstructContainer
         else
         {
             args = instruction.ArgTokens.ToArray();
-            HashSet<ArgDeclaration> declarations = new(args, ReferenceComparer<ArgDeclaration>.Instance);
-            Dictionary<ArgDeclaration, List<string>> serializedArgs =
-                new(ReferenceComparer<ArgDeclaration>.Instance);
-            string syntax;
-            using (Token.ObserveSerialization((token, text) =>
-            {
-                if (token is ArgDeclaration declaration && declarations.Contains(declaration))
-                {
-                    lock (serializedArgs)
-                    {
-                        if (!serializedArgs.TryGetValue(declaration, out List<string>? observations))
-                        {
-                            observations = new();
-                            serializedArgs.Add(declaration, observations);
-                        }
-                        observations.Add(text);
-                    }
-                }
-            }))
-            {
-                syntax = instruction.ToString();
-            }
+            string syntax = instruction.ToString();
             List<(int Start, int Length)> parsedArgs = new();
             resolvedInstruction = ArgInstruction.Parse(syntax, escapeChar, parsedArgs.Add);
-            args = instruction.ArgTokens.ToArray();
             resolvedArgs = resolvedInstruction.ArgTokens.ToArray();
-            bool sameLayout = args.Length == resolvedArgs.Length;
+            bool sameLayout = instruction.GetType() == typeof(ArgInstruction) && args.Length == resolvedArgs.Length;
             for (int i = 0; sameLayout && i < args.Length; i++)
             {
                 sameLayout = args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator;
             }
-            bool verifiedSourceSyntax = false;
             for (int i = 0; sameLayout && i < args.Length; i++)
             {
-                bool observed;
-                bool ambiguous = false;
-                lock (serializedArgs)
-                {
-                    serializedArgs.TryGetValue(args[i], out List<string>? observations);
-                    observed = observations is not null;
-                    if (observations is not null)
-                    {
-                        int matching = observations.Count(text =>
-                            MatchesArgDeclarationSyntax(text, syntax, parsedArgs[i], i == args.Length - 1));
-                        sameLayout = matching > 0;
-                        ambiguous = matching > 0 && matching < observations.Count;
-                    }
-                }
-                if (!observed || ambiguous)
-                {
-                    // A matching helper result alone cannot establish the emitted declaration's boundaries.
-                    verifiedSourceSyntax = true;
-                    sameLayout = MatchesArgDeclarationSyntax(args[i].ToString(), syntax, parsedArgs[i],
-                        i == args.Length - 1);
-                }
-            }
-            if (sameLayout && verifiedSourceSyntax)
-            {
-                sameLayout = instruction.ArgTokens.SequenceEqual(args);
-                for (int i = 0; sameLayout && i < args.Length; i++)
-                    sameLayout = args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator;
+                sameLayout = MatchesArgDeclarationSyntax(args[i].ToString(), syntax, parsedArgs[i],
+                    i == args.Length - 1);
             }
             if (!sameLayout)
             {

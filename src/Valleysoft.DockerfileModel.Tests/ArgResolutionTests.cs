@@ -1428,15 +1428,16 @@ public class ArgResolutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ResolveVariables_CustomPrimitiveSerializationIsCapturedOnce(bool stageScope, bool updateInline)
+    public void ResolveVariables_StableCustomSerializationPreservesQuoteSyntax(bool stageScope, bool updateInline)
     {
-        ChangingSerializedStringToken primitive = new();
+        StableSerializedStringToken primitive = new();
         Dockerfile dockerfile = CreateCustomDefault(stageScope,
             primitive, new VariableRefToken("R", ":-", "r"), new StringToken("'"));
+        string before = dockerfile.ToString();
 
         Assert.Equal(stageScope ? "ENV RESULT=${R:-r}" : "FROM prefix${R:-r}",
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal(updateInline ? 3 : 2, primitive.SerializationCount);
+        if (!updateInline) Assert.Equal(before, dockerfile.ToString());
     }
 
     [Fact]
@@ -1457,14 +1458,11 @@ public class ArgResolutionTests
         Assert.Equal(3 * count, serializations);
     }
 
-    private sealed class ChangingSerializedStringToken : StringToken
+    private sealed class StableSerializedStringToken : StringToken
     {
-        public ChangingSerializedStringToken() : base("placeholder") { }
+        public StableSerializedStringToken() : base("placeholder") { }
 
-        public int SerializationCount { get; private set; }
-
-        protected override string GetUnderlyingValue(TokenStringOptions options) =>
-            ++SerializationCount <= 2 ? "'" : "";
+        protected override string GetUnderlyingValue(TokenStringOptions options) => "'";
     }
 
     private sealed class CountingSerializedStringToken : StringToken

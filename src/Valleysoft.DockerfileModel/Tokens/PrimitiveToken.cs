@@ -66,7 +66,7 @@ public abstract class PrimitiveToken : Token, IValueToken
     internal sealed class ValueMutationScope : IDisposable
     {
         private readonly object sync = new();
-        private HashSet<PrimitiveToken>? tokens;
+        private Dictionary<PrimitiveToken, int>? tokens;
         private bool active = true;
         private long version;
 
@@ -78,7 +78,26 @@ public abstract class PrimitiveToken : Token, IValueToken
             {
                 if (!active) return;
                 tokens ??= new(ReferenceComparer<PrimitiveToken>.Instance);
-                if (tokens.Add(token)) token.Subscribe(this);
+                tokens.TryGetValue(token, out int count);
+                tokens[token] = count + 1;
+                if (count == 0) token.Subscribe(this);
+            }
+        }
+
+        public void Untrack(PrimitiveToken token)
+        {
+            lock (sync)
+            {
+                if (tokens is null || !tokens.TryGetValue(token, out int count)) return;
+                if (count > 1)
+                {
+                    tokens[token] = count - 1;
+                }
+                else
+                {
+                    tokens.Remove(token);
+                    token.Unsubscribe(this);
+                }
             }
         }
 
@@ -94,7 +113,7 @@ public abstract class PrimitiveToken : Token, IValueToken
                 Volatile.Write(ref active, false);
                 if (tokens is not null)
                 {
-                    foreach (PrimitiveToken token in tokens) token.Unsubscribe(this);
+                    foreach (PrimitiveToken token in tokens.Keys) token.Unsubscribe(this);
                 }
                 tokens = null;
             }

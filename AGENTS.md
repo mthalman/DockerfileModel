@@ -85,6 +85,31 @@ Key supporting classes:
 
 Variable resolution: `Dockerfile.ResolveVariables()` resolves ARG references either globally or for a specific instruction. Non-mutating by default; pass `UpdateInline = true` to modify the model in place.
 
+The [variable resolution contract](docs/variable-resolution.md) requires pure
+serializers and quote getters. Resolver callbacks may mutate pending primitive
+values, bindings, and options at resolution boundaries, but the token-tree
+structure is fixed except for library-owned inline publication. Reuse the shared
+resolution guard; do not introduce competing structural guards. Do not extend
+callback guarantees to side effects during serialization or getter calls.
+Non-inline custom ARG instruction subclasses use
+their serialized text as the authority, not inferred serializer-call provenance.
+
+## Review and completion gate
+
+Review findings are candidates until verified. Before changing production code,
+require a failing regression or measured performance/lifetime repro, compare
+against the relevant baseline, and identify the supported contract it violates.
+Group variants of one root cause; do not add a separate mechanism for each case.
+Record pre-existing defects and unsupported behavior instead of silently expanding
+the contract. Ask before changing compatibility guarantees.
+
+After fixes, run the focused tests, the existing full suite, relevant target
+builds, and any performance/lifetime checks required by the change. Finish with
+one verification-oriented review against the agreed contract, with no minimum
+finding count. Stop when those checks pass and no verified introduced
+supported-contract defects remain. A recall-only review is discovery input, not
+an automatic instruction to implement every candidate.
+
 ### Lean 4 Formal Specification
 
 The Lean spec mirrors the C# token hierarchy and parser combinators. See [`lean/README.md`](lean/README.md) for full details.

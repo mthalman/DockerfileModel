@@ -609,6 +609,51 @@ public class AnalysisExpressionEvaluatorTests
         Assert.Equal(count, version);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ConsumedNativeAliasesDoNotHidePendingValueEdits(bool updateInline, bool nested)
+    {
+        StringToken shared = new("old");
+        Token[] suffix = new Token[] { new VariableRefToken("X"), shared };
+        LiteralToken root = new(nested
+            ? new Token[] { shared, new LiteralToken(suffix, true, '\\') }
+            : new[] { shared }.Concat(suffix), true, '\\');
+        int version = 0;
+        string Resolve(VariableRefToken variable)
+        {
+            shared.Value = "new";
+            version++;
+            return "x";
+        }
+
+        Assert.Equal("newxold", AnalysisExpressionEvaluator.ResolveVariables(root, '\\', Resolve,
+            getCustomResolutionVersion: () => version,
+            syntaxOptions: new ResolutionOptions { UpdateInline = updateInline }));
+    }
+
+    [Fact]
+    public void NativeMutationSubscriptionsRemainActiveUntilEveryAliasRetires()
+    {
+        StringToken shared = new("old");
+        using PrimitiveToken.ValueMutationScope scope = new();
+        scope.Track(shared);
+        scope.Track(shared);
+        scope.Untrack(shared);
+        shared.Value = "pending";
+        Assert.Equal(1, scope.Version);
+
+        scope.Untrack(shared);
+        shared.Value = "consumed";
+        Assert.Equal(1, scope.Version);
+
+        scope.Track(shared);
+        shared.Value = "tracked again";
+        Assert.Equal(2, scope.Version);
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);
