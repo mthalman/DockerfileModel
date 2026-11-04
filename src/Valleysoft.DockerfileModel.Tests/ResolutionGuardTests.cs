@@ -392,6 +392,27 @@ public class ResolutionGuardTests
         Assert.Equal(original, token.QuoteChar);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EscapedEnvQuoteSettersRejectBeforeChangingSyntaxState(bool inline)
+    {
+        EnvInstruction source = EnvInstruction.Parse("ENV A=$ROOT X=\"a\\\"b\"");
+        EnvEscapedQuoteLiteralToken value = Assert.IsType<EnvEscapedQuoteLiteralToken>(
+            source.VariableTokens[1].ValueToken);
+        string original = source.ToString();
+        char? originalQuote = value.QuoteChar;
+        Assert.True(value.HasOriginalEscapedQuoteSyntax);
+
+        Assert.Throws<InvalidOperationException>(() => source.ResolveVariables('\\',
+            new CallbackDictionary(() => value.QuoteChar = originalQuote == '"' ? '\'' : '"'),
+            new ResolutionOptions { UpdateInline = inline }));
+
+        Assert.Equal(originalQuote, value.QuoteChar);
+        Assert.Equal(original, source.ToString());
+        Assert.True(value.HasOriginalEscapedQuoteSyntax);
+    }
+
     [Fact]
     public void EscapedEnvQuoteSettersRejectBeforeChangingSyntaxState()
     {
