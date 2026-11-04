@@ -2407,6 +2407,107 @@ public class ArgResolutionContextTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
+    public void MissingObservationsStillDetectCustomBoundaryChanges(bool updateInline, bool changesBoundary)
+    {
+        CachedLayoutArgInstruction instruction = new(changesBoundary);
+        instruction.ArgTokens[0].ValueToken = new SerializedLiteral("one", "first");
+        instruction.ArgTokens[1].ValueToken = new SerializedLiteral("two", "second");
+        Dockerfile document = new(new DockerfileConstruct[]
+        {
+            FromInstruction.Parse("FROM alpine\n"), instruction, EnvInstruction.Parse("ENV RESULT=$A")
+        });
+        string original = document.ToString();
+
+        Assert.Equal(!updateInline && changesBoundary ? "ENV RESULT=three" : "ENV RESULT=second",
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void EarlierCallbacksCanChangeNameSerializerState(bool updateInline, bool rename, bool projected)
+    {
+        bool changed = false;
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG X=one B=two\nENV RESULT=$X/$A/$B/$C");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
+        instruction.ArgTokens[1].NameToken = new StateDependentName(options =>
+            changed ? "C" : projected && !options.ExcludeQuotes ? "A" : "B");
+        instruction.ArgTokens[0].ValueToken = new SerializedLiteral("one", "computed", _ => changed = rename);
+
+        string expected = rename ? "ENV RESULT=computed///two"
+            : !updateInline && projected ? "ENV RESULT=computed/two//" : "ENV RESULT=computed//two/";
+        Assert.Equal(expected, document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(rename, changed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProjectedNamesRetainBaselineDefaultResolution(bool updateInline)
+    {
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=placeholder\nENV RESULT=$A/$B");
+        ArgDeclaration declaration = document.Items.OfType<ArgInstruction>().Single().ArgTokens[0];
+        declaration.NameToken = new FilteredDeclarationName();
+        SerializedLiteral value = new("placeholder", "computed");
+        declaration.ValueToken = value;
+
+        Assert.Equal(updateInline ? "ENV RESULT=/computed" : "ENV RESULT=placeholder/",
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(updateInline ? 1 : 0, value.ResolutionCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EarlierNameSerializersCanChangeLaterNameState(bool updateInline)
+    {
+        bool changed = false;
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG X=one B=two\nENV RESULT=$X/$B/$C");
+        ArgInstruction instruction = document.Items.OfType<ArgInstruction>().Single();
+        instruction.ArgTokens[0].NameToken = new StateDependentName(options =>
+        {
+            if (options.ExcludeQuotes) changed = true;
+            return "X";
+        });
+        instruction.ArgTokens[1].NameToken = new StateDependentName(_ => changed ? "C" : "B");
+
+        Assert.Equal("ENV RESULT=one//two",
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+    }
+
+    [Fact]
+    public void NativeDefaultsDoNotRepeatLaterNameSerialization()
+    {
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG X=one A=two\nENV RESULT=$X/$A/$B");
+        SingleSerializationName name = new();
+        document.Items.OfType<ArgInstruction>().Single().ArgTokens[1].NameToken = name;
+
+        Assert.Equal("ENV RESULT=one/two/", document.ResolveVariables());
+        Assert.Equal(1, name.SerializationCount);
+    }
+
+    private sealed class StateDependentName : Variable
+    {
+        private readonly Func<TokenStringOptions, string> serialize;
+
+        public StateDependentName(Func<TokenStringOptions, string> serialize) : base("B") =>
+            this.serialize = serialize;
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => serialize(options);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void AuthoritativeHelperObservationsDoNotHideBoundaryChanges(bool updateInline, bool changesBoundary)
     {
         Dockerfile document = Dockerfile.Parse(changesBoundary
@@ -2596,11 +2697,16 @@ public class ArgResolutionContextTests
 
     private sealed class CachedLayoutArgInstruction : ArgInstruction
     {
-        public CachedLayoutArgInstruction() : base("A", "one") =>
+        private readonly bool changesBoundary;
+
+        public CachedLayoutArgInstruction(bool changesBoundary = true) : base("A", "one")
+        {
+            this.changesBoundary = changesBoundary;
             TokenList.AddRange(new Token[] { new WhitespaceToken(" "), new ArgDeclaration("A", "two") });
+        }
 
         protected override string GetUnderlyingValue(TokenStringOptions options) =>
-            "ARG A=\"one A=two\" A=three\n";
+            changesBoundary ? "ARG A=\"one A=two\" A=three\n" : "ARG A=one A=two\n";
     }
 
     private sealed class AuthoritativeHelperLiteral : LiteralToken

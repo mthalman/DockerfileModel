@@ -391,6 +391,97 @@ public class AnalysisExpressionEvaluatorTests
         Assert.InRange(allocated, 0, 300L * count + 8192);
     }
 
+    [Theory]
+    [InlineData(512)]
+    [InlineData(2048)]
+    public void CompletedSuffixChangesDoNotInvalidateEveryPendingCheck(int count)
+    {
+        long Measure(bool append)
+        {
+            LiteralToken token = new(Enumerable.Range(0, count)
+                .Select(_ => new VariableRefToken("X")), canContainVariables: true, '\\');
+            int version = 0;
+            long before = 0;
+            string Resolve(VariableRefToken variable)
+            {
+                if (version++ == 0)
+                {
+                    if (append) token.TokenList.Add(new StringToken("suffix"));
+                    before = GC.GetAllocatedBytesForCurrentThread();
+                }
+                return "x";
+            }
+            Assert.Equal(new string('x', count), AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+                getCustomResolutionVersion: () => version));
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+        Measure(false);
+        Measure(true);
+
+        long unchanged = Measure(false);
+        long appended = Measure(true);
+
+        Assert.InRange(appended, 0, unchanged + 8192);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void NativePrefixChangesRemainVisibleAfterSuffixChanges(bool append, bool replaceNative)
+    {
+        StringToken prefix = new("old");
+        VariableRefToken left = new("LEFT");
+        VariableRefToken right = new("RIGHT");
+        LiteralToken token = new(new Token[] { prefix, left, right }, canContainVariables: true, '\\');
+        int version = 0;
+        string Resolve(VariableRefToken variable)
+        {
+            version++;
+            if (ReferenceEquals(variable, right) && append) token.TokenList.Add(new StringToken("suffix"));
+            if (ReferenceEquals(variable, left))
+            {
+                if (replaceNative) token.TokenList[0] = new StringToken("new");
+                else prefix.Value = "new";
+            }
+            return variable.VariableName;
+        }
+
+        Assert.Equal("newLEFTRIGHT", AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+            getCustomResolutionVersion: () => version));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void MixedNativePrefixesTrackRepeatedValueChanges(bool updateInline, bool mutate)
+    {
+        const int count = 512;
+        StringToken prefix = new(".");
+        LiteralToken token = new(Enumerable.Range(0, count).SelectMany(i => new Token[]
+        {
+            i == 0 ? prefix : new StringToken("."), new VariableRefToken("X")
+        }), canContainVariables: true, '\\');
+        int version = 0;
+        HashSet<VariableRefToken> resolved = new();
+        string Resolve(VariableRefToken variable)
+        {
+            Assert.True(resolved.Add(variable));
+            version++;
+            if (mutate && version <= 2) prefix.Value = version == 1 ? "new" : "newer";
+            return "x";
+        }
+
+        Assert.Equal((mutate ? "newer" : ".") + "x" + String.Concat(Enumerable.Repeat(".x", count - 1)),
+            AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+                getCustomResolutionVersion: () => version,
+                syntaxOptions: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(count, resolved.Count);
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);

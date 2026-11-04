@@ -289,7 +289,6 @@ public class Dockerfile : IConstructContainer
             resolvedInstruction = ArgInstruction.Parse(syntax, escapeChar, parsedArgs.Add);
             args = instruction.ArgTokens.ToArray();
             resolvedArgs = resolvedInstruction.ArgTokens.ToArray();
-            originalNames = args.Select(arg => new ArgNameSnapshot(arg)).ToArray();
             bool sameLayout = args.Length == resolvedArgs.Length;
             for (int i = 0; sameLayout && i < args.Length; i++)
             {
@@ -305,7 +304,7 @@ public class Dockerfile : IConstructContainer
                             MatchesArgDeclarationSyntax(text, syntax, parsedArgs[i], i == args.Length - 1));
                     }
                 }
-                if (!observed && !AnalysisExpressionEvaluator.ContainsConsumerSerialization(args[i]))
+                if (!observed)
                 {
                     sameLayout &= MatchesArgDeclarationSyntax(args[i].ToString(), syntax, parsedArgs[i],
                         i == args.Length - 1);
@@ -316,15 +315,21 @@ public class Dockerfile : IConstructContainer
                 return ResolveArgInstruction(resolvedInstruction, escapeChar, stageArgs, globalArgs, variableOverrides,
                     new ResolutionOptions { UpdateInline = true, RemoveEscapeCharacters = options.RemoveEscapeCharacters });
             }
+            originalNames = args.Select(arg => new ArgNameSnapshot(arg)).ToArray();
         }
+        bool hasConsumerCallbacks = false;
+        Action? recordConsumerCallback = originalNames is null ? null : () => hasConsumerCallbacks = true;
         for (int i = 0; i < args.Length; i++)
         {
             ArgDeclaration arg = args[i];
             ResolutionOptions argOptions = options;
+            bool customName = AnalysisExpressionEvaluator.ContainsConsumerSerialization(arg.NameToken);
             string name = arg.Name;
             if (resolvedInstruction != instruction && name != resolvedArgs[i].Name)
             {
-                if (originalNames![i].Matches(arg.NameToken))
+                if (originalNames![i].Matches(arg.NameToken) &&
+                    (!hasConsumerCallbacks || !customName ||
+                        arg.NameToken.ToString() == resolvedArgs[i].NameToken.ToString()))
                 {
                     arg = resolvedArgs[i];
                     name = arg.Name;
@@ -335,6 +340,7 @@ public class Dockerfile : IConstructContainer
                     };
                 }
             }
+            hasConsumerCallbacks |= customName;
             if (variableOverrides.TryGetValue(name, out string? overrideArgValue))
             {
                 SetArgBinding(stageArgs, arg.Name, overrideArgValue);
@@ -342,7 +348,7 @@ public class Dockerfile : IConstructContainer
             else if (arg.HasAssignmentOperator)
             {
                 string value = ResolveArgDefault(arg, escapeChar, stageArgs, argOptions,
-                    resolvedArgs[i]);
+                    resolvedArgs[i], recordConsumerCallback);
                 stageArgs[arg.Name] = value;
             }
             else if (globalArgs.TryGetValue(arg.Name, out string? globalArg) && globalArg is not null)
@@ -453,7 +459,8 @@ public class Dockerfile : IConstructContainer
     }
 
     private static string ResolveArgDefault(ArgDeclaration arg, char escapeChar,
-        IDictionary<string, string?> bindings, ResolutionOptions options, ArgDeclaration? syntaxArg = null)
+        IDictionary<string, string?> bindings, ResolutionOptions options, ArgDeclaration? syntaxArg = null,
+        Action? onCustomResolution = null)
     {
         if (arg.ValueToken is not LiteralToken valueToken)
         {
@@ -505,6 +512,7 @@ public class Dockerfile : IConstructContainer
         // Non-inline stage defaults leave native trivia references to their reparsed copy.
         string value = ResolveArgValue(valueToken, escapeChar, bindings, options,
             recordResolution: updateInline ? RecordResolution : null,
+            onCustomResolution: onCustomResolution,
             onBeforeCustomResolution: CaptureSyntaxBindings,
             resolveTriviaVariables: syntaxArg is null || syntaxArg == arg || updateInline) ?? String.Empty;
 

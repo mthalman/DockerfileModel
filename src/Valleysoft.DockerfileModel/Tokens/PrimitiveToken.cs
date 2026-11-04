@@ -1,8 +1,13 @@
-﻿namespace Valleysoft.DockerfileModel.Tokens;
+﻿using System.Threading;
+
+namespace Valleysoft.DockerfileModel.Tokens;
 
 public abstract class PrimitiveToken : Token, IValueToken
 {
+    private static long valueVersion;
     private string value;
+
+    internal static long ValueVersion => Volatile.Read(ref valueVersion);
 
     public PrimitiveToken(string value)
     {
@@ -17,6 +22,7 @@ public abstract class PrimitiveToken : Token, IValueToken
         {
             Guard.NotNull(value, nameof(value));
             this.value = value;
+            Interlocked.Increment(ref valueVersion);
         }
     }
 

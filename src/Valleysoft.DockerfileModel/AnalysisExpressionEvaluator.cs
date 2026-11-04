@@ -311,7 +311,9 @@ internal static class AnalysisExpressionEvaluator
             children.Add(child);
             if (!child.IsReference || child.SuppressedSyntax is not null)
             {
-                syntaxChildren?.Include(child.index);
+                syntaxChildren?.Include(child.index,
+                    child.Source is PrimitiveToken and not IQuotableToken &&
+                    child.Source.GetType().Assembly == typeof(Token).Assembly);
             }
         }
 
@@ -370,19 +372,40 @@ internal static class AnalysisExpressionEvaluator
 
         private bool MatchesChildren(List<Token> liveChildren, int count)
         {
-            if (syntaxChildren?.StructureMatches() == true)
+            if (syntaxChildren?.StructureMatches(count) == true)
             {
                 foreach (int i in syntaxChildren.Indices)
                 {
                     if (i >= count) break;
                     if (!children[i].Matches(liveChildren[i])) return false;
                 }
-                if (syntaxChildren.StructureMatches()) return true;
+                if (syntaxChildren.StructureMatches(count))
+                {
+                    long valueVersion = PrimitiveToken.ValueVersion;
+                    if (!syntaxChildren.NativeValuesMatch(valueVersion, count))
+                    {
+                        foreach (int i in syntaxChildren.NativeIndices)
+                        {
+                            if (i >= count) break;
+                            if (!children[i].Matches(liveChildren[i])) return false;
+                        }
+                        syntaxChildren.CaptureNativeValues(valueVersion, count);
+                    }
+                    return true;
+                }
             }
             if (liveChildren.Count < count) return false;
+            List<Token>.Enumerator structure = liveChildren.GetEnumerator();
+            long nativeValueVersion = PrimitiveToken.ValueVersion;
             for (int i = 0; i < count; i++)
             {
-                if (!children[i].Matches(liveChildren[i])) return false;
+                if (i >= liveChildren.Count || !children[i].Matches(liveChildren[i])) return false;
+            }
+            if (syntaxChildren is not null && SyntaxChildren.StructureMatches(structure))
+            {
+                // Only this prefix was checked; edits to the consumed suffix do not invalidate it.
+                syntaxChildren.CaptureStructure(liveChildren, count);
+                syntaxChildren.CaptureNativeValues(nativeValueVersion, count);
             }
             return true;
         }
@@ -546,7 +569,7 @@ internal static class AnalysisExpressionEvaluator
                 bool unchanged = parent?.syntaxChildren?.StructureMatches() == true;
                 owner.ReplaceResolvedVariable(liveIndex, syntax,
                     (ResolvedValue ?? String.Empty, Context.QuoteChar, Context.Escaped), escapeChar);
-                if (unchanged) parent!.syntaxChildren!.CaptureStructure(owner.TokenList);
+                if (unchanged) parent!.syntaxChildren!.CaptureStructure(owner.TokenList, liveIndex);
                 InlineUpdated = true;
             }
         }
@@ -554,23 +577,43 @@ internal static class AnalysisExpressionEvaluator
         private sealed class SyntaxChildren
         {
             private List<Token>.Enumerator structure;
+            private int structureCount;
+            private long nativeValueVersion = PrimitiveToken.ValueVersion;
+            private int nativeValueCount = Int32.MaxValue;
 
             public SyntaxChildren(List<Token> tokens) => CaptureStructure(tokens);
 
             public List<int> Indices { get; } = new();
+            public List<int> NativeIndices { get; } = new();
 
-            public void Include(int index)
+            public void Include(int index, bool nativePrimitive = false)
             {
-                int position = Indices.BinarySearch(index);
-                if (position < 0) Indices.Insert(~position, index);
+                List<int> indices = nativePrimitive ? NativeIndices : Indices;
+                int position = indices.BinarySearch(index);
+                if (position < 0) indices.Insert(~position, index);
             }
 
-            public void CaptureStructure(List<Token> tokens) => structure = tokens.GetEnumerator();
+            public bool NativeValuesMatch(long version, int count) =>
+                version == nativeValueVersion && count <= nativeValueCount;
 
-            public bool StructureMatches()
+            public void CaptureNativeValues(long version, int count)
+            {
+                nativeValueCount = version == nativeValueVersion ? Math.Max(count, nativeValueCount) : count;
+                nativeValueVersion = version;
+            }
+
+            public void CaptureStructure(List<Token> tokens, int count = Int32.MaxValue)
+            {
+                structure = tokens.GetEnumerator();
+                structureCount = count;
+            }
+
+            public bool StructureMatches(int count = 0) =>
+                count <= structureCount && StructureMatches(structure);
+
+            public static bool StructureMatches(List<Token>.Enumerator captured)
             {
                 // List's enumerator checks structural edits without walking opaque references.
-                List<Token>.Enumerator captured = structure;
                 try
                 {
                     captured.MoveNext();
