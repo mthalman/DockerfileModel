@@ -162,9 +162,9 @@ public class Dockerfile : IConstructContainer
     /// quote syntax, line continuations, and comments. Runtime command variables are not expanded.
     /// <para>
     /// Custom token resolvers receive the supplied options, and their results are treated as values.
-    /// References in defaults resolve right-to-left. Callbacks can change pending tokens and options,
-    /// but not completed results. Inline updates happen as references resolve; enabling them later
-    /// does not update earlier references.
+    /// References in defaults resolve right-to-left. Callbacks can change the variable dictionary
+    /// and options, but not source tokens or completed results. Inline updates happen as references
+    /// resolve; enabling them later does not update earlier references.
     /// Serializers and quote getters must be side-effect-free and repeatable.
     /// Non-inline stage resolution uses serialized declarations for instruction subclasses or changed boundaries.
     /// </para>

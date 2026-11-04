@@ -86,9 +86,10 @@ Key supporting classes:
 Variable resolution: `Dockerfile.ResolveVariables()` resolves ARG references either globally or for a specific instruction. Non-mutating by default; pass `UpdateInline = true` to modify the model in place.
 
 The [variable resolution contract](docs/variable-resolution.md) requires pure
-serializers and quote getters. Resolver callbacks may mutate pending primitive
-values, bindings, and options at resolution boundaries, but the token-tree
-structure is fixed except for library-owned inline publication. Reuse the shared
+serializers and quote getters. Resolver callbacks may change the variable
+dictionary and resolution options, but all source-token state is fixed, including
+primitive values, quote characters, and child lists. Only library-owned inline
+publication may change source tokens during resolution. Reuse the shared
 resolution guard; do not introduce competing structural guards. Do not extend
 callback guarantees to side effects during serialization or getter calls.
 Non-inline custom ARG instruction subclasses use

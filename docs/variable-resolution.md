@@ -27,30 +27,31 @@ options, or state that changes subsequent reads. Instrumentation is permitted
 when it does not change those results. Serialization call counts and invocation
 order are not contractual.
 
-Custom `ResolveVariables()` implementations may change pending primitive values,
-the supplied environment, and resolution options. References resolve right-to-left.
-The evaluator observes callback edits before the next pending reference; values
-and syntax already consumed remain frozen. Inline replacements happen as each
-reference resolves. Enabling inline updates later does not retroactively replace
-references already consumed.
+Custom `ResolveVariables()` implementations may change the supplied variable
+dictionary and resolution options, but must not edit source tokens. References
+resolve right-to-left. The evaluator observes dictionary and option changes
+before the next pending reference; values and syntax already consumed remain
+frozen. Inline replacements happen as each reference resolves. Enabling inline
+updates later does not retroactively replace references already consumed.
 
-The token tree has a fixed structure during resolution. Callbacks must not add,
-remove, reorder, or replace children, including changes made by assigning an
-aggregate's `Value`. Perform structural edits before starting resolution.
-Resolver-owned inline replacements are allowed. Public structural operations
-reject prohibited edits before mutation. Edits through a protected raw token
-list are detected at callback boundaries and throw `InvalidOperationException`;
-they are not rolled back.
+Source-token state is fixed during resolution. Callbacks must not change
+`PrimitiveToken.Value`, `QuoteChar`, other source properties, or child sequences.
+This includes assigning an aggregate's `Value`, even when the replacement text
+is equivalent. Perform all source edits before starting resolution.
+Resolver-owned inline replacements are the only exception. Guarded source
+setters and collection operations reject prohibited edits before mutation.
+Edits through a protected raw token list are detected at callback boundaries
+and throw `InvalidOperationException`; they are not rolled back.
 
 Callbacks must complete their mutations before returning. A callback may wait
 for a worker that performs those mutations; concurrent edits that continue after
 the callback returns are not supported. Separate resolutions may share immutable
 tokens, but callers must synchronize writes to shared tokens.
 
-Move scalar mutations out of serializers and quote getters into resolver
-callbacks, and perform structural mutations before calling resolution. Behavior
-of mutating serializers/getters is unspecified; existing incidental behavior is
-not a compatibility guarantee.
+Perform source-token mutations before calling resolution. Put variable-dictionary
+and option changes in resolver callbacks, not serializers or quote getters.
+Behavior of mutating serializers/getters is unspecified; existing incidental
+behavior is not a compatibility guarantee.
 
 ## Serialized ARG instructions
 

@@ -614,24 +614,33 @@ public class AnalysisExpressionEvaluatorTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ConsumedNativeAliasesDoNotHidePendingValueEdits(bool updateInline, bool nested)
+    public void CallbackBindingChangesPreserveCompletedValuesAndAliasedSources(bool updateInline, bool nested)
     {
-        StringToken shared = new("old");
-        Token[] suffix = new Token[] { new VariableRefToken("X"), shared };
+        StringToken shared = new("|");
+        Dictionary<string, string?> bindings = new() { ["X"] = "old" };
+        Token[] suffix = new Token[]
+        {
+            new VariableRefToken("X"), new VariableRefToken("CHANGE"), new VariableRefToken("X"), shared
+        };
         LiteralToken root = new(nested
             ? new Token[] { shared, new LiteralToken(suffix, true, '\\') }
             : new[] { shared }.Concat(suffix), true, '\\');
         int version = 0;
-        string Resolve(VariableRefToken variable)
+        string? Resolve(VariableRefToken variable)
         {
-            shared.Value = "new";
-            version++;
-            return "x";
+            if (variable.VariableName == "CHANGE")
+            {
+                bindings["X"] = "new";
+                version++;
+                return "/";
+            }
+            return bindings[variable.VariableName];
         }
 
-        Assert.Equal("newxold", AnalysisExpressionEvaluator.ResolveVariables(root, '\\', Resolve,
+        Assert.Equal("|new/old|", AnalysisExpressionEvaluator.ResolveVariables(root, '\\', Resolve,
             getCustomResolutionVersion: () => version,
             syntaxOptions: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("|", shared.Value);
     }
 
     [Fact]
