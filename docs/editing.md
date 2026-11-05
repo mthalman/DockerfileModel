@@ -141,172 +141,37 @@ with a backtick Dockerfile escape directive.
 
 `VOLUME` paths recognize variable references and supported variable modifiers in
 both shell and JSON form, including paths created or updated through the editable
-views. Typed `LiteralToken` paths and modifier values retain their
-variable-recognition policy, including derived `LiteralToken` instances.
-A modifier value constructed with
-`canContainVariables: false` remains literal after JSON decoding, including
-any dollar signs, quotes, or braces in its contents.
-Derived literals that inherit the default rendering preserve these policies
-in nested modifier values. A modifier's overridden `ResolveVariables()` is
-called only when its branch is selected, even if its rendered text is empty.
-Its result is JSON-escaped without recognizing new variable references.
-Nested aggregate overrides, including literal and variable-reference overrides,
-also retain virtual dispatch,
-both directly in a path and inside selected modifier values, even when their
-rendered text is empty. Each occurrence is evaluated
-independently, including occurrences that share the same token instance.
-Aggregate containers that inherit the default rendering and resolution also
-preserve their descendants' overrides, variable policies, and quote protection.
-References derived from `VariableRefToken` that inherit its rendering also retain
-their nested modifier policies and overrides. Custom occurrences whose rendered
-text consists only of folded continuations remain evaluable and retain their
-physical replacement boundaries.
-Custom occurrences sharing a decoded JSON character replace that character
-together, preserving the order of their results and evaluating each occurrence.
-An empty custom occurrence physically inside a JSON escape inserts its result
-before the decoded character without splitting the escape or dropping the character.
-Opaque literals and zero-width custom occurrences interrupt variable names and
-reference syntax rather than being consumed as part of a reference.
-Decoded single quotes and escapes still protect these references from evaluation.
-Sibling callbacks run from right to left, matching ordinary aggregate resolution.
-Changes a right-hand callback makes to the variable dictionary are visible to
-left-hand references.
-Custom dictionary lookups and comparers may also change resolution options,
-including enabling inline publication during the first lookup.
-Lookup changes to `RemoveEscapeCharacters` affect the reference performing that
-lookup as well as references evaluated later.
-Custom rendering still determines decoded modifier contents.
-Changes to `RemoveEscapeCharacters` also affect subsequent references and source
-formatting in that evaluation order.
-Each path occurrence uses the value of `UpdateInline` after its evaluation.
-A callback changing that option does not retroactively change whether
-already evaluated path occurrences are replaced.
-Before a later callback runs, eligible source-backed reference-token children
-are replaced in their live slots. Callbacks can observe those publications but
-cannot edit their token values or structure.
-The same rule applies to reference children in selected modifiers, including
-children of default aggregate containers. These children are published before
-the next sibling callback runs, even if that callback prevents replacement of
-the containing reference. Retained JSON modifier substitutions are encoded
-non-variable literals, so later edits cannot reactivate their contents.
-Source publication locations are tracked independently of live-reference binding.
-Nested updates still reach the exact source occurrence when quoted or
-JSON-escaped modifier text requires evaluation through a decoded token tree.
-This includes custom references and required-variable failures without callbacks.
-Inline removal updates the captured slots of shared modifiers. Later occurrences
-skip removed children instead of reading a neighboring token or a stale index.
-This tracking also covers removals through custom aggregates that delegate to
-the ordinary resolver. Tracking subscriptions end when resolution returns or throws.
-Whole-path inline publication during synchronous reentrant resolution also
-updates active source locations, including paths whose decoded references split
-an original string token or span multiple source tokens. Active calls share
-occurrence identities rather than treating a child index as a permanent source
-identity. Grouped source projections follow later publications, including those
-started after an earlier reentrant call returns. Reused substitutions retain
-their semantic values rather than expanding or JSON-escaping their encoded spelling again.
-This includes custom literal and aggregate results as well as variable references.
-Bindings inside flattened native containers follow the published fragments too.
-Resolving a detached container again uses its own remaining children, without
-redirecting active bindings away from the path's published value.
-Partially retained source ranges reuse their current published fragments;
-mixed inline and non-inline replacements do not restore the original variable syntax.
-Custom occurrences retain their source anchors even when their physical token
-boundaries split a decoded JSON character.
-Shared modifiers reuse the semantic values of earlier inline substitutions in
-the same call, rather than treating their encoded JSON spelling as expanded text.
-Published substitutions remain visible even when quoted or escaped syntax prevents
-live binding to the original reference.
-This also applies when a custom aggregate delegates to `base.ResolveVariables()`.
-Semantic reads do not materialize the encoded text of a deferred substitution.
-Nested JSON substitutions defer text materialization until their contents are
-read. Reading `Tokens`, `Value`, or serialized text materializes ordinary editable
-children and releases the deferred expansion tree. This avoids repeatedly
-rendering growing modifier subtrees during inline publication.
-Modifier selection reads the environment once per reference evaluation.
-JSON modifier operands are captured before custom lookups, so reentrant inline
-publication cannot detach an operand already selected by the outer evaluation.
-Selected branches and required-variable error names do not change if a callback
-updates the variable dictionary during their evaluation.
-Resolution context passes the caller's original `ResolutionOptions` instance
-without cloning it. Selected custom modifier overrides receive the caller's `UpdateInline`
-and `RemoveEscapeCharacters` settings; the overrides manage their own side effects.
-Required-variable errors distinguish a custom modifier returning `null`
-(`'<empty>'`) from an aggregate modifier resolving to an empty string (`''`).
-`ResolveVariables()` preserves the original model unless
-`ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
-references but retains untouched child tokens, including empty primitive tokens.
-Empty primitive siblings retain their order around zero-width substitutions.
-Reentrant reconstruction keeps fragment ownership separate even when a zero-width
-substitution is emitted between fragments of another source token.
-Repeated occurrences of the same empty token remain distinct, including when
-only one occurrence is eligible for inline replacement.
-Zero-width references inside nonempty nested literals are replaced only once.
-Unrelated empty literals retain their identity, including those inside an
-ancestor whose expanded references are replaced.
-Inline expansion also retains untouched children of nonempty nested literals.
-Non-inline resolution does not reconstruct the source token tree.
-When aliases of a nested container are flattened, each occurrence retains its own
-published fragments rather than adopting another occurrence's substitutions.
-Inline reconstruction skips source ranges that cannot contain a replacement,
-including unrelated sibling subtrees beside a zero-width substitution.
-Untouched subtrees are retained without traversing them again during publication.
-When every substitution is eligible for inline publication, returned text and
-publication reuse the same reconstructed tokens.
+views. Typed paths and modifier values retain their `LiteralToken`
+variable-recognition policy: `canContainVariables: false` keeps their contents
+literal, even after JSON decoding. Custom resolution overrides remain supported;
+modifier overrides run only when their branch is selected, and their returned
+values are not expanded again.
+
 JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
 substituted values. Unchanged JSON spelling and Dockerfile continuations are
-retained. Decoded single quotes protect their contents from expansion; quote
-spelling is retained rather than shell-unquoted. A decoded Dockerfile escape
-character protects the following dollar sign from expansion. These rules also
-apply inside modifier values, which may contain decoded newline characters.
-Protected malformed reference text remains literal; active malformed references
-are diagnosed during resolution rather than during JSON string tokenization.
-Unterminated decoded quotes fail before substitutions are committed to that path.
-Resolution parse-error positions refer to the complete physical path literal,
-including its JSON quotes, escapes, and Dockerfile continuations.
-Pattern modifiers (`#`, `##`, `%`, `%%`, `/`, and `//`) remain unsupported;
-their unresolved references retain the original JSON spelling and token identity.
-Unmatched Unicode
-surrogates decode to U+FFFD, matching BuildKit's JSON decoder, while untouched
-escape spelling remains intact. Legacy parser-accepted paths that are not valid
-JSON strings retain token-based resolution.
-JSON path resolution renders built-in literal and variable-reference trees
-iteratively. This does not change the recursion limits of general token
-`ToString()` calls.
-Live-reference binding checks decoded spans using precomputed character counts,
-without rescanning enclosing modifier text for every nested reference.
+retained. Decoded single quotes and Dockerfile escape characters protect variable
+references; protecting quotes remain in the path rather than being shell-unquoted.
+These rules also apply inside modifier values. Active malformed references and
+unterminated decoded quotes fail during resolution; protected malformed text
+remains literal. Pattern modifiers (`#`, `##`, `%`, `%%`, `/`, and `//`) remain
+unsupported and retain their original spelling.
 
-`RemoveEscapeCharacters` affects returned JSON text, including single-quoted
-contents and trailing escape characters, without rewriting untouched path
-contents, even when `UpdateInline` is `true`. Inline substitutions stay
-literal across later primitive-token edits. Assigning the path's `Value` or
-updating it through `Paths` reparses its contents and makes new references
-eligible for resolution again.
-Assignments through `Value` or `Paths` replace child tokens and are therefore
-structural edits. Perform them before or after resolution, not from a callback,
-even when assigning equivalent text.
-Nesting a previously resolved literal under another path or modifier preserves its
-substitution protection; flattening it during inline publication preserves that
-protection too.
-Successful path replacement also releases tracking references to detached
-substitutions; rejected edits retain the existing tracking state.
-Individual child edits maintain substitution occurrence counts, preserving
-protection for retained aliases without rescanning the path after every
-incremental publication.
-If a JSON escape spans untouched text and an inline substitution, its decoded
-character remains literal and cannot introduce variable, quote, or escape syntax.
-Collection adoption and scalar token replacement bind direct token resolution
-to the receiving owner's context. Instruction resolution uses that instruction's
-context independently of the token's latest binding, so sharing a token with a
-non-VOLUME instruction does not change the original VOLUME's resolution policy.
-Synchronous reentrant calls retain each active literal's context, including calls
-that re-enter an outer literal through another literal's callback.
-This also applies to direct literal resolution when a callback adopts the token
-into an unrelated owner. Once the call returns or throws, direct resolution uses
-the token's latest binding again.
-Document `ARG` evaluation uses the `ARG` context for defaults shared with `VOLUME`.
-Direct variable-reference resolution uses the modifier's non-JSON context even
-when the modifier literal is also shared with a JSON `VOLUME` path.
-The token and its contents remain shared mutable objects.
+Non-inline resolution leaves the source token tree unchanged. Inline resolution
+replaces expanded references while retaining untouched child tokens. Substituted
+values stay literal on later resolutions, including after primitive-token edits
+or reuse in another path or modifier. Assigning the path's `Value` or updating it
+through `Paths` reparses its contents and makes new references eligible for
+expansion. `RemoveEscapeCharacters` changes returned JSON text without rewriting
+untouched path contents, even with `UpdateInline` enabled.
+
+Adopting a path through a collection or scalar token setter binds direct literal
+resolution to the receiving owner's context. Each instruction still resolves
+shared tokens in its own context: sharing a JSON path with a non-VOLUME
+instruction does not change the original VOLUME's policy. Active synchronous
+reentrant calls retain their context until they return or throw; subsequent
+direct calls use the latest binding. `ARG` defaults and direct variable-reference
+modifier resolution use their non-JSON context. Tokens remain shared mutable
+objects, not copies.
 
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's
@@ -320,63 +185,22 @@ structural-editing collection.
 
 ## Resolution callbacks
 
-Variable resolution keeps active source tokens unchanged by callbacks. This contract
-applies to document, instruction, aggregate, literal, and variable-reference
-resolution, in both inline modes. A document operation protects the document's
-construct membership and the token trees of its constructs, not only the
-instruction currently being expanded.
+Perform source edits outside variable resolution. See
+[Custom token contract](variable-resolution.md#custom-token-contract)
+for callback permissions, source-edit errors, and threading requirements.
+Syntax-aware edits check protected token and quote targets before publishing
+changes, including when an unrelated receiving tree adopts a protected token.
 
-Resolver overrides and custom dictionary lookups or comparers may change
-variable dictionaries and `ResolutionOptions`. They may also perform synchronous
-reentrant resolution. They must not assign source token values or quotes,
-including `StringToken.Value`, reference names, modifier contents, or
-`QuoteChar`. Assignments to source properties are rejected even when assigning
-the current value.
-
-Callbacks also must not add, remove, reorder, or replace children of an active source,
-or change an active document's construct membership. Violations throw
-`InvalidOperationException`. Guarded setters and collection views reject the
-edit before publication. Structural edits also preflight protected quote targets
-before publishing any changes to an unrelated receiving tree.
-A subclass can still access its protected raw
-`List<Token>`; edits through that list are detected after the callback returns
-or throws, including edits that restore the original sequence. Detection does
-not roll back those raw edits. Custom quote implementations that bypass native
-setters, including quotable primitive subclasses, are also checked at callback
-boundaries without rollback. An exception
-does not undo eligible inline substitutions already published by the library.
-
-`AggregateToken.Tokens` returns a cached, live guarded view, not a `List<Token>`.
-Its declared `IEnumerable<Token>` signature is unchanged. For low-level child
-editing outside resolution, cast to `IList<Token>` rather than `List<Token>`:
+For low-level child editing outside resolution, cast the live
+`AggregateToken.Tokens` view to `IList<Token>`, not `List<Token>`:
 
 ```csharp
 IList<Token> children = (IList<Token>)literal.Tokens;
 children.Add(new StringToken("/suffix"));
 ```
 
-These low-level writes do not validate grammar or preserve separators; prefer
-the owner's syntax-aware editable collections. The guarded view prevents native
-token lists from escaping, so ordinary callbacks do not require repeated scans
-of native source trees. Protected lists in consumer-defined subclasses still
-require callback-boundary checks. The cost of those checks grows with the number
-of such containers and callbacks.
-Removing or replacing children through the guarded view also releases their
-JSON-substitution tracking; removed values are not retained until another resolution.
-
-The library may replace or remove expanded references as part of
-`UpdateInline`; these library-owned publications are not callback edits.
-Callbacks may edit unrelated trees. A completed reentrant operation releases
-protection of its independent source before returning to its caller.
-
-Do not access a shared source concurrently from another thread during resolution.
-The mutable model and its synchronous guard do not provide cross-thread locking.
-
-Custom serializers and quote getters must be side-effect-free and repeatable.
-Consumer overrides must obey the callback contract. The library enforces it
-when dispatching overrides; a direct call that stays entirely inside consumer
-code without entering library resolution remains that implementation's
-responsibility.
+These writes do not validate grammar or preserve separators. Prefer the owner's
+syntax-aware editable collections.
 
 ## Choose a trivia policy
 
