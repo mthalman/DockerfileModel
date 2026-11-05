@@ -4442,6 +4442,132 @@ public class VolumeInstructionTests
     }
 
     [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 2)]
+    [InlineData(false, 3)]
+    [InlineData(true, 3)]
+    [InlineData(false, 4)]
+    [InlineData(true, 4)]
+    [InlineData(false, 5)]
+    [InlineData(true, 5)]
+    public void JsonReentrantPublicationKeepsDiscontiguousSourceFragmentsSeparate(bool inline, int split)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "root" };
+        int calls = 0;
+        bool entered = false;
+        const string escape = "\\u0061";
+        path.ReplaceWithTokens(new Token[]
+        {
+            new StringToken("x" + escape[..split]),
+            new CallbackReference("", _ => { calls++; return "z"; }),
+            new StringToken(escape[split..] + "/"),
+            new VariableRefToken("ROOT"),
+            new DefaultRenderingCallback(_ =>
+            {
+                if (!entered)
+                {
+                    entered = true;
+                    Assert.Equal("\"xz\\u0061/root\"", path.ResolveVariables('\\', variables,
+                        new ResolutionOptions { UpdateInline = true }));
+                }
+                return "";
+            })
+        });
+
+        const string expected = "VOLUME [\"xz\\u0061/root\"]";
+        Assert.Equal(expected, instruction.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(expected, instruction.ToString());
+        Assert.Equal(1, calls);
+    }
+
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(3, false)]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
+    public void JsonAliasedFlattenedDescendantsKeepOccurrencePublications(int count, bool aggregate)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        LiteralToken nested = new("placeholder", canContainVariables: true);
+        nested.ReplaceWithToken(new StringToken("$ROOT/$OTHER"));
+        Token container = aggregate ? new DefaultAggregate(new DefaultAggregate(nested)) : nested;
+        ResolutionOptions options = new() { UpdateInline = true };
+        KeyedLookupDictionary variables = new(key => options.UpdateInline = key != "ROOT")
+        {
+            ["ROOT"] = "changed", ["OTHER"] = "other"
+        };
+        bool entered = false;
+        DefaultRenderingCallback callback = new(_ =>
+        {
+            if (!entered)
+            {
+                entered = true;
+                path.ResolveVariables('\\', new SequentialRootDictionary(),
+                    new ResolutionOptions { UpdateInline = true });
+            }
+            return "";
+        });
+        path.ReplaceWithTokens(Enumerable.Range(0, count)
+            .SelectMany(index => index == 0 ? new Token[] { container } :
+                new Token[] { new StringToken("|"), container }).Append(callback));
+        string expected = "VOLUME [\"" + string.Join("|", Enumerable.Range(1, count).Reverse()
+            .Select(index => $"root{index}/other")) + "\"]";
+
+        Assert.Equal("VOLUME [\"" + string.Join("|", Enumerable.Repeat("changed/other", count)) + "\"]",
+            instruction.ResolveVariables('\\', variables, options));
+        Assert.Equal(expected, instruction.ToString());
+        Assert.Equal("$ROOT/$OTHER", nested.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonUnrelatedPrimitiveCallbackAllocationsGrowLinearly(bool inline)
+    {
+        long Measure(int count)
+        {
+            VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"" +
+                string.Join("/", Enumerable.Repeat("$ROOT", count)) + "\"]");
+            StringToken unrelated = new("before");
+            int calls = 0;
+            RepeatedLookupDictionary variables = new(() =>
+            {
+                calls++;
+                unrelated.Value = "after";
+            }) { ["ROOT"] = "value" };
+            ResolutionOptions options = new() { UpdateInline = inline };
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            string? result = instruction.ResolveVariables('\\', variables, options);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal("VOLUME [\"" + string.Join("/", Enumerable.Repeat("value", count)) + "\"]", result);
+            Assert.Equal(count, calls);
+            Assert.Equal("after", unrelated.Value);
+            return allocated;
+        }
+
+        Measure(16);
+        long small = Measure(512);
+        long large = Measure(2048);
+        Assert.True(large < small * 6, $"Callback allocations grew from {small} to {large} bytes.");
+    }
+
+    private sealed class SequentialRootDictionary : Dictionary<string, string?>, IDictionary<string, string?>
+    {
+        private int roots;
+        public new bool TryGetValue(string key, out string? value)
+        {
+            value = key == "ROOT" ? "root" + ++roots : "other";
+            return true;
+        }
+    }
+
+    [Theory]
     [InlineData(4096)]
     [InlineData(16384)]
     public void JsonIncrementalPublicationTracksLargeCallbackPaths(int count)
@@ -4569,8 +4695,8 @@ public class VolumeInstructionTests
         parent.ReplaceResolvedTokens(new Token[] { new StringToken("prefix"), replacement, last },
             new JsonStringVariableResolver.ChildPublications
             {
-                [firstSlot] = (1, 1, 1, 2),
-                Spans = { (0, 1), (1, 2), (2, 3) }
+                [firstSlot] = (1, 1, 1, 2, 0, 1),
+                Spans = { (0, 1, -1), (1, 2, 0), (2, 3, -1) }
             });
 
         Assert.Same(replacement, firstSlot.Current);
@@ -4600,8 +4726,8 @@ public class VolumeInstructionTests
             parent.ReplaceResolvedTokens(new Token[] { new StringToken("a"), new StringToken("b"), last },
                 new JsonStringVariableResolver.ChildPublications
                 {
-                    [original] = (0, 2, 0, 2),
-                    Spans = { (0, 1), (1, 2), (2, 3) }
+                    [original] = (0, 2, 0, 2, 0, 1),
+                    Spans = { (0, 1, 0), (1, 2, 0), (2, 3, -1) }
                 });
         }
         Assert.Equal("ab", original.Current.ToString());
@@ -4611,18 +4737,41 @@ public class VolumeInstructionTests
             parent.ReplaceResolvedTokens(new Token[] { new StringToken("new"), parent.Tokens.ElementAt(1), last },
                 new JsonStringVariableResolver.ChildPublications
                 {
-                    [current] = (0, 1, 0, 1),
-                    Spans = { (0, 1), (1, 2), (2, 3) }
+                    [current] = (0, 1, 0, 1, 0, 1),
+                    Spans = { (0, 1, 0), (1, 2, -1), (2, 3, -1) }
                 });
         }
         Assert.Equal("newb", original.Current.ToString());
         parent.ReplaceResolvedTokens(new Token[] { new StringToken("final"), last },
             new JsonStringVariableResolver.ChildPublications
             {
-                [original] = (0, 1, 0, 2),
-                Spans = { (0, 2), (2, 3) }
+                [original] = (0, 1, 0, 2, 0, 1),
+                Spans = { (0, 2, 0), (2, 3, -1) }
             });
         Assert.Equal("final", original.Current.ToString());
+    }
+
+    [Fact]
+    public void JsonSourceProjectionSlicesAssignBoundaryInsertionsOnlyOnce()
+    {
+        DefaultAggregate parent = new(new StringToken("before"));
+        using JsonStringVariableResolver.SourceSlots slots = new();
+        JsonStringVariableResolver.SourceSlot source = slots.Get(parent, 0)!;
+        parent.ReplaceResolvedTokens(new Token[]
+        {
+            new StringToken("a"), new StringToken("z"), new StringToken("b"), new StringToken("tail")
+        }, new JsonStringVariableResolver.ChildPublications
+        {
+            [source] = (0, 4, 0, 2, 0, 1),
+            Spans = { (0, 1, 0), (1, 1, 0), (1, 2, 0), (2, 2, 0) }
+        });
+
+        string Slice(int first, int last) => string.Concat(source.Slice(first, last, 2)
+            .Select(fragment => fragment.Token.ToString()));
+        Assert.Equal("azbtail", source.Current.ToString());
+        Assert.Equal("a", Slice(0, 1));
+        Assert.Equal("zbtail", Slice(1, 2));
+        Assert.Equal(Slice(0, 2), Slice(0, 1) + Slice(1, 2));
     }
 
     [Theory]

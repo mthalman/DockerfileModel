@@ -236,6 +236,8 @@ Required-variable errors distinguish a custom modifier returning `null`
 `ResolutionOptions.UpdateInline` is `true`; inline resolution replaces expanded
 references but retains untouched child tokens, including empty primitive tokens.
 Empty primitive siblings retain their order around zero-width substitutions.
+Reentrant reconstruction keeps fragment ownership separate even when a zero-width
+substitution is emitted between fragments of another source token.
 Repeated occurrences of the same empty token remain distinct, including when
 only one occurrence is eligible for inline replacement.
 Zero-width references inside nonempty nested literals are replaced only once.
@@ -243,6 +245,8 @@ Unrelated empty literals retain their identity, including those inside an
 ancestor whose expanded references are replaced.
 Inline expansion also retains untouched children of nonempty nested literals.
 Non-inline resolution does not reconstruct the source token tree.
+When aliases of a nested container are flattened, each occurrence retains its own
+published fragments rather than adopting another occurrence's substitutions.
 Inline reconstruction skips source ranges that cannot contain a replacement,
 including unrelated sibling subtrees beside a zero-width substitution.
 Untouched subtrees are retained without traversing them again during publication.
@@ -329,7 +333,9 @@ the current value.
 Callbacks also must not add, remove, reorder, or replace children of an active source,
 or change an active document's construct membership. Violations throw
 `InvalidOperationException`. Guarded setters and collection views reject the
-edit before publication. A subclass can still access its protected raw
+edit before publication. Structural edits also preflight protected quote targets
+before publishing any changes to an unrelated receiving tree.
+A subclass can still access its protected raw
 `List<Token>`; edits through that list are detected after the callback returns
 or throws, including edits that restore the original sequence. Detection does
 not roll back those raw edits. Custom quote implementations that bypass native

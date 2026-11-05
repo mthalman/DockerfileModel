@@ -173,6 +173,50 @@ public class ResolutionGuardTests
         Assert.Equal("after", unrelated.Value);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProtectedQuoteAdoptionRejectsBeforeChangingTheReceivingTree(bool inline)
+    {
+        VolumeInstruction source = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        VolumeInstruction target = VolumeInstruction.Parse("VOLUME []");
+        CallbackDictionary variables = new(() =>
+        {
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+                target.PathTokens.Add(source.PathTokens[0]));
+            Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+            Assert.Equal("VOLUME []", target.ToString());
+        }) { ["ROOT"] = "root" };
+
+        Assert.Equal("VOLUME [\"root\"]", source.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? "VOLUME [\"root\"]" : "VOLUME [\"$ROOT\"]", source.ToString());
+    }
+
+    [Fact]
+    public void UnrelatedPrimitiveMutationAllocationsDoNotScaleWithProtectedSourceSize()
+    {
+        long Measure(int count)
+        {
+            Container source = new(Enumerable.Range(0, count)
+                .Select(index => (Token)new Container(new StringToken(index.ToString()))).ToArray());
+            StringToken unrelated = new("before");
+            using ResolutionGuard.Scope scope = ResolutionGuard.Enter(source);
+            using ResolutionGuard.CallbackScope callback = ResolutionGuard.Callback();
+            unrelated.Value = "after";
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 512; index++)
+            {
+                unrelated.Value = "after";
+            }
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        long small = Measure(512);
+        long large = Measure(2048);
+        Assert.True(large <= small + 4096, $"Primitive setter allocations grew from {small} to {large} bytes.");
+    }
+
     [Fact]
     public void CompletedReentrantSourcesCanBeEditedAndResolvedAgain()
     {
@@ -682,6 +726,42 @@ public class ResolutionGuardTests
         Assert.Throws<InvalidOperationException>(() =>
             source.ResolveVariables('\\', new CallbackDictionary(() => primitive.Value = "changed")));
         Assert.Equal("before", primitive.Value);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PrimitiveMembershipRetainsAliasesAcrossRootsAndReleasesCompletedSources(bool initializeEarly)
+    {
+        StringToken shared = new("shared");
+        StringToken nestedOnly = new("nested");
+        StringToken published = new("published");
+        Container outer = new(shared, shared);
+        Container inner = new(shared, nestedOnly);
+        using (ResolutionGuard.Enter(outer))
+        using (ResolutionGuard.Callback())
+        {
+            if (initializeEarly)
+            {
+                new StringToken("").Value = "unrelated";
+            }
+            using (ResolutionGuard.Enter(inner))
+            using (ResolutionGuard.Callback())
+            {
+                inner.ReplaceResolvedTokens(new Token[] { published, published });
+                Assert.Throws<InvalidOperationException>(() => shared.Value = "changed");
+                Assert.Throws<InvalidOperationException>(() => nestedOnly.Value = "changed");
+                Assert.Throws<InvalidOperationException>(() => published.Value = "changed");
+                StringToken replacement = new("replacement");
+                inner.ReplaceResolvedChild(0, replacement);
+                Assert.Throws<InvalidOperationException>(() => replacement.Value = "changed");
+                Assert.Throws<InvalidOperationException>(() => published.Value = "changed");
+            }
+            nestedOnly.Value = "released";
+            published.Value = "released";
+            Assert.Throws<InvalidOperationException>(() => shared.Value = "changed");
+        }
+        shared.Value = "released";
     }
 
     [Fact]

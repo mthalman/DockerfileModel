@@ -87,16 +87,21 @@ internal static class ResolutionGuard
     internal static void BeforeChildrenPublication(AggregateToken owner)
     {
         BeforePublication(owner);
-        if (current?.Snapshots?.TryGetValue(owner, out Snapshot? snapshot) == true)
+        if (current is State state && !state.HasPrimitiveIndex &&
+            state.Snapshots?.TryGetValue(owner, out Snapshot? snapshot) == true)
         {
-            snapshot.RetirePrimitives(owner);
+            foreach (Token child in owner.ResolutionChildren)
+            {
+                snapshot.RetirePrimitive(child);
+            }
         }
     }
 
     internal static void BeforeChildPublication(AggregateToken owner, int index)
     {
         BeforePublication(owner);
-        if (current?.Snapshots?.TryGetValue(owner, out Snapshot? snapshot) == true)
+        if (current is State state && !state.HasPrimitiveIndex &&
+            state.Snapshots?.TryGetValue(owner, out Snapshot? snapshot) == true)
         {
             snapshot.RetirePrimitive(owner.ResolutionChildren[index]);
         }
@@ -116,6 +121,7 @@ internal static class ResolutionGuard
         }
         else if (replacement is not null)
         {
+            state.CapturePrimitive(snapshot, replacement);
             snapshot.CaptureChildQuote(replacement);
             state.RegisterChecks(snapshot);
         }
@@ -134,6 +140,7 @@ internal static class ResolutionGuard
                 }
                 else
                 {
+                    current.CapturePrimitive(snapshot, child);
                     snapshot.CaptureChildQuote(child);
                 }
             }
@@ -190,26 +197,13 @@ internal static class ResolutionGuard
         private readonly QuoteSnapshot? quote;
         private List<QuoteSnapshot>? childQuotes;
         private HashSet<Token>? quotedChildren;
-        private List<Token>? retiredPrimitives;
-
-        internal bool ContainsPrimitive(AggregateToken owner, Token token) =>
-            owner.ResolutionChildren.Any(child => ReferenceEquals(child, token)) ||
-            retiredPrimitives?.Any(child => ReferenceEquals(child, token)) == true;
-
-        internal void RetirePrimitives(AggregateToken owner)
-        {
-            foreach (Token child in owner.ResolutionChildren)
-            {
-                RetirePrimitive(child);
-            }
-        }
+        internal List<Token>? RetiredPrimitives { get; private set; }
 
         internal void RetirePrimitive(Token child)
         {
             if (child is PrimitiveToken)
             {
-                retiredPrimitives ??= new();
-                retiredPrimitives.Add(child);
+                (RetiredPrimitives ??= new()).Add(child);
             }
         }
 
@@ -296,6 +290,9 @@ internal static class ResolutionGuard
             new(ReferenceComparer<AggregateToken>.Instance);
         private readonly Dictionary<AggregateToken, int> rootReferences =
             new(ReferenceComparer<AggregateToken>.Instance);
+        private Dictionary<Token, int>? primitiveReferences;
+        private Dictionary<AggregateToken, HashSet<Token>>? rootPrimitives;
+        internal bool HasPrimitiveIndex => primitiveReferences is not null;
         private readonly HashSet<Snapshot> boundarySnapshots = new();
         private int capturedRoots;
         internal int CallbackDepth { get; set; }
@@ -317,14 +314,48 @@ internal static class ResolutionGuard
             {
                 return Snapshots.ContainsKey(aggregate);
             }
-            foreach (KeyValuePair<AggregateToken, Snapshot> entry in Snapshots)
+            if (primitiveReferences is null)
             {
-                if (entry.Value.ContainsPrimitive(entry.Key, token))
+                // Options-only callbacks should not pay for a primitive ownership index.
+                primitiveReferences = new(ReferenceComparer<Token>.Instance);
+                rootPrimitives = new(ReferenceComparer<AggregateToken>.Instance);
+                foreach (KeyValuePair<AggregateToken, Snapshot> entry in Snapshots)
                 {
-                    return true;
+                    foreach (Token child in entry.Key.ResolutionChildren)
+                    {
+                        if (child is not AggregateToken)
+                        {
+                            CapturePrimitive(entry.Value, child);
+                        }
+                    }
+                    if (entry.Value.RetiredPrimitives is not null)
+                    {
+                        foreach (Token child in entry.Value.RetiredPrimitives)
+                        {
+                            CapturePrimitive(entry.Value, child);
+                        }
+                    }
                 }
             }
-            return false;
+            return primitiveReferences.ContainsKey(token);
+        }
+
+        internal void CapturePrimitive(Snapshot snapshot, Token child)
+        {
+            if (primitiveReferences is null)
+            {
+                return;
+            }
+            if (!rootPrimitives!.TryGetValue(snapshot.Root, out HashSet<Token>? primitives))
+            {
+                primitives = new(ReferenceComparer<Token>.Instance);
+                rootPrimitives.Add(snapshot.Root, primitives);
+            }
+            if (primitives.Add(child))
+            {
+                primitiveReferences.TryGetValue(child, out int references);
+                primitiveReferences[child] = references + 1;
+            }
         }
 
         internal void Capture()
@@ -368,6 +399,7 @@ internal static class ResolutionGuard
                     }
                     else
                     {
+                        CapturePrimitive(snapshot, child);
                         snapshot.CaptureChildQuote(child);
                     }
                 }
@@ -424,6 +456,22 @@ internal static class ResolutionGuard
                         Snapshots!.Remove(member);
                     }
                     rootMembers.Remove(root);
+                }
+                if (rootPrimitives?.TryGetValue(root, out HashSet<Token>? primitives) == true)
+                {
+                    foreach (Token primitive in primitives)
+                    {
+                        int owners = primitiveReferences![primitive] - 1;
+                        if (owners == 0)
+                        {
+                            primitiveReferences.Remove(primitive);
+                        }
+                        else
+                        {
+                            primitiveReferences[primitive] = owners;
+                        }
+                    }
+                    rootPrimitives.Remove(root);
                 }
             }
             capturedRoots = Math.Min(capturedRoots, Roots.Count);
