@@ -68,7 +68,7 @@ def volumePathsParser (escapeChar : Char) : Parser (List Token) := do
 /-- Parse the arguments of a VOLUME instruction: exec form or space-separated paths.
     Corresponds to VolumeInstruction.GetArgsParser() -/
 partial def volumeArgsParser (escapeChar : Char) : Parser (List Token) :=
-  argTokens (or' (jsonArrayParser escapeChar) (volumePathsParser escapeChar)) escapeChar
+  argTokens (maybeJsonArrayParser (volumePathsParser escapeChar) escapeChar) escapeChar
     (excludeLeadingWhitespace := true)
 
 -- ============================================================

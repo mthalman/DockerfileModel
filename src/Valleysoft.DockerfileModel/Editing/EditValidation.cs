@@ -154,32 +154,64 @@ internal static class EditValidation
         }
     }
 
-    /// <summary>Parses one complete instruction using diagnostic framing and its effective escape context.</summary>
+    /// <summary>Parses one complete instruction in its owner's representation and effective escape context.</summary>
     /// <param name="text">The prospective instruction serialization.</param>
     /// <param name="escapeChar">The owner's effective escape character.</param>
+    /// <param name="generic">Whether to retain a generic owner's argument-line representation.</param>
+    /// <param name="allowLegacyJsonOperands">Preserves ADD/COPY constructor operand syntax during JSON collection edits.</param>
     /// <returns>The parsed instruction for further role, count, and value comparisons.</returns>
     /// <remarks>
     /// Diagnostic framing detects heredoc markers throughout a continued header and rejects
     /// missing terminators. Parsing success alone does not prove an edit preserves operand
     /// meaning; adapters compare the returned roles and heredoc associations before committing.
+    /// Generic representation callers must also validate the diagnostic interpretation separately.
     /// </remarks>
-    public static Instruction ParseInstruction(string text, char escapeChar)
+    public static Instruction ParseInstruction(string text, char escapeChar, bool generic = false,
+        bool allowLegacyJsonOperands = false)
     {
+        bool bom = text.StartsWith("\uFEFF", StringComparison.Ordinal);
+        string content = bom ? text.Substring(1) : text;
         Instruction parsed;
         try
         {
-            ConstructReader.Region region = ConstructReader.Read(text, 0, escapeChar);
-            if (region.UnterminatedMarker.HasValue || region.End != text.Length)
+            TextParser<KeywordToken> nameParser =
+                from leading in Whitespace()
+                from keyword in KeywordToken.GetParser(escapeChar)
+                select keyword;
+            Result<KeywordToken> name = nameParser.TryParse(content);
+            if (!name.HasValue || !Instruction.IsKnownInstruction(name.Value.Value) ||
+                (name.Remainder.Length > 0 && !char.IsWhiteSpace(name.Remainder[0])))
             {
-                throw new InvalidOperationException("The edit would not form one complete instruction.");
+                throw new InvalidOperationException("The edit would produce an invalid instruction name or boundary.");
             }
-            string name = Instruction.InstructionNameParser(escapeChar).Parse(text);
-            parsed = Instruction.CreateDiagnosticInstruction(name, text, escapeChar,
-                new InstructionParseContext(region, 0));
+            if (generic)
+            {
+                parsed = GenericInstruction.Parse(content, escapeChar);
+            }
+            else
+            {
+                ConstructReader.Region region = ConstructReader.Read(content, 0, escapeChar);
+                if (region.UnterminatedMarker.HasValue || region.End != content.Length)
+                {
+                    throw new InvalidOperationException("The edit would not form one complete instruction.");
+                }
+                parsed = name.Value.Value.ToUpperInvariant() switch
+                {
+                    "COPY" when allowLegacyJsonOperands => CopyInstruction.ParseForEditing(content, escapeChar),
+                    "ADD" when allowLegacyJsonOperands => AddInstruction.ParseForEditing(content, escapeChar),
+                    _ => Instruction.CreateDiagnosticInstruction(name.Value.Value, content, escapeChar,
+                        new InstructionParseContext(region, 0))
+                };
+            }
         }
         catch (ParseException exception)
         {
             throw new InvalidOperationException("The edit would produce an invalid instruction.", exception);
+        }
+        if (bom)
+        {
+            // Document parsers keep the BOM outside instruction grammar, but inside its token tree.
+            parsed.TokenList.Insert(0, new StringToken("\uFEFF"));
         }
         if (parsed.ToString() != text)
         {
@@ -192,13 +224,16 @@ internal static class EditValidation
     /// <param name="owner">The live owner whose staged marker and body tokens define the expected roles.</param>
     /// <param name="parsed">The diagnostic interpretation of the complete prospective instruction.</param>
     /// <param name="plan">The plan supplying prospective children and token serialization.</param>
+    /// <param name="render">A shared renderer for an unchanged plan, or null to create one for this validation.</param>
     /// <remarks>
     /// Ordinary source or command text must not become an unmodeled heredoc, even when the
     /// resulting serialization happens to include a valid delimiter. This check does not replace
     /// the live owner or its pair wrappers with parsed objects.
     /// </remarks>
-    public static void ValidateHeredocAssociations(AggregateToken owner, Instruction parsed, TokenEditPlan plan)
+    public static void ValidateHeredocAssociations(AggregateToken owner, Instruction parsed, TokenEditPlan plan,
+        Func<Token, string>? render = null)
     {
+        render ??= plan.CreateRenderer();
         Token[] expected = StagedDescendants(owner).ToArray();
         Token[] actual = InstructionCollectionEditing.Descendants(parsed).ToArray();
         HeredocMarkerToken[] expectedMarkers = expected.OfType<HeredocMarkerToken>().ToArray();
@@ -214,10 +249,10 @@ internal static class EditValidation
         {
             HeredocMarkerToken expectedMarker = expectedMarkers[index];
             HeredocMarkerToken actualMarker = actualMarkers[index];
-            if (plan.Render(expectedMarker) != actualMarker.ToString() ||
+            if (render(expectedMarker) != actualMarker.ToString() ||
                 expectedMarker.DelimiterName != actualMarker.DelimiterName ||
                 expectedMarker.Expand != actualMarker.Expand || expectedMarker.Chomp != actualMarker.Chomp ||
-                plan.Render(expectedBodies[index]) != actualBodies[index].ToString())
+                render(expectedBodies[index]) != actualBodies[index].ToString())
             {
                 throw new InvalidOperationException("The edit changes heredoc associations or delimiter semantics.");
             }

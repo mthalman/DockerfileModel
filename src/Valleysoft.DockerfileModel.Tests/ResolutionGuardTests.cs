@@ -79,6 +79,37 @@ public class ResolutionGuardTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void MixedWordSettersRejectNoOpAssignmentsDuringCallbacks(bool inline)
+    {
+        CopyInstruction instruction = CopyInstruction.Parse("COPY pre\"$ROOT\" /dest");
+        LiteralToken source = Assert.Single(instruction.SourceTokens);
+        Token[] original = source.Tokens.ToArray();
+        foreach (bool changeQuote in new[] { false, true })
+        {
+            CallbackDictionary variables = new(() =>
+            {
+                if (changeQuote)
+                {
+                    source.QuoteChar = source.QuoteChar;
+                }
+                else
+                {
+                    source.Value = source.Value;
+                }
+            });
+
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+                instruction.ResolveVariables('\\', variables, new ResolutionOptions { UpdateInline = inline }));
+
+            Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+            Assert.Equal(original, source.Tokens);
+            Assert.Equal("COPY pre\"$ROOT\" /dest", instruction.ToString());
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void GuardedValueSettersRejectBeforeReplacingChildren(bool inline)
     {
         LiteralToken source = new("$ROOT", canContainVariables: true);

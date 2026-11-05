@@ -39,8 +39,10 @@ public class CmdInstruction : CommandInstruction
     internal static CmdInstruction ParseDiagnostic(string text, char escapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar, diagnostic: true)), escapeChar);
 
-    internal static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false) =>
-        Instruction("CMD", escapeChar, GetArgsParser(escapeChar, diagnostic));
+    internal static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, bool diagnostic = false,
+        bool constructedExecForm = false) =>
+        Instruction("CMD", escapeChar, constructedExecForm
+            ? GetConstructedExecFormArgsParser(escapeChar) : GetArgsParser(escapeChar, diagnostic));
 
     private static IEnumerable<Token> GetTokens(string commandWithArgs, char escapeChar)
     {
@@ -52,13 +54,14 @@ public class CmdInstruction : CommandInstruction
     {
         Guard.NotNull(defaultArgs, nameof(defaultArgs));
 
-        return GetTokens($"CMD {StringHelper.FormatAsJson(defaultArgs)}", GetInnerParser(escapeChar));
+        return GetTokens($"CMD {StringHelper.FormatAsJson(defaultArgs)}", GetInnerParser(escapeChar, constructedExecForm: true));
     }
 
     private static IEnumerable<Token> GetTokens(string command, IEnumerable<string> args, char escapeChar)
     {
         Guard.NotNullOrEmpty(command, nameof(command));
         Guard.NotNull(args, nameof(args));
-        return GetTokens($"CMD {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
+        return GetTokens($"CMD {StringHelper.FormatAsJson(new string[] { command }.Concat(args))}",
+            GetInnerParser(escapeChar, constructedExecForm: true));
     }
 }

@@ -878,8 +878,7 @@ internal static class AnalysisExpressionEvaluator
         private readonly StringBuilder? text;
         private readonly List<string> unresolvedVariables = new();
         private AnalysisValue? failure;
-        private char? quote;
-        private bool escaped;
+        private ShellQuoteContext quoteContext;
 
         public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar,
             bool collectText = true,
@@ -898,16 +897,17 @@ internal static class AnalysisExpressionEvaluator
                 return;
             }
 
-            if (token is ResolvedStringToken resolved && resolved.MatchesContext(quote, escaped, escapeChar))
+            if (token is ResolvedStringToken resolved &&
+                resolved.MatchesContext(quoteContext.QuoteChar, quoteContext.Escaped, escapeChar))
             {
                 text?.Append(resolved.SemanticValue);
-                escaped = false;
+                quoteContext.ClearEscape();
                 return;
             }
 
             if (token is VariableRefToken variable)
             {
-                if (quote == '\'' || escaped)
+                if (quoteContext.SuppressExpansion)
                 {
                     string syntax = variable.ToString();
                     AppendText(syntax);
@@ -961,7 +961,7 @@ internal static class AnalysisExpressionEvaluator
                 {
                     if (snapshot.Source is VariableRefToken)
                     {
-                        snapshot.Context = (quote, escaped);
+                        snapshot.Context = (quoteContext.QuoteChar, quoteContext.Escaped);
                     }
                     resolveSnapshot(snapshot);
                     if (snapshot.SuppressedSyntax is not null)
@@ -985,7 +985,7 @@ internal static class AnalysisExpressionEvaluator
                     }
                     if (snapshot.Source is VariableRefToken && snapshot.Context.Escaped)
                     {
-                        escaped = false;
+                        quoteContext.ClearEscape();
                     }
                 }
                 else
@@ -1008,7 +1008,7 @@ internal static class AnalysisExpressionEvaluator
             }
             if (snapshot.IsReference)
             {
-                if (snapshot.Source is not VariableRefToken && escaped && quote == '"')
+                if (snapshot.Source is not VariableRefToken && quoteContext.Escaped && quoteContext.QuoteChar == '"')
                 {
                     text?.Append(escapeChar);
                 }
@@ -1017,19 +1017,19 @@ internal static class AnalysisExpressionEvaluator
                     text?.Append(snapshot.ResolvedValue);
                 }
                 else if (snapshot.Source is VariableRefToken &&
-                    (quote == '\'' || escaped ||
+                    (quoteContext.SuppressExpansion ||
                         (resolveSnapshot is null || snapshot.SerializationConsumed) && snapshot.SuppressedSyntax is not null))
                 {
                     if (resolveSnapshot is not null && !snapshot.SerializationConsumed)
                     {
-                        snapshot.Context = (quote, escaped);
+                        snapshot.Context = (quoteContext.QuoteChar, quoteContext.Escaped);
                     }
                     if (!snapshot.TryCaptureSuppressedSyntax(out string syntax))
                     {
                         if (resolveSnapshot is not null)
                         {
                             resolveSnapshot(snapshot);
-                            escaped = false;
+                            quoteContext.ClearEscape();
                         }
                         else
                         {
@@ -1045,20 +1045,21 @@ internal static class AnalysisExpressionEvaluator
                 }
                 else
                 {
-                    snapshot.Context = (quote, escaped);
+                    snapshot.Context = (quoteContext.QuoteChar, quoteContext.Escaped);
                     string value = resolveSnapshot!(snapshot);
                     text?.Append(value);
                 }
                 if (snapshot.Source is not VariableRefToken)
                 {
-                    escaped = false;
+                    quoteContext.ClearEscape();
                 }
                 return;
             }
-            if (resolvedString is not null && resolvedString.MatchesContext(quote, escaped, escapeChar))
+            if (resolvedString is not null &&
+                resolvedString.MatchesContext(quoteContext.QuoteChar, quoteContext.Escaped, escapeChar))
             {
                 text?.Append(resolvedString.SemanticValue);
-                escaped = false;
+                quoteContext.ClearEscape();
                 return;
             }
             if (snapshot.QuoteChar is char openingQuote)
@@ -1089,7 +1090,7 @@ internal static class AnalysisExpressionEvaluator
 
         public AnalysisValue GetResult()
         {
-            if (quote.HasValue)
+            if (quoteContext.QuoteChar.HasValue)
             {
                 AppendValue(AnalysisValue.Failure(AnalysisDiagnosticCode.UnsupportedEvaluation,
                     "The expression contains an unterminated quote."));
@@ -1100,7 +1101,7 @@ internal static class AnalysisExpressionEvaluator
                 return AnalysisValue.Failure(failure.DiagnosticCode!.Value, failure.Message!, unresolvedVariables);
             }
 
-            if (escaped)
+            if (quoteContext.Escaped)
             {
                 text?.Append(escapeChar);
             }
@@ -1133,40 +1134,12 @@ internal static class AnalysisExpressionEvaluator
 
         private void AppendCharacter(char character)
         {
-            if (escaped)
+            if (quoteContext.Consume(character, escapeChar, out bool preserveEscape))
             {
-                if (quote == '"' && character != '$' && character != '"' && character != escapeChar)
+                if (preserveEscape)
                 {
                     text?.Append(escapeChar);
                 }
-                text?.Append(character);
-                escaped = false;
-            }
-            else if (quote == '\'')
-            {
-                if (character == '\'')
-                {
-                    quote = null;
-                }
-                else
-                {
-                    text?.Append(character);
-                }
-            }
-            else if (character == escapeChar)
-            {
-                escaped = true;
-            }
-            else if (character == quote)
-            {
-                quote = null;
-            }
-            else if (!quote.HasValue && character is '\'' or '"')
-            {
-                quote = character;
-            }
-            else
-            {
                 text?.Append(character);
             }
         }

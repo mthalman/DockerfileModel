@@ -186,7 +186,9 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
         int markers = owner.Tokens.OfType<HeredocMarkerToken>().Count();
         int bodies = owner.Tokens.OfType<HeredocBodyToken>().Count();
         if (markers != bodies) throw new InvalidOperationException("Heredoc marker/body counts do not match.");
-        if (owner is FileTransferInstruction && owner.Tokens.TakeWhile(token => token is not HeredocBodyToken)
+        if (owner is FileTransferInstruction && owner.Tokens
+            .Skip(owner.Tokens.FirstOrDefault() is StringToken { Value: "\uFEFF" } ? 1 : 0)
+            .TakeWhile(token => token is not HeredocBodyToken)
             .OfType<StringToken>().Any(token => !string.IsNullOrWhiteSpace(token.Value)))
             throw new InvalidOperationException("Opaque file-transfer header text cannot be mapped to editable source tokens; use diagnostic parsing.");
         foreach (Heredoc pair in Snapshot()) pair.ValidatePair();
@@ -237,13 +239,15 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
     /// <summary>Infers each missing separator from the nearest staged structural newline, excluding body payload.</summary>
     private void EnsureBodyBoundaries(TokenEditPlan plan, bool terminateLast)
     {
+        Func<Token, string> render = plan.CreateRenderer();
         var bodies = plan.Tokens(owner).OfType<HeredocBodyToken>().ToArray();
         List<(int Position, string NewLine)> boundaries = new();
-        Dictionary<HeredocBodyToken, int> bodyEnds = new(ReferenceComparer<HeredocBodyToken>.Instance);
+        Dictionary<HeredocBodyToken, (int Position, bool Terminated)> bodyEnds =
+            new(ReferenceComparer<HeredocBodyToken>.Instance);
         int position = 0;
         foreach (Token token in plan.Tokens(owner))
         {
-            string text = plan.Render(token);
+            string text = render(token);
             if (token is HeredocBodyToken body)
             {
                 int childPosition = position;
@@ -251,12 +255,12 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
                 foreach (Token child in plan.Tokens(body))
                 {
                     closingDelimiter |= child is HeredocDelimiterToken;
-                    string childText = plan.Render(child);
+                    string childText = render(child);
                     if (closingDelimiter && child is NewLineToken)
                         AddBoundaries(childText, childPosition);
                     childPosition += childText.Length;
                 }
-                bodyEnds.Add(body, position + text.Length);
+                bodyEnds.Add(body, (position + text.Length, text.EndsWith("\n", StringComparison.Ordinal)));
             }
             else
             {
@@ -266,10 +270,10 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
         }
         for (int i = 0; i < bodies.Length; i++)
         {
-            if ((i < bodies.Length - 1 || terminateLast) && !plan.Render(bodies[i]).EndsWith("\n", StringComparison.Ordinal))
+            if ((i < bodies.Length - 1 || terminateLast) && !bodyEnds[bodies[i]].Terminated)
             {
                 string newline = boundaries.Count == 0 ? "\n" :
-                    boundaries.OrderBy(boundary => Math.Abs(boundary.Position - bodyEnds[bodies[i]])).First().NewLine;
+                    boundaries.OrderBy(boundary => Math.Abs(boundary.Position - bodyEnds[bodies[i]].Position)).First().NewLine;
                 plan.Edit(bodies[i]).Add(new NewLineToken(newline));
             }
         }
@@ -312,22 +316,20 @@ internal sealed class HeredocListAdapter(Instruction owner, char escapeChar) : I
         }
     }
 
-    /// <summary>Uses diagnostic document parsing to verify the complete instruction and expected heredoc associations.</summary>
+    /// <summary>Uses diagnostic instruction parsing to verify the complete instruction and expected heredoc associations.</summary>
     /// <returns>The detached instruction used to compare restored command semantics before commit.</returns>
     /// <remarks>
-    /// A temporary escape directive supplies custom context to the parser; it is not added to the owner.
+    /// The effective escape context is supplied directly without moving a leading BOM behind a temporary directive.
     /// Raw body content and delimiter expansion/chomp semantics must survive the proposed serialization.
     /// </remarks>
     private Instruction ValidateProspective(string text, IReadOnlyList<Heredoc> expected)
     {
-        string prefix = escapeChar == '`' ? "# escape=`\n" : "";
-        DockerfileParseResult result = Dockerfile.TryParse(prefix + text);
-        Instruction? parsed = result.Dockerfile?.Items.OfType<Instruction>().SingleOrDefault();
+        Instruction parsed = EditValidation.ParseInstruction(text, escapeChar);
         bool matchingKind = (owner, parsed) is
             (RunInstruction, RunInstruction) or
             (CopyInstruction, CopyInstruction) or
             (AddInstruction, AddInstruction);
-        if (!result.Success || parsed is null || !matchingKind || parsed.ToString() != text)
+        if (!matchingKind || parsed.ToString() != text)
             throw new InvalidOperationException("The heredoc edit would not form one complete instruction.");
         IReadOnlyList<Heredoc> actual = parsed switch
         {

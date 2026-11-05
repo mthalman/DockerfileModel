@@ -308,15 +308,28 @@ partial def jsonArrayContainsNonStringElement (escapeChar : Char) : Parser Bool 
   jsonTrailingTrivia escapeChar
   Parser.pure containsNonString
 
-/-- Parse command form. Malformed JSON falls back to shell form, but a valid JSON
-    array with non-string elements is rejected to match BuildKit. -/
-partial def commandFormParser (escapeChar : Char) : Parser (List Token) :=
+/-- Require the whole command argument to be JSON without consuming its trailing trivia. -/
+def completeJsonArrayParser (escapeChar : Char) : Parser (List Token) :=
   fun pos =>
     match (jsonArrayParser escapeChar) pos with
+    | .ok tokens pos' =>
+      match jsonTrailingTrivia escapeChar pos' with
+      | .ok _ _ => ParseResult.ok tokens pos'
+      | .error msg errorPos => ParseResult.error msg errorPos
+    | .error msg errorPos => ParseResult.error msg errorPos
+
+/-- Malformed JSON uses the caller's fallback; valid non-string arrays remain errors. -/
+def maybeJsonArrayParser (fallback : Parser (List Token)) (escapeChar : Char) : Parser (List Token) :=
+  fun pos =>
+    match (completeJsonArrayParser escapeChar) pos with
     | .ok tokens pos' => ParseResult.ok tokens pos'
     | .error _ _ =>
       match jsonArrayContainsNonStringElement escapeChar pos with
       | .ok true _ => ParseResult.error "expected JSON array of strings" pos
-      | _ => (shellFormCommand escapeChar) pos
+      | _ => fallback pos
+
+/-- Command instructions preserve malformed JSON as shell text, matching BuildKit. -/
+def commandFormParser (escapeChar : Char) : Parser (List Token) :=
+  maybeJsonArrayParser (shellFormCommand escapeChar) escapeChar
 
 end DockerfileModel.Parser.ExecForm

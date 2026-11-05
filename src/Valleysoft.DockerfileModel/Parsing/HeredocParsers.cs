@@ -15,11 +15,12 @@ internal static class HeredocParsers
     internal static TextParser<IEnumerable<Token>> HeredocTokenParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         input => HeredocTokenParseImpl(input, escapeChar);
 
+    // Anchor each probe so rejected here-strings cannot repeatedly search the remaining suffix.
     private static readonly Regex HeredocMarkerRegex = new(
-        @"<<(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
+        @"\G(?<!<)<<(?!<)(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
     // Regex for scanning the rest of the line for additional markers.
     private static readonly Regex HeredocMarkerScanRegex = new(
-        @"<<(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
+        @"\G(?<!<)<<(?!<)(-?)(?:(['""])([^\r\n]+?)\2|([^\s]+))");
 
     /// <summary>
     /// Holds parsed information about a heredoc marker found on the command line.
@@ -267,6 +268,9 @@ internal static class HeredocParsers
     /// </summary>
     private static void TokenizeRestOfLine(string text, List<Token> tokens, char escapeChar)
     {
+        TextParser<LiteralToken> literalParser = VariableParsers.LiteralWithVariables(
+            escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes, allowUnmatchedQuoteFragments: true);
+        TextSpan input = new(text);
         int i = 0;
         while (i < text.Length)
         {
@@ -278,15 +282,18 @@ internal static class HeredocParsers
                     i++;
                 }
                 tokens.Add(new WhitespaceToken(text.Substring(start, i - start)));
+                input = input.Skip(i - start);
             }
             else
             {
-                int start = i;
-                while (i < text.Length && !char.IsWhiteSpace(text[i]))
+                Result<LiteralToken> result = literalParser(input);
+                if (!result.HasValue)
                 {
-                    i++;
+                    throw new ParseException(result.ToString(), result.ErrorPosition);
                 }
-                tokens.Add(new LiteralToken(text.Substring(start, i - start), canContainVariables: true, escapeChar));
+                tokens.Add(result.Value);
+                input = result.Remainder;
+                i = input.Position.Absolute;
             }
         }
     }

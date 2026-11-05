@@ -8,8 +8,9 @@ internal static class DockerfileParser
 {
     // Matches heredoc markers: <<[-][QUOTE]DELIMITER[QUOTE]
     // Supports any non-whitespace for unquoted delimiters and any non-quote for quoted delimiters.
+    // Anchor each probe so rejected here-strings cannot repeatedly search the remaining suffix.
     private static readonly Regex HeredocDelimiterRegex = new(
-        @"<<(-?)(?:(['""])(.+?)\2|([^\s'""]+))");
+        @"\G(?<!<)<<(?!<)(-?)(?:(['""])(.+?)\2|([^\s'""]+))");
 
     /// <summary>
     /// Represents a detected heredoc delimiter with its properties.
@@ -217,7 +218,7 @@ internal static class DockerfileParser
                 }
 
                 if ((isComment && !inLineContinuation) ||
-                    (!EndsInLineContinuation(escapeChar).TryParse(line).HasValue &&
+                    (!EndsInLineContinuation(line, escapeChar) &&
                         !(isComment && inLineContinuation)))
                 {
                     constructLines.Add(constructBuilder.ToString());
@@ -305,11 +306,13 @@ internal static class DockerfileParser
         return text.Length == keyword.Length || char.IsWhiteSpace(text[keyword.Length]);
     }
 
-    private static TextParser<LineContinuationToken> EndsInLineContinuation(char escapeChar) =>
-        from text in Superpower.Parse.Not(LineContinuationToken.GetParser(escapeChar))
-            .IgnoreThen(Character.AnyChar)
-            .Try().Many()
-            .Text()
-        from lineCont in LineContinuationToken.GetParser(escapeChar)
-        select lineCont;
+    private static bool EndsInLineContinuation(string line, char escapeChar)
+    {
+        int contentEnd = line.Length - 1;
+        if (contentEnd > 0 && line[contentEnd - 1] == '\r')
+        {
+            contentEnd--;
+        }
+        return ConstructReader.FindContinuationStart(line, 0, contentEnd, escapeChar) >= 0;
+    }
 }

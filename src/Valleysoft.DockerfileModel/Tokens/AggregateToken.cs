@@ -95,12 +95,27 @@ public abstract class AggregateToken : Token
     /// <param name="variables">Variable values, or null for an empty environment.</param>
     /// <param name="options">Substitution options, or null for non-mutating defaults.</param>
     /// <returns>Resolved token text, including surrounding quotes when present; a variable token may resolve to null.</returns>
-    /// <remarks>Command instructions can suppress expansion, and raw command text may contain no variable-reference tokens. Use document resolution when ARG scope matters.</remarks>
+    /// <remarks>
+    /// Single-quoted literal contents and command instructions suppress expansion without removing reference tokens.
+    /// Quotes are preserved in returned text. Use document resolution when ARG scope matters.
+    /// </remarks>
     public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
     {
-        using ResolutionGuard.Scope scope = ResolutionGuard.Enter(this);
+        using ResolutionGuard.Scope guardScope = ResolutionGuard.Enter(this);
         variables ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
+
+        LiteralResolutionScope? scope = LiteralResolutionScope.GetScope(this);
+        if (options.TokenValueResolver is null && (this is LiteralToken || scope is not null))
+        {
+            ShellQuoteContext context = LiteralResolutionScope.GetContext(this);
+            LiteralResolutionPlan plan = scope?.Plan is LiteralResolutionPlan prepared
+                ? prepared.ForInvocation(escapeChar)
+                : new LiteralResolutionPlan(this, escapeChar, ref context);
+            plan.BeginResolution();
+            string? value = ResolveVariablesCore(escapeChar, variables, options, plan);
+            return $"{plan.QuoteChar}{value}{plan.QuoteChar}";
+        }
 
         if (this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
         {
@@ -246,7 +261,8 @@ public abstract class AggregateToken : Token
         }
     }
 
-    private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
+    private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options,
+        LiteralResolutionPlan? plan = null)
     {
         StringBuilder builder = new();
         using ResolutionOptions.ModifierResolutionTraversal? traversal =
@@ -260,14 +276,16 @@ public abstract class AggregateToken : Token
                 traversal.Index = i;
             }
             string? value;
-            if (token is AggregateToken aggregateToken)
+            ShellQuoteContext context = plan?.GetContext(i) ?? new ShellQuoteContext();
+            if (token is AggregateToken aggregateToken && !(token is VariableRefToken && plan is not null && context.SuppressExpansion))
             {
                 bool useCapturedValue = options.TokenValueResolver is not null;
                 TokenResolution? capturedValue = useCapturedValue
                     ? options.TokenValueResolver!(this, i, aggregateToken) : null;
                 (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken
                     ? capturedValue?.SemanticValue : null;
-                bool suppressExpansion = semanticValue is { } context && (context.QuoteChar == '\'' || context.Escaped) ||
+                bool suppressExpansion = semanticValue is { } semanticContext &&
+                    (semanticContext.QuoteChar == '\'' || semanticContext.Escaped) ||
                     token is VariableRefToken && useCapturedValue && capturedValue is null;
                 if (useCapturedValue &&
                     (capturedValue is null || token is VariableRefToken || aggregateToken.UsesCustomResolution))
@@ -277,7 +295,16 @@ public abstract class AggregateToken : Token
                 }
                 else
                 {
-                    value = ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
+                    plan?.BeforeCallback(token, variables, options);
+                    if (plan is not null && token is not VariableRefToken)
+                    {
+                        using LiteralResolutionScope scope = new(aggregateToken, context, plan.GetChildPlan(i));
+                        value = ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
+                    }
+                    else
+                    {
+                        value = ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
+                    }
                 }
                 if (token is VariableRefToken && options.UpdateInline && !suppressExpansion &&
                     (capturedValue?.UpdateInline ?? true))
@@ -287,6 +314,7 @@ public abstract class AggregateToken : Token
             }
             else
             {
+                plan?.BeforeCallback(token, variables, options, resolveVariables: false);
                 value = options.FormatValue(escapeChar, token.ToString());
             }
 

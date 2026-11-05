@@ -127,7 +127,8 @@ internal sealed class InstructionParseContext
     private static IEnumerable<Token> ParseGap(string source, int offset, int length, char escapeChar, bool canContainVariables)
     {
         TextParser<LiteralToken> literal = canContainVariables
-            ? LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes)
+            ? LiteralWithVariables(escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes,
+                allowUnmatchedQuoteFragments: true)
             : LiteralToken(escapeChar, Array.Empty<char>());
         TextParser<IEnumerable<Token>> parser =
             from leading in ArgTrailingWhitespace(escapeChar)

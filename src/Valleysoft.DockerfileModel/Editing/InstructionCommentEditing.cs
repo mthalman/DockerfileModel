@@ -381,7 +381,7 @@ internal sealed class CommentListAdapter : IEditableListAdapter<CommentToken>
         AggregateToken parsed = owner switch
         {
             UnknownInstruction => throw new InvalidOperationException("Unknown instruction arguments are opaque."),
-            GenericInstruction => GenericInstruction.Parse(text, owner.EditingEscapeChar),
+            GenericInstruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar, generic: true),
             Instruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar),
             _ => throw new InvalidOperationException("Comments require a known instruction owner.")
         };

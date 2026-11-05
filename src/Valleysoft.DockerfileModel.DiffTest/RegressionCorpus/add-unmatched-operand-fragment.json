@@ -1,0 +1,9 @@
+{
+  "id": "local-add-unmatched-operand-fragment",
+  "instructionType": "ADD",
+  "inputBase64": "QUREIGZvbyJiYXIgL2Rlc3Q=",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

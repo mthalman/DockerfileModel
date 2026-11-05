@@ -1,0 +1,9 @@
+{
+  "id": "local-copy-adjacent-quoted-fragments",
+  "instructionType": "COPY",
+  "inputBase64": "Q09QWSAiZm9vImJhciAvZGVzdA==",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}
