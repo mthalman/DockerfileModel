@@ -143,37 +143,17 @@ with a backtick Dockerfile escape directive.
 paths that you create or update through `Paths` and `PathTokens`. Supplied
 `LiteralToken` paths and modifier values retain their variable-recognition
 policy. If you construct a literal with `canContainVariables: false`, its
-contents remain literal after JSON decoding. The resolver calls custom modifier
-overrides only when it selects their branch. It does not expand variable
-references in the values those overrides return.
-
-For JSON-form paths, the resolver decodes JSON escapes before recognizing
-variables and escapes substituted values for JSON. It preserves unchanged JSON
-spelling and Dockerfile continuations. Decoded single quotes protect enclosed
-references, and a decoded Dockerfile escape character protects an immediately
-following dollar sign. The resolver retains the single quotes in the path. These
-rules also apply inside modifier values. Malformed references outside protected text and
-unterminated decoded quotes cause resolution errors. Protected malformed text
-remains literal. The resolver leaves references with unsupported pattern
-modifiers (`#`, `##`, `%`, `%%`, `/`, and `//`) unchanged.
+contents remain literal after JSON decoding. For JSON-form paths, the resolver
+escapes substituted values for JSON and preserves unchanged spelling and
+Dockerfile continuations.
 
 Non-inline resolution leaves the source token tree unchanged. Inline resolution
 replaces expanded references while retaining untouched child tokens. Substituted
-values stay literal on later resolutions, even if you edit their primitive
-tokens or reuse them in another path or modifier. To parse new variable
-references, assign the path's `Value` or update it through `Paths`.
-`RemoveEscapeCharacters` changes the returned JSON text without rewriting
-untouched path contents, even when `UpdateInline` is `true`.
-
-When you adopt a path through a collection or scalar token setter, subsequent
-calls to that literal's `ResolveVariables()` use the receiving owner's context.
-Each instruction still resolves shared tokens in its own context. Sharing a JSON
-path with a non-VOLUME instruction does not change the original VOLUME's policy.
-An active synchronous resolution call retains its context if a callback resolves
-the literal again or adopts it into another owner. After the call returns or
-throws, direct calls use the latest owner's context. `ARG` defaults use non-JSON
-resolution. Resolving a `VariableRefToken` directly also uses non-JSON resolution
-for its modifier value. Adoption shares mutable tokens rather than copying them.
+values stay literal on later resolutions. To parse new variable references,
+assign the path's `Value` or update it through `Paths`. Typed adoption shares
+mutable tokens rather than copying them. See
+[Variable resolution](variable-resolution.md) for resolution options and callback
+behavior.
 
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's
