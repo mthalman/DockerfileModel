@@ -123,6 +123,17 @@ internal sealed class TokenEditPlan
     public void Commit()
     {
         Dictionary<AggregateToken, List<Token>> effective = EffectiveReplacements();
+        foreach (AggregateToken owner in effective.Keys)
+        {
+            ResolutionGuard.BeforeMutation(owner);
+        }
+        foreach (IQuotableToken quotable in quotes.Keys)
+        {
+            if (quotable is Token token)
+            {
+                ResolutionGuard.BeforeMutation(token);
+            }
+        }
         ValidatePublication(effective);
         foreach (KeyValuePair<AggregateToken, List<Token>> change in effective)
         {

@@ -69,6 +69,7 @@ public class VariableRefToken : AggregateToken
         set
         {
             ValidateModifier(value);
+            ResolutionGuard.BeforeMutation(this);
             foreach (SymbolToken modifierToken in ModifierTokens.ToArray())
             {
                 TokenList.Remove(modifierToken);
@@ -90,7 +91,15 @@ public class VariableRefToken : AggregateToken
     public IEnumerable<SymbolToken> ModifierTokens =>
         this.Tokens
             .OfType<SymbolToken>()
-            .Where(token => token.Value != "{" && token.Value != "}");
+            .Where(IsModifierToken);
+
+    internal bool HasModifierTokens =>
+        TokenList.Exists(token => token is SymbolToken symbol && IsModifierToken(symbol));
+
+    private static bool IsModifierToken(SymbolToken token) => token.Value != "{" && token.Value != "}";
+
+    internal static bool IsPatternModifier(string? modifier) =>
+        modifier is "#" or "##" or "%" or "%%" or "/" or "//";
 
     public string? ModifierValue
     {
@@ -151,6 +160,7 @@ public class VariableRefToken : AggregateToken
 
     public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
     {
+        using ResolutionGuard.Scope scope = ResolutionGuard.Enter(this);
         if (variables is null)
         {
             variables = new Dictionary<string, string?>();
@@ -164,7 +174,7 @@ public class VariableRefToken : AggregateToken
         string variableName = VariableName;
         string? modifier = Modifier;
 
-        bool varExists = variables.TryGetValue(variableName, out string? value);
+        bool varExists = ResolutionGuard.TryGetValue(variables, variableName, out string? value);
 
         if (modifier is not null)
         {
@@ -173,9 +183,7 @@ public class VariableRefToken : AggregateToken
             // Dockerfile variable resolution capabilities. Since Docker/BuildKit does not
             // support these modifiers, we return the raw variable reference text unchanged
             // rather than silently losing the modifier and its pattern.
-            if (modifier == "#" || modifier == "##" ||
-                modifier == "%" || modifier == "%%" ||
-                modifier == "/" || modifier == "//")
+            if (IsPatternModifier(modifier))
             {
                 return ToString();
             }
@@ -195,7 +203,7 @@ public class VariableRefToken : AggregateToken
                 case '-':
                     if (!isVariableSet)
                     {
-                        value = ModifierValueToken!.ResolveVariables(escapeChar, variables, options);
+                        value = ResolveModifierValue(escapeChar, variables, options);
                     }
                     break;
                 case '+':
@@ -205,13 +213,13 @@ public class VariableRefToken : AggregateToken
                     }
                     else
                     {
-                        value = ModifierValueToken!.ResolveVariables(escapeChar, variables, options);
+                        value = ResolveModifierValue(escapeChar, variables, options);
                     }
                     break;
                 case '?':
                     if (!isVariableSet)
                     {
-                        string? errorDetail = ModifierValueToken!.ResolveVariables(escapeChar, variables, options);
+                        string? errorDetail = ResolveModifierValue(escapeChar, variables, options);
                         throw new VariableSubstitutionException(
                             $"Variable '{variableName}' is not set. Error detail: '{errorDetail ?? "<empty>"}'.");
                     }
@@ -227,15 +235,26 @@ public class VariableRefToken : AggregateToken
         {
             if (String.IsNullOrEmpty(value))
             {
-                this.TokenList.Clear();
+                ReplaceResolvedTokens(Array.Empty<Token>());
             }
             else
             {
-                this.ReplaceWithToken(new StringToken(value));
+                ReplaceResolvedTokens(new[] { new StringToken(value) });
             }
         }
 
         return value;
+    }
+
+    private string? ResolveModifierValue(char escapeChar, IDictionary<string, string?> variables,
+        ResolutionOptions options)
+    {
+        LiteralToken modifier = ModifierValueToken!;
+        if (options.GetModifierValueResolver(this, escapeChar, variables) is { } modifierResolver)
+        {
+            return modifierResolver(modifier);
+        }
+        return ResolutionGuard.Resolve(modifier, escapeChar, variables, options);
     }
 
     public static VariableRefToken Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>

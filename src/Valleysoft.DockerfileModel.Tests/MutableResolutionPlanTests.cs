@@ -10,7 +10,7 @@ public class MutableResolutionPlanTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void SharedQuoteEditsInvalidateEarlierLiteral(bool updateInline)
+    public void SharedQuoteEditsAreRejectedAtCallbackBoundary(bool updateInline)
     {
         QuotedPrimitive first = new("'") { QuoteChar = '"' };
         QuotedPrimitive last = new("'") { QuoteChar = '"' };
@@ -20,21 +20,24 @@ public class MutableResolutionPlanTests
             earlier, new QuoteEditingLiteral(first, last)
         }, true, '\\');
 
-        Assert.Equal("'$VALUE'custom", parent.ResolveVariables('\\', Variables,
-            new ResolutionOptions { UpdateInline = updateInline }));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            parent.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
     }
 
     [Fact]
-    public void RepairedQuoteGetterDoesNotReplayOldFailure()
+    public void QuoteFailurePreventsResolutionCallbackRepair()
     {
         LiteralToken parent = new(new Token[] { new RepairingLiteral() }, true, '\\');
-        Assert.Equal("\"expanded\"", parent.ResolveVariables('\\', Variables));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            parent.ResolveVariables('\\', Variables));
+        Assert.Equal("Not repaired.", error.Message);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void SharedDescendantEditsInvalidateEarlierLiteral(bool updateInline)
+    public void SharedDescendantEditsAreRejectedBeforeMutation(bool updateInline)
     {
         StringToken first = new("start");
         StringToken last = new("end");
@@ -46,14 +49,17 @@ public class MutableResolutionPlanTests
         }, true, '\\');
         LiteralToken parent = new(new Token[] { earlier, new DescendantEditingLiteral(first, last) }, true, '\\');
 
-        Assert.Equal("'$VALUE'custom", parent.ResolveVariables('\\', Variables,
-            new ResolutionOptions { UpdateInline = updateInline }));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            parent.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+        Assert.Equal("start", first.Value);
+        Assert.Equal("end", last.Value);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void SuppressedReferenceEditsInvalidateEarlierLiteral(bool updateInline)
+    public void SuppressedReferenceEditsAreRejectedBeforeMutation(bool updateInline)
     {
         VariableRefToken reference = new("UNSET", "-", "text");
         StringToken operand = reference.ModifierValueToken!.Tokens.OfType<StringToken>().Single();
@@ -63,8 +69,10 @@ public class MutableResolutionPlanTests
         });
         LiteralToken parent = new(new Token[] { earlier, new OperandEditingLiteral(operand) }, true, '\\');
 
-        Assert.Equal("'${UNSET-'}expanded'custom", parent.ResolveVariables('\\', Variables,
-            new ResolutionOptions { UpdateInline = updateInline }));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            parent.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+        Assert.Equal("text", operand.Value);
         Assert.Same(reference, earlier.Tokens.ElementAt(1));
     }
 
@@ -97,7 +105,7 @@ public class MutableResolutionPlanTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void DictionaryCallbacksStillInvalidateRawSyntax(bool customComparer, bool updateInline)
+    public void DictionaryCallbacksCannotEditRawSyntax(bool customComparer, bool updateInline)
     {
         VariableRefToken reference = new("UNSET", "-", "text");
         StringToken operand = reference.ModifierValueToken!.Tokens.OfType<StringToken>().Single();
@@ -114,8 +122,10 @@ public class MutableResolutionPlanTests
         variables.Add("EDIT", "edit");
         comparer.Enabled = true;
 
-        Assert.Equal("'${UNSET-'}expanded'edit", parent.ResolveVariables('\\', variables,
-            new ResolutionOptions { UpdateInline = updateInline }));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            parent.ResolveVariables('\\', variables, new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+        Assert.Equal("text", operand.Value);
     }
 
     [Fact]
@@ -134,9 +144,9 @@ public class MutableResolutionPlanTests
     }
 
     [Fact]
-    public void SerializerCanRepairItsQuoteMetadataBeforeWrappersAreRead()
+    public void StableQuoteMetadataIsPreservedDuringSerialization()
     {
-        LiteralToken parent = new(new Token[] { new RepairingPrimitive() }, true, '\\');
+        LiteralToken parent = new(new Token[] { new StableQuotedPrimitive() }, true, '\\');
         Assert.Equal("'plain'", parent.ResolveVariables('\\', Variables));
     }
 
@@ -326,24 +336,16 @@ public class MutableResolutionPlanTests
         }
     }
 
-    private sealed class RepairingPrimitive : PrimitiveToken, IQuotableToken
+    private sealed class StableQuotedPrimitive : PrimitiveToken, IQuotableToken
     {
-        private bool repaired;
-
-        public RepairingPrimitive() : base("plain")
+        public StableQuotedPrimitive() : base("plain")
         {
         }
 
         public char? QuoteChar
         {
-            get => repaired ? '\'' : throw new InvalidOperationException("Not repaired.");
+            get => '\'';
             set => throw new NotSupportedException();
-        }
-
-        protected override string GetUnderlyingValue(TokenStringOptions options)
-        {
-            repaired = true;
-            return Value;
         }
     }
 

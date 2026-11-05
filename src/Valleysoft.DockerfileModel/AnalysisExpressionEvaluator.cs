@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Text;
 using Valleysoft.DockerfileModel.Tokens;
 
@@ -53,6 +54,9 @@ internal sealed class AnalysisValue
 
 internal static class AnalysisExpressionEvaluator
 {
+    private static readonly IReadOnlyDictionary<string, AnalysisValue> EmptyVariables =
+        new Dictionary<string, AnalysisValue>();
+
     public static AnalysisValue Evaluate(Token token, IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar)
     {
         Guard.NotNull(token, nameof(token));
@@ -60,6 +64,759 @@ internal static class AnalysisExpressionEvaluator
         Evaluation evaluation = new(variables, escapeChar);
         evaluation.Visit(token);
         return evaluation.GetResult();
+    }
+
+    internal static string ResolveVariables(Token token, char escapeChar,
+        Func<VariableRefToken, string?> resolveVariable,
+        Func<int>? getCustomResolutionVersion = null,
+        Func<Func<string?>?>? getResolvedSyntaxFactory = null, ResolutionOptions? syntaxOptions = null,
+        Action<AggregateToken, int, TokenResolution>? recordTokenResolution = null,
+        Action<Func<string?>>? recordSyntax = null, Func<AggregateToken, string?>? resolveAggregate = null,
+        Action? onConsumerSerialization = null, Func<bool>? shouldRecordSyntax = null,
+        bool resolveTriviaVariables = true)
+    {
+        ResolutionSnapshot snapshot = new(token, resolveAggregate is not null,
+            getSerializationVersion: getCustomResolutionVersion, onConsumerSerialization: onConsumerSerialization,
+            resolveTriviaVariables: resolveTriviaVariables);
+        List<ResolutionSnapshot> references = new();
+        string CollectReference(ResolutionSnapshot reference)
+        {
+            references.Add(reference);
+            return String.Empty;
+        }
+        void Scan()
+        {
+            references.Clear();
+            Evaluation scan = new(EmptyVariables, escapeChar, collectText: false,
+                resolveSnapshot: CollectReference);
+            snapshot.Visit(scan);
+        }
+        Scan();
+
+        // Quote state flows forward, but public resolution gives rightmost references error precedence.
+        for (int i = references.Count - 1; i >= 0; i--)
+        {
+            ResolutionSnapshot reference = references[i];
+            reference.SerializationFailure?.Throw();
+            reference.PendingQuoteFailure?.Throw();
+            int version = getCustomResolutionVersion?.Invoke() ?? 0;
+            bool checkPendingSyntax;
+            if (reference.IsConsumerLeaf || reference.IsSuppressedReference)
+            {
+                reference.RefreshSerialization(version);
+                checkPendingSyntax = reference.IsConsumerLeaf || reference.HasSuppressedConsumerSerialization;
+            }
+            else
+            {
+                reference.ResolvedValue = reference.Source is VariableRefToken variable
+                    ? resolveVariable(variable)
+                    : resolveAggregate!((AggregateToken)reference.Source);
+                reference.ResolvedSyntaxValue = reference.ResolvedValue;
+                reference.ResolvedSyntaxFactory = getResolvedSyntaxFactory?.Invoke();
+                reference.IsResolved = true;
+                reference.InlineUpdateAllowed = syntaxOptions?.UpdateInline == true;
+                if (reference.InlineUpdateAllowed)
+                {
+                    reference.ApplyInlineResolution(escapeChar);
+                }
+                checkPendingSyntax = getCustomResolutionVersion is not null && version != getCustomResolutionVersion();
+            }
+            if (checkPendingSyntax && reference.PendingSyntaxChanged())
+            {
+                // Reverse traversal has already consumed the suffix; only pending syntax can be refreshed.
+                reference.RefreshPendingSyntax(getCustomResolutionVersion?.Invoke() ?? version);
+                Scan();
+                i = references.Count;
+            }
+        }
+
+        Evaluation evaluation = new(EmptyVariables, escapeChar);
+        snapshot.Visit(evaluation);
+        AnalysisValue result = evaluation.GetResult();
+        if (!result.IsKnown)
+        {
+            throw new InvalidOperationException(result.Message);
+        }
+        if (recordTokenResolution is not null)
+        {
+            snapshot.RecordTokenResolutions(escapeChar, syntaxOptions!, recordTokenResolution,
+                shouldRecordSyntax?.Invoke() == true);
+        }
+        if (recordSyntax is not null)
+        {
+            if (shouldRecordSyntax?.Invoke() ?? true)
+            {
+                string? syntax = snapshot.GetResolvedSyntax(escapeChar, syntaxOptions!);
+                recordSyntax(() => syntax);
+            }
+            else
+            {
+                // Later callbacks can enable an enclosing update; unused syntax must not invoke serializers.
+                ResolutionOptions formatting = new() { RemoveEscapeCharacters = syntaxOptions!.RemoveEscapeCharacters };
+                recordSyntax(() => snapshot.GetResolvedSyntax(escapeChar, formatting));
+            }
+        }
+        return result.Value!;
+    }
+
+    internal static bool ContainsConsumerSerialization(Token token) =>
+        token.GetType().Assembly != typeof(Token).Assembly ||
+        token is AggregateToken aggregate &&
+            (aggregate.UsesCustomResolution || aggregate.Tokens.Any(ContainsConsumerSerialization));
+
+    private sealed class ResolutionSnapshot
+    {
+        private readonly bool resolveCustomLiterals;
+        private readonly bool resolveTriviaVariables;
+        private readonly Func<int>? getSerializationVersion;
+        private readonly Action? onConsumerSerialization;
+        private readonly string? primitiveValue;
+        private char? capturedQuote;
+        private readonly ResolvedStringToken? resolvedString;
+        private string? serializedText;
+        private int serializationVersion;
+        private ExceptionDispatchInfo? syntaxReadFailure;
+        private ResolutionSnapshot? parent;
+        private int index;
+        private List<ResolutionSnapshot> children = new();
+        private SyntaxChildren? syntaxChildren;
+
+        public ResolutionSnapshot(Token source, bool resolveCustomLiterals,
+            ResolutionSnapshot? previous = null,
+            int serializationVersion = 0, Func<int>? getSerializationVersion = null,
+            Action? onConsumerSerialization = null,
+            Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null,
+            bool resolveTriviaVariables = true)
+        {
+            Source = source;
+            IsIgnoredTrivia = source is LineContinuationToken or CommentToken or NewLineToken;
+            this.resolveCustomLiterals = resolveCustomLiterals;
+            this.resolveTriviaVariables = resolveTriviaVariables;
+            this.getSerializationVersion = getSerializationVersion;
+            this.onConsumerSerialization = onConsumerSerialization;
+            this.serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
+            if (previous?.Source != source)
+            {
+                previous = null;
+            }
+            if (pendingFailures is not null &&
+                pendingFailures.TryGetValue(source, out Queue<ResolutionSnapshot>? failures) && failures.Count > 0)
+            {
+                previous = failures.Dequeue();
+            }
+            if (previous is not null &&
+                (previous.syntaxReadFailure ?? previous.SerializationFailure) is { } failure)
+            {
+                SerializationFailure = failure;
+                SuppressedSyntax = previous.SuppressedSyntax;
+                capturedQuote = previous.capturedQuote;
+                primitiveValue = previous.primitiveValue;
+                serializedText = previous.serializedText;
+                return;
+            }
+            IsReference = source is VariableRefToken ||
+                source is AggregateToken aggregateToken && aggregateToken.UsesCustomResolution && resolveCustomLiterals;
+            if (IsReference)
+            {
+                if (IsIgnoredTrivia && source is AggregateToken trivia)
+                {
+                    // Serializer-only trivia subclasses remain syntax-only.
+                    Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolver =
+                        trivia.ResolveVariables;
+                    IsIgnoredTrivia = resolver.Method.DeclaringType == typeof(AggregateToken);
+                    IsReference = !IsIgnoredTrivia;
+                }
+                if (IsReference)
+                {
+                    return;
+                }
+            }
+            if (source is not AggregateToken)
+            {
+                primitiveValue = (source as PrimitiveToken)?.Value;
+                if (IsIgnoredTrivia && !IsConsumerLeaf)
+                {
+                    serializedText = primitiveValue;
+                }
+                if (!IsIgnoredTrivia || IsConsumerLeaf)
+                {
+                    resolvedString = (source as ResolvedStringToken)?.CreateSnapshot();
+                    if (IsConsumerLeaf)
+                    {
+                        onConsumerSerialization?.Invoke();
+                        this.serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
+                    }
+                    try
+                    {
+                        serializedText = source.ToString(new TokenStringOptions(excludeQuotes: true));
+                    }
+                    catch (Exception error) when (resolveCustomLiterals &&
+                        error is not OutOfMemoryException and not OperationCanceledException)
+                    {
+                        // Document resolution rethrows serializer failures at their reverse-order position.
+                        SerializationFailure = ExceptionDispatchInfo.Capture(error);
+                        return;
+                    }
+                }
+            }
+            try
+            {
+                capturedQuote = (source as IQuotableToken)?.QuoteChar;
+            }
+            catch (Exception error) when (resolveCustomLiterals &&
+                error is not OutOfMemoryException and not OperationCanceledException)
+            {
+                SerializationFailure = ExceptionDispatchInfo.Capture(error);
+                return;
+            }
+            if (source is AggregateToken aggregate)
+            {
+                syntaxChildren = new(aggregate.TokenList);
+                int childIndex = 0;
+                foreach (Token child in aggregate.Tokens.ToArray())
+                {
+                    ResolutionSnapshot? previousChild = previous is not null && childIndex < previous.children.Count
+                        ? previous.children[childIndex] : null;
+                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild,
+                        serializationVersion, getSerializationVersion, onConsumerSerialization, pendingFailures,
+                        resolveTriviaVariables));
+                    childIndex++;
+                }
+            }
+        }
+
+        public Token Source { get; }
+        public ExceptionDispatchInfo? SerializationFailure { get; private set; }
+        public ExceptionDispatchInfo? PendingQuoteFailure { get; private set; }
+        public bool IsReference { get; }
+        public bool IsIgnoredTrivia { get; }
+        public bool IsConsumerLeaf => resolveCustomLiterals && Source is not AggregateToken &&
+            Source.GetType().Assembly != typeof(Token).Assembly;
+        public bool IsSuppressedReference => Source is VariableRefToken && SuppressedSyntax is not null &&
+            (Context.QuoteChar == '\'' || Context.Escaped);
+        public bool HasSuppressedConsumerSerialization { get; private set; }
+        public bool SerializationConsumed { get; private set; }
+        public bool IsResolved { get; set; }
+        public bool InlineUpdated { get; private set; }
+        public bool InlineUpdateAllowed { get; set; }
+        public string? ResolvedValue { get; set; }
+        public string? ResolvedSyntaxValue { get; set; }
+        public Func<string?>? ResolvedSyntaxFactory { get; set; }
+        public string? SuppressedSyntax { get; set; }
+        public (char? QuoteChar, bool Escaped) Context { get; set; }
+        public char? QuoteChar => capturedQuote;
+
+        // The guard fixes native syntax; only consumer-backed reads can require a refresh.
+        private bool RequiresSyntaxChecks => Source.GetType().Assembly != typeof(Token).Assembly ||
+            HasSuppressedConsumerSerialization || syntaxChildren?.Indices.Count > 0;
+
+        private void AddChild(ResolutionSnapshot child)
+        {
+            child.parent = this;
+            child.index = children.Count;
+            children.Add(child);
+            if (child.RequiresSyntaxChecks && (!child.IsReference || child.SuppressedSyntax is not null))
+            {
+                syntaxChildren?.Include(child.index);
+            }
+        }
+
+        private bool Matches(Token token)
+        {
+            if (IsReference)
+            {
+                if (Source != token || syntaxReadFailure is not null)
+                {
+                    return false;
+                }
+                try
+                {
+                    return SuppressedSyntax is null || SuppressedSyntax == SerializeSuppressedSyntax(token);
+                }
+                catch (Exception error) when (resolveCustomLiterals &&
+                    error is not OutOfMemoryException and not OperationCanceledException)
+                {
+                    syntaxReadFailure = ExceptionDispatchInfo.Capture(error);
+                    return false;
+                }
+            }
+            if (Source != token || syntaxReadFailure is not null)
+            {
+                return false;
+            }
+            char? liveQuote;
+            try
+            {
+                liveQuote = (token as IQuotableToken)?.QuoteChar;
+            }
+            catch (Exception error) when (resolveCustomLiterals &&
+                error is not OutOfMemoryException and not OperationCanceledException)
+            {
+                syntaxReadFailure = ExceptionDispatchInfo.Capture(error);
+                return false;
+            }
+            if (capturedQuote != liveQuote || token is PrimitiveToken primitive && primitiveValue != primitive.Value)
+            {
+                return false;
+            }
+            if (token is AggregateToken aggregate)
+            {
+                List<Token> liveChildren = aggregate.TokenList;
+                if (children.Count != liveChildren.Count)
+                {
+                    return false;
+                }
+                if (!MatchesChildren(liveChildren, children.Count))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private bool MatchesChildren(List<Token> liveChildren, int count)
+        {
+            if (syntaxChildren?.StructureMatches(count) == true)
+            {
+                foreach (int i in syntaxChildren.Indices)
+                {
+                    if (i >= count) break;
+                    if (i >= liveChildren.Count || !children[i].Matches(liveChildren[i])) return false;
+                }
+                if (syntaxChildren.StructureMatches(count))
+                {
+                    return true;
+                }
+            }
+            if (liveChildren.Count < count) return false;
+            List<Token>.Enumerator structure = liveChildren.GetEnumerator();
+            for (int i = 0; i < count; i++)
+            {
+                if (i >= liveChildren.Count || !children[i].Matches(liveChildren[i])) return false;
+            }
+            if (syntaxChildren is not null && SyntaxChildren.StructureMatches(structure))
+            {
+                // Library publication in the consumed suffix does not invalidate this prefix.
+                syntaxChildren.CaptureStructure(liveChildren, count);
+            }
+            return true;
+        }
+
+        public bool PendingSyntaxChanged()
+        {
+            for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
+            {
+                List<Token> liveChildren = ((AggregateToken)owner.Source).TokenList;
+                if (!(owner.IsIgnoredTrivia && !resolveTriviaVariables) &&
+                    (!owner.TryReadOwnerQuote(out char? quote) || owner.capturedQuote != quote) ||
+                    liveChildren.Count < child.index)
+                {
+                    return true;
+                }
+                if (!owner.MatchesChildren(liveChildren, child.index)) return true;
+            }
+            return false;
+        }
+
+        private bool TryReadOwnerQuote(out char? quote)
+        {
+            quote = capturedQuote;
+            if (PendingQuoteFailure is not null) return false;
+            try
+            {
+                quote = (Source as IQuotableToken)?.QuoteChar;
+                return true;
+            }
+            catch (Exception error) when (resolveCustomLiterals &&
+                error is not OutOfMemoryException and not OperationCanceledException)
+            {
+                // An active owner's closing quote is read after its pending children.
+                PendingQuoteFailure = ExceptionDispatchInfo.Capture(error);
+                return false;
+            }
+        }
+
+        public void RefreshSerialization(int version)
+        {
+            // Later callbacks and serializers can change state not exposed by Value.
+            SerializationConsumed = true;
+            if (serializationVersion == version)
+            {
+                return;
+            }
+            if (IsSuppressedReference)
+            {
+                SuppressedSyntax = SerializeSuppressedSyntax(Source);
+                serializationVersion = getSerializationVersion?.Invoke() ?? version;
+                return;
+            }
+            onConsumerSerialization?.Invoke();
+            string text = Source.ToString(new TokenStringOptions(excludeQuotes: true));
+            char? quote = (Source as IQuotableToken)?.QuoteChar;
+            capturedQuote = quote;
+            serializedText = text;
+            serializationVersion = getSerializationVersion?.Invoke() ?? version;
+        }
+
+        public bool TryCaptureSuppressedSyntax(out string syntax)
+        {
+            if (SuppressedSyntax is { } captured)
+            {
+                syntax = captured;
+                return true;
+            }
+            try
+            {
+                syntax = SerializeSuppressedSyntax(Source);
+                SuppressedSyntax = syntax;
+                if (RequiresSyntaxChecks)
+                {
+                    for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
+                    {
+                        owner.syntaxChildren?.Include(child.index);
+                    }
+                }
+                serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
+                return true;
+            }
+            catch (Exception error) when (resolveCustomLiterals &&
+                error is not OutOfMemoryException and not OperationCanceledException)
+            {
+                SerializationFailure = ExceptionDispatchInfo.Capture(error);
+                syntax = String.Empty;
+                return false;
+            }
+        }
+
+        private string SerializeSuppressedSyntax(Token token)
+        {
+            HasSuppressedConsumerSerialization |= ContainsConsumerSerialization(token);
+            if (HasSuppressedConsumerSerialization)
+            {
+                onConsumerSerialization?.Invoke();
+            }
+            return token.ToString();
+        }
+
+        public void RefreshPendingSyntax(int version)
+        {
+            Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null;
+            void CollectFailures(ResolutionSnapshot node)
+            {
+                if (node.IsResolved || node.SerializationConsumed)
+                {
+                    return;
+                }
+                if (node.SerializationFailure is not null || node.syntaxReadFailure is not null)
+                {
+                    pendingFailures ??= new(ReferenceComparer<Token>.Instance);
+                    if (!pendingFailures.TryGetValue(node.Source, out Queue<ResolutionSnapshot>? failures))
+                    {
+                        failures = new();
+                        pendingFailures.Add(node.Source, failures);
+                    }
+                    failures.Enqueue(node);
+                }
+                foreach (ResolutionSnapshot child in node.children)
+                {
+                    CollectFailures(child);
+                }
+            }
+            for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
+            {
+                for (int i = 0; i < child.index; i++)
+                {
+                    CollectFailures(owner.children[i]);
+                }
+            }
+            for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
+            {
+                List<Token> liveChildren = ((AggregateToken)owner.Source).TokenList;
+                List<ResolutionSnapshot> previous = owner.children;
+                owner.children = new List<ResolutionSnapshot>();
+                owner.syntaxChildren = new(liveChildren);
+                for (int i = 0; i < Math.Min(child.index, liveChildren.Count); i++)
+                {
+                    if (previous[i].Matches(liveChildren[i]))
+                    {
+                        owner.AddChild(previous[i]);
+                    }
+                    else
+                    {
+                        owner.AddChild(new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals,
+                            previous[i], version, getSerializationVersion, onConsumerSerialization, pendingFailures,
+                            resolveTriviaVariables));
+                    }
+                }
+                for (int i = child.index; i < previous.Count; i++)
+                {
+                    owner.AddChild(previous[i]);
+                }
+                if (!(owner.IsIgnoredTrivia && !resolveTriviaVariables) &&
+                    owner.TryReadOwnerQuote(out char? quote))
+                {
+                    owner.capturedQuote = quote;
+                }
+            }
+        }
+
+        public void ApplyInlineResolution(char escapeChar)
+        {
+            if (Source is not VariableRefToken || parent?.Source is not AggregateToken owner)
+            {
+                return;
+            }
+            int liveIndex = index < owner.TokenList.Count && ReferenceEquals(owner.TokenList[index], Source)
+                ? index : owner.TokenList.FindIndex(token => ReferenceEquals(token, Source));
+            if (liveIndex >= 0)
+            {
+                string? syntax = GetResolvedSyntaxValue();
+                bool unchanged = parent?.syntaxChildren?.StructureMatches() == true;
+                owner.ReplaceResolvedVariable(liveIndex, syntax,
+                    (ResolvedValue ?? String.Empty, Context.QuoteChar, Context.Escaped), escapeChar);
+                if (unchanged) parent!.syntaxChildren!.CaptureStructure(owner.TokenList, liveIndex);
+                InlineUpdated = true;
+            }
+        }
+
+        private sealed class SyntaxChildren
+        {
+            private List<Token>.Enumerator structure;
+            private int structureCount;
+
+            public SyntaxChildren(List<Token> tokens) => CaptureStructure(tokens);
+
+            public List<int> Indices { get; } = new();
+
+            public void Include(int index)
+            {
+                int position = Indices.BinarySearch(index);
+                if (position < 0) Indices.Insert(~position, index);
+            }
+
+            public void CaptureStructure(List<Token> tokens, int count = Int32.MaxValue)
+            {
+                structure = tokens.GetEnumerator();
+                structureCount = count;
+            }
+
+            public bool StructureMatches(int count = 0) =>
+                count <= structureCount && StructureMatches(structure);
+
+            public static bool StructureMatches(List<Token>.Enumerator captured)
+            {
+                // List's enumerator checks structural edits without walking opaque references.
+                try
+                {
+                    captured.MoveNext();
+                    return true;
+                }
+                catch (InvalidOperationException)
+                {
+                    return false;
+                }
+            }
+        }
+
+        public void Visit(Evaluation evaluation) => evaluation.VisitSnapshot(this,
+            children, resolvedString, serializedText);
+
+        public void CollectTriviaResolutions(Func<ResolutionSnapshot, string> collect)
+        {
+            if (SerializationFailure is not null || PendingQuoteFailure is not null ||
+                IsConsumerLeaf && !SerializationConsumed ||
+                IsReference && !IsResolved &&
+                    (resolveTriviaVariables || Source is AggregateToken { UsesCustomResolution: true }))
+            {
+                collect(this);
+            }
+            foreach (ResolutionSnapshot child in children)
+            {
+                child.CollectTriviaResolutions(collect);
+            }
+        }
+
+        public void RecordTokenResolutions(char escapeChar, ResolutionOptions options,
+            Action<AggregateToken, int, TokenResolution> record, bool captureSyntax)
+        {
+            if (IsReference || Source is not AggregateToken root ||
+                !children.Any(child => child.Source is AggregateToken))
+            {
+                return;
+            }
+            HashSet<AggregateToken> liveOwners = new(ReferenceComparer<AggregateToken>.Instance);
+            List<AggregateToken> ownerOrder = new();
+            void CollectLiveOwners(AggregateToken owner)
+            {
+                if (!liveOwners.Add(owner))
+                {
+                    return;
+                }
+                foreach (Token token in owner.Tokens)
+                {
+                    if (token is AggregateToken aggregate and not VariableRefToken && !aggregate.UsesCustomResolution)
+                    {
+                        CollectLiveOwners(aggregate);
+                    }
+                }
+                ownerOrder.Add(owner);
+            }
+            CollectLiveOwners(root);
+            HashSet<AggregateToken> snapshotOwners = new(ReferenceComparer<AggregateToken>.Instance);
+            List<(AggregateToken Owner, int Index, AggregateToken Source, ResolutionSnapshot? Snapshot)> captures = new();
+            Dictionary<AggregateToken, Queue<ResolutionSnapshot>>? displaced = null;
+            void Collect(ResolutionSnapshot node)
+            {
+                if (node.IsReference || node.Source is not AggregateToken owner)
+                {
+                    return;
+                }
+                snapshotOwners.Add(owner);
+                Dictionary<AggregateToken, Queue<int>> positions = new(ReferenceComparer<AggregateToken>.Instance);
+                if (liveOwners.Contains(owner))
+                {
+                    for (int liveIndex = 0; liveIndex < owner.TokenList.Count; liveIndex++)
+                    {
+                        if (owner.TokenList[liveIndex] is not AggregateToken aggregate)
+                        {
+                            continue;
+                        }
+                        if (!positions.TryGetValue(aggregate, out Queue<int>? occurrences))
+                        {
+                            occurrences = new();
+                            positions.Add(aggregate, occurrences);
+                        }
+                        occurrences.Enqueue(liveIndex);
+                    }
+                }
+                foreach (ResolutionSnapshot child in node.children)
+                {
+                    if (child.InlineUpdated || child.Source is not AggregateToken aggregate)
+                    {
+                        continue;
+                    }
+                    if (positions.TryGetValue(aggregate, out Queue<int>? occurrences) && occurrences.Count > 0)
+                    {
+                        captures.Add((owner, occurrences.Dequeue(), aggregate, child));
+                    }
+                    else
+                    {
+                        displaced ??= new(ReferenceComparer<AggregateToken>.Instance);
+                        if (!displaced.TryGetValue(aggregate, out Queue<ResolutionSnapshot>? moved))
+                        {
+                            moved = new();
+                            displaced.Add(aggregate, moved);
+                        }
+                        moved.Enqueue(child);
+                    }
+                    Collect(child);
+                }
+                foreach (var position in positions)
+                {
+                    foreach (int liveIndex in position.Value)
+                    {
+                        captures.Add((owner, liveIndex, position.Key, null));
+                    }
+                }
+            }
+            Collect(this);
+            foreach (AggregateToken owner in ownerOrder)
+            {
+                if (snapshotOwners.Contains(owner))
+                {
+                    continue;
+                }
+                for (int i = 0; i < owner.TokenList.Count; i++)
+                {
+                    if (owner.TokenList[i] is AggregateToken aggregate)
+                    {
+                        captures.Add((owner, i, aggregate, null));
+                    }
+                }
+            }
+            HashSet<AggregateToken> ownersWithCaptures = new(ReferenceComparer<AggregateToken>.Instance);
+            for (int i = 0; i < captures.Count; i++)
+            {
+                var capture = captures[i];
+                ResolutionSnapshot? child = capture.Snapshot;
+                if (child is null && displaced is not null &&
+                    displaced.TryGetValue(capture.Source, out Queue<ResolutionSnapshot>? moved) && moved.Count > 0)
+                {
+                    child = moved.Dequeue();
+                    captures[i] = (capture.Owner, capture.Index, capture.Source, child);
+                }
+                if (child is not null)
+                {
+                    ownersWithCaptures.Add(capture.Owner);
+                }
+            }
+            foreach (AggregateToken owner in ownerOrder)
+            {
+                foreach (Token token in owner.Tokens)
+                {
+                    if (token is AggregateToken child &&
+                        !snapshotOwners.Contains(child) && ownersWithCaptures.Contains(child))
+                    {
+                        ownersWithCaptures.Add(owner);
+                        break;
+                    }
+                }
+            }
+            foreach (var capture in captures)
+            {
+                ResolutionSnapshot? child = capture.Snapshot;
+                if (child is null)
+                {
+                    // New ordinary wrappers need a replay path only when they contain completed captures.
+                    if (!snapshotOwners.Contains(capture.Source) && ownersWithCaptures.Contains(capture.Source))
+                    {
+                        record(capture.Owner, capture.Index, new TokenResolution(capture.Source, null, null));
+                    }
+                    continue;
+                }
+                (string Value, char? QuoteChar, bool Escaped)? semanticValue = capture.Source is VariableRefToken
+                    ? (child.ResolvedValue ?? child.SuppressedSyntax ?? String.Empty,
+                        child.Context.QuoteChar, child.Context.Escaped) : null;
+                record(capture.Owner, capture.Index, new TokenResolution(capture.Source,
+                    child.IsReference && (child.InlineUpdateAllowed || captureSyntax)
+                        ? child.GetResolvedSyntax(escapeChar, options) : null, semanticValue,
+                    child.InlineUpdateAllowed));
+            }
+        }
+
+        public string? GetResolvedSyntax(char escapeChar, ResolutionOptions options)
+        {
+            SerializationFailure?.Throw();
+            PendingQuoteFailure?.Throw();
+            if (IsReference)
+            {
+                return IsResolved ? GetResolvedSyntaxValue()
+                    : options.FormatValue(escapeChar, SuppressedSyntax ?? Source.ToString());
+            }
+            if (Source is not AggregateToken)
+            {
+                string syntax = $"{capturedQuote}{serializedText}{capturedQuote}";
+                return options.FormatValue(escapeChar, syntax);
+            }
+            StringBuilder builder = new();
+            builder.Append(capturedQuote);
+            foreach (ResolutionSnapshot child in children)
+            {
+                builder.Append(child.GetResolvedSyntax(escapeChar, options));
+            }
+            builder.Append(capturedQuote);
+            return builder.ToString();
+        }
+
+        private string? GetResolvedSyntaxValue()
+        {
+            if (ResolvedSyntaxFactory is { } factory)
+            {
+                ResolvedSyntaxValue = factory();
+                ResolvedSyntaxFactory = null;
+            }
+            return ResolvedSyntaxValue;
+        }
     }
 
     private static AnalysisValue EvaluateVariable(
@@ -117,15 +874,20 @@ internal static class AnalysisExpressionEvaluator
     {
         private readonly IReadOnlyDictionary<string, AnalysisValue> variables;
         private readonly char escapeChar;
-        private readonly StringBuilder text = new();
+        private readonly Func<ResolutionSnapshot, string>? resolveSnapshot;
+        private readonly StringBuilder? text;
         private readonly List<string> unresolvedVariables = new();
         private AnalysisValue? failure;
         private ShellQuoteContext quoteContext;
 
-        public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar)
+        public Evaluation(IReadOnlyDictionary<string, AnalysisValue> variables, char escapeChar,
+            bool collectText = true,
+            Func<ResolutionSnapshot, string>? resolveSnapshot = null)
         {
             this.variables = variables;
             this.escapeChar = escapeChar;
+            this.resolveSnapshot = resolveSnapshot;
+            text = collectText ? new StringBuilder() : null;
         }
 
         public void Visit(Token token)
@@ -135,11 +897,20 @@ internal static class AnalysisExpressionEvaluator
                 return;
             }
 
+            if (token is ResolvedStringToken resolved &&
+                resolved.MatchesContext(quoteContext.QuoteChar, quoteContext.Escaped, escapeChar))
+            {
+                text?.Append(resolved.SemanticValue);
+                quoteContext.ClearEscape();
+                return;
+            }
+
             if (token is VariableRefToken variable)
             {
                 if (quoteContext.SuppressExpansion)
                 {
-                    AppendText(variable.ToString());
+                    string syntax = variable.ToString();
+                    AppendText(syntax);
                 }
                 else
                 {
@@ -177,6 +948,146 @@ internal static class AnalysisExpressionEvaluator
             }
         }
 
+        public void VisitSnapshot(ResolutionSnapshot snapshot, List<ResolutionSnapshot> children,
+            ResolvedStringToken? resolvedString, string? serializedText)
+        {
+            if (resolveSnapshot is null)
+            {
+                snapshot.PendingQuoteFailure?.Throw();
+            }
+            if (snapshot.SerializationFailure is not null)
+            {
+                if (resolveSnapshot is not null)
+                {
+                    if (snapshot.Source is VariableRefToken)
+                    {
+                        snapshot.Context = (quoteContext.QuoteChar, quoteContext.Escaped);
+                    }
+                    resolveSnapshot(snapshot);
+                    if (snapshot.SuppressedSyntax is not null)
+                    {
+                        AppendText(snapshot.SuppressedSyntax);
+                    }
+                    else
+                    {
+                        if (snapshot.QuoteChar is char failedOpeningQuote)
+                        {
+                            AppendCharacter(failedOpeningQuote);
+                        }
+                        if (serializedText is not null)
+                        {
+                            AppendText(serializedText);
+                        }
+                        if (snapshot.QuoteChar is char failedClosingQuote)
+                        {
+                            AppendCharacter(failedClosingQuote);
+                        }
+                    }
+                    if (snapshot.Source is VariableRefToken && snapshot.Context.Escaped)
+                    {
+                        quoteContext.ClearEscape();
+                    }
+                }
+                else
+                {
+                    snapshot.SerializationFailure.Throw();
+                }
+                return;
+            }
+            if (snapshot.IsIgnoredTrivia)
+            {
+                if (resolveSnapshot is not null)
+                {
+                    snapshot.CollectTriviaResolutions(resolveSnapshot);
+                }
+                return;
+            }
+            if (resolveSnapshot is not null && snapshot.IsConsumerLeaf && !snapshot.SerializationConsumed)
+            {
+                resolveSnapshot(snapshot);
+            }
+            if (snapshot.IsReference)
+            {
+                if (snapshot.Source is not VariableRefToken && quoteContext.Escaped && quoteContext.QuoteChar == '"')
+                {
+                    text?.Append(escapeChar);
+                }
+                if (snapshot.IsResolved)
+                {
+                    text?.Append(snapshot.ResolvedValue);
+                }
+                else if (snapshot.Source is VariableRefToken &&
+                    (quoteContext.SuppressExpansion ||
+                        (resolveSnapshot is null || snapshot.SerializationConsumed) && snapshot.SuppressedSyntax is not null))
+                {
+                    if (resolveSnapshot is not null && !snapshot.SerializationConsumed)
+                    {
+                        snapshot.Context = (quoteContext.QuoteChar, quoteContext.Escaped);
+                    }
+                    if (!snapshot.TryCaptureSuppressedSyntax(out string syntax))
+                    {
+                        if (resolveSnapshot is not null)
+                        {
+                            resolveSnapshot(snapshot);
+                            quoteContext.ClearEscape();
+                        }
+                        else
+                        {
+                            snapshot.SerializationFailure!.Throw();
+                        }
+                        return;
+                    }
+                    if (resolveSnapshot is not null && !snapshot.SerializationConsumed)
+                    {
+                        resolveSnapshot(snapshot);
+                    }
+                    AppendText(syntax);
+                }
+                else
+                {
+                    snapshot.Context = (quoteContext.QuoteChar, quoteContext.Escaped);
+                    string value = resolveSnapshot!(snapshot);
+                    text?.Append(value);
+                }
+                if (snapshot.Source is not VariableRefToken)
+                {
+                    quoteContext.ClearEscape();
+                }
+                return;
+            }
+            if (resolvedString is not null &&
+                resolvedString.MatchesContext(quoteContext.QuoteChar, quoteContext.Escaped, escapeChar))
+            {
+                text?.Append(resolvedString.SemanticValue);
+                quoteContext.ClearEscape();
+                return;
+            }
+            if (snapshot.QuoteChar is char openingQuote)
+            {
+                AppendCharacter(openingQuote);
+            }
+            if (snapshot.Source is AggregateToken)
+            {
+                foreach (ResolutionSnapshot child in children)
+                {
+                    child.Visit(this);
+                }
+            }
+            else if (serializedText is not null)
+            {
+                AppendText(serializedText);
+            }
+            else
+            {
+                AppendValue(AnalysisValue.Failure(AnalysisDiagnosticCode.UnsupportedEvaluation,
+                    $"Token type '{snapshot.Source.GetType().Name}' is not supported by analysis."));
+            }
+            if (snapshot.QuoteChar is char closingQuote)
+            {
+                AppendCharacter(closingQuote);
+            }
+        }
+
         public AnalysisValue GetResult()
         {
             if (quoteContext.QuoteChar.HasValue)
@@ -192,16 +1103,16 @@ internal static class AnalysisExpressionEvaluator
 
             if (quoteContext.Escaped)
             {
-                text.Append(escapeChar);
+                text?.Append(escapeChar);
             }
-            return AnalysisValue.Known(text.ToString());
+            return AnalysisValue.Known(text?.ToString() ?? String.Empty);
         }
 
         private void AppendValue(AnalysisValue value)
         {
             if (value.IsKnown)
             {
-                text.Append(value.Value);
+                text?.Append(value.Value);
                 return;
             }
 
@@ -227,9 +1138,9 @@ internal static class AnalysisExpressionEvaluator
             {
                 if (preserveEscape)
                 {
-                    text.Append(escapeChar);
+                    text?.Append(escapeChar);
                 }
-                text.Append(character);
+                text?.Append(character);
             }
         }
     }

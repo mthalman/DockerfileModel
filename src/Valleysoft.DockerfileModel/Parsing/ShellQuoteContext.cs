@@ -8,6 +8,8 @@ internal struct ShellQuoteContext
 
     public bool SuppressExpansion => QuoteChar == '\'' || Escaped;
 
+    public void ClearEscape() => Escaped = false;
+
     public bool Consume(char character, char escapeChar, out bool preserveEscape)
     {
         preserveEscape = false;

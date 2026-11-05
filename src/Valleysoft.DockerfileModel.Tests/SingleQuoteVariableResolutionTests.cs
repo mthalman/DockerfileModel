@@ -258,15 +258,17 @@ public class SingleQuoteVariableResolutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void Literal_OverrideEditsAreSeenByBaseResolution(bool updateInline, bool changeQuotes)
+    public void Literal_OverrideEditsAreRejectedBeforeMutation(bool updateInline, bool changeQuotes)
     {
         EditingResolutionLiteral child = new(changeQuotes);
         LiteralToken parent = new(new Token[] { new StringToken("prefix"), child },
             canContainVariables: true, '\\');
 
-        Assert.Equal(changeQuotes ? "prefix'$VALUE'" : "prefixchanged",
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
             parent.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal(changeQuotes ? "'$VALUE'" : "changed", child.ToString());
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+        Assert.Equal("$VALUE", child.ToString());
+        Assert.Null(child.QuoteChar);
     }
 
     [Fact]

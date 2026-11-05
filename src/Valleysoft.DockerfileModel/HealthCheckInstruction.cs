@@ -152,6 +152,7 @@ public class HealthCheckInstruction : Instruction
         get => Tokens.OfType<Command>().FirstOrDefault();
         set
         {
+            ResolutionGuard.BeforeMutation(this);
             Command? current = Command;
             if (current is not null)
             {

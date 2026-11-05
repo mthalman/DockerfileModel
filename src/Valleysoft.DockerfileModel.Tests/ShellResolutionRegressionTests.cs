@@ -91,40 +91,42 @@ public class ShellResolutionRegressionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void OverrideDescendantEditsRefreshCachedQuoteContexts(bool updateInline)
+    public void OverrideDescendantEditsAreRejectedBeforeMutation(bool updateInline)
     {
         DescendantEditingLiteral child = new();
         LiteralToken parent = new(new Token[] { child }, true, '\\');
 
-        Assert.Equal("'$VALUE'", parent.ResolveVariables('\\', Variables,
-            new ResolutionOptions { UpdateInline = updateInline }));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            parent.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
         Assert.IsType<VariableRefToken>(child.Tokens.ElementAt(1));
+        Assert.Equal("prefix$VALUE'", child.ToString());
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void SharedChildQuoteChangesAreSeenAtEachInvocation(bool updateInline)
+    public void SharedChildQuoteChangesAreRejectedBeforeMutation(bool updateInline)
     {
         QuoteSwitchingLiteral child = new();
         LiteralToken parent = new(new Token[] { child, child }, true, '\\');
 
-        Assert.Equal(updateInline ? "'expanded'\"expanded\"" : "'$VALUE'\"expanded\"", parent.ResolveVariables('\\', Variables,
-            new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal(2, child.CallCount);
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            parent.ResolveVariables('\\', Variables, new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+        Assert.Equal(1, child.CallCount);
+        Assert.Null(child.QuoteChar);
+        Assert.Equal("$VALUE", child.ToString());
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void WorkerThreadBaseDelegationRetainsContext(bool updateInline)
+    [Fact]
+    public void WorkerThreadNonMutatingBaseDelegationRetainsContext()
     {
         WorkerLiteral child = new();
         LiteralToken parent = new(new Token[] { child }, true, '\\') { QuoteChar = '"' };
 
-        Assert.Equal("\"'expanded'\"", parent.ResolveVariables('\\', Variables,
-            new ResolutionOptions { UpdateInline = updateInline }));
-        Assert.Equal(updateInline ? "'expanded'" : "'$VALUE'", child.ToString());
+        Assert.Equal("\"'expanded'\"", parent.ResolveVariables('\\', Variables));
+        Assert.Equal("'$VALUE'", child.ToString());
     }
 
     [Theory]

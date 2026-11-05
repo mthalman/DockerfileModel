@@ -51,6 +51,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         set
         {
             Guard.NotNull(value, nameof(value));
+            ResolutionGuard.BeforeMutation(this);
             if (wordParser is not null && QuoteChar is null && value == Value)
             {
                 return;
@@ -92,6 +93,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         get => quoteChar;
         set
         {
+            ResolutionGuard.BeforeMutation(this);
             if (HasWordContext && quoteChar != value && Tokens.OfType<LiteralToken>().Any())
             {
                 ReplaceWithTokens(StringParsers.UnwrapLiteralFragments(Tokens,

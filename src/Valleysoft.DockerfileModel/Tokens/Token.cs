@@ -20,7 +20,7 @@ public abstract class Token
 
         if (!options.ExcludeQuotes && this is IQuotableToken quotableToken)
         {
-            return $"{quotableToken.QuoteChar}{value}{quotableToken.QuoteChar}";
+            value = $"{quotableToken.QuoteChar}{value}{quotableToken.QuoteChar}";
         }
 
         return value;

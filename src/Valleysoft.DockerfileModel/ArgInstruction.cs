@@ -43,6 +43,9 @@ public class ArgInstruction : Instruction
     public static ArgInstruction Parse(string text, char escapeChar = Dockerfile.DefaultEscapeChar) =>
         new(GetTokens(text, GetInnerParser(escapeChar)), escapeChar);
 
+    internal static ArgInstruction Parse(string text, char escapeChar, Action<(int Start, int Length)> onDeclarationParsed) =>
+        new(GetTokens(text, GetInnerParser(escapeChar, onDeclarationParsed)), escapeChar);
+
     internal static TextParser<ArgInstruction> GetParser(char escapeChar = Dockerfile.DefaultEscapeChar) =>
         from tokens in GetInnerParser(escapeChar)
         select new ArgInstruction(tokens, escapeChar);
@@ -60,18 +63,38 @@ public class ArgInstruction : Instruction
         return GetTokens($"ARG {string.Join(" ", keyValueAssignments)}", GetInnerParser(escapeChar));
     }
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar) =>
-        Instruction("ARG", escapeChar, GetArgsParser(escapeChar));
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar,
+        Action<(int Start, int Length)>? onDeclarationParsed = null) =>
+        Instruction("ARG", escapeChar, GetArgsParser(escapeChar, onDeclarationParsed));
 
-    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar,
+        Action<(int Start, int Length)>? onDeclarationParsed) =>
         from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
-        from variables in VariablesParser(escapeChar)
+        from variables in VariablesParser(escapeChar, onDeclarationParsed)
         select ConcatTokens(whitespace, variables);
 
-    internal static TextParser<IEnumerable<Token>> VariablesParser(char escapeChar) =>
-        ArgTokens(
+    internal static TextParser<IEnumerable<Token>> VariablesParser(char escapeChar,
+        Action<(int Start, int Length)>? onDeclarationParsed = null)
+    {
+        TextParser<ArgDeclaration> declarationParser = ArgDeclaration.GetParser(escapeChar);
+        if (onDeclarationParsed is not null)
+        {
+            TextParser<ArgDeclaration> parser = declarationParser;
+            declarationParser = input =>
+            {
+                Result<ArgDeclaration> result = parser(input);
+                if (result.HasValue)
+                {
+                    onDeclarationParsed((input.Position.Absolute,
+                        result.Remainder.Position.Absolute - input.Position.Absolute));
+                }
+                return result;
+            };
+        }
+        return ArgTokens(
             from whitespace in Whitespace().Try().OptionalOrDefault(Enumerable.Empty<Token>())
-            from variable in ArgDeclaration.GetParser(escapeChar).AsEnumerable()
+            from variable in declarationParser.AsEnumerable()
             select ConcatTokens(whitespace, variable), escapeChar
         ).Try().AtLeastOnce().Flatten();
+    }
 }

@@ -16,6 +16,7 @@ public abstract class PrimitiveToken : Token, IValueToken
         set
         {
             Guard.NotNull(value, nameof(value));
+            ResolutionGuard.BeforeMutation(this);
             this.value = value;
         }
     }
