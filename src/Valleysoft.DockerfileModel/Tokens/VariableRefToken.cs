@@ -188,6 +188,7 @@ public class VariableRefToken : AggregateToken
     {
         string? modifier = Modifier;
         string name = VariableName;
+        LiteralToken? operand = ModifierValueToken;
         bool exists = ResolutionGuard.TryGetValue(variables, name, out value);
         bool isSet = IsVariableSet(modifier, exists, value);
         requiredName = modifier?.Last() == '?' && !isSet ? name : null;
@@ -197,8 +198,8 @@ public class VariableRefToken : AggregateToken
         }
         return modifier?.Last() switch
         {
-            '-' or '?' when !isSet => ModifierValueToken,
-            '+' when isSet => ModifierValueToken,
+            '-' or '?' when !isSet => operand,
+            '+' when isSet => operand,
             _ => null
         };
     }

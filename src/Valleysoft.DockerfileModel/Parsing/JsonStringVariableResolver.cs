@@ -351,7 +351,7 @@ internal static class JsonStringVariableResolver
                 int anchor = pendingAnchors?.TryGetValue(index, out var pendingAnchor) == true
                     ? pendingAnchor.Occurrence : -1;
                 if (snapshot!.FindPublicationSlot(pending.Start, pending.End, anchor) is not SourceSlot slot ||
-                    slot.Removed)
+                    slot.Removed || slot.Detached is not null)
                 {
                     continue;
                 }
@@ -387,7 +387,7 @@ internal static class JsonStringVariableResolver
                     LiteralToken literal => literal.ResolveVariablesInContext(false, escapeChar, variables, options)
                         ?? string.Empty,
                     VariableRefToken reference => ResolveReference(reference, escapeChar, variables, valueOptions, options,
-                        referenceSources),
+                        referenceSources, invokesCallback ? sourceSlots : null),
                     _ => ResolutionGuard.Resolve(pending.Reference, escapeChar, variables, options) ?? string.Empty
                 };
                 inlineReplacements[index] = options.UpdateInline;
@@ -411,12 +411,19 @@ internal static class JsonStringVariableResolver
             resolvedReplacements[index] = substitution;
         }
         List<(int Start, int End, Token Token, bool Inline)> replacements = new();
+        bool capturePublications = path.HasMultipleResolutionObservers;
+        Dictionary<Token, int>? publicationOccurrences = null;
         for (int index = 0; index < pendingReplacements.Count; index++)
         {
             if (resolvedReplacements[index] is Token substitution)
             {
                 var pending = pendingReplacements[index];
                 replacements.Add((pending.Start, pending.End, substitution, inlineReplacements[index]));
+                if (capturePublications && pendingAnchors?.TryGetValue(index, out var publicationAnchor) == true)
+                {
+                    publicationOccurrences ??= new(ReferenceComparer<Token>.Instance);
+                    publicationOccurrences.Add(substitution, publicationAnchor.Occurrence);
+                }
                 if (pending.Start == pending.End && pending.Reference is AggregateToken &&
                     pendingAnchors?.TryGetValue(index, out var anchor) == true)
                 {
@@ -430,18 +437,41 @@ internal static class JsonStringVariableResolver
             return physical;
         }
         List<Token> substitutions = new();
+        Dictionary<int, List<Token>>? childPublications = capturePublications ? new() : null;
         bool reuseTokens = earlyPublications is null &&
             replacements.All(replacement => replacement.Inline);
         List<Token> tokens = BuildTokens(source, replacements, physical.Length - 1, emptyAnchors: emptyAnchors,
             snapshot: sourceReferences is not null ? snapshot : null,
-            substitutions: reuseTokens ? substitutions : null);
+            substitutions: reuseTokens ? substitutions : null,
+            childPublications: reuseTokens ? childPublications : null, publicationOccurrences: publicationOccurrences);
         string result = "\"" + string.Concat(tokens.Select(RenderToken)) + "\"";
         if (replacements.Any(replacement => replacement.Inline))
         {
-            path.ReplaceResolvedTokens(reuseTokens ? tokens :
+            List<Token> published = reuseTokens ? tokens :
                 BuildTokens(source, replacements.Where(replacement => replacement.Inline),
                     physical.Length - 1, substitutions, emptyAnchors, snapshot,
-                    earlyPublications));
+                    earlyPublications, childPublications, publicationOccurrences);
+            Dictionary<int, Token>? publications = null;
+            HashSet<Token>? protectedSubstitutions = null;
+            if (childPublications is not null)
+            {
+                publications = new();
+                foreach (var child in childPublications)
+                {
+                    if (child.Value.Count == 1)
+                    {
+                        publications.Add(child.Key, child.Value[0]);
+                    }
+                    else
+                    {
+                        LiteralToken projection = new(child.Value, canContainVariables: true, escapeChar);
+                        protectedSubstitutions ??= new(substitutions, ReferenceComparer<Token>.Instance);
+                        projection.RecordResolvedJsonLiterals(child.Value.Where(protectedSubstitutions.Contains));
+                        publications.Add(child.Key, projection);
+                    }
+                }
+            }
+            path.ReplaceResolvedTokens(published, publications);
             path.RecordResolvedJsonLiterals(substitutions);
         }
         return result;
@@ -527,7 +557,7 @@ internal static class JsonStringVariableResolver
 
     internal static string ResolveReference(VariableRefToken root, char escapeChar,
         IDictionary<string, string?> variables, ResolutionOptions options, ResolutionOptions? customOptions = null,
-        Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null)
+        Dictionary<VariableRefToken, ReferenceSource>? referenceSources = null, SourceSlots? sourceSlots = null)
     {
         Token rootValue = GetSourceToken(root, referenceSources);
         if (rootValue is not VariableRefToken { HasCustomResolution: false } rootReference)
@@ -541,18 +571,20 @@ internal static class JsonStringVariableResolver
                 : rootReference.ResolveValue(escapeChar, variables, customOptions)) ?? string.Empty;
         }
         Stack<Expansion> resolved = new();
-        Stack<(Token? Token, Token[]? Tokens, string? RequiredName, AggregateToken? Parent, int Index)> pending = new();
-        pending.Push((root, null, null, null, -1));
-        void Complete(Expansion value, Token? token, AggregateToken? parent, int index, bool remove = false)
+        Stack<(Token? Token, Token[]? Tokens, string? RequiredName, AggregateToken? Parent, int Index,
+            SourceSlot? Location)> pending = new();
+        pending.Push((root, null, null, null, -1, null));
+        void Complete(Expansion value, Token? token, AggregateToken? parent, int index,
+            SourceSlot? originalLocation, bool remove = false)
         {
             resolved.Push(value);
             if (token is VariableRefToken reference && parent is not null && (customOptions ?? options).UpdateInline)
             {
                 ReferenceSource? source = reference is CustomReferenceOccurrence custom ? custom.Source :
                     referenceSources?.TryGetValue(reference, out var bound) == true ? bound : null;
-                if (source?.Slot is SourceSlot location)
+                if ((source?.Slot ?? originalLocation) is SourceSlot location)
                 {
-                    if (location.Removed)
+                    if (location.Removed || location.Detached is not null)
                     {
                         return;
                     }
@@ -591,12 +623,12 @@ internal static class JsonStringVariableResolver
                     throw VariableRefToken.MissingVariable(name,
                         RenderExpansion(value, escapeChar, formatRoot: false));
                 }
-                Complete(value, frame.Token, frame.Parent, frame.Index);
+                Complete(value, frame.Token, frame.Parent, frame.Index, frame.Location);
                 continue;
             }
-            if (frame.Parent is not null)
+            if (frame.Location is not null)
             {
-                frame.Token = frame.Parent.TokenList[frame.Index];
+                frame.Token = frame.Location.Current;
             }
             Token? syntax = frame.Token;
             if (syntax is VariableRefToken parsed)
@@ -607,10 +639,11 @@ internal static class JsonStringVariableResolver
                 container is not IQuotableToken { QuoteChar: not null })
             {
                 Token[] children = container.Tokens.ToArray();
-                pending.Push((container, children, null, frame.Parent, frame.Index));
+                pending.Push((container, children, null, frame.Parent, frame.Index, frame.Location));
                 for (int index = 0; index < children.Length; index++)
                 {
-                    pending.Push((children[index], null, null, container, index));
+                    pending.Push((children[index], null, null, container, index,
+                        children[index] is AggregateToken ? sourceSlots?.GetCurrent(container, index) : null));
                 }
                 continue;
             }
@@ -630,7 +663,8 @@ internal static class JsonStringVariableResolver
             if (reference.HasCustomResolution)
             {
                 string? value = ResolutionGuard.Resolve(reference, escapeChar, variables, customOptions ?? options);
-                Complete(new Expansion(value ?? string.Empty), syntax, frame.Parent, frame.Index, value is null);
+                Complete(new Expansion(value ?? string.Empty), syntax, frame.Parent, frame.Index, frame.Location,
+                    value is null);
                 continue;
             }
             if (VariableRefToken.IsPatternModifier(reference.Modifier))
@@ -647,7 +681,7 @@ internal static class JsonStringVariableResolver
             if (modifier is null)
             {
                 Complete(new Expansion(options.FormatValue(escapeChar, selectedValue ?? string.Empty)),
-                    syntax, frame.Parent, frame.Index);
+                    syntax, frame.Parent, frame.Index, frame.Location);
             }
             else if (modifier.HasCustomResolution)
             {
@@ -657,15 +691,16 @@ internal static class JsonStringVariableResolver
                     throw VariableRefToken.MissingVariable(requiredName, value);
                 }
                 value = (customOptions ?? options).FormatValue(escapeChar, value ?? string.Empty);
-                Complete(new Expansion(value), syntax, frame.Parent, frame.Index);
+                Complete(new Expansion(value), syntax, frame.Parent, frame.Index, frame.Location);
             }
             else
             {
                 Token[] children = modifier.Tokens.ToArray();
-                pending.Push((syntax, children, requiredName, frame.Parent, frame.Index));
+                pending.Push((syntax, children, requiredName, frame.Parent, frame.Index, frame.Location));
                 for (int index = 0; index < children.Length; index++)
                 {
-                    pending.Push((children[index], null, null, modifier, index));
+                    pending.Push((children[index], null, null, modifier, index,
+                        children[index] is AggregateToken ? sourceSlots?.GetCurrent(modifier, index) : null));
                 }
             }
         }
@@ -972,11 +1007,17 @@ internal static class JsonStringVariableResolver
     {
         ReferenceSource? source = reference is CustomReferenceOccurrence custom ? custom.Source :
             sources?.TryGetValue(reference, out var bound) == true &&
-                (bound.Live || bound.Slot is { Removed: true } || bound.Slot?.Current is ResolvedJsonLiteral)
+                (bound.Live || bound.Slot is { Removed: true } || bound.Slot?.Current is ResolvedJsonLiteral ||
+                    bound.Slot is { Parent: LiteralToken owner } && owner.IsResolvedJsonLiteral(bound.Slot.Current))
                     ? bound : null;
-        return source is ReferenceSource location
-            ? location.Slot is null ? location.Token : location.Slot.Current
-            : reference;
+        if (source is not ReferenceSource location)
+        {
+            return reference;
+        }
+        Token current = location.Slot is null ? location.Token : location.Slot.Current;
+        return location.Slot is { Parent: LiteralToken literal } && literal.IsResolvedJsonLiteral(current)
+            ? new ResolvedJsonLiteral(RenderToken(current), literal.EditingEscapeChar)
+            : current;
     }
 
     private static string ResolveSourceToken(Token token, char escapeChar,
@@ -1103,7 +1144,8 @@ internal static class JsonStringVariableResolver
         internal AggregateToken Parent { get; } = parent;
         internal int Index { get; set; } = index;
         internal bool Removed { get; set; }
-        internal Token Current => Removed ? removedToken : Parent.TokenList[Index];
+        internal Token? Detached { get; set; }
+        internal Token Current => Removed ? removedToken : Detached ?? Parent.TokenList[Index];
     }
 
     internal sealed class SourceSlots : IDisposable
@@ -1133,6 +1175,16 @@ internal static class JsonStringVariableResolver
         internal int Remove(AggregateToken parent, int index) =>
             parents.TryGetValue(parent, out var slots) ? slots.Remove(index) : 0;
 
+        internal SourceSlot GetCurrent(AggregateToken parent, int index)
+        {
+            if (!parents.TryGetValue(parent, out ParentSlots? slots))
+            {
+                slots = new(parent);
+                parents.Add(parent, slots);
+            }
+            return slots.GetCurrent(index);
+        }
+
         public void Dispose()
         {
             foreach (ParentSlots slots in parents.Values)
@@ -1145,17 +1197,66 @@ internal static class JsonStringVariableResolver
         {
             private readonly AggregateToken parent;
             private List<SourceSlot>? active;
+            private List<SourceSlot>? additional;
+            private Dictionary<int, SourceSlot>? currentSlots;
             internal Dictionary<int, SourceSlot> Captured { get; } = new();
-            private List<SourceSlot> Active => active ??= Captured.Values
-                .Where(slot => !slot.Removed).OrderBy(slot => slot.Index).ToList();
+            private IEnumerable<SourceSlot> All => additional is null ? Captured.Values : Captured.Values.Concat(additional);
+            private List<SourceSlot> Active => active ??= All
+                .Where(slot => !slot.Removed && slot.Detached is null).OrderBy(slot => slot.Index).ToList();
+
+            internal SourceSlot GetCurrent(int index)
+            {
+                currentSlots ??= All.Where(slot => !slot.Removed && slot.Detached is null)
+                    .ToDictionary(slot => slot.Index);
+                if (!currentSlots.TryGetValue(index, out SourceSlot? slot))
+                {
+                    slot = new(parent, index);
+                    (additional ??= new()).Add(slot);
+                    currentSlots.Add(index, slot);
+                    active = null;
+                }
+                return slot;
+            }
 
             internal ParentSlots(AggregateToken parent)
             {
                 this.parent = parent;
                 parent.ResolutionChildRemoved += OnRemove;
+                parent.ResolutionChildrenReplacing += OnReplacing;
             }
 
             private void OnRemove(int index) => Remove(index);
+
+            private void OnReplacing(IReadOnlyList<Token> incoming, IReadOnlyDictionary<int, Token>? publications)
+            {
+                Dictionary<Token, Queue<int>> positions = new(ReferenceComparer<Token>.Instance);
+                for (int index = 0; index < incoming.Count; index++)
+                {
+                    if (!positions.TryGetValue(incoming[index], out Queue<int>? indices))
+                    {
+                        indices = new();
+                        positions.Add(incoming[index], indices);
+                    }
+                    indices.Enqueue(index);
+                }
+                foreach (SourceSlot slot in All.Where(slot => !slot.Removed).OrderBy(slot => slot.Index))
+                {
+                    Token current = slot.Detached is null &&
+                        publications?.TryGetValue(slot.Index, out Token? publication) == true
+                            ? publication : slot.Current;
+                    if (positions.TryGetValue(current, out Queue<int>? indices) && indices.Count > 0)
+                    {
+                        slot.Index = indices.Dequeue();
+                        slot.Detached = null;
+                    }
+                    else
+                    {
+                        slot.Detached = current;
+                    }
+                }
+                active = null;
+                currentSlots = null;
+            }
 
             internal int Remove(int index)
             {
@@ -1185,12 +1286,14 @@ internal static class JsonStringVariableResolver
                     Active[current].Index--;
                     work++;
                 }
+                currentSlots = null;
                 return work;
             }
 
             public void Dispose()
             {
                 parent.ResolutionChildRemoved -= OnRemove;
+                parent.ResolutionChildrenReplacing -= OnReplacing;
             }
         }
     }
@@ -1211,6 +1314,23 @@ internal static class JsonStringVariableResolver
         internal string Physical { get; } = physical;
         internal List<SourceOccurrence> Occurrences { get; } = new();
         private int[]? parents;
+        private int[]? rootIndices;
+
+        internal int FindRootIndex(int occurrence)
+        {
+            if (rootIndices is null)
+            {
+                rootIndices = new int[Occurrences.Count];
+                for (int index = 0; index < Occurrences.Count; index++)
+                {
+                    rootIndices[index] = Parents[index] < 0
+                        ? Occurrences[index].Slot?.Index ?? -1 : rootIndices[Parents[index]];
+                }
+            }
+            return occurrence < 0 ? -1 : rootIndices[occurrence];
+        }
+
+        internal int FindRootIndex(int start, int end) => FindRootIndex(FindOccurrence(start, end, -1));
 
         private int[] Parents
         {
@@ -1348,7 +1468,9 @@ internal static class JsonStringVariableResolver
         List<Token>? substitutions = null,
         Dictionary<Token, (int Position, int Occurrence)>? emptyAnchors = null,
         SourceSnapshot? snapshot = null,
-        Dictionary<Token, (SourceSlot Slot, Token Published)>? earlyPublications = null)
+        Dictionary<Token, (SourceSlot Slot, Token Published)>? earlyPublications = null,
+        Dictionary<int, List<Token>>? childPublications = null,
+        Dictionary<Token, int>? publicationOccurrences = null)
     {
         if (snapshot is not null || substitutions is not null)
         {
@@ -1369,9 +1491,26 @@ internal static class JsonStringVariableResolver
         }
         int tokenIndex = 0;
         int tokenStart = 1;
+        void RecordChild(Token token, int root)
+        {
+            if (childPublications is null || root < 0)
+            {
+                return;
+            }
+            if (!childPublications.TryGetValue(root, out List<Token>? children))
+            {
+                children = new();
+                childPublications.Add(root, children);
+            }
+            children.Add(token);
+        }
         void AppendRetained(Token retained, Token original, int occurrence)
         {
             tokens.Add(retained);
+            if (childPublications is not null)
+            {
+                RecordChild(retained, snapshot?.FindRootIndex(occurrence) ?? -1);
+            }
             if (substitutions is not null && snapshot is not null && occurrence >= 0 &&
                 snapshot.Occurrences[occurrence].Slot?.Parent is LiteralToken owner &&
                 owner.IsResolvedJsonLiteral(original))
@@ -1450,6 +1589,14 @@ internal static class JsonStringVariableResolver
                 {
                     substitutions?.Add(substitution);
                 }
+            }
+            if (childPublications is not null)
+            {
+                int root = publicationOccurrences?.TryGetValue(substitution, out int sourceOccurrence) == true
+                    ? snapshot?.FindRootIndex(sourceOccurrence) ?? -1 :
+                    anchor >= 0 ? snapshot?.FindRootIndex(anchor) ?? -1 :
+                    snapshot?.FindRootIndex(start, finish) ?? -1;
+                RecordChild(tokens[tokens.Count - 1], root);
             }
             position = finish;
         }

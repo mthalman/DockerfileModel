@@ -197,6 +197,10 @@ Inline removal updates the captured slots of shared modifiers. Later occurrences
 skip removed children instead of reading a neighboring token or a stale index.
 This tracking also covers removals through custom aggregates that delegate to
 the ordinary resolver. Tracking subscriptions end when resolution returns or throws.
+Whole-path inline publication during synchronous reentrant resolution also
+updates active source locations, including paths whose decoded references split
+an original string token. Reused substitutions retain their semantic values
+rather than expanding or JSON-escaping their encoded spelling again.
 Custom occurrences retain their source anchors even when their physical token
 boundaries split a decoded JSON character.
 Shared modifiers reuse the semantic values of earlier inline substitutions in
@@ -210,6 +214,8 @@ read. Reading `Tokens`, `Value`, or serialized text materializes ordinary editab
 children and releases the deferred expansion tree. This avoids repeatedly
 rendering growing modifier subtrees during inline publication.
 Modifier selection reads the environment once per reference evaluation.
+JSON modifier operands are captured before custom lookups, so reentrant inline
+publication cannot detach an operand already selected by the outer evaluation.
 Selected branches and required-variable error names do not change if a callback
 updates the variable dictionary during their evaluation.
 Resolution context passes the caller's original `ResolutionOptions` instance
@@ -334,6 +340,8 @@ token lists from escaping, so ordinary callbacks do not require repeated scans
 of native source trees. Protected lists in consumer-defined subclasses still
 require callback-boundary checks. The cost of those checks grows with the number
 of such containers and callbacks.
+Removing or replacing children through the guarded view also releases their
+JSON-substitution tracking; removed values are not retained until another resolution.
 
 The library may replace or remove expanded references as part of
 `UpdateInline`; these library-owned publications are not callback edits.

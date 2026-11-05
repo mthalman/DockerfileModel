@@ -45,6 +45,8 @@ public abstract class AggregateToken : Token
 
     internal IReadOnlyList<Token> ResolutionChildren => tokenList;
     internal event Action<int>? ResolutionChildRemoved;
+    internal event Action<IReadOnlyList<Token>, IReadOnlyDictionary<int, Token>?>? ResolutionChildrenReplacing;
+    internal bool HasMultipleResolutionObservers => ResolutionChildrenReplacing?.GetInvocationList().Length > 1;
 
     /// <summary>Gets the live ordered child sequence, not a snapshot or a deep copy.</summary>
     /// <remarks>Structural edits during enumeration can invalidate the enumerator.</remarks>
@@ -69,18 +71,29 @@ public abstract class AggregateToken : Token
         {
             ResolutionGuard.BeforeMutation(owner);
             base.SetItem(index, item);
+            PruneSubstitutions();
         }
 
         protected override void RemoveItem(int index)
         {
             ResolutionGuard.BeforeMutation(owner);
             base.RemoveItem(index);
+            PruneSubstitutions();
         }
 
         protected override void ClearItems()
         {
             ResolutionGuard.BeforeMutation(owner);
             base.ClearItems();
+            PruneSubstitutions();
+        }
+
+        private void PruneSubstitutions()
+        {
+            if (owner is LiteralToken literal)
+            {
+                literal.PruneResolvedJsonLiterals();
+            }
         }
     }
 
@@ -278,9 +291,15 @@ public abstract class AggregateToken : Token
         ResolutionGuard.ChildPublished(this, index, replacement);
     }
 
-    internal void ReplaceResolvedTokens(IEnumerable<Token> tokens)
+    internal void ReplaceResolvedTokens(IEnumerable<Token> tokens, IReadOnlyDictionary<int, Token>? publications = null)
     {
         ResolutionGuard.BeforeChildrenPublication(this);
+        if (ResolutionChildrenReplacing is { } replacing)
+        {
+            Token[] incoming = tokens.ToArray();
+            replacing(incoming, publications);
+            tokens = incoming;
+        }
         ReplaceChildren(tokens);
         ResolutionGuard.ChildrenPublished(this);
     }
