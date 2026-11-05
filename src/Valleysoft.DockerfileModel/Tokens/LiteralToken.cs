@@ -158,6 +158,21 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
                 }
             }
         }
+        List<(LiteralToken Token, bool Json)> activeContexts = resolutionContexts ??= new();
+        activeContexts.Add((this, json));
+        try
+        {
+            return ResolveVariablesCore(json, escapeChar, variables, options);
+        }
+        finally
+        {
+            activeContexts.RemoveAt(activeContexts.Count - 1);
+        }
+    }
+
+    private string? ResolveVariablesCore(bool json, char escapeChar,
+        IDictionary<string, string?>? variables, ResolutionOptions? options)
+    {
         if (!json || QuoteChar != '"')
         {
             return base.ResolveVariables(escapeChar, variables, options);

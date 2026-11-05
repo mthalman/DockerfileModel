@@ -2212,6 +2212,70 @@ public class VolumeInstructionTests
         Assert.Equal("\"\\u0024ROOT\"", literal.ResolveVariables('\\', variables));
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void JsonDirectResolutionRetainsActiveContextAfterUnrelatedAdoption(bool inline, bool indirect)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"\\u0024ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        WorkdirInstruction receiver = new("before");
+        Dictionary<string, string?> nestedVariables = new() { ["ROOT"] = "root" };
+        int calls = 0;
+        void Reenter()
+        {
+            calls++;
+            Assert.Equal("\"root\"", path.ResolveVariables('\\', nestedVariables));
+            Assert.Equal("\"\\u0024ROOT\"",
+                path.ResolveVariablesInContext(false, '\\', nestedVariables, null));
+            Assert.Equal("\"root\"", path.ResolveVariables('\\', nestedVariables));
+        }
+        LookupCallbackDictionary variables = new("ROOT", () =>
+        {
+            receiver.PathToken = path;
+            if (indirect)
+            {
+                LiteralToken other = new("$OTHER", canContainVariables: true);
+                LookupCallbackDictionary otherVariables = new("OTHER", Reenter) { ["OTHER"] = "other" };
+                Assert.Equal("other", other.ResolveVariables('\\', otherVariables));
+            }
+            else
+            {
+                Reenter();
+            }
+        }) { ["ROOT"] = "root" };
+
+        Assert.Equal("\"root\"", path.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(1, calls);
+        Assert.Same(path, receiver.PathToken);
+        Assert.Equal(inline ? "\"root\"" : "\"\\u0024ROOT\"", path.ResolveVariables('\\', nestedVariables));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonDirectResolutionReleasesActiveContextAfterCallbackFailure(bool inline)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"\\u0024ROOT\"]");
+        LiteralToken path = instruction.PathTokens[0];
+        WorkdirInstruction receiver = new("before");
+        Dictionary<string, string?> nestedVariables = new() { ["ROOT"] = "root" };
+        LookupCallbackDictionary variables = new("ROOT", () =>
+        {
+            receiver.PathToken = path;
+            Assert.Equal("\"root\"", path.ResolveVariables('\\', nestedVariables));
+            throw new InvalidOperationException("callback");
+        }) { ["ROOT"] = "root" };
+
+        Assert.Equal("callback", Assert.Throws<InvalidOperationException>(() =>
+            path.ResolveVariables('\\', variables, new ResolutionOptions { UpdateInline = inline })).Message);
+        Assert.Equal("\"\\u0024ROOT\"", path.ResolveVariables('\\', nestedVariables));
+        Assert.Equal("VOLUME [\"\\u0024ROOT\"]", instruction.ToString());
+    }
+
     [Fact]
     public void JsonResolutionContextsRemainThreadLocal()
     {

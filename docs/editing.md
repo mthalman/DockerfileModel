@@ -300,6 +300,9 @@ context independently of the token's latest binding, so sharing a token with a
 non-VOLUME instruction does not change the original VOLUME's resolution policy.
 Synchronous reentrant calls retain each active literal's context, including calls
 that re-enter an outer literal through another literal's callback.
+This also applies to direct literal resolution when a callback adopts the token
+into an unrelated owner. Once the call returns or throws, direct resolution uses
+the token's latest binding again.
 Document `ARG` evaluation uses the `ARG` context for defaults shared with `VOLUME`.
 Direct variable-reference resolution uses the modifier's non-JSON context even
 when the modifier literal is also shared with a JSON `VOLUME` path.
