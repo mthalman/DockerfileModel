@@ -139,39 +139,41 @@ policy; they do not rewrite existing operands or change shell-form editing.
 Existing operand grammar limits still apply: JSON `\"` escapes are not supported
 with a backtick Dockerfile escape directive.
 
-`VOLUME` paths recognize variable references and supported variable modifiers in
-both shell and JSON form, including paths created or updated through the editable
-views. Typed paths and modifier values retain their `LiteralToken`
-variable-recognition policy: `canContainVariables: false` keeps their contents
-literal, even after JSON decoding. Custom resolution overrides remain supported;
-modifier overrides run only when their branch is selected, and their returned
-values are not expanded again.
+`VOLUME` paths support variable expansion in both shell and JSON form, including
+paths that you create or update through `Paths` and `PathTokens`. Supplied
+`LiteralToken` paths and modifier values retain their variable-recognition
+policy. If you construct a literal with `canContainVariables: false`, its
+contents remain literal after JSON decoding. The resolver calls custom modifier
+overrides only when it selects their branch. It does not expand variable
+references in the values those overrides return.
 
-JSON-form paths decode JSON escapes before recognizing variables and JSON-escape
-substituted values. Unchanged JSON spelling and Dockerfile continuations are
-retained. Decoded single quotes and Dockerfile escape characters protect variable
-references; protecting quotes remain in the path rather than being shell-unquoted.
-These rules also apply inside modifier values. Active malformed references and
-unterminated decoded quotes fail during resolution; protected malformed text
-remains literal. Pattern modifiers (`#`, `##`, `%`, `%%`, `/`, and `//`) remain
-unsupported and retain their original spelling.
+For JSON-form paths, the resolver decodes JSON escapes before recognizing
+variables and escapes substituted values for JSON. It preserves unchanged JSON
+spelling and Dockerfile continuations. Decoded single quotes protect enclosed
+references, and a decoded Dockerfile escape character protects an immediately
+following dollar sign. The resolver retains the single quotes in the path. These
+rules also apply inside modifier values. Malformed references outside protected text and
+unterminated decoded quotes cause resolution errors. Protected malformed text
+remains literal. The resolver leaves references with unsupported pattern
+modifiers (`#`, `##`, `%`, `%%`, `/`, and `//`) unchanged.
 
 Non-inline resolution leaves the source token tree unchanged. Inline resolution
 replaces expanded references while retaining untouched child tokens. Substituted
-values stay literal on later resolutions, including after primitive-token edits
-or reuse in another path or modifier. Assigning the path's `Value` or updating it
-through `Paths` reparses its contents and makes new references eligible for
-expansion. `RemoveEscapeCharacters` changes returned JSON text without rewriting
-untouched path contents, even with `UpdateInline` enabled.
+values stay literal on later resolutions, even if you edit their primitive
+tokens or reuse them in another path or modifier. To parse new variable
+references, assign the path's `Value` or update it through `Paths`.
+`RemoveEscapeCharacters` changes the returned JSON text without rewriting
+untouched path contents, even when `UpdateInline` is `true`.
 
-Adopting a path through a collection or scalar token setter binds direct literal
-resolution to the receiving owner's context. Each instruction still resolves
-shared tokens in its own context: sharing a JSON path with a non-VOLUME
-instruction does not change the original VOLUME's policy. Active synchronous
-reentrant calls retain their context until they return or throw; subsequent
-direct calls use the latest binding. `ARG` defaults and direct variable-reference
-modifier resolution use their non-JSON context. Tokens remain shared mutable
-objects, not copies.
+When you adopt a path through a collection or scalar token setter, subsequent
+calls to that literal's `ResolveVariables()` use the receiving owner's context.
+Each instruction still resolves shared tokens in its own context. Sharing a JSON
+path with a non-VOLUME instruction does not change the original VOLUME's policy.
+An active synchronous resolution call retains its context if a callback resolves
+the literal again or adopts it into another owner. After the call returns or
+throws, direct calls use the latest owner's context. `ARG` defaults use non-JSON
+resolution. Resolving a `VariableRefToken` directly also uses non-JSON resolution
+for its modifier value. Adoption shares mutable tokens rather than copying them.
 
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's
@@ -188,8 +190,9 @@ structural-editing collection.
 Perform source edits outside variable resolution. See
 [Custom token contract](variable-resolution.md#custom-token-contract)
 for callback permissions, source-edit errors, and threading requirements.
-Syntax-aware edits check protected token and quote targets before publishing
-changes, including when an unrelated receiving tree adopts a protected token.
+If a syntax-aware edit would change a protected source token or its quote, the
+edit fails before changing either tree. This also applies when you adopt a
+protected token into an unrelated tree.
 
 For low-level child editing outside resolution, cast the live
 `AggregateToken.Tokens` view to `IList<Token>`, not `List<Token>`:
