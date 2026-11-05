@@ -458,6 +458,20 @@ public class ResolutionGuardTests
         primitive.Value = "outside";
     }
 
+    [Fact]
+    public void LargeQuoteCaptureUsesReferenceIdentityAndChecksEachDistinctLeafOnce()
+    {
+        const int count = 8192;
+        CountingQuoteString[] leaves = Enumerable.Range(0, count).Select(_ => new CountingQuoteString()).ToArray();
+        LiteralToken source = new(leaves.SelectMany(leaf => new Token[] { leaf, leaf }), true, '\\');
+
+        using (ResolutionGuard.Scope scope = ResolutionGuard.Enter(source))
+        {
+            using ResolutionGuard.CallbackScope callback = ResolutionGuard.Callback();
+        }
+        Assert.All(leaves, leaf => Assert.Equal(3, leaf.Reads));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -799,6 +813,20 @@ public class ResolutionGuardTests
     private sealed class CustomQuoteString() : StringToken("before"), IQuotableToken
     {
         public char? QuoteChar { get; set; }
+    }
+
+    private sealed class CountingQuoteString() : StringToken(""), IQuotableToken
+    {
+        internal int Reads { get; private set; }
+
+        public char? QuoteChar
+        {
+            get { Reads++; return null; }
+            set { }
+        }
+
+        public override bool Equals(object? obj) => obj is CountingQuoteString;
+        public override int GetHashCode() => 0;
     }
 
     private sealed class UnreadableQuoteString() : StringToken("unused"), IQuotableToken
