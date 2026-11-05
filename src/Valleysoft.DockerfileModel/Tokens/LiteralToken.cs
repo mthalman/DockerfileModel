@@ -12,7 +12,8 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     private readonly bool preserveRawValue;
     private TextParser<(IEnumerable<Token> Tokens, char? QuoteChar)>? wordParser;
     private char? quoteChar;
-    private HashSet<Token>? resolvedJsonLiterals;
+    private Dictionary<Token, int>? resolvedJsonLiterals;
+    private List<Token>.Enumerator resolvedJsonVersion;
 
     /// <summary>Parses literal syntax using the supplied escape character and variable-recognition policy.</summary>
     /// <remarks>The escape context and variable policy are retained for later value updates.</remarks>
@@ -116,6 +117,7 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
     internal void OnValueReplaced()
     {
         resolvedJsonLiterals = null;
+        resolvedJsonVersion = default;
     }
 
     // Bound delegates identify overrides without trim-unsafe member lookup.
@@ -232,23 +234,85 @@ public class LiteralToken : AggregateToken, IQuotableValueToken
         return true;
     }
 
-    internal bool IsResolvedJsonLiteral(Token token) => resolvedJsonLiterals?.Contains(token) == true;
+    internal bool IsResolvedJsonLiteral(Token token) => resolvedJsonLiterals?.ContainsKey(token) == true;
 
     internal void PruneResolvedJsonLiterals()
     {
-        resolvedJsonLiterals?.IntersectWith(Tokens);
-        if (resolvedJsonLiterals?.Count == 0)
+        if (resolvedJsonLiterals is null)
         {
-            resolvedJsonLiterals = null;
+            return;
         }
+        RecordResolvedJsonLiterals(Array.Empty<Token>());
     }
 
     internal void RecordResolvedJsonLiterals(IEnumerable<Token> literals)
     {
         // Primitive edits must not reactivate dollars or quotes inserted by an earlier substitution.
-        PruneResolvedJsonLiterals();
-        resolvedJsonLiterals ??= new HashSet<Token>(ReferenceComparer<Token>.Instance);
-        resolvedJsonLiterals.UnionWith(literals);
+        HashSet<Token> additions = new(literals, ReferenceComparer<Token>.Instance);
+        Dictionary<Token, int> retained = new(ReferenceComparer<Token>.Instance);
+        foreach (Token child in Tokens)
+        {
+            if (additions.Contains(child) || IsResolvedJsonLiteral(child))
+            {
+                retained.TryGetValue(child, out int count);
+                retained[child] = count + 1;
+            }
+        }
+        resolvedJsonLiterals = retained.Count == 0 ? null : retained;
+        resolvedJsonVersion = ResolutionChildren.GetEnumerator();
+    }
+
+    internal void RecordResolvedJsonLiteral(Token token)
+    {
+        resolvedJsonLiterals ??= new(ReferenceComparer<Token>.Instance);
+        resolvedJsonLiterals[token] = 1;
+        resolvedJsonVersion = ResolutionChildren.GetEnumerator();
+    }
+
+    internal void BeforeResolvedJsonChildEdit()
+    {
+        if (resolvedJsonLiterals is null)
+        {
+            return;
+        }
+        try
+        {
+            resolvedJsonVersion.MoveNext();
+        }
+        catch (InvalidOperationException)
+        {
+            // Protected raw-list edits bypass occurrence counters; reconcile only when their version changed.
+            PruneResolvedJsonLiterals();
+        }
+    }
+
+    internal void ResolvedJsonChildInserted(Token token)
+    {
+        if (resolvedJsonLiterals?.TryGetValue(token, out int count) == true)
+        {
+            resolvedJsonLiterals[token] = count + 1;
+        }
+        resolvedJsonVersion = ResolutionChildren.GetEnumerator();
+    }
+
+    internal void ResolvedJsonChildRemoved(Token token)
+    {
+        if (resolvedJsonLiterals?.TryGetValue(token, out int count) == true)
+        {
+            if (count > 1)
+            {
+                resolvedJsonLiterals[token] = count - 1;
+            }
+            else
+            {
+                resolvedJsonLiterals.Remove(token);
+                if (resolvedJsonLiterals.Count == 0)
+                {
+                    resolvedJsonLiterals = null;
+                }
+            }
+        }
+        resolvedJsonVersion = ResolutionChildren.GetEnumerator();
     }
 
     protected virtual IEnumerable<Token> GetInnerTokens(string value)

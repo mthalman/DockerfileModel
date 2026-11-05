@@ -199,8 +199,12 @@ This tracking also covers removals through custom aggregates that delegate to
 the ordinary resolver. Tracking subscriptions end when resolution returns or throws.
 Whole-path inline publication during synchronous reentrant resolution also
 updates active source locations, including paths whose decoded references split
-an original string token. Reused substitutions retain their semantic values
-rather than expanding or JSON-escaping their encoded spelling again.
+an original string token or span multiple source tokens. Active calls share
+occurrence identities rather than treating a child index as a permanent source
+identity. Grouped source projections follow later publications, including those
+started after an earlier reentrant call returns. Reused substitutions retain
+their semantic values rather than expanding or JSON-escaping their encoded spelling again.
+This includes custom literal and aggregate results as well as variable references.
 Custom occurrences retain their source anchors even when their physical token
 boundaries split a decoded JSON character.
 Shared modifiers reuse the semantic values of earlier inline substitutions in
@@ -276,6 +280,9 @@ substitution protection; flattening it during inline publication preserves that
 protection too.
 Successful path replacement also releases tracking references to detached
 substitutions; rejected edits retain the existing tracking state.
+Individual child edits maintain substitution occurrence counts, preserving
+protection for retained aliases without rescanning the path after every
+incremental publication.
 If a JSON escape spans untouched text and an inline substitution, its decoded
 character remains literal and cannot introduce variable, quote, or escape syntax.
 Collection adoption and scalar token replacement bind direct token resolution

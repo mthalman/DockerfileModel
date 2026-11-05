@@ -45,8 +45,45 @@ public abstract class AggregateToken : Token
 
     internal IReadOnlyList<Token> ResolutionChildren => tokenList;
     internal event Action<int>? ResolutionChildRemoved;
-    internal event Action<IReadOnlyList<Token>, IReadOnlyDictionary<int, Token>?>? ResolutionChildrenReplacing;
-    internal bool HasMultipleResolutionObservers => ResolutionChildrenReplacing?.GetInvocationList().Length > 1;
+    internal event Action<IReadOnlyList<Token>, JsonStringVariableResolver.ChildPublications?>? ResolutionChildrenReplacing;
+
+    internal void RemoveResolvedChild(int index)
+    {
+        ResolutionGuard.BeforeChildPublication(this, index);
+        (this as LiteralToken)?.BeforeResolvedJsonChildEdit();
+        Token removed = TokenList[index];
+        TokenList.RemoveAt(index);
+        (this as LiteralToken)?.ResolvedJsonChildRemoved(removed);
+        ResolutionGuard.ChildPublished(this, index, null);
+        ResolutionChildRemoved?.Invoke(index);
+    }
+
+    internal void ReplaceResolvedChild(int index, Token replacement)
+    {
+        ResolutionGuard.BeforeChildPublication(this, index);
+        (this as LiteralToken)?.BeforeResolvedJsonChildEdit();
+        Token previous = TokenList[index];
+        TokenList[index] = replacement;
+        if (!ReferenceEquals(previous, replacement) && this is LiteralToken literal)
+        {
+            literal.ResolvedJsonChildRemoved(previous);
+            literal.ResolvedJsonChildInserted(replacement);
+        }
+        ResolutionGuard.ChildPublished(this, index, replacement);
+    }
+
+    internal void ReplaceResolvedTokens(IEnumerable<Token> tokens, JsonStringVariableResolver.ChildPublications? publications = null)
+    {
+        ResolutionGuard.BeforeChildrenPublication(this);
+        if (ResolutionChildrenReplacing is { } replacing)
+        {
+            Token[] incoming = tokens.ToArray();
+            replacing(incoming, publications);
+            tokens = incoming;
+        }
+        ReplaceChildren(tokens);
+        ResolutionGuard.ChildrenPublished(this);
+    }
 
     /// <summary>Gets the live ordered child sequence, not a snapshot or a deep copy.</summary>
     /// <remarks>Structural edits during enumeration can invalidate the enumerator.</remarks>
@@ -64,36 +101,38 @@ public abstract class AggregateToken : Token
         protected override void InsertItem(int index, Token item)
         {
             ResolutionGuard.BeforeMutation(owner);
+            (owner as LiteralToken)?.BeforeResolvedJsonChildEdit();
             base.InsertItem(index, item);
+            (owner as LiteralToken)?.ResolvedJsonChildInserted(item);
         }
 
         protected override void SetItem(int index, Token item)
         {
             ResolutionGuard.BeforeMutation(owner);
+            (owner as LiteralToken)?.BeforeResolvedJsonChildEdit();
+            Token previous = this[index];
             base.SetItem(index, item);
-            PruneSubstitutions();
+            if (!ReferenceEquals(previous, item) && owner is LiteralToken literal)
+            {
+                literal.ResolvedJsonChildRemoved(previous);
+                literal.ResolvedJsonChildInserted(item);
+            }
         }
 
         protected override void RemoveItem(int index)
         {
             ResolutionGuard.BeforeMutation(owner);
+            (owner as LiteralToken)?.BeforeResolvedJsonChildEdit();
+            Token removed = this[index];
             base.RemoveItem(index);
-            PruneSubstitutions();
+            (owner as LiteralToken)?.ResolvedJsonChildRemoved(removed);
         }
 
         protected override void ClearItems()
         {
             ResolutionGuard.BeforeMutation(owner);
             base.ClearItems();
-            PruneSubstitutions();
-        }
-
-        private void PruneSubstitutions()
-        {
-            if (owner is LiteralToken literal)
-            {
-                literal.PruneResolvedJsonLiterals();
-            }
+            (owner as LiteralToken)?.OnValueReplaced();
         }
     }
 
@@ -274,34 +313,6 @@ public abstract class AggregateToken : Token
     {
         TokenList.Clear();
         TokenList.AddRange(tokens);
-    }
-
-    internal void RemoveResolvedChild(int index)
-    {
-        ResolutionGuard.BeforeChildPublication(this, index);
-        TokenList.RemoveAt(index);
-        ResolutionGuard.ChildPublished(this, index, null);
-        ResolutionChildRemoved?.Invoke(index);
-    }
-
-    internal void ReplaceResolvedChild(int index, Token replacement)
-    {
-        ResolutionGuard.BeforeChildPublication(this, index);
-        TokenList[index] = replacement;
-        ResolutionGuard.ChildPublished(this, index, replacement);
-    }
-
-    internal void ReplaceResolvedTokens(IEnumerable<Token> tokens, IReadOnlyDictionary<int, Token>? publications = null)
-    {
-        ResolutionGuard.BeforeChildrenPublication(this);
-        if (ResolutionChildrenReplacing is { } replacing)
-        {
-            Token[] incoming = tokens.ToArray();
-            replacing(incoming, publications);
-            tokens = incoming;
-        }
-        ReplaceChildren(tokens);
-        ResolutionGuard.ChildrenPublished(this);
     }
 
     internal void ReplaceResolvedVariable(int index, string? value,
