@@ -217,6 +217,59 @@ public class ResolutionGuardTests
         Assert.Throws<InvalidOperationException>(snapshot.Verify);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResolvedStringSnapshotsPreserveCurrentValueAndProvenanceDuringCallbacks(bool edited)
+    {
+        ResolvedStringToken original = new("\"a b\"", "a b", null, false, '\\');
+        if (edited) original.Value = "edited";
+        Container source = new(original, new VariableRefToken("ROOT"));
+        ResolvedStringToken snapshot;
+        using (ResolutionGuard.Enter(source))
+        using (ResolutionGuard.Callback())
+        {
+            snapshot = original.CreateSnapshot();
+            Assert.Throws<InvalidOperationException>(() => original.Value = "inside");
+            Assert.Equal(edited ? "edited" : "\"a b\"", original.Value);
+        }
+        original.Value = "outside";
+
+        Assert.Equal(edited ? "edited" : "\"a b\"", snapshot.Value);
+        Assert.Equal("a b", snapshot.SemanticValue);
+        Assert.Equal(!edited, snapshot.MatchesContext(null, false, '\\'));
+        Assert.False(snapshot.MatchesContext('"', false, '\\'));
+        Assert.False(snapshot.MatchesContext(null, true, '\\'));
+        Assert.False(snapshot.MatchesContext(null, false, '`'));
+    }
+
+    [Fact]
+    public void ResolvedStringSnapshotsAllocateLinearlyDuringCallbacks()
+    {
+        long Measure(int count)
+        {
+            Container source = new(Enumerable.Range(0, count)
+                .Select(_ => (Token)new VariableRefToken("ROOT")).ToArray());
+            ResolvedStringToken original = new("syntax", "semantic", null, false, '\\');
+            using (ResolutionGuard.Enter(source))
+            using (ResolutionGuard.Callback())
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < count; i++)
+                {
+                    Assert.Equal("semantic", original.CreateSnapshot().SemanticValue);
+                }
+                return GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+        }
+
+        Measure(16);
+        long small = Measure(128);
+        long large = Measure(512);
+
+        Assert.InRange(large, 0, 4 * small + 250_000);
+    }
+
     [Fact]
     public void TokensExposeACachedLiveEditableViewRatherThanTheRawList()
     {

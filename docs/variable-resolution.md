@@ -70,6 +70,11 @@ when each serialized declaration corresponds to one parsed declaration. If a
 default serializer merges or splits declarations, the parsed declarations are
 authoritative instead.
 
+In this non-inline path, each declaration's effective name is consumed before
+its override lookup or default resolution. A callback changing external name
+serializer state afterward does not move that declaration's binding to another
+name; later declarations still observe those changes.
+
 For any `ArgInstruction` subclass, the complete serialized instruction is
 authoritative in non-inline mode. Original declaration resolvers are not invoked
 in that mode, even if the subclass delegates serialization to its base class.

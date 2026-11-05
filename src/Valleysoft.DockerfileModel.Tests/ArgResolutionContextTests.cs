@@ -1954,6 +1954,74 @@ public class ArgResolutionContextTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void NonInlineStageBindingsRetainConsumedNamesAcrossCallbacks(bool overrideValue)
+    {
+        NameChangingDictionary variables = new(overrideValue) { ["NAME"] = "A" };
+        if (overrideValue) variables["A"] = "override";
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=before\nENV RESULT=$A/$B");
+        ArgDeclaration declaration = document.Items.OfType<ArgInstruction>().Single().ArgTokens[0];
+        declaration.NameToken = new StateDependentName(_ => variables["NAME"]!);
+        if (!overrideValue)
+        {
+            declaration.ValueToken = new SerializedLiteral("before", "computed", _ => variables["NAME"] = "B");
+        }
+        Token[] originalNameTokens = declaration.NameToken.Tokens.ToArray();
+        Token[] originalDefaultTokens = declaration.ValueToken!.Tokens.ToArray();
+
+        Assert.Equal(overrideValue ? "ENV RESULT=override/" : "ENV RESULT=computed/",
+            document.ResolveVariables(variables));
+        Assert.Equal("B", variables["NAME"]);
+        Assert.Equal(originalNameTokens, declaration.NameToken.Tokens);
+        Assert.Equal(originalDefaultTokens, declaration.ValueToken.Tokens);
+    }
+
+    [Fact]
+    public void NonInlineBareDeclarationsImportTheConsumedGlobalName()
+    {
+        NameChangingDictionary variables = new(true, skipLookups: 1) { ["NAME"] = "A" };
+        Dockerfile document = Dockerfile.Parse(
+            "ARG A=first\nARG B=second\nFROM alpine\nARG A\nENV RESULT=$A/$B");
+        ArgDeclaration declaration = document.Items.OfType<ArgInstruction>().Last().ArgTokens[0];
+        declaration.NameToken = new StateDependentName(_ => variables["NAME"]!);
+
+        Assert.Equal("ENV RESULT=first/", document.ResolveVariables(variables));
+        Assert.Equal("B", variables["NAME"]);
+    }
+
+    [Fact]
+    public void NonInlineNameCaptureHandlesDeepOpaqueBackingTrees()
+    {
+        Token child = new StringToken("hidden");
+        for (int i = 0; i < 30_000; i++)
+        {
+            child = new LiteralToken(new[] { child }, true, '\\');
+        }
+        StateDependentName name = new(_ => "A");
+        IList<Token> children = Assert.IsAssignableFrom<IList<Token>>(name.Tokens);
+        children.Add(child);
+        children.Add(child);
+        Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=value\nENV RESULT=$A");
+        document.Items.OfType<ArgInstruction>().Single().ArgTokens[0].NameToken = name;
+
+        Assert.Equal("ENV RESULT=value", document.ResolveVariables());
+        Assert.Equal("A", name.Value);
+        Assert.Same(child, children[1]);
+        Assert.Same(child, children[2]);
+    }
+
+    private sealed class NameChangingDictionary(bool changeDuringLookup, int skipLookups = 0)
+        : Dictionary<string, string?>, IDictionary<string, string?>
+    {
+        public new bool TryGetValue(string key, out string? value)
+        {
+            if (changeDuringLookup && key == "A" && skipLookups-- == 0) this["NAME"] = "B";
+            return base.TryGetValue(key, out value);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ProjectedNamesRetainBaselineDefaultResolution(bool updateInline)
     {
         Dockerfile document = Dockerfile.Parse("FROM alpine\nARG A=placeholder\nENV RESULT=$A/$B");

@@ -320,19 +320,21 @@ public class Dockerfile : IConstructContainer
                 }
             }
             hasConsumerCallbacks |= customName;
+            // Preserve inline live-name timing; detached resolution keeps the name consumed before callbacks.
             if (ResolutionGuard.TryGetValue(variableOverrides, name, out string? overrideArgValue))
             {
-                SetArgBinding(stageArgs, arg.Name, overrideArgValue);
+                SetArgBinding(stageArgs, resolvedInstruction == instruction ? arg.Name : name, overrideArgValue);
             }
             else if (arg.HasAssignmentOperator)
             {
                 string value = ResolveArgDefault(arg, escapeChar, stageArgs, argOptions,
                     resolvedArgs[i], recordConsumerCallback);
-                stageArgs[arg.Name] = value;
+                stageArgs[resolvedInstruction == instruction ? arg.Name : name] = value;
             }
-            else if (globalArgs.TryGetValue(arg.Name, out string? globalArg) && globalArg is not null)
+            else if (globalArgs.TryGetValue(resolvedInstruction == instruction ? arg.Name : name, out string? globalArg) &&
+                globalArg is not null)
             {
-                stageArgs[arg.Name] = globalArg;
+                stageArgs[resolvedInstruction == instruction ? arg.Name : name] = globalArg;
             }
         }
 
@@ -365,17 +367,19 @@ public class Dockerfile : IConstructContainer
             quote = name?.QuoteChar;
             List<(Token Source, string? Value, Token[]? Children)> captured = new();
             HashSet<Token> visited = new(ReferenceComparer<Token>.Instance);
-            void Capture(Token token)
+            Stack<Token> pending = new();
+            if (name is not null) pending.Push(name);
+            while (pending.Count > 0)
             {
-                if (!visited.Add(token)) return;
+                Token token = pending.Pop();
+                if (!visited.Add(token)) continue;
                 Token[]? children = (token as AggregateToken)?.Tokens.ToArray();
                 captured.Add((token, (token as PrimitiveToken)?.Value, children));
                 if (children is not null)
                 {
-                    foreach (Token child in children) Capture(child);
+                    for (int i = children.Length - 1; i >= 0; i--) pending.Push(children[i]);
                 }
             }
-            if (name is not null) Capture(name);
             descendants = captured.ToArray();
         }
 

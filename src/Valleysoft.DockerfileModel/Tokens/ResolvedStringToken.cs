@@ -8,7 +8,13 @@ internal sealed class ResolvedStringToken : StringToken
     private readonly bool escaped;
     private readonly char escapeChar;
 
-    public ResolvedStringToken(string syntax, string semanticValue, char? quoteChar, bool escaped, char escapeChar) : base(syntax)
+    public ResolvedStringToken(string syntax, string semanticValue, char? quoteChar, bool escaped, char escapeChar)
+        : this(syntax, semanticValue, quoteChar, escaped, escapeChar, syntax)
+    {
+    }
+
+    private ResolvedStringToken(string syntax, string semanticValue, char? quoteChar, bool escaped, char escapeChar,
+        string value) : base(value)
     {
         this.syntax = syntax;
         this.quoteChar = quoteChar;
@@ -20,7 +26,7 @@ internal sealed class ResolvedStringToken : StringToken
     public string SemanticValue { get; }
 
     internal ResolvedStringToken CreateSnapshot() =>
-        new(syntax, SemanticValue, quoteChar, escaped, escapeChar) { Value = this.Value };
+        new(syntax, SemanticValue, quoteChar, escaped, escapeChar, Value);
 
     public bool MatchesContext(char? quote, bool isEscaped, char currentEscapeChar) =>
         Value == syntax && quoteChar == quote && escaped == isEscaped && escapeChar == currentEscapeChar;
