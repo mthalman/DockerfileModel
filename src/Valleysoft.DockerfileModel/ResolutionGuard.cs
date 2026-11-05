@@ -15,7 +15,7 @@ internal static class ResolutionGuard
         State state = GetState(out bool outermost);
         int roots = state.Roots.Count;
         int documents = state.Documents.Count;
-        state.Roots.Add(source);
+        state.AddRoot(source);
         return new Scope(state, roots, documents, outermost);
     }
 
@@ -25,7 +25,10 @@ internal static class ResolutionGuard
         int roots = state.Roots.Count;
         int documents = state.Documents.Count;
         state.Documents.Add(source);
-        state.Roots.AddRange(source.RawItems);
+        foreach (DockerfileConstruct item in source.RawItems)
+        {
+            state.AddRoot(item);
+        }
         return new Scope(state, roots, documents, outermost);
     }
 
@@ -186,6 +189,7 @@ internal static class ResolutionGuard
         private List<Token>.Enumerator structureVersion;
         private readonly QuoteSnapshot? quote;
         private List<QuoteSnapshot>? childQuotes;
+        private HashSet<Token>? quotedChildren;
         private List<Token>? retiredPrimitives;
 
         internal bool ContainsPrimitive(AggregateToken owner, Token token) =>
@@ -226,7 +230,7 @@ internal static class ResolutionGuard
         internal void CaptureChildQuote(Token child)
         {
             if (child is AggregateToken || child is not IQuotableToken quotable ||
-                childQuotes?.Any(snapshot => ReferenceEquals(snapshot.Token, quotable)) == true)
+                !(quotedChildren ??= new(ReferenceComparer<Token>.Instance)).Add(child))
             {
                 return;
             }
@@ -290,9 +294,18 @@ internal static class ResolutionGuard
         internal Dictionary<AggregateToken, Snapshot>? Snapshots { get; private set; }
         private readonly Dictionary<AggregateToken, List<AggregateToken>> rootMembers =
             new(ReferenceComparer<AggregateToken>.Instance);
+        private readonly Dictionary<AggregateToken, int> rootReferences =
+            new(ReferenceComparer<AggregateToken>.Instance);
         private readonly HashSet<Snapshot> boundarySnapshots = new();
         private int capturedRoots;
         internal int CallbackDepth { get; set; }
+
+        internal void AddRoot(AggregateToken source)
+        {
+            Roots.Add(source);
+            rootReferences.TryGetValue(source, out int references);
+            rootReferences[source] = references + 1;
+        }
 
         internal bool IsProtected(Token token)
         {
@@ -396,8 +409,14 @@ internal static class ResolutionGuard
             {
                 AggregateToken root = Roots[index];
                 Roots.RemoveAt(index);
-                if (rootMembers.TryGetValue(root, out List<AggregateToken>? members) &&
-                    !Roots.Any(candidate => ReferenceEquals(candidate, root)))
+                int references = rootReferences[root] - 1;
+                if (references > 0)
+                {
+                    rootReferences[root] = references;
+                    continue;
+                }
+                rootReferences.Remove(root);
+                if (rootMembers.TryGetValue(root, out List<AggregateToken>? members))
                 {
                     foreach (AggregateToken member in members)
                     {

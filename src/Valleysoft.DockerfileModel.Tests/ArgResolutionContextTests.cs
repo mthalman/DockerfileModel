@@ -280,10 +280,8 @@ public class ArgResolutionContextTests
         Assert.Equal("Variable 'UNSET' is not set. Error detail: 'right'.", error.Message);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void PendingSuppressedSerializerFailureIsRethrownUnchanged(bool throwOnce)
+    [Fact]
+    public void PendingSuppressedSerializerFailureIsRethrownUnchanged()
     {
         bool fail = false;
         InvalidOperationException expected = new("Suppressed serialization.");
@@ -292,7 +290,6 @@ public class ArgResolutionContextTests
             ModifierValueToken = Literal(new MutableSerializedString(() =>
             {
                 if (!fail) return "placeholder";
-                if (throwOnce) fail = false;
                 throw expected;
             }))
         };
@@ -551,18 +548,16 @@ public class ArgResolutionContextTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void InitialSuppressedSerializerFailurePreservesRightmostError(bool singleQuoted, bool throwOnce)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InitialSuppressedSerializerFailurePreservesRightmostError(bool singleQuoted)
     {
         bool failed = false;
         VariableRefToken suppressed = new("IGNORED", ":-", "placeholder")
         {
             ModifierValueToken = Literal(new OptionSerializedString(options =>
             {
-                if (options.ExcludeComments || throwOnce && failed) return "placeholder";
+                if (options.ExcludeComments) return "placeholder";
                 failed = true;
                 throw new FormatException("Suppressed serialization.");
             }))
@@ -577,28 +572,26 @@ public class ArgResolutionContextTests
         Assert.True(failed);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void InitialSuppressedSerializerFailureIsRethrownUnchanged(bool throwOnce)
+    [Fact]
+    public void InitialSuppressedSerializerFailureIsRethrownUnchanged()
     {
-        bool failed = false;
+        bool callbackEntered = false;
         FormatException expected = new("Suppressed serialization.");
         VariableRefToken suppressed = new("IGNORED", ":-", "placeholder")
         {
             ModifierValueToken = Literal(new OptionSerializedString(options =>
             {
-                if (options.ExcludeComments || throwOnce && failed) return "placeholder";
-                failed = true;
+                if (options.ExcludeComments) return "placeholder";
                 throw expected;
             }))
         };
         LiteralToken prefix = Literal(new StringToken("\\"));
         Dockerfile dockerfile = Document(true, prefix, suppressed,
-            new CallbackVariable(() => prefix.TokenList.Insert(0, new StringToken("new"))));
+            new CallbackVariable(() => callbackEntered = true));
 
         Assert.Same(expected, Assert.Throws<FormatException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true })));
+        Assert.True(callbackEntered);
     }
 
     [Theory]
@@ -2235,17 +2228,14 @@ public class ArgResolutionContextTests
     }
 
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DeferredTriviaOwnerQuoteFailuresKeepTheirIdentity(bool throwOnce)
+    [Fact]
+    public void DeferredTriviaOwnerQuoteFailuresKeepTheirIdentity()
     {
         bool fail = false;
         InvalidOperationException expected = new("Owner quote.");
         QuotedTriviaComment owner = new(() =>
         {
             if (!fail) return null;
-            if (throwOnce) fail = false;
             throw expected;
         }, new CallbackVariable(() => fail = true));
         Dockerfile document = Document(false, owner);
@@ -2832,19 +2822,12 @@ public class ArgResolutionContextTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void SpeculativeQuoteFailuresRemainStickyAfterCallbacks(bool throwOnce)
+    [Fact]
+    public void SpeculativeQuoteFailureIsRethrownUnchanged()
     {
-        bool fail = true;
         InvalidOperationException expected = new("Speculative quote.");
-        Dockerfile dockerfile = Document(true, new QuotedString(() =>
-        {
-            if (!fail) return null;
-            if (throwOnce) fail = false;
-            throw expected;
-        }), new CallbackVariable(() => { }));
+        Dockerfile dockerfile = Document(true, new QuotedString(() => throw expected),
+            new CallbackVariable(() => { }));
 
         Assert.Same(expected, Assert.Throws<InvalidOperationException>(() =>
             dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = true })));

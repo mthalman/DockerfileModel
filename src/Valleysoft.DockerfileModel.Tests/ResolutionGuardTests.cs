@@ -149,6 +149,74 @@ public class ResolutionGuardTests
         Assert.Equal("", source.ResolveVariables('\\'));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(128)]
+    public void RepeatedRootScopesRetainProtectionUntilTheirLastRelease(int aliases)
+    {
+        ArgInstruction shared = new("X", "before");
+        Dockerfile document = new(Enumerable.Repeat(shared, aliases));
+        using (ResolutionGuard.Enter(document))
+        {
+            using (ResolutionGuard.Callback())
+            {
+                for (int i = 0; i < aliases; i++)
+                {
+                    using (ResolutionGuard.Enter(shared))
+                    using (ResolutionGuard.Callback())
+                    {
+                        Assert.Throws<InvalidOperationException>(() => shared.ArgTokens[0].Value = "inside");
+                    }
+                    Assert.Throws<InvalidOperationException>(() => shared.ArgTokens[0].Value = "outside");
+                }
+            }
+        }
+
+        shared.ArgTokens[0].Value = "released";
+        Assert.Equal("released", shared.ArgTokens[0].Value);
+    }
+
+    [Fact]
+    public void RootScopeReferencesUseIdentityRatherThanConsumerEquality()
+    {
+        EqualArg first = new("FIRST");
+        EqualArg second = new("SECOND");
+        using (ResolutionGuard.Enter(first))
+        using (ResolutionGuard.Callback())
+        {
+            using (ResolutionGuard.Enter(second))
+            using (ResolutionGuard.Callback())
+            {
+                Assert.Throws<InvalidOperationException>(() => second.ArgTokens[0].Value = "inside");
+            }
+            second.ArgTokens[0].Value = "released";
+            Assert.Throws<InvalidOperationException>(() => first.ArgTokens[0].Value = "inside");
+        }
+        first.ArgTokens[0].Value = "released";
+    }
+
+    [Fact]
+    public void QuotableLeafBaselinesDeduplicateAliasesByReferenceIdentity()
+    {
+        CountingQuoteString first = new();
+        CountingQuoteString second = new();
+        LiteralToken owner = new(new Token[] { first, second, first }, true, '\\');
+        ResolutionGuard.Snapshot snapshot = new(owner, owner);
+        foreach (Token child in owner.Tokens)
+        {
+            snapshot.CaptureChildQuote(child);
+        }
+
+        snapshot.CaptureQuote();
+        Assert.Equal(1, first.QuoteReads);
+        Assert.Equal(1, second.QuoteReads);
+        snapshot.Verify();
+        Assert.Equal(2, first.QuoteReads);
+        Assert.Equal(2, second.QuoteReads);
+        second.QuoteChar = '"';
+        Assert.Throws<InvalidOperationException>(snapshot.Verify);
+    }
+
     [Fact]
     public void TokensExposeACachedLiveEditableViewRatherThanTheRawList()
     {
@@ -590,6 +658,21 @@ public class ResolutionGuardTests
     }
 
     private sealed class Container(params Token[] children) : AggregateToken(children);
+
+    private sealed class EqualArg(string name) : ArgInstruction(name, "before")
+    {
+        public override bool Equals(object? obj) => obj is EqualArg;
+        public override int GetHashCode() => 0;
+    }
+
+    private sealed class CountingQuoteString() : StringToken("before"), IQuotableToken
+    {
+        private char? quote;
+        public int QuoteReads { get; private set; }
+        public char? QuoteChar { get { QuoteReads++; return quote; } set => quote = value; }
+        public override bool Equals(object? obj) => obj is CountingQuoteString;
+        public override int GetHashCode() => 0;
+    }
 
     private sealed class MutableLiteral(params Token[] children) : LiteralToken(children, true, '\\')
     {
