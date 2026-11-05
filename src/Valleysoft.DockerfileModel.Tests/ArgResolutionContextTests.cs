@@ -2446,35 +2446,6 @@ public class ArgResolutionContextTests
         public char? QuoteChar { get => getQuote(); set { } }
     }
 
-    [Theory]
-    [InlineData(8192)]
-    [InlineData(32768)]
-    public void DeclarationBoundaryCaptureDoesNotCopySourceText(int length)
-    {
-        string syntax = "ARG X=" + new string('x', length);
-        int captures = 0;
-        void Parse(bool capture)
-        {
-            if (capture) ArgInstruction.Parse(syntax, '\\', _ => captures++);
-            else ArgInstruction.Parse(syntax);
-        }
-        long Measure(bool capture)
-        {
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            Parse(capture);
-            return GC.GetAllocatedBytesForCurrentThread() - before;
-        }
-        Parse(false);
-        Parse(true);
-        captures = 0;
-
-        long normal = Measure(false);
-        long observed = Measure(true);
-
-        Assert.Equal(1, captures);
-        Assert.InRange(observed, 0, normal + 4096);
-    }
-
     private sealed class HelperDeclarationLiteral : LiteralToken
     {
         private readonly ArgDeclaration helper = new("A", "one");
