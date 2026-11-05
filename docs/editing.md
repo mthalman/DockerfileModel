@@ -205,6 +205,11 @@ identity. Grouped source projections follow later publications, including those
 started after an earlier reentrant call returns. Reused substitutions retain
 their semantic values rather than expanding or JSON-escaping their encoded spelling again.
 This includes custom literal and aggregate results as well as variable references.
+Bindings inside flattened native containers follow the published fragments too.
+Resolving a detached container again uses its own remaining children, without
+redirecting active bindings away from the path's published value.
+Partially retained source ranges reuse their current published fragments;
+mixed inline and non-inline replacements do not restore the original variable syntax.
 Custom occurrences retain their source anchors even when their physical token
 boundaries split a decoded JSON character.
 Shared modifiers reuse the semantic values of earlier inline substitutions in
