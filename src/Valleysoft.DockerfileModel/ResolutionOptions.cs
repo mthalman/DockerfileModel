@@ -68,7 +68,7 @@ public class ResolutionOptions
         public static bool ContainsCurrentReference(Tokens.AggregateToken root, Tokens.VariableRefToken variable,
             ResolutionOptions options, char escapeChar, IDictionary<string, string?> variables)
         {
-            // Validate live positions because callbacks can move or detach an owner.
+            // Library inline publication can detach or replace a resolved reference.
             Tokens.Token child = variable;
             for (ModifierResolutionTraversal? traversal = Current.Value;
                 traversal is not null; traversal = traversal.parent)
@@ -156,13 +156,11 @@ public class ResolutionOptions
             lock (ownershipLock)
             {
                 if (!ReferenceEquals(owner, root) || resolver is null) return false;
-                if (ownershipPaths is not null && ownershipPaths.TryGetValue(variable, out OwnershipPath? cached) &&
-                    cached.Matches(root, variable))
-                {
-                    return true;
-                }
                 if (ownershipPaths is not null)
                 {
+                    // Library publications can remove references, but cannot introduce new members.
+                    if (!ownershipPaths.TryGetValue(variable, out OwnershipPath? cached)) return false;
+                    if (cached.Matches(root, variable)) return true;
                     OwnershipPath? found = FindOwnershipPath(root, variable);
                     if (found is not null)
                     {

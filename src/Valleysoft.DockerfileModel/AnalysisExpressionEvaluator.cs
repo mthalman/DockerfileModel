@@ -75,8 +75,7 @@ internal static class AnalysisExpressionEvaluator
         Action? onConsumerSerialization = null, Func<bool>? shouldRecordSyntax = null,
         bool resolveTriviaVariables = true)
     {
-        using PrimitiveToken.ValueMutationScope valueChanges = new();
-        ResolutionSnapshot snapshot = new(token, resolveAggregate is not null, valueChanges,
+        ResolutionSnapshot snapshot = new(token, resolveAggregate is not null,
             getSerializationVersion: getCustomResolutionVersion, onConsumerSerialization: onConsumerSerialization,
             resolveTriviaVariables: resolveTriviaVariables);
         List<ResolutionSnapshot> references = new();
@@ -100,7 +99,6 @@ internal static class AnalysisExpressionEvaluator
             ResolutionSnapshot reference = references[i];
             reference.SerializationFailure?.Throw();
             reference.PendingQuoteFailure?.Throw();
-            reference.RetireConsumedValues();
             int version = getCustomResolutionVersion?.Invoke() ?? 0;
             bool checkPendingSyntax;
             if (reference.IsConsumerLeaf || reference.IsSuppressedReference)
@@ -170,7 +168,6 @@ internal static class AnalysisExpressionEvaluator
     {
         private readonly bool resolveCustomLiterals;
         private readonly bool resolveTriviaVariables;
-        private readonly PrimitiveToken.ValueMutationScope valueChanges;
         private readonly Func<int>? getSerializationVersion;
         private readonly Action? onConsumerSerialization;
         private readonly string? primitiveValue;
@@ -183,11 +180,9 @@ internal static class AnalysisExpressionEvaluator
         private int index;
         private List<ResolutionSnapshot> children = new();
         private SyntaxChildren? syntaxChildren;
-        private bool tracksPrimitive;
-        private int trackedChildCount = Int32.MaxValue;
 
         public ResolutionSnapshot(Token source, bool resolveCustomLiterals,
-            PrimitiveToken.ValueMutationScope valueChanges, ResolutionSnapshot? previous = null,
+            ResolutionSnapshot? previous = null,
             int serializationVersion = 0, Func<int>? getSerializationVersion = null,
             Action? onConsumerSerialization = null,
             Dictionary<Token, Queue<ResolutionSnapshot>>? pendingFailures = null,
@@ -197,7 +192,6 @@ internal static class AnalysisExpressionEvaluator
             IsIgnoredTrivia = source is LineContinuationToken or CommentToken or NewLineToken;
             this.resolveCustomLiterals = resolveCustomLiterals;
             this.resolveTriviaVariables = resolveTriviaVariables;
-            this.valueChanges = valueChanges;
             this.getSerializationVersion = getSerializationVersion;
             this.onConsumerSerialization = onConsumerSerialization;
             this.serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
@@ -240,12 +234,6 @@ internal static class AnalysisExpressionEvaluator
             if (source is not AggregateToken)
             {
                 primitiveValue = (source as PrimitiveToken)?.Value;
-                if (source is PrimitiveToken primitive and not IQuotableToken &&
-                    source.GetType().Assembly == typeof(Token).Assembly)
-                {
-                    valueChanges.Track(primitive);
-                    tracksPrimitive = true;
-                }
                 if (IsIgnoredTrivia && !IsConsumerLeaf)
                 {
                     serializedText = primitiveValue;
@@ -289,7 +277,7 @@ internal static class AnalysisExpressionEvaluator
                 {
                     ResolutionSnapshot? previousChild = previous is not null && childIndex < previous.children.Count
                         ? previous.children[childIndex] : null;
-                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, valueChanges, previousChild,
+                    AddChild(new ResolutionSnapshot(child, resolveCustomLiterals, previousChild,
                         serializationVersion, getSerializationVersion, onConsumerSerialization, pendingFailures,
                         resolveTriviaVariables));
                     childIndex++;
@@ -318,16 +306,18 @@ internal static class AnalysisExpressionEvaluator
         public (char? QuoteChar, bool Escaped) Context { get; set; }
         public char? QuoteChar => capturedQuote;
 
+        // The guard fixes native syntax; only consumer-backed reads can require a refresh.
+        private bool RequiresSyntaxChecks => Source.GetType().Assembly != typeof(Token).Assembly ||
+            HasSuppressedConsumerSerialization || syntaxChildren?.Indices.Count > 0;
+
         private void AddChild(ResolutionSnapshot child)
         {
             child.parent = this;
             child.index = children.Count;
             children.Add(child);
-            if (!child.IsReference || child.SuppressedSyntax is not null)
+            if (child.RequiresSyntaxChecks && (!child.IsReference || child.SuppressedSyntax is not null))
             {
-                syntaxChildren?.Include(child.index,
-                    child.Source is PrimitiveToken and not IQuotableToken &&
-                    child.Source.GetType().Assembly == typeof(Token).Assembly);
+                syntaxChildren?.Include(child.index);
             }
         }
 
@@ -395,40 +385,19 @@ internal static class AnalysisExpressionEvaluator
                 }
                 if (syntaxChildren.StructureMatches(count))
                 {
-                    long valueVersion = valueChanges.Version;
-                    if (!syntaxChildren.NativeValuesMatch(valueVersion, count))
-                    {
-                        foreach (int i in syntaxChildren.NativeIndices)
-                        {
-                            if (i >= count) break;
-                            if (!children[i].Matches(liveChildren[i])) return false;
-                        }
-                        syntaxChildren.CaptureNativeValues(valueVersion, count);
-                    }
                     return true;
                 }
             }
             if (liveChildren.Count < count) return false;
             List<Token>.Enumerator structure = liveChildren.GetEnumerator();
-            long nativeValueVersion = valueChanges.Version;
             for (int i = 0; i < count; i++)
             {
                 if (i >= liveChildren.Count || !children[i].Matches(liveChildren[i])) return false;
             }
-            if (syntaxChildren is not null && nativeValueVersion != valueChanges.Version)
-            {
-                foreach (int i in syntaxChildren.NativeIndices)
-                {
-                    if (i >= count) break;
-                    if (i >= liveChildren.Count || !children[i].Matches(liveChildren[i])) return false;
-                }
-                nativeValueVersion = valueChanges.Version;
-            }
             if (syntaxChildren is not null && SyntaxChildren.StructureMatches(structure))
             {
-                // Only this prefix was checked; edits to the consumed suffix do not invalidate it.
+                // Library publication in the consumed suffix does not invalidate this prefix.
                 syntaxChildren.CaptureStructure(liveChildren, count);
-                syntaxChildren.CaptureNativeValues(nativeValueVersion, count);
             }
             return true;
         }
@@ -447,32 +416,6 @@ internal static class AnalysisExpressionEvaluator
                 if (!owner.MatchesChildren(liveChildren, child.index)) return true;
             }
             return false;
-        }
-
-        public void RetireConsumedValues()
-        {
-            for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
-            {
-                for (int i = Math.Min(owner.trackedChildCount, owner.children.Count) - 1; i > child.index; i--)
-                {
-                    owner.children[i].ReleaseValueTracking();
-                }
-                owner.trackedChildCount = Math.Min(owner.trackedChildCount, child.index + 1);
-            }
-        }
-
-        private void ReleaseValueTracking()
-        {
-            if (tracksPrimitive)
-            {
-                valueChanges.Untrack((PrimitiveToken)Source);
-                tracksPrimitive = false;
-            }
-            for (int i = 0; i < Math.Min(trackedChildCount, children.Count); i++)
-            {
-                children[i].ReleaseValueTracking();
-            }
-            trackedChildCount = 0;
         }
 
         private bool TryReadOwnerQuote(out char? quote)
@@ -526,7 +469,13 @@ internal static class AnalysisExpressionEvaluator
             {
                 syntax = SerializeSuppressedSyntax(Source);
                 SuppressedSyntax = syntax;
-                parent?.syntaxChildren?.Include(index);
+                if (RequiresSyntaxChecks)
+                {
+                    for (ResolutionSnapshot child = this; child.parent is { } owner; child = owner)
+                    {
+                        owner.syntaxChildren?.Include(child.index);
+                    }
+                }
                 serializationVersion = getSerializationVersion?.Invoke() ?? serializationVersion;
                 return true;
             }
@@ -594,15 +543,11 @@ internal static class AnalysisExpressionEvaluator
                     }
                     else
                     {
-                        previous[i].ReleaseValueTracking();
-                        owner.AddChild(new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals, valueChanges,
+                        owner.AddChild(new ResolutionSnapshot(liveChildren[i], resolveCustomLiterals,
                             previous[i], version, getSerializationVersion, onConsumerSerialization, pendingFailures,
                             resolveTriviaVariables));
                     }
                 }
-                for (int i = owner.children.Count; i < child.index; i++)
-                    previous[i].ReleaseValueTracking();
-                owner.trackedChildCount = Math.Min(previous.Count, owner.children.Count + 1);
                 for (int i = child.index; i < previous.Count; i++)
                 {
                     owner.AddChild(previous[i]);
@@ -638,28 +583,15 @@ internal static class AnalysisExpressionEvaluator
         {
             private List<Token>.Enumerator structure;
             private int structureCount;
-            private long nativeValueVersion;
-            private int nativeValueCount = Int32.MaxValue;
 
             public SyntaxChildren(List<Token> tokens) => CaptureStructure(tokens);
 
             public List<int> Indices { get; } = new();
-            public List<int> NativeIndices { get; } = new();
 
-            public void Include(int index, bool nativePrimitive = false)
+            public void Include(int index)
             {
-                List<int> indices = nativePrimitive ? NativeIndices : Indices;
-                int position = indices.BinarySearch(index);
-                if (position < 0) indices.Insert(~position, index);
-            }
-
-            public bool NativeValuesMatch(long version, int count) =>
-                version == nativeValueVersion && count <= nativeValueCount;
-
-            public void CaptureNativeValues(long version, int count)
-            {
-                nativeValueCount = version == nativeValueVersion ? Math.Max(count, nativeValueCount) : count;
-                nativeValueVersion = version;
+                int position = Indices.BinarySearch(index);
+                if (position < 0) Indices.Insert(~position, index);
             }
 
             public void CaptureStructure(List<Token> tokens, int count = Int32.MaxValue)

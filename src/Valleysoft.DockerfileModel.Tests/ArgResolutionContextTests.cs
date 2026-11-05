@@ -179,21 +179,20 @@ public class ArgResolutionContextTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ModifierScopesFollowLiveOwnerMembership(bool nested)
+    public void ModifierScopesObserveLibraryRemovedMembers(bool nested)
     {
         LiteralToken owner = Literal();
         LiteralToken children = nested ? Literal() : owner;
         if (nested) owner.TokenList.Add(children);
         VariableRefToken variable = new("UNSET", ":-", "\"kept\"");
+        children.TokenList.Add(variable);
         ResolutionOptions options = new();
         Dictionary<string, string?> variables = new();
 
         using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
         {
-            Assert.Equal("\"kept\"", variable.ResolveVariables('\\', variables, options));
-            children.TokenList.Add(variable);
             Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
-            children.TokenList.Remove(variable);
+            children.RemoveResolvedChild(0);
             Assert.Equal("\"kept\"", variable.ResolveVariables('\\', variables, options));
         }
     }
@@ -204,14 +203,17 @@ public class ArgResolutionContextTests
         PassthroughAggregate owner = new();
         owner.TokenList.Add(owner);
         VariableRefToken variable = new("UNSET", ":-", "\"kept\"");
+        owner.TokenList.Add(variable);
+        VariableRefToken outsider = new("UNSET", ":-", "\"outside\"");
         ResolutionOptions options = new();
         Dictionary<string, string?> variables = new();
 
         using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
         {
-            Assert.Equal("\"kept\"", variable.ResolveVariables('\\', variables, options));
-            owner.TokenList.Add(variable);
+            Assert.Equal("\"outside\"", outsider.ResolveVariables('\\', variables, options));
             Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
+            owner.RemoveResolvedChild(1);
+            Assert.Equal("\"kept\"", variable.ResolveVariables('\\', variables, options));
         }
     }
 
@@ -1419,36 +1421,23 @@ public class ArgResolutionContextTests
     [InlineData(false, true, "//")]
     [InlineData(true, false, "//")]
     [InlineData(true, true, "//")]
-    public void RawPatternSerializationRefreshesPendingDefaults(
+    public void RawPatternSerializationPreservesPendingConsumerDefaults(
         bool stageScope, bool updateInline, string modifier)
     {
         bool armed = false;
-        LiteralToken pending = Literal(new VariableRefToken("MISSING", "?", "stale"));
+        LiteralToken pending = Literal(new MutableSerializedString(() => armed ? "new" : "old"));
         VariableRefToken pattern = new("IGNORED", modifier, "placeholder")
         {
-            ModifierValueToken = Literal(new MutableSerializedString(() =>
-            {
-                if (armed) pending.Value = "new";
-                return "p";
-            }))
+            ModifierValueToken = Literal(new MutableSerializedString(() => "p"))
         };
         Dockerfile dockerfile = Document(stageScope, pending, pattern,
             new CallbackVariable(() => armed = true));
 
-        if (stageScope && !updateInline)
-        {
-            VariableSubstitutionException error = Assert.Throws<VariableSubstitutionException>(() =>
-                dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-            Assert.Equal("Variable 'MISSING' is not set. Error detail: 'stale'.", error.Message);
-        }
-        else
-        {
-            string value = $"new${{IGNORED{modifier}p}}left";
-            Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
-                dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
-        }
+        string value = $"new${{IGNORED{modifier}p}}left";
+        Assert.Equal(stageScope ? $"ENV RESULT={value}" : $"FROM prefix{value}",
+            dockerfile.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
         Assert.True(armed);
-        Assert.Equal("new", pending.Value);
+        Assert.Equal("new", pending.ToString());
     }
 
     [Theory]
@@ -2632,25 +2621,18 @@ public class ArgResolutionContextTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CachedModifierOwnershipRechecksAliasesAndMoves(bool aliasRemains)
+    public void CachedModifierOwnershipRechecksAliasesAfterLibraryPublication(bool aliasRemains)
     {
         ResolutionOptions options = new();
         Dictionary<string, string?> variables = new();
         VariableRefToken variable = new("UNSET", ":-", "\"kept\"");
         LiteralToken first = Literal(variable);
-        LiteralToken second = Literal();
-        LiteralToken owner = Literal(first, second);
+        LiteralToken second = aliasRemains ? Literal(variable) : Literal();
+        LiteralToken owner = Literal(second, first);
         using (options.UseModifierValueResolver(owner, '\\', variables, _ => "owned"))
         {
             Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
-            second.TokenList.Add(variable);
-            first.TokenList.Clear();
-            Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
-            first.TokenList.Add(variable);
-            second.TokenList.Clear();
-            Assert.Equal("owned", variable.ResolveVariables('\\', variables, options));
-            owner.TokenList.Remove(first);
-            if (aliasRemains) second.TokenList.Add(variable);
+            first.ReplaceResolvedTokens(Array.Empty<Token>());
             Assert.Equal(aliasRemains ? "owned" : "\"kept\"",
                 variable.ResolveVariables('\\', variables, options));
         }
@@ -2679,9 +2661,7 @@ public class ArgResolutionContextTests
                 for (int i = 0; i < count; i++)
                     Assert.Equal("outside", outsider.ResolveVariables('\\', variables, options));
                 long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-                owner.TokenList.Insert(0, outsider);
-                Assert.Equal("owned", outsider.ResolveVariables('\\', variables, options));
-                owner.TokenList.Remove(outsider);
+                owner.RemoveResolvedChild(0);
                 Assert.Equal("outside", outsider.ResolveVariables('\\', variables, options));
                 Assert.Equal("owned", member.ResolveVariables('\\', variables, options));
                 return allocated;
@@ -2693,6 +2673,85 @@ public class ArgResolutionContextTests
         long large = Measure(512);
 
         Assert.InRange(large, 0, 4 * small + 500_000);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void UnownedModifierLookupsPreservePublicSyntax(bool stageScope, bool updateInline, bool distinct)
+    {
+        const int count = 512;
+        UnownedForwardingAggregate owner = new(count, distinct);
+        Dockerfile document = Document(stageScope, owner);
+        string original = document.ToString();
+
+        Assert.Equal((stageScope ? "ENV RESULT=" : "FROM prefix") +
+            String.Concat(Enumerable.Repeat("\"outside\"", count)),
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(count, owner.LookupCount);
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
+    private sealed class UnownedForwardingAggregate : AggregateToken
+    {
+        private readonly VariableRefToken[] outsiders;
+
+        public UnownedForwardingAggregate(int count, bool distinct) : base(
+            Enumerable.Range(0, count).Select(_ => new VariableRefToken("UNUSED", ":-", "member")))
+        {
+            VariableRefToken shared = new("UNSET", ":-", "\"outside\"");
+            outsiders = Enumerable.Range(0, count)
+                .Select(_ => distinct ? new VariableRefToken("UNSET", ":-", "\"outside\"") : shared).ToArray();
+        }
+
+        public int LookupCount { get; private set; }
+
+        public override string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null,
+            ResolutionOptions? options = null)
+        {
+            bool inline = options!.UpdateInline;
+            options.UpdateInline = false;
+            try
+            {
+                return String.Concat(outsiders.Select(variable =>
+                {
+                    LookupCount++;
+                    return variable.ResolveVariables(escapeChar, variables, options);
+                }));
+            }
+            finally
+            {
+                options.UpdateInline = inline;
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void NativeWrappersRetainSuppressedConsumerSerialization(bool stageScope, bool updateInline)
+    {
+        Dictionary<string, string?> state = new() { ["TEXT"] = "old" };
+        VariableRefToken reference = new("IGNORED", ":-", "placeholder")
+        {
+            ModifierValueToken = Literal(new MutableSerializedString(() => state["TEXT"]!))
+        };
+        LiteralToken quoted = Literal(reference);
+        quoted.QuoteChar = '\'';
+        Dockerfile document = Document(stageScope, Literal(Literal(quoted)),
+            new CallbackVariable(() => state["TEXT"] = "new"));
+
+        Assert.Equal(stageScope ? "ENV RESULT=${IGNORED:-new}left" : "FROM prefix${IGNORED:-new}left",
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("IGNORED", reference.VariableName);
     }
 
     private sealed class DirectForwardingAggregate : AggregateToken

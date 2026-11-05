@@ -176,6 +176,40 @@ public class ArgResolutionGuardTests
         Assert.Equal(original, document.ToString());
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void NativeLiteralWrappersPreserveCallbackOptionsAndInlineDecisions(bool stageScope, bool updateInline)
+    {
+        const int count = 512;
+        int calls = 0;
+        Dockerfile document = Dockerfile.Parse(stageScope
+            ? "FROM alpine\nARG X=placeholder\nENV RESULT=$X"
+            : "ARG X=placeholder\nFROM prefix$X");
+        LiteralToken value = new(Enumerable.Range(0, count).SelectMany(_ => new Token[]
+        {
+            new LiteralToken(new[] { new LiteralToken(".") }, true, '\\'),
+            new CallbackVariable
+            {
+                Resolve = (_, options) =>
+                {
+                    options.RemoveEscapeCharacters = ++calls % 2 == 0;
+                    return "x";
+                }
+            }
+        }), true, '\\');
+        document.Items.OfType<ArgInstruction>().Single().ArgTokens[0].ValueToken = value;
+        string original = document.ToString();
+
+        Assert.Equal((stageScope ? "ENV RESULT=" : "FROM prefix") +
+            String.Concat(Enumerable.Repeat(".x", count)),
+            document.ResolveVariables(options: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(count, calls);
+        if (!updateInline) Assert.Equal(original, document.ToString());
+    }
+
     private sealed class OptionsLookupAggregate(int count) : AggregateToken(
         Enumerable.Range(0, count).SelectMany(_ => new Token[]
         {

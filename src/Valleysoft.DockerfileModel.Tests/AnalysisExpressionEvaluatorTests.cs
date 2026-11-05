@@ -394,7 +394,7 @@ public class AnalysisExpressionEvaluatorTests
     [Theory]
     [InlineData(512)]
     [InlineData(2048)]
-    public void CompletedSuffixChangesDoNotInvalidateEveryPendingCheck(int count)
+    public void LibrarySuffixPublicationsDoNotInvalidateEveryPendingCheck(int count)
     {
         long Measure(bool append)
         {
@@ -406,7 +406,7 @@ public class AnalysisExpressionEvaluatorTests
             {
                 if (version++ == 0)
                 {
-                    if (append) token.TokenList.Add(new StringToken("suffix"));
+                    if (append) token.ReplaceResolvedTokens(token.Tokens.Append(new StringToken("suffix")).ToArray());
                     before = GC.GetAllocatedBytesForCurrentThread();
                 }
                 return "x";
@@ -429,120 +429,36 @@ public class AnalysisExpressionEvaluatorTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void NativePrefixChangesRemainVisibleAfterSuffixChanges(bool append, bool replaceNative)
-    {
-        StringToken prefix = new("old");
-        VariableRefToken left = new("LEFT");
-        VariableRefToken right = new("RIGHT");
-        LiteralToken token = new(new Token[] { prefix, left, right }, canContainVariables: true, '\\');
-        int version = 0;
-        string Resolve(VariableRefToken variable)
-        {
-            version++;
-            if (ReferenceEquals(variable, right) && append) token.TokenList.Add(new StringToken("suffix"));
-            if (ReferenceEquals(variable, left))
-            {
-                if (replaceNative) token.TokenList[0] = new StringToken("new");
-                else prefix.Value = "new";
-            }
-            return variable.VariableName;
-        }
-
-        Assert.Equal("newLEFTRIGHT", AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
-            getCustomResolutionVersion: () => version));
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void MixedNativePrefixesTrackRepeatedValueChanges(bool updateInline, bool mutate)
+    public void MixedNativeWrappersPreserveSourceAcrossCallbacks(bool updateInline, bool nested)
     {
         const int count = 512;
         StringToken prefix = new(".");
-        LiteralToken token = new(Enumerable.Range(0, count).SelectMany(i => new Token[]
+        LiteralToken token = new(Enumerable.Range(0, count).SelectMany(i =>
         {
-            i == 0 ? prefix : new StringToken("."), new VariableRefToken("X")
+            LiteralToken literal = new(new[] { i == 0 ? prefix : new StringToken(".") }, true, '\\');
+            return new Token[]
+            {
+                nested ? new LiteralToken(new[] { literal }, true, '\\') : literal,
+                new VariableRefToken("X")
+            };
         }), canContainVariables: true, '\\');
         int version = 0;
+        ResolutionOptions options = new() { UpdateInline = updateInline };
         HashSet<VariableRefToken> resolved = new();
         string Resolve(VariableRefToken variable)
         {
             Assert.True(resolved.Add(variable));
             version++;
-            if (mutate && version <= 2) prefix.Value = version == 1 ? "new" : "newer";
+            options.RemoveEscapeCharacters = version % 2 == 0;
             return "x";
         }
 
-        Assert.Equal((mutate ? "newer" : ".") + "x" + String.Concat(Enumerable.Repeat(".x", count - 1)),
+        Assert.Equal(String.Concat(Enumerable.Repeat(".x", count)),
             AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
                 getCustomResolutionVersion: () => version,
-                syntaxOptions: new ResolutionOptions { UpdateInline = updateInline }));
+                syntaxOptions: options));
         Assert.Equal(count, resolved.Count);
-    }
-
-    [Fact]
-    public async Task NativeValueMutationScopesOnlyTrackTheirOwnSources()
-    {
-        StringToken shared = new("old");
-        StringToken innerOnly = new("inner");
-        StringToken unrelated = new("other");
-        using PrimitiveToken.ValueMutationScope outer = new();
-        outer.Track(shared);
-        PrimitiveToken.ValueMutationScope inner = new();
-        ExecutionContext inherited;
-        using (inner)
-        {
-            inner.Track(shared);
-            inner.Track(innerOnly);
-            inherited = ExecutionContext.Capture()!;
-            unrelated.Value = "edit";
-            string equalValue = new(shared.Value.ToCharArray());
-            shared.Value = equalValue;
-            Assert.Same(equalValue, shared.Value);
-            Assert.Equal(0, outer.Version);
-            Assert.Equal(0, inner.Version);
-            Task mutation;
-            using (ExecutionContext.SuppressFlow()) mutation = Task.Run(() => shared.Value = "new");
-            await mutation;
-            Assert.Equal(1, outer.Version);
-            Assert.Equal(1, inner.Version);
-            innerOnly.Value = "changed";
-            Assert.Equal(1, outer.Version);
-            Assert.Equal(2, inner.Version);
-        }
-
-        ExecutionContext.Run(inherited, _ => shared.Value = "after disposal", null);
-        Assert.Equal(2, outer.Version);
-        Assert.Equal(2, inner.Version);
-    }
-
-    [Fact]
-    public async Task ConcurrentNativeValueSubscriptionsDetachIndependently()
-    {
-        StringToken source = new("old");
-        PrimitiveToken.ValueMutationScope[] scopes = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ =>
-            Task.Run(() =>
-            {
-                PrimitiveToken.ValueMutationScope scope = new();
-                scope.Track(source);
-                scope.Track(source);
-                return scope;
-            })));
-        try
-        {
-            source.Value = "first";
-            Assert.All(scopes, scope => Assert.Equal(1, scope.Version));
-            for (int i = 0; i < scopes.Length; i += 2) scopes[i].Dispose();
-            source.Value = "second";
-            for (int i = 0; i < scopes.Length; i++)
-                Assert.Equal(i % 2 == 0 ? 1 : 2, scopes[i].Version);
-        }
-        finally
-        {
-            foreach (PrimitiveToken.ValueMutationScope scope in scopes) scope.Dispose();
-        }
+        Assert.Equal(".", prefix.Value);
     }
 
     [Theory]
@@ -550,38 +466,44 @@ public class AnalysisExpressionEvaluatorTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void NestedResolutionsRetainOuterNativeValueTracking(bool worker, bool shared)
+    public void NestedBindingChangesPreserveOuterValuesAndSharedSources(bool worker, bool shared)
     {
         StringToken prefix = new("old");
-        LiteralToken outer = new(new Token[] { prefix, new VariableRefToken("OUTER") }, true, '\\');
+        LiteralToken outer = new(new Token[]
+        {
+            prefix, new VariableRefToken("PENDING"), new VariableRefToken("OUTER")
+        }, true, '\\');
         LiteralToken inner = new(new Token[]
         {
             shared ? prefix : new StringToken("inner"), new VariableRefToken("INNER")
         }, true, '\\');
         int outerVersion = 0;
         int innerVersion = 0;
+        Dictionary<string, string?> bindings = new() { ["PENDING"] = "before" };
         string ResolveInner(VariableRefToken variable)
         {
             if (worker)
             {
                 Task mutation;
-                using (ExecutionContext.SuppressFlow()) mutation = Task.Run(() => prefix.Value = "new");
+                using (ExecutionContext.SuppressFlow()) mutation = Task.Run(() => bindings["PENDING"] = "new");
                 mutation.GetAwaiter().GetResult();
             }
-            else prefix.Value = "new";
+            else bindings["PENDING"] = "new";
             innerVersion++;
             return "i";
         }
         string ResolveOuter(VariableRefToken variable)
         {
-            Assert.Equal(shared ? "newi" : "inneri", AnalysisExpressionEvaluator.ResolveVariables(inner, '\\',
+            if (variable.VariableName == "PENDING") return bindings["PENDING"]!;
+            Assert.Equal(shared ? "oldi" : "inneri", AnalysisExpressionEvaluator.ResolveVariables(inner, '\\',
                 ResolveInner, getCustomResolutionVersion: () => innerVersion));
             outerVersion++;
             return "o";
         }
 
-        Assert.Equal("newo", AnalysisExpressionEvaluator.ResolveVariables(outer, '\\', ResolveOuter,
+        Assert.Equal("oldnewo", AnalysisExpressionEvaluator.ResolveVariables(outer, '\\', ResolveOuter,
             getCustomResolutionVersion: () => outerVersion));
+        Assert.Equal("old", prefix.Value);
     }
 
     [Theory]
@@ -641,26 +563,6 @@ public class AnalysisExpressionEvaluatorTests
             getCustomResolutionVersion: () => version,
             syntaxOptions: new ResolutionOptions { UpdateInline = updateInline }));
         Assert.Equal("|", shared.Value);
-    }
-
-    [Fact]
-    public void NativeMutationSubscriptionsRemainActiveUntilEveryAliasRetires()
-    {
-        StringToken shared = new("old");
-        using PrimitiveToken.ValueMutationScope scope = new();
-        scope.Track(shared);
-        scope.Track(shared);
-        scope.Untrack(shared);
-        shared.Value = "pending";
-        Assert.Equal(1, scope.Version);
-
-        scope.Untrack(shared);
-        shared.Value = "consumed";
-        Assert.Equal(1, scope.Version);
-
-        scope.Track(shared);
-        shared.Value = "tracked again";
-        Assert.Equal(2, scope.Version);
     }
 
     private static void AssertKnown(AnalysisValue result, string expected)
