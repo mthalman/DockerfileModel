@@ -38,7 +38,8 @@ internal static class JsonStringVariableResolver
         {
             return new LiteralToken(path.Tokens, canContainVariables: true, escapeChar)
             {
-                QuoteChar = path.QuoteChar
+                QuoteChar = path.QuoteChar,
+                UseJsonStringSyntax = path.UseJsonStringSyntax
             };
         }
         TextParser<VariableRefToken> parser = VariableRefToken.GetParser(escapeChar, ParseReference);
@@ -78,7 +79,8 @@ internal static class JsonStringVariableResolver
         return new LiteralToken(references.Count == 0 ? path.Tokens :
             BuildTokens(source, references, physical.Length - 1), canContainVariables: true, escapeChar)
         {
-            QuoteChar = path.QuoteChar
+            QuoteChar = path.QuoteChar,
+            UseJsonStringSyntax = path.UseJsonStringSyntax
         };
     }
 

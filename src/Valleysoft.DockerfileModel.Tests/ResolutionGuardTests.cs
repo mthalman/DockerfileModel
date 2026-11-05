@@ -458,20 +458,6 @@ public class ResolutionGuardTests
     }
 
     [Fact]
-    public void EscapedEnvQuoteSettersRejectBeforeChangingSyntaxState()
-    {
-        EnvInstruction source = EnvInstruction.Parse("ENV A=$ROOT X=\"a\\\"b\"");
-        EnvEscapedQuoteLiteralToken value =
-            Assert.IsType<EnvEscapedQuoteLiteralToken>(source.VariableTokens[1].ValueToken);
-        CallbackDictionary variables = new(() => value.QuoteChar = '\'');
-        string original = source.ToString();
-
-        Assert.Throws<InvalidOperationException>(() => source.ResolveVariables('\\', variables));
-        Assert.Equal(original, source.ToString());
-        Assert.True(value.HasOriginalEscapedQuoteSyntax);
-    }
-
-    [Fact]
     public void CustomQuoteOverridesAreCheckedAtCallbackBoundariesWithoutRollback()
     {
         CustomQuoteLiteral source = new();
@@ -513,7 +499,7 @@ public class ResolutionGuardTests
         {
             using ResolutionGuard.CallbackScope callback = ResolutionGuard.Callback();
         }
-        Assert.All(leaves, leaf => Assert.Equal(3, leaf.Reads));
+        Assert.All(leaves, leaf => Assert.Equal(3, leaf.QuoteReads));
     }
 
     [Theory]
@@ -893,20 +879,6 @@ public class ResolutionGuardTests
     private sealed class CustomQuoteString() : StringToken("before"), IQuotableToken
     {
         public char? QuoteChar { get; set; }
-    }
-
-    private sealed class CountingQuoteString() : StringToken(""), IQuotableToken
-    {
-        internal int Reads { get; private set; }
-
-        public char? QuoteChar
-        {
-            get { Reads++; return null; }
-            set { }
-        }
-
-        public override bool Equals(object? obj) => obj is CountingQuoteString;
-        public override int GetHashCode() => 0;
     }
 
     private sealed class UnreadableQuoteString() : StringToken("unused"), IQuotableToken

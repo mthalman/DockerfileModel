@@ -70,7 +70,9 @@ public class VolumeInstruction : Instruction
         TextParser<IEnumerable<Token>> parser = useShellForm
             ? GetInnerParser(escapeChar)
             : Instruction("VOLUME", escapeChar,
-                ArgTokens(JsonArray(escapeChar, canContainVariables: false, allowEmpty: true), escapeChar));
+                ArgTokens(
+                    from tokens in JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
+                    select TokenizePaths(tokens, escapeChar), escapeChar));
         return GetTokens($"VOLUME {args}", parser);
     }
 
@@ -83,10 +85,13 @@ public class VolumeInstruction : Instruction
     private static TextParser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
         CommandParsers.MaybeJson(
             from tokens in JsonArray(escapeChar, canContainVariables: false, allowEmpty: true, useJsonStringSyntax: true)
-         select tokens.Select(token => token is LiteralToken path
-             ? JsonStringVariableResolver.Tokenize(path, escapeChar)
-             : token),
+            select TokenizePaths(tokens, escapeChar),
             NonJsonPaths(escapeChar), escapeChar);
+
+    private static IEnumerable<Token> TokenizePaths(IEnumerable<Token> tokens, char escapeChar) =>
+        tokens.Select(token => token is LiteralToken path
+            ? JsonStringVariableResolver.Tokenize(path, escapeChar)
+            : token);
 
     private static TextParser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
         ArgTokens(

@@ -43,7 +43,7 @@ public abstract class AggregateToken : Token
 
     internal virtual void MaterializeTokens() { }
 
-    internal IReadOnlyList<Token> ResolutionChildren => tokenList;
+    internal List<Token> ResolutionChildren => tokenList;
     internal event Action<int>? ResolutionChildRemoved;
     internal event Action<IReadOnlyList<Token>, JsonStringVariableResolver.ChildPublications?>? ResolutionChildrenReplacing;
 
@@ -152,11 +152,6 @@ public abstract class AggregateToken : Token
         ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
             .Method.DeclaringType != typeof(AggregateToken);
 
-    internal bool HasConsumerVariableResolution =>
-        GetType().Assembly != typeof(AggregateToken).Assembly &&
-        ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
-            .Method.DeclaringType?.Assembly != typeof(AggregateToken).Assembly;
-
     internal bool HasDefaultAggregateRendering =>
         ((Func<TokenStringOptions, string>)GetUnderlyingValue).Method.DeclaringType == typeof(AggregateToken);
 
@@ -196,7 +191,7 @@ public abstract class AggregateToken : Token
                 : new LiteralResolutionPlan(this, escapeChar, ref context);
             plan.BeginResolution();
             string? value = ResolveVariablesCore(escapeChar, variables, options, plan);
-            return $"{plan.QuoteChar}{value}{plan.QuoteChar}";
+            return plan.QuoteChar is char quote ? $"{quote}{value}{quote}" : value;
         }
 
         if (this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
@@ -369,7 +364,9 @@ public abstract class AggregateToken : Token
                     if (plan is not null && token is not VariableRefToken)
                     {
                         using LiteralResolutionScope scope = new(aggregateToken, context, plan.GetChildPlan(i));
-                        value = ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
+                        value = token is LiteralToken literal
+                            ? literal.ResolveVariablesInContext(false, escapeChar, variables, options)
+                            : ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
                     }
                     else
                     {

@@ -107,9 +107,6 @@ public class VariableRefToken : AggregateToken
 
     private static bool IsModifierToken(SymbolToken token) => token.Value != "{" && token.Value != "}";
 
-    internal static bool IsPatternModifier(string? modifier) =>
-        modifier is "#" or "##" or "%" or "%%" or "/" or "//";
-
     public string? ModifierValue
     {
         get => ModifierValueToken?.ToString(TokenStringOptions.CreateOptionsForValueString());

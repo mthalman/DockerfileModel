@@ -451,6 +451,36 @@ public class VolumeInstructionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void ResolveVariables_JsonConstructorPathsExpandVariables(bool inline)
+    {
+        VolumeInstruction instruction = new(new[] { "$ROOT/data", "${ROOT:-fallback}/logs" });
+        const string original = "VOLUME [\"$ROOT/data\", \"${ROOT:-fallback}/logs\"]";
+        const string expected = "VOLUME [\"/srv/data\", \"/srv/logs\"]";
+
+        Assert.Equal(expected, instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "/srv" },
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? expected : original, instruction.ToString());
+    }
+
+    [Theory]
+    [InlineData("plain")]
+    [InlineData("$ROOT")]
+    public void JsonTokenizationRetainsParsedStringEditingSyntax(string value)
+    {
+        VolumeInstruction instruction = VolumeInstruction.Parse($"VOLUME [\"{value}\"]");
+        LiteralToken path = Assert.Single(instruction.PathTokens);
+        Assert.True(path.UseJsonStringSyntax);
+
+        path.Value = "\\\"$ROOT\\\"";
+        Assert.Equal("VOLUME [\"\\\"$ROOT\\\"\"]", instruction.ToString());
+        Assert.Equal("VOLUME [\"\\\"/srv\\\"\"]", instruction.ResolveVariables('\\',
+            new Dictionary<string, string?> { ["ROOT"] = "/srv" }));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ResolveVariables_ParserAcceptedNonJsonEscapesRemainResolvable(bool inline)
     {
         const string text = "VOLUME [\"C:\\cache\"]";
@@ -594,6 +624,21 @@ public class VolumeInstructionTests
         Assert.Equal("COPY /data \"\\u0024ROOT\" /dest", copy.ToString());
         Assert.Equal(copy.ToString(), copy.ResolveVariables('\\',
             new Dictionary<string, string?> { ["ROOT"] = "unexpected" }));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonResolutionContextDoesNotFollowPathsIntoNestedShellLiterals(bool inline)
+    {
+        VolumeInstruction volume = VolumeInstruction.Parse("VOLUME [\"\\u0024ROOT\"]");
+        LiteralToken parent = new(new Token[] { volume.PathTokens[0] }, true, '\\');
+        Dictionary<string, string?> variables = new() { ["ROOT"] = "value" };
+
+        Assert.Equal("\"\\u0024ROOT\"", parent.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal("VOLUME [\"value\"]", volume.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = inline }));
     }
 
     [Fact]
