@@ -329,6 +329,10 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         }
         expected[index] = replacement;
         ValidateAndCommit(plan, expected);
+        if (current is LiteralToken literal)
+        {
+            literal.OnValueReplaced();
+        }
     }
 
     public void Move(int oldIndex, int newIndex)
@@ -631,6 +635,17 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         {
             adoptedLiteral.RetainWordContext(parsedJsonLiteral);
             adoptedLiteral.UseJsonStringSyntax |= parsedJsonLiteral.UseJsonStringSyntax;
+        }
+        if (owner is VolumeInstruction volume)
+        {
+            volume.ConfigurePathResolution();
+        }
+        else
+        {
+            foreach (LiteralToken literal in InstructionCollectionEditing.Descendants(owner).OfType<LiteralToken>())
+            {
+                literal.ResolveAsJsonString = false;
+            }
         }
     }
 

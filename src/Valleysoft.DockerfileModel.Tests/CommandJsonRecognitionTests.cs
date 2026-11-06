@@ -479,7 +479,7 @@ public class CommandJsonRecognitionTests
     [InlineData("SHELL", false)]
     [InlineData("ADD", true)]
     [InlineData("COPY", true)]
-    [InlineData("VOLUME", false)]
+    [InlineData("VOLUME", true)]
     public void JsonStringsRetainInstructionVariableRecognitionPolicy(string prefix, bool recognizeVariables)
     {
         string text = prefix + " [\"$SRC`\", \"${DST:-default}\\\"tail\"]\n";

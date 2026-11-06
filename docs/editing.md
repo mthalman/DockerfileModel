@@ -139,6 +139,22 @@ policy; they do not rewrite existing operands or change shell-form editing.
 Existing operand grammar limits still apply: JSON `\"` escapes are not supported
 with a backtick Dockerfile escape directive.
 
+`VOLUME` paths support variable expansion in both shell and JSON form, including
+paths that you create or update through `Paths` and `PathTokens`. Supplied
+`LiteralToken` paths and modifier values retain their variable-recognition
+policy. If you construct a literal with `canContainVariables: false`, its
+contents remain literal after JSON decoding. For JSON-form paths, the resolver
+escapes substituted values for JSON and preserves unchanged spelling and
+Dockerfile continuations.
+
+Non-inline resolution leaves the source token tree unchanged. Inline resolution
+replaces expanded references while retaining untouched child tokens. Substituted
+values stay literal on later resolutions. To parse new variable references,
+assign the path's `Value` or update it through `Paths`. Typed adoption shares
+mutable tokens rather than copying them. See
+[Variable resolution](variable-resolution.md) for resolution options and callback
+behavior.
+
 Adding a second variable to a legacy `ENV name value` converts the affected
 assignment region to assignment syntax without changing the existing value's
 meaning. `ARG` distinguishes a missing value from an explicit empty value.
@@ -148,6 +164,26 @@ continuations and validate the known instruction grammar.
 `TokenList<TToken>` derives from `EditableList<TToken>` and retains its existing
 read helpers. `TokenBuilder.Tokens` remains a low-level construction list, not a
 structural-editing collection.
+
+## Resolution callbacks
+
+Perform source edits outside variable resolution. See
+[Custom token contract](variable-resolution.md#custom-token-contract)
+for callback permissions, source-edit errors, and threading requirements.
+If a syntax-aware edit would change a protected source token or its quote, the
+edit fails before changing either tree. This also applies when you adopt a
+protected token into an unrelated tree.
+
+For low-level child editing outside resolution, cast the live
+`AggregateToken.Tokens` view to `IList<Token>`, not `List<Token>`:
+
+```csharp
+IList<Token> children = (IList<Token>)literal.Tokens;
+children.Add(new StringToken("/suffix"));
+```
+
+These writes do not validate grammar or preserve separators. Prefer the owner's
+syntax-aware editable collections.
 
 ## Choose a trivia policy
 

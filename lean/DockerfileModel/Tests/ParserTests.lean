@@ -2054,6 +2054,97 @@ def testVolumeVariable : IO Unit := do
     assertTrue (inst.name == .volume) "volume instruction name"
   | none =>
     throw (IO.Error.userError "Parse failed: VOLUME variable should parse")
+  match parseVolume "VOLUME [\"$DATA_DIR/data\", \"${DATA_DIR:-/fallback}/logs\"]" with
+  | some inst =>
+    assertEqual (Token.toString inst.token)
+      "VOLUME [\"$DATA_DIR/data\", \"${DATA_DIR:-/fallback}/logs\"]"
+      "volume JSON variable round-trip"
+    match inst.token with
+    | .aggregate .instruction children _ =>
+      let paths := children.filter fun token =>
+        match token with
+        | .aggregate .literal _ _ => true
+        | _ => false
+      assertTrue (paths.length == 2) "volume JSON path count"
+      for path in paths do
+        match path with
+        | .aggregate .literal tokens _ =>
+          assertTrue (tokens.any fun token =>
+            match token with
+            | .aggregate .variableRef _ _ => true
+            | _ => false) "volume JSON path recognizes variables"
+        | _ => throw (IO.Error.userError "Expected volume path literal")
+    | _ => throw (IO.Error.userError "Expected volume instruction token")
+  | none =>
+    throw (IO.Error.userError "Parse failed: VOLUME JSON variables should parse")
+  for text in ["VOLUME [\"${ROOT:-}/data\"]",
+      "VOLUME [\"${ROOT:-prefix${OTHER}}/data\"]", "VOLUME [\"/$_ROOT/data\"]"] do
+    match parseVolume text with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text "volume JSON variable edge-case round-trip"
+      match inst.token with
+      | .aggregate .instruction children _ =>
+        assertTrue (children.any fun token =>
+          match token with
+          | .aggregate .literal tokens _ =>
+            tokens.any fun child =>
+              match child with
+              | .aggregate .variableRef _ _ => true
+              | _ => false
+          | _ => false) "volume JSON variable edge case is recognized"
+      | _ => throw (IO.Error.userError "Expected volume instruction token")
+    | none => throw (IO.Error.userError s!"VOLUME JSON variable edge case failed: {text}")
+  for text in ["VOLUME [\"\\\\${BROKEN\"]",
+      "VOLUME [\"prefix'${BROKEN'/data/$ROOT\"]"] do
+    match parseVolume text with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text
+        "volume JSON malformed variable text remains lossless"
+    | none => throw (IO.Error.userError s!"VOLUME JSON literal variable text failed: {text}")
+  for content in ["a\\\"b", "a`", "a`$ROOT", "a\\\"$ROOT", "${ROOT:-a\\\"b}"] do
+    let text := "VOLUME [\"" ++ content ++ "\"]"
+    match parseVolume text '`' with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text "volume backtick JSON round-trip"
+      assertTrue (inst.token.children.any fun token => token == Token.mkSymbol '[')
+        "volume backtick JSON retains array form"
+    | none => throw (IO.Error.userError s!"VOLUME backtick JSON failed: {text}")
+  for content in ["$", "$-", "$/", "$$ROOT", "$9", "$_ROOT",
+      String.join (List.replicate 4096 "$/") ++ "$ROOT",
+      "${MISSING:-" ++ String.join (List.replicate 4096 "$/") ++ "$ROOT}"] do
+    let text := "VOLUME [\"" ++ content ++ "\"]"
+    match parseVolume text with
+    | some inst => assertEqual (Token.toString inst.token) text "volume reference candidate boundaries"
+    | none => throw (IO.Error.userError s!"Volume candidate boundary failed: {text}")
+  let depth := 4096
+  for protectedText in [false, true] do
+    let nested := String.join (List.replicate depth "${X:-") ++
+      "value" ++ String.ofList (List.replicate depth '}')
+    let content := if protectedText then "'" ++ nested ++ "'" else nested
+    match parseVolume ("VOLUME [\"" ++ content ++ "\"]") with
+    | some inst =>
+      match inst.token with
+      | .aggregate .instruction children _ =>
+        let paths := children.filter fun token =>
+          match token with
+          | .aggregate .literal _ _ => true
+          | _ => false
+        assertTrue (paths.length == 1) "deep volume JSON path count"
+        let mut current := paths.head?
+        let mut actualDepth := 0
+        while current.isSome do
+          match current with
+          | some (.aggregate kind children _) =>
+            if kind == .variableRef then
+              actualDepth := actualDepth + 1
+            current := children.find? fun token =>
+              match token with
+              | .aggregate .literal _ _ | .aggregate .variableRef _ _ => true
+              | _ => false
+          | _ => current := none
+        assertTrue (actualDepth == depth) "deep volume JSON variable nesting"
+      | _ => throw (IO.Error.userError "Expected deep volume instruction token")
+    | none => throw (IO.Error.userError "Deep volume JSON reference failed")
 
 open DockerfileModel.Parser.Instructions.Volume in
 /-- Test: VOLUME exec form multiple -/

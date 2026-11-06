@@ -19,6 +19,16 @@ public class VolumeInstruction : Instruction
     {
         PathTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this);
         Paths = InstructionCollectionEditing.Strings(PathTokens, this);
+        ConfigurePathResolution();
+    }
+
+    internal void ConfigurePathResolution()
+    {
+        bool json = InstructionCollectionEditing.IsJson(this);
+        foreach (LiteralToken path in PathTokens)
+        {
+            path.ResolveAsJsonString = json;
+        }
     }
 
     /// <summary>Gets the live editable volume path value view.</summary>
@@ -60,7 +70,9 @@ public class VolumeInstruction : Instruction
         TextParser<IEnumerable<Token>> parser = useShellForm
             ? GetInnerParser(escapeChar)
             : Instruction("VOLUME", escapeChar,
-                ArgTokens(JsonArray(escapeChar, canContainVariables: false, allowEmpty: true), escapeChar));
+                ArgTokens(
+                    from tokens in JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
+                    select TokenizePaths(tokens, escapeChar), escapeChar));
         return GetTokens($"VOLUME {args}", parser);
     }
 
@@ -72,8 +84,14 @@ public class VolumeInstruction : Instruction
 
     private static TextParser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
         CommandParsers.MaybeJson(
-            JsonArray(escapeChar, canContainVariables: false, allowEmpty: true, useJsonStringSyntax: true),
+            from tokens in JsonArray(escapeChar, canContainVariables: false, allowEmpty: true, useJsonStringSyntax: true)
+            select TokenizePaths(tokens, escapeChar),
             NonJsonPaths(escapeChar), escapeChar);
+
+    private static IEnumerable<Token> TokenizePaths(IEnumerable<Token> tokens, char escapeChar) =>
+        tokens.Select(token => token is LiteralToken path
+            ? JsonStringVariableResolver.Tokenize(path, escapeChar)
+            : token);
 
     private static TextParser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
         ArgTokens(

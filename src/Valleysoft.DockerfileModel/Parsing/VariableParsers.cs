@@ -4,6 +4,10 @@ namespace Valleysoft.DockerfileModel.Parsing;
 
 internal static class VariableParsers
 {
+    internal static bool IsVariableReferenceStart(string text, int index) =>
+        text[index] == '$' && index + 1 < text.Length &&
+        (char.IsLetterOrDigit(text[index + 1]) || text[index + 1] is '_' or '{');
+
     /// <summary>
     /// Parses the characters of a variable reference.
     /// </summary>
@@ -170,10 +174,11 @@ internal static class VariableParsers
     /// <param name="escapeChar">Escape character.</param>
     /// <param name="createParser">A delegate to create the token parser.</param>
     /// <param name="excludedChars">Characters to exclude from the parsed value.</param>
+    /// <param name="variableParser">Optional recursive parser for sharing a caller-local result cache.</param>
     /// <returns>A token parser.</returns>
     internal static TextParser<IEnumerable<Token>> ValueOrVariableRef(char escapeChar, CreateTokenParserDelegate createParser,
-        IEnumerable<char> excludedChars) =>
-        VariableRefToken.GetParser(escapeChar)
+        IEnumerable<char> excludedChars, TextParser<VariableRefToken>? variableParser = null) =>
+        (variableParser ?? VariableRefToken.GetParser(escapeChar))
             .Cast<VariableRefToken, Token>()
             .AsEnumerable()
             .Try().Or(createParser(escapeChar, excludedChars));

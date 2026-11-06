@@ -10,7 +10,12 @@ internal static class JsonStringValidation
     internal static bool IsValid(string text, char escapeChar)
     {
         string logical = ConstructReader.FoldHeader(text, 0, escapeChar, out int end);
-        if (end != text.Length || logical.Length < 2 || logical[0] != '"')
+        return end == text.Length && IsValidLogical(logical);
+    }
+
+    internal static bool IsValidLogical(string logical)
+    {
+        if (logical.Length < 2 || logical[0] != '"')
         {
             return false;
         }

@@ -8,7 +8,7 @@ public class ResolutionGuardTests
     {
         foreach (bool inline in new[] { false, true })
         foreach (bool dictionaryCallback in new[] { false, true })
-        foreach (string entry in new[] { "aggregate", "literal", "variable", "volume" })
+        foreach (string entry in new[] { "aggregate", "literal", "variable", "json", "volume" })
         foreach (string edit in new[] { "add", "remove", "replace", "reorder", "value", "primitive", "quote" })
         {
             yield return new object[] { inline, dictionaryCallback, entry, edit };
@@ -57,9 +57,16 @@ public class ResolutionGuardTests
             "aggregate" => new Container(target),
             "literal" => target,
             "variable" => new VariableRefToken("UNSET", ":-", "") { ModifierValueToken = target },
+            "json" => JsonSource(),
             "volume" => VolumeSource(),
             _ => throw new ArgumentOutOfRangeException(nameof(entry))
         };
+        AggregateToken JsonSource()
+        {
+            target.QuoteChar = '"';
+            target.ResolveAsJsonString = true;
+            return target;
+        }
         AggregateToken VolumeSource()
         {
             VolumeInstruction instruction = VolumeInstruction.Parse("VOLUME [\"placeholder\"]");
@@ -164,6 +171,50 @@ public class ResolutionGuardTests
 
         Assert.Equal("", source.ResolveVariables('\\'));
         Assert.Equal("after", unrelated.Value);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProtectedQuoteAdoptionRejectsBeforeChangingTheReceivingTree(bool inline)
+    {
+        VolumeInstruction source = VolumeInstruction.Parse("VOLUME [\"$ROOT\"]");
+        VolumeInstruction target = VolumeInstruction.Parse("VOLUME []");
+        CallbackDictionary variables = new(() =>
+        {
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+                target.PathTokens.Add(source.PathTokens[0]));
+            Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
+            Assert.Equal("VOLUME []", target.ToString());
+        }) { ["ROOT"] = "root" };
+
+        Assert.Equal("VOLUME [\"root\"]", source.ResolveVariables('\\', variables,
+            new ResolutionOptions { UpdateInline = inline }));
+        Assert.Equal(inline ? "VOLUME [\"root\"]" : "VOLUME [\"$ROOT\"]", source.ToString());
+    }
+
+    [Fact]
+    public void UnrelatedPrimitiveMutationAllocationsDoNotScaleWithProtectedSourceSize()
+    {
+        long Measure(int count)
+        {
+            Container source = new(Enumerable.Range(0, count)
+                .Select(index => (Token)new Container(new StringToken(index.ToString()))).ToArray());
+            StringToken unrelated = new("before");
+            using ResolutionGuard.Scope scope = ResolutionGuard.Enter(source);
+            using ResolutionGuard.CallbackScope callback = ResolutionGuard.Callback();
+            unrelated.Value = "after";
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 512; index++)
+            {
+                unrelated.Value = "after";
+            }
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        long small = Measure(512);
+        long large = Measure(2048);
+        Assert.True(large <= small + 4096, $"Primitive setter allocations grew from {small} to {large} bytes.");
     }
 
     [Fact]
@@ -385,16 +436,23 @@ public class ResolutionGuardTests
         Assert.Equal(original, token.QuoteChar);
     }
 
-    [Fact]
-    public void EscapedEnvQuoteSettersRejectBeforeChangingSyntaxState()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EscapedEnvQuoteSettersRejectBeforeChangingSyntaxState(bool inline)
     {
         EnvInstruction source = EnvInstruction.Parse("ENV A=$ROOT X=\"a\\\"b\"");
-        EnvEscapedQuoteLiteralToken value =
-            Assert.IsType<EnvEscapedQuoteLiteralToken>(source.VariableTokens[1].ValueToken);
-        CallbackDictionary variables = new(() => value.QuoteChar = '\'');
+        EnvEscapedQuoteLiteralToken value = Assert.IsType<EnvEscapedQuoteLiteralToken>(
+            source.VariableTokens[1].ValueToken);
         string original = source.ToString();
+        char? originalQuote = value.QuoteChar;
+        Assert.True(value.HasOriginalEscapedQuoteSyntax);
 
-        Assert.Throws<InvalidOperationException>(() => source.ResolveVariables('\\', variables));
+        Assert.Throws<InvalidOperationException>(() => source.ResolveVariables('\\',
+            new CallbackDictionary(() => value.QuoteChar = originalQuote == '"' ? '\'' : '"'),
+            new ResolutionOptions { UpdateInline = inline }));
+
+        Assert.Equal(originalQuote, value.QuoteChar);
         Assert.Equal(original, source.ToString());
         Assert.True(value.HasOriginalEscapedQuoteSyntax);
     }
@@ -428,6 +486,20 @@ public class ResolutionGuardTests
         Assert.Equal(ResolutionGuard.StructuralMutationMessage, error.Message);
         Assert.Equal('"', primitive.QuoteChar);
         primitive.Value = "outside";
+    }
+
+    [Fact]
+    public void LargeQuoteCaptureUsesReferenceIdentityAndChecksEachDistinctLeafOnce()
+    {
+        const int count = 8192;
+        CountingQuoteString[] leaves = Enumerable.Range(0, count).Select(_ => new CountingQuoteString()).ToArray();
+        LiteralToken source = new(leaves.SelectMany(leaf => new Token[] { leaf, leaf }), true, '\\');
+
+        using (ResolutionGuard.Scope scope = ResolutionGuard.Enter(source))
+        {
+            using ResolutionGuard.CallbackScope callback = ResolutionGuard.Callback();
+        }
+        Assert.All(leaves, leaf => Assert.Equal(3, leaf.QuoteReads));
     }
 
     [Theory]
@@ -640,6 +712,42 @@ public class ResolutionGuardTests
         Assert.Throws<InvalidOperationException>(() =>
             source.ResolveVariables('\\', new CallbackDictionary(() => primitive.Value = "changed")));
         Assert.Equal("before", primitive.Value);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PrimitiveMembershipRetainsAliasesAcrossRootsAndReleasesCompletedSources(bool initializeEarly)
+    {
+        StringToken shared = new("shared");
+        StringToken nestedOnly = new("nested");
+        StringToken published = new("published");
+        Container outer = new(shared, shared);
+        Container inner = new(shared, nestedOnly);
+        using (ResolutionGuard.Enter(outer))
+        using (ResolutionGuard.Callback())
+        {
+            if (initializeEarly)
+            {
+                new StringToken("").Value = "unrelated";
+            }
+            using (ResolutionGuard.Enter(inner))
+            using (ResolutionGuard.Callback())
+            {
+                inner.ReplaceResolvedTokens(new Token[] { published, published });
+                Assert.Throws<InvalidOperationException>(() => shared.Value = "changed");
+                Assert.Throws<InvalidOperationException>(() => nestedOnly.Value = "changed");
+                Assert.Throws<InvalidOperationException>(() => published.Value = "changed");
+                StringToken replacement = new("replacement");
+                inner.ReplaceResolvedChild(0, replacement);
+                Assert.Throws<InvalidOperationException>(() => replacement.Value = "changed");
+                Assert.Throws<InvalidOperationException>(() => published.Value = "changed");
+            }
+            nestedOnly.Value = "released";
+            published.Value = "released";
+            Assert.Throws<InvalidOperationException>(() => shared.Value = "changed");
+        }
+        shared.Value = "released";
     }
 
     [Fact]

@@ -262,11 +262,11 @@ def modifierParser : Parser String :=
   | [] => Parser.fail "no modifiers"
   | p :: ps => ps.foldl (fun acc next => or' acc next) p
 
-/-- Parse the characters that start a variable reference: $ followed by letter/digit/{ .
+/-- Parse the characters that start a variable reference: $ followed by letter/digit/_/{ .
     This is used to exclude variable reference starts from literal parsing. -/
 def variableRefChars : Parser Char := do
   let _ ← char '$'
-  satisfy (fun c => c.isAlpha || c.isDigit || c == '{') "letter, digit, or '{'"
+  satisfy (fun c => c.isAlpha || c.isDigit || c == '_' || c == '{') "letter, digit, '_' or '{'"
 
 /-- Check if a character could start a variable reference ($). -/
 def isVariableRefStart (c : Char) : Bool :=
@@ -282,24 +282,41 @@ def simpleVariableRef : Parser Token := do
 
 /-- Parse a literal string parser suitable for use as a modifier value.
     This is a simplified version for use inside ${VAR:-default} constructs. -/
-partial def modifierValueLiteral (escapeChar : Char) : Parser Token := do
-  let chars ← many1 (satisfy (fun c =>
-    c != '}' && c != escapeChar && !isLineTerminator c) "modifier value character")
-  Parser.pure (Token.mkString (String.ofList chars))
+partial def modifierValueLiteral (escapeChar : Char) : Parser (List Token) := do
+  let tokens ← many1 (or'
+    (lineContinuationParser escapeChar)
+    (or' (escapedChar escapeChar) (toStringToken fun pos =>
+      match pos.current with
+      | none => .error "expected modifier value character" pos
+      | some c =>
+        if c == '}' || c == escapeChar || isLineTerminator c then
+          .error "excluded modifier value character" pos
+        else if c == '$' then
+          match pos.next.current with
+          | some next =>
+            if next.isAlpha || next.isDigit || next == '_' || next == '{' then
+              .error "variable reference start" pos
+            else .ok c pos.next
+          | none => .ok c pos.next
+        else .ok c pos.next)))
+  Parser.pure (collapseStringTokens tokens)
 
 /-- Parse a braced variable reference: ${IDENTIFIER}, ${IDENTIFIER:-default}, etc.
     Returns a VariableRefToken.
     Corresponds to VariableRefToken.BracedVariableReference() -/
-partial def bracedVariableRef (escapeChar : Char) : Parser Token := do
+partial def bracedVariableRef (escapeChar : Char)
+    (nestedParser : Option (Parser Token) := none) : Parser Token := do
   let _ ← char '$'
   let openBrace ← char '{'
   let name ← variableIdentifier
   let modifierTokens ← optional (do
     let mod ← modifierParser
     let modSymbols : List Token := mod.toList.map Token.mkSymbol
-    -- Parse modifier value: either a variable ref or literal text, one or more
-    let valueTokens ← many1 (or' (simpleVariableRef) (or' (bracedVariableRef escapeChar) (modifierValueLiteral escapeChar)))
-    let valueLiteral := Token.mkLiteral valueTokens
+    let valueTokens ← many (or'
+      (do let ref ← simpleVariableRef; Parser.pure [ref])
+      (or' (do let ref ← nestedParser.getD (bracedVariableRef escapeChar); Parser.pure [ref])
+        (modifierValueLiteral escapeChar)))
+    let valueLiteral := Token.mkLiteral (collapseStringTokens valueTokens.flatten)
     Parser.pure (modSymbols ++ [valueLiteral]))
   let closeBrace ← char '}'
   let innerTokens := concatTokens [
@@ -312,8 +329,9 @@ partial def bracedVariableRef (escapeChar : Char) : Parser Token := do
 
 /-- Parse a variable reference: either $VAR or ${VAR} or ${VAR:-default} etc.
     Corresponds to VariableRefToken.GetParser() -/
-def variableRefParser (escapeChar : Char) : Parser Token :=
-  or' (bracedVariableRef escapeChar) simpleVariableRef
+def variableRefParser (escapeChar : Char)
+    (nestedParser : Option (Parser Token) := none) : Parser Token :=
+  or' (bracedVariableRef escapeChar nestedParser) simpleVariableRef
 
 -- ============================================================
 -- Literal string parsers
@@ -351,7 +369,7 @@ def literalChar (escapeChar : Char) (excludedChars : List Char)
         let pos' := pos.next
         match pos'.current with
         | some c' =>
-          if c'.isAlpha || c'.isDigit || c' == '{' then
+          if c'.isAlpha || c'.isDigit || c' == '_' || c' == '{' then
             .error "variable reference start" pos
           else
             .ok c pos.next
@@ -439,7 +457,7 @@ def literalWithVariablesQuoted (escapeChar : Char) (excludedChars : List Char)
               let pos' := pos.next
               match pos'.current with
               | some c' =>
-                if c'.isAlpha || c'.isDigit || c' == '{' then
+                if c'.isAlpha || c'.isDigit || c' == '_' || c' == '{' then
                   .error "variable reference start" pos
                 else .ok c pos.next
               | none => .ok c pos.next

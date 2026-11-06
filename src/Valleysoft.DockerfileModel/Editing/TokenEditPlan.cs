@@ -144,8 +144,11 @@ internal sealed class TokenEditPlan
         }
         foreach (KeyValuePair<AggregateToken, List<Token>> change in effective)
         {
-            change.Key.TokenList.Clear();
-            change.Key.TokenList.AddRange(change.Value);
+            change.Key.ReplaceWithTokens(change.Value);
+            if (change.Key is LiteralToken literal)
+            {
+                literal.PruneResolvedJsonLiterals();
+            }
         }
         foreach (KeyValuePair<IQuotableToken, char?> change in quotes)
         {

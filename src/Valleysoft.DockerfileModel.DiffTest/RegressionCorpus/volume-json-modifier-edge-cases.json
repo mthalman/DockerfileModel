@@ -1,0 +1,6 @@
+{
+  "id": "volume-json-modifier-edge-cases",
+  "instructionType": "VOLUME",
+  "inputBase64": "Vk9MVU1FIFsiJHtST09UOi19L2RhdGEiLCAiJHtST09UOi1wcmVmaXgke09USEVSfX0vZGF0YSIsICIvJF9ST09UL2RhdGEiLCAiJHtST09UOit9IiwgIiR7Uk9PVDo/fSIsICIke1JPT1QtfSIsICIke1JPT1QrfSIsICIke1JPT1Q/fSJd",
+  "escapeCharacter": "\\"
+}

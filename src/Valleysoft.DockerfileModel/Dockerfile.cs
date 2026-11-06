@@ -515,7 +515,7 @@ public class Dockerfile : IConstructContainer
             if (!syntaxValue.UsesCustomResolution &&
                 (!updateInline || options.UpdateInline || syntaxValue != valueToken))
             {
-                syntaxValue.ResolveVariables(escapeChar, bindings, new ResolutionOptions
+                syntaxValue.ResolveVariablesInContext(false, escapeChar, bindings, new ResolutionOptions
                 {
                     UpdateInline = true,
                     RemoveEscapeCharacters = options.RemoveEscapeCharacters,

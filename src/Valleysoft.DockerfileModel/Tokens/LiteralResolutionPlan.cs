@@ -36,10 +36,10 @@ internal sealed class LiteralResolutionPlan
         }
 
         // Scan each subtree once, then share its plan through the original reverse virtual calls.
-        entries = new Entry[token.TokenList.Count];
+        entries = new Entry[token.ResolutionChildren.Count];
         for (int i = 0; i < entries.Length; i++)
         {
-            Token child = token.TokenList[i];
+            Token child = token.ResolutionChildren[i];
             ShellQuoteContext childContext = context;
             LiteralResolutionPlan? childPlan = null;
             ExceptionDispatchInfo? childFailure = null;
@@ -238,7 +238,9 @@ internal sealed class LiteralResolutionPlan
                     if (!resolverOverrides.TryGetValue(type, out hasOverride))
                     {
                         Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?> resolver = aggregate.ResolveVariables;
-                        hasOverride = resolver.Method.DeclaringType != typeof(AggregateToken);
+                        hasOverride = aggregate is LiteralToken literal
+                            ? literal.HasCustomResolution
+                            : resolver.Method.DeclaringType != typeof(AggregateToken);
                         resolverOverrides.Add(type, hasOverride);
                     }
                 }
