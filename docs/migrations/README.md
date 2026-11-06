@@ -7,5 +7,6 @@ may appear here before publication.
 
 ## Releases
 
+- [Upgrade to 5.0.0](5.0.0/README.md)
 - [Upgrade to 4.0.0](4.0.0/README.md)
 - [Upgrade to 3.0.0](3.0.0/README.md)
