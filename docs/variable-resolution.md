@@ -59,6 +59,91 @@ If you call `AggregateToken.ResolveVariables()` directly, it uses the supplied
 variable dictionary without establishing document ARG scope. That method
 preserves surrounding syntax quotes in the returned text.
 
+## Resolve one instruction
+
+Pass an existing instruction object to `Dockerfile.ResolveVariables(instruction)`
+to resolve it using the document's global ARGs and earlier ARGs in its stage.
+The target must be the stage's opening FROM or an instruction in that stage.
+
+```csharp
+using System;
+using System.Linq;
+using Valleysoft.DockerfileModel;
+
+string source =
+    "ARG BASE=alpine\nARG IMAGE=$BASE\nFROM $IMAGE\n" +
+    "ARG ROOT=/app\nARG CHILD=$ROOT/bin\nWORKDIR $CHILD\nARG LATER=$CHILD";
+Dockerfile dockerfile = Dockerfile.Parse(source);
+WorkdirInstruction target = dockerfile.Items.OfType<WorkdirInstruction>().Single();
+
+Console.Write(dockerfile.ResolveVariables(target));
+Console.WriteLine(dockerfile.ToString() == source);
+```
+
+The result includes the selected instruction's keyword and trailing newline.
+Default resolution leaves the document unchanged:
+
+```text
+WORKDIR /app/bin
+True
+```
+
+With `UpdateInline = true`, targeted resolution can also replace references in
+preceding global and stage ARG defaults. It does not update preceding non-ARG
+instructions or later stage instructions. For the same document:
+
+```csharp
+dockerfile.ResolveVariables(target, options: new ResolutionOptions { UpdateInline = true });
+Console.WriteLine(dockerfile);
+```
+
+The output leaves the earlier FROM and later ARG references unchanged:
+
+```dockerfile
+ARG BASE=alpine
+ARG IMAGE=alpine
+FROM $IMAGE
+ARG ROOT=/app
+ARG CHILD=/app/bin
+WORKDIR /app/bin
+ARG LATER=$CHILD
+```
+
+Overrides affect the resolution scope; they are not written back as declaration
+defaults.
+
+## Format returned text
+
+`ResolutionOptions.RemoveEscapeCharacters` defaults to `false`. When enabled,
+it removes the active escape character from returned resolved text, reducing
+a doubled escape character to one. This option alone does not mutate tokens
+and is not a general shell or JSON unescaper. It is separate from `UpdateInline`,
+which controls whether resolved references are replaced in the model.
+
+For example, resolve a literal directly using an explicit dictionary:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using Valleysoft.DockerfileModel;
+using Valleysoft.DockerfileModel.Tokens;
+
+LiteralToken literal = new("prefix/$NAME", canContainVariables: true);
+var variables = new Dictionary<string, string?> { ["NAME"] = @"dir\\file" };
+
+Console.WriteLine(literal.ResolveVariables(Dockerfile.DefaultEscapeChar, variables,
+    new ResolutionOptions { RemoveEscapeCharacters = true }));
+Console.WriteLine(literal);
+```
+
+The doubled backslash in the substituted value becomes one in the returned
+text, while the source remains unchanged:
+
+```text
+prefix/dir\file
+prefix/$NAME
+```
+
 ## Dockerfile ARG semantics
 
 `Dockerfile.ResolveVariables()` implements the Dockerfile ARG rules below, with

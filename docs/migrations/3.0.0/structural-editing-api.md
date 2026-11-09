@@ -37,12 +37,12 @@ Invalid required-list clearing, repeated token identities within the edited
 tree, incompatible parsing context, and unpreservable trivia throw without
 partial mutation. Removal and replacement can promote embedded comments into
 standalone items. `Clear` either empties the selected collection or throws
-unchanged. See [trivia policies and shared ownership](../docs/editing.md#choose-a-trivia-policy)
+unchanged. See [trivia policies and shared ownership](../../editing.md#choose-a-trivia-policy)
 for preservation rules, including sharing with removed or replaced objects.
 
 `Mount.Entries` supports field-level list edits. Paired `Heredocs` collections
 insert, replace, move, and remove complete definitions created with the
-`Heredoc` constructor. See the [mount and heredoc reference](../docs/editing.md#edit-mounts-and-heredoc-collections)
+`Heredoc` constructor. See the [mount and heredoc reference](../../editing.md#edit-mounts-and-heredoc-collections)
 for escape-context requirements, representation limits, and shell caveats.
 
 Collection views remain live. Each call to `GetEnumerator()` captures the
@@ -51,8 +51,8 @@ sequence. Referenced model objects are not cloned.
 
 Existing scalar setters remain unchanged. Collection edits can change stage
 bindings and do not repair inconsistencies caused by earlier scalar or low-level
-changes. See [validation boundaries](../docs/editing.md#validation-boundaries)
-and [supported token implementations](../docs/editing.md#supported-token-implementations)
+changes. See [validation boundaries](../../editing.md#validation-boundaries)
+and [supported token implementations](../../editing.md#supported-token-implementations)
 before editing models with custom tokens or prior low-level mutations.
 
 ## Type of breaking change
@@ -94,9 +94,9 @@ To bind `Clear` to an `Action`, use
 `Action clear = () => dockerfile.Items.Clear()` or bind through
 `ICollection<DockerfileConstruct>`.
 
-Follow [the collection editing migration](../docs/structural-editing-migration.md)
+Follow [the collection editing migration](../../structural-editing-migration.md)
 to check adopted objects, replace heredocs, resume builder appends, and refresh
-analysis. The [editing reference](../docs/editing.md) contains the complete
+analysis. The [editing reference](../../editing.md) contains the complete
 contracts and examples.
 
 ## Affected APIs
