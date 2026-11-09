@@ -1,10 +1,10 @@
 # BuildKit parser corpus attribution
 
-Source: https://github.com/moby/buildkit/tree/dddd5621af04ea57823085c93a063383f71d3173/frontend/dockerfile/parser
+Source: https://github.com/moby/buildkit/tree/f5b59a1f2fb25a0cb7072c398cab9aed7835da4e/frontend/dockerfile/parser
 
-Dockerfile frontend release: dockerfile/1.27.0
+Dockerfile frontend release: dockerfile/1.28.0
 
-BuildKit source commit: dddd5621af04ea57823085c93a063383f71d3173
+BuildKit source commit: f5b59a1f2fb25a0cb7072c398cab9aed7835da4e
 
 Upstream material is distributed under the preserved Apache License 2.0 in LICENSE.
 No applicable upstream NOTICE or parser-subtree license override was found at this pin.
