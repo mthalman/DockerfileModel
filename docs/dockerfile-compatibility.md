@@ -44,6 +44,27 @@ commitment. A newer target does not certify every historical frontend version.
 Reading `#syntax` metadata does not infer compatibility or select a different
 parser at runtime.
 
+### Frontend 1.28.0 review
+
+The 1.27.0-to-1.28.0 source review found no changes in BuildKit's low-level
+parser, instruction grammar, stable/labs syntax gates, or imported parser
+fixtures. The existing instruction corpus is retained at the new source pin.
+
+BuildKit fixes escaping in quoted variable-expansion patterns and RUN display
+names. This library preserves pattern modifiers (`#`, `##`, `%`, `%%`, `/`,
+`//`) as text during variable resolution; it does not implement BuildKit's
+pattern matching. RUN display-name expansion is build UI behavior, not
+shell-command variable resolution in this library.
+
+BuildKit also rejects named `--chown` values with `--link` during conversion
+to build operations, fixes omitted-group ownership handling, and bounds
+frontend file reads. This library continues to represent those flags without
+filesystem-dependent ownership validation or BuildKit's file-read limits.
+Cache cleanup, image-config cache verification, provenance, and frontend
+release packaging changes affect build execution rather than Dockerfile
+parsing. These distinctions remain compatibility limitations, not newly
+implemented behavior.
+
 ## What the upstream corpus checks
 
 The Go importer uses the pinned upstream parser to validate its file-based

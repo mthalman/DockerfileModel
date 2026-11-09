@@ -8,7 +8,7 @@ nor network access.
 
 ## Regenerate and check
 
-Install Git and Go 1.26.3 or newer. You do not need an existing BuildKit
+Install Git and Go 1.26.8 or newer. You do not need an existing BuildKit
 checkout: without `--source`, the importer clones the pinned frontend release
 into a temporary directory, verifies its source commit, and removes the
 checkout when it finishes. A moved release tag fails verification rather than
@@ -71,6 +71,12 @@ The primary version stream is stable `dockerfile/X.Y.Z` frontend releases, not
 BuildKit backend releases, labs, or moving tags. The initial frontend 1.27.0
 resolves to `dddd5621af04ea57823085c93a063383f71d3173`; the Go module's v0.33.0
 is another tag at that same commit.
+
+The current frontend 1.28.0 resolves to
+`f5b59a1f2fb25a0cb7072c398cab9aed7835da4e`, also tagged as BuildKit v0.34.1.
+Its parser fixtures and imported instruction cases are unchanged from the
+initial pin. See the [frontend review](../../docs/dockerfile-compatibility.md#frontend-1280-review)
+for behavior changes outside the imported corpus.
 
 After reviewing the selected release, resolve its tag to the exact commit and
 edit the root compatibility metadata. In this directory, run

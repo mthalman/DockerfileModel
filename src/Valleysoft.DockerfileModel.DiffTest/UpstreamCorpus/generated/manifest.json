@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "repository": "moby/buildkit",
-  "frontendVersion": "1.27.0",
-  "sourceCommit": "dddd5621af04ea57823085c93a063383f71d3173",
-  "importerGoModSha256": "af9f1bdfc7f9f0991998b19b8d7617efdd93d5fc4744038b71f3ee89c12d32ad",
-  "importerGoSumSha256": "d5bd9d5d63e412a68e0fe3498a6b08cc3224e267aae9adaef6294995451c6625",
+  "frontendVersion": "1.28.0",
+  "sourceCommit": "f5b59a1f2fb25a0cb7072c398cab9aed7835da4e",
+  "importerGoModSha256": "a2cd6b3fa6465396627634b4b97982c5f71d9385986505b18f7cfa1cac1675aa",
+  "importerGoSumSha256": "a8dbc80e4a00a22e0ca53d83f2497357de1542e5772b06c9f7088bb88b3f8b68",
   "files": [
     {
       "path": ".gitattributes",
@@ -12,7 +12,7 @@
     },
     {
       "path": "ATTRIBUTION.md",
-      "sha256": "e4b0827cec9a96a447a88457d7b9c24d10b77ca615e09283dd6bda1057325d1b"
+      "sha256": "f578c8167a71996f34592c136cd423db82c0dcade555195d3fb9ae8d4537f0aa"
     },
     {
       "path": "LICENSE",
@@ -1494,6 +1494,6 @@
   "importer": {
     "schemaVersion": 1,
     "path": "tools/BuildKitCorpus",
-    "buildkitModuleVersion": "v0.33.0"
+    "buildkitModuleVersion": "v0.34.1"
   }
 }
