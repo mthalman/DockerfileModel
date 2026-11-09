@@ -6,6 +6,55 @@ Contributions are welcome. Submit a pull request or open an issue as necessary.
 
 Install the .NET SDK specified by [`global.json`](global.json). From the
 repository root, run `dotnet --version` to confirm that SDK resolution succeeds.
+Install the .NET 8 runtime to run the sample and differential-test projects;
+the unit tests use .NET 10. Check installed runtimes with `dotnet --list-runtimes`.
+Packaged-documentation verification also requires PowerShell 7.4 or newer.
+
+## Build and test
+
+From the repository root, build and test the solution, including the consumer
+examples:
+
+```powershell
+dotnet build src\Valleysoft.DockerfileModel.sln -c Release
+dotnet test src\Valleysoft.DockerfileModel.sln -c Release --no-build -v normal
+```
+
+For a focused unit-test run, select a test class or method:
+
+```powershell
+dotnet test src\Valleysoft.DockerfileModel.Tests -c Release --no-build --filter "FullyQualifiedName~FromInstructionTests.Parse"
+```
+
+Follow the [Lean setup, proofs, and differential testing guide](lean/README.md)
+when changing parser behavior. For changes to the pinned upstream corpus, use
+the [BuildKit importer procedure](tools/BuildKitCorpus/README.md).
+
+## Verify documentation and examples
+
+After the Release build above, run this command from the repository root in
+PowerShell 7.4 or newer:
+
+```powershell
+.\tools\Documentation\Verify-Documentation.ps1
+```
+
+The script packs the existing Release build with `--no-build`, checks the
+packaged README and XML API documentation, tests rejection of invalid package
+documentation, and runs the consumer examples against the package on .NET 8
+and .NET 10. It uses a temporary package feed and cache, can restore test
+dependencies from NuGet.org, and removes its temporary files when it finishes.
+A successful run ends with:
+
+```text
+Packaged README/XML and package-backed examples verified for both target scenarios.
+```
+
+Keep examples consistent with the maintained
+[usage examples](src/Valleysoft.DockerfileModel.Samples/UsageExamples.cs) and
+[advanced examples](src/Valleysoft.DockerfileModel.Samples/AdvancedExamples.cs).
+These checks do not validate Markdown links or rendering; check changed
+destinations and anchors separately.
 
 ## Label pull requests and document breaking changes
 

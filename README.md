@@ -18,38 +18,62 @@ This .NET library provides a structured model of the Dockerfile syntax for the p
 
 The library is available as a NuGet package: [Valleysoft.DockerfileModel](https://www.nuget.org/packages/Valleysoft.DockerfileModel/).
 
-For code examples, check out the [scenario tests](https://github.com/mthalman/DockerfileModel/blob/main/src/Valleysoft.DockerfileModel.Tests/ScenarioTests.cs) which demonstrate how the API can be used for various scenarios.
+From your .NET application's project directory, install it with:
 
-Edit document and instruction collections directly:
+```text
+dotnet add package Valleysoft.DockerfileModel
+```
+
+Parse a Dockerfile, edit its collections, and serialize the result:
 
 ```csharp
+using System;
+using System.Linq;
+using Valleysoft.DockerfileModel;
+
 Dockerfile dockerfile = Dockerfile.Parse(
     "FROM alpine AS build\nCOPY src/ /app/\n");
 CopyInstruction copy = dockerfile.Items.OfType<CopyInstruction>().Single();
 copy.Sources.Add("generated/");
 dockerfile.Items.Insert(dockerfile.Items.IndexOf(copy) + 1, new RunInstruction("echo ready"));
+Console.WriteLine(dockerfile);
 ```
 
-See [Collection editing](docs/editing.md) for document items, value/token lists,
+The output preserves the existing formatting and adds the new source and instruction:
+
+```dockerfile
+FROM alpine AS build
+COPY src/ generated/ /app/
+RUN echo ready
+```
+
+The maintained [usage examples](https://github.com/mthalman/DockerfileModel/blob/main/src/Valleysoft.DockerfileModel.Samples/UsageExamples.cs)
+cover round trips, image edits, ARG resolution, stages, and fluent construction.
+The [advanced examples](https://github.com/mthalman/DockerfileModel/blob/main/src/Valleysoft.DockerfileModel.Samples/AdvancedExamples.cs)
+cover coordinated edits, dependency analysis, recovery, and nested comments.
+
+## Guides
+
+See [Collection editing](https://github.com/mthalman/DockerfileModel/blob/main/docs/editing.md) for document items, value/token lists,
 comments, mount entries, paired heredocs, and trivia policies. Existing scalar
 property setters are unchanged. Upgrading consumers should read the
-[collection editing migration](docs/structural-editing-migration.md).
+[versioned migration guides](https://github.com/mthalman/DockerfileModel/blob/main/docs/migrations/README.md).
 
 Use `Dockerfile.Analyze()` to inspect stage dependencies and external image references
-without modifying the model. See [Stage dependencies and image inventory](docs/stage-analysis.md)
+without modifying the model. See [Stage dependencies and image inventory](https://github.com/mthalman/DockerfileModel/blob/main/docs/stage-analysis.md)
 for examples, API contracts, resolution rules, and limitations.
 
-See [Parsing, recovery, and diagnostics](docs/parsing.md) for parse options, recovery behavior, diagnostic codes, and source locations.
+See [Parsing, recovery, and diagnostics](https://github.com/mthalman/DockerfileModel/blob/main/docs/parsing.md) for parse options, recovery behavior, diagnostic codes, and source locations.
 
-See [Parser directives and frontend metadata](docs/parser-directives.md) for typed
+See [Parser directives and frontend metadata](https://github.com/mthalman/DockerfileModel/blob/main/docs/parser-directives.md) for typed
 syntax, escape, and check directives, header placement rules, and lossless editing.
 
-See [Native AOT and trimming](docs/native-aot.md) for supported targets and
+See [Native AOT and trimming](https://github.com/mthalman/DockerfileModel/blob/main/docs/native-aot.md) for supported targets and
 restrictions on consumer-defined subclasses.
 
-See [Variable resolution](docs/variable-resolution.md) for ARG scopes, callback
+See [Variable resolution](https://github.com/mthalman/DockerfileModel/blob/main/docs/variable-resolution.md) for ARG scopes, callback
 mutation boundaries, and custom serializer requirements.
 
-See [Dockerfile compatibility](docs/dockerfile-compatibility.md) for the pinned
+See [Dockerfile compatibility](https://github.com/mthalman/DockerfileModel/blob/main/docs/dockerfile-compatibility.md) for the pinned
 stable frontend target, upstream conformance corpus, known limitations, and
 maintainer-reviewed upgrade policy.

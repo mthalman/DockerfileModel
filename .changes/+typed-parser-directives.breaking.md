@@ -48,8 +48,10 @@ after `=` and is recognized as an invalid escape directive:
 
 `ParserDirective.Parse` requires its input to contain exactly one directive,
 with an optional final newline. The constructor likewise rejects arguments
-that produce trailing content. `GetParser()` remains composable; append `.End()`
-when complete input consumption is required.
+that produce trailing content. Use `ParserDirective.Parse` for a standalone
+directive and `Dockerfile.Parse` or `Dockerfile.TryParse` for a complete document.
+Parser factories are no longer public; see the
+[Superpower migration](../docs/migrations/3.0.0/superpower-parser-engine.md).
 
 Names start with an ASCII letter and contain only ASCII letters or digits.
 `DirectiveValue` retains the entire value, including internal spaces and literal
@@ -60,8 +62,9 @@ parsing entry points.
 
 This is a behavioral compatibility change affecting runtime types, accepted
 input, construct classification, error handling, value interpretation, and
-effective escape selection. Existing generic public member signatures remain
-available, but callers that depend on the previous behavior must migrate.
+effective escape selection. Existing generic directive constructors and value
+and name members remain available, but callers that depend on the previous
+behavior must migrate.
 
 #### Reason for change
 
