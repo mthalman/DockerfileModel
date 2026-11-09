@@ -1,4 +1,5 @@
 using System.Text;
+using Valleysoft.DockerfileModel.Tokens;
 
 namespace Valleysoft.DockerfileModel;
 
@@ -36,7 +37,11 @@ public class Dockerfile : IConstructContainer
 
     internal List<DockerfileConstruct> RawItems { get; }
 
-    internal void AddRaw(DockerfileConstruct item) => RawItems.Add(item);
+    internal void AddRaw(DockerfileConstruct item)
+    {
+        ResolutionGuard.BeforeMutation(this);
+        RawItems.Add(item);
+    }
 
     IEnumerable<DockerfileConstruct> IConstructContainer.Items => Items;
 
@@ -155,9 +160,21 @@ public class Dockerfile : IConstructContainer
     /// <param name="options">Resolution behavior; null leaves the model unchanged.</param>
     /// <returns>The last processed instruction's text, or an empty string if no stage instruction was processed. This is not the complete Dockerfile.</returns>
     /// <remarks>
-    /// Global ARGs supply FROM values; each stage starts a fresh local ARG scope. Stage declarations without
-    /// defaults can import global values. Runtime command expansion is not performed.
+    /// Global ARGs apply to FROM. Each stage has its own ARG scope. A declaration without a default
+    /// uses a global value when available, otherwise it keeps the current local value.
+    /// Empty defaults count as set; null overrides leave an ARG unset. Ordinary defaults exclude
+    /// quote syntax, line continuations, and comments. Runtime command variables are not expanded.
+    /// <para>
+    /// Custom token resolvers receive the supplied options, and their results are treated as values.
+    /// References in defaults resolve right-to-left. Callbacks can change the variable dictionary
+    /// and options, but not source tokens or completed results. Inline updates happen as references
+    /// resolve; enabling them later does not update earlier references.
+    /// Serializers and quote getters must be side-effect-free and repeatable.
+    /// Non-inline stage resolution uses serialized declarations for instruction subclasses or changed boundaries.
+    /// </para>
+    /// <para>
     /// To serialize the entire updated document, enable <see cref="ResolutionOptions.UpdateInline"/> and then call <see cref="ToString"/>.
+    /// </para>
     /// </remarks>
     public string ResolveVariables(IDictionary<string, string?>? variableOverrides = null, ResolutionOptions? options = null) =>
         ResolveVariables(
@@ -187,6 +204,7 @@ public class Dockerfile : IConstructContainer
         Func<Instruction, bool> processInstruction,
         ResolutionOptions? options)
     {
+        using ResolutionGuard.Scope scope = ResolutionGuard.Enter(this);
         variableOverrides ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
 
@@ -203,7 +221,7 @@ public class Dockerfile : IConstructContainer
         {
             if (processInstruction(stage.FromInstruction))
             {
-                resolvedValue = stage.FromInstruction.ResolveVariables(escapeChar, globalArgs, options);
+                resolvedValue = ResolutionGuard.Resolve(stage.FromInstruction, escapeChar, globalArgs, options);
             }
 
             Dictionary<string, string?> stageArgs = new();
@@ -226,7 +244,7 @@ public class Dockerfile : IConstructContainer
                 }
                 else
                 {
-                    resolvedValue = instruction.ResolveVariables(escapeChar, stageArgs, options);
+                    resolvedValue = ResolutionGuard.Resolve(instruction, escapeChar, stageArgs, options);
                 }
             }
         }
@@ -238,57 +256,367 @@ public class Dockerfile : IConstructContainer
         Dictionary<string, string?> stageArgs, IDictionary<string, string?> globalArgs,
         IDictionary<string, string?> variableOverrides, ResolutionOptions options)
     {
-        ResolutionOptions inlineOptions = options.UpdateInline
-            ? options
-            : new ResolutionOptions
-            {
-                UpdateInline = true,
-                RemoveEscapeCharacters = options.RemoveEscapeCharacters
-            };
-
-        ArgInstruction resolvedInstruction = options.UpdateInline
-            ? instruction
-            : ArgInstruction.Parse(instruction.ToString(), escapeChar);
-
-        foreach (ArgDeclaration arg in resolvedInstruction.ArgTokens)
+        ArgInstruction resolvedInstruction;
+        ArgDeclaration[] args;
+        ArgDeclaration[] resolvedArgs;
+        ArgNameSnapshot[]? originalNames = null;
+        if (options.UpdateInline)
         {
-            // If this is just an arg declaration and a value has been provided from a global arg
-            if (arg.Value is null && globalArgs.TryGetValue(arg.Name, out string? globalArg))
+            resolvedInstruction = instruction;
+            args = instruction.ArgTokens.ToArray();
+            resolvedArgs = args;
+        }
+        else
+        {
+            args = instruction.ArgTokens.ToArray();
+            string syntax = instruction.ToString();
+            List<(int Start, int Length)> parsedArgs = new();
+            resolvedInstruction = ArgInstruction.Parse(syntax, escapeChar, parsedArgs.Add);
+            resolvedArgs = resolvedInstruction.ArgTokens.ToArray();
+            bool sameLayout = instruction.GetType() == typeof(ArgInstruction) && args.Length == resolvedArgs.Length;
+            for (int i = 0; sameLayout && i < args.Length; i++)
             {
-                stageArgs[arg.Name] = globalArg;
+                sameLayout = args[i].HasAssignmentOperator == resolvedArgs[i].HasAssignmentOperator;
             }
-            // If an arg override exists for this arg
-            else if (variableOverrides.TryGetValue(arg.Name, out string? overrideArgValue))
+            for (int i = 0; sameLayout && i < args.Length; i++)
             {
-                stageArgs[arg.Name] = overrideArgValue;
+                sameLayout = MatchesArgDeclarationSyntax(args[i].ToString(), syntax, parsedArgs[i],
+                    i == args.Length - 1);
             }
-            else
+            if (!sameLayout)
             {
-                string? resolvedArgValue = arg.ValueToken?.ResolveVariables(escapeChar, stageArgs, inlineOptions);
-                stageArgs[arg.Name] = resolvedArgValue;
+                return ResolveArgInstruction(resolvedInstruction, escapeChar, stageArgs, globalArgs, variableOverrides,
+                    new ResolutionOptions { UpdateInline = true, RemoveEscapeCharacters = options.RemoveEscapeCharacters });
+            }
+            originalNames = args.Select(arg => new ArgNameSnapshot(arg)).ToArray();
+        }
+        using ResolutionGuard.Scope argScope = ResolutionGuard.Enter(resolvedInstruction);
+        bool hasConsumerCallbacks = false;
+        Action? recordConsumerCallback = originalNames is null ? null : () => hasConsumerCallbacks = true;
+        for (int i = 0; i < args.Length; i++)
+        {
+            ArgDeclaration arg = args[i];
+            ResolutionOptions argOptions = options;
+            bool customName = AnalysisExpressionEvaluator.ContainsConsumerSerialization(arg.NameToken);
+            string name = arg.Name;
+            if (resolvedInstruction != instruction && name != resolvedArgs[i].Name)
+            {
+                bool useProjection = originalNames![i].Matches(arg.NameToken);
+                if (useProjection && hasConsumerCallbacks && customName)
+                {
+                    useProjection = arg.NameToken.ToString() == resolvedArgs[i].NameToken.ToString();
+                    name = arg.Name;
+                    useProjection &= originalNames[i].Matches(arg.NameToken);
+                }
+                if (useProjection)
+                {
+                    arg = resolvedArgs[i];
+                    name = arg.Name;
+                    argOptions = new ResolutionOptions
+                    {
+                        UpdateInline = true,
+                        RemoveEscapeCharacters = options.RemoveEscapeCharacters
+                    };
+                }
+            }
+            hasConsumerCallbacks |= customName;
+            // Preserve inline live-name timing; detached resolution keeps the name consumed before callbacks.
+            if (ResolutionGuard.TryGetValue(variableOverrides, name, out string? overrideArgValue))
+            {
+                SetArgBinding(stageArgs, resolvedInstruction == instruction ? arg.Name : name, overrideArgValue);
+            }
+            else if (arg.HasAssignmentOperator)
+            {
+                string value = ResolveArgDefault(arg, escapeChar, stageArgs, argOptions,
+                    resolvedArgs[i], recordConsumerCallback);
+                stageArgs[resolvedInstruction == instruction ? arg.Name : name] = value;
+            }
+            else if (globalArgs.TryGetValue(resolvedInstruction == instruction ? arg.Name : name, out string? globalArg) &&
+                globalArg is not null)
+            {
+                stageArgs[resolvedInstruction == instruction ? arg.Name : name] = globalArg;
             }
         }
 
-        return options.FormatValue(escapeChar, resolvedInstruction.ToString());
+        return options.FormatValue(escapeChar,
+            (options.UpdateInline ? instruction : resolvedInstruction).ToString());
+    }
+
+    private static bool MatchesArgDeclarationSyntax(string original, string syntax,
+        (int Start, int Length) parsed, bool lastDeclaration)
+    {
+        int originalLength = original.Length;
+        while (originalLength > 0 && Char.IsWhiteSpace(original[originalLength - 1])) originalLength--;
+        int parsedLength = parsed.Length;
+        while (parsedLength > 0 && Char.IsWhiteSpace(syntax[parsed.Start + parsedLength - 1])) parsedLength--;
+        // The standalone ARG parser may leave a final suffix unconsumed.
+        return (lastDeclaration ? originalLength >= parsedLength : originalLength == parsedLength) &&
+            String.CompareOrdinal(original, 0, syntax, parsed.Start, parsedLength) == 0;
+    }
+
+    // Stored name edits can be checked without repeating a consumer serializer.
+    private sealed class ArgNameSnapshot
+    {
+        private readonly Variable? name;
+        private readonly char? quote;
+        private readonly (Token Source, string? Value, Token[]? Children)[] descendants;
+
+        public ArgNameSnapshot(ArgDeclaration declaration)
+        {
+            name = declaration.Tokens.OfType<Variable>().FirstOrDefault();
+            quote = name?.QuoteChar;
+            List<(Token Source, string? Value, Token[]? Children)> captured = new();
+            HashSet<Token> visited = new(ReferenceComparer<Token>.Instance);
+            Stack<Token> pending = new();
+            if (name is not null) pending.Push(name);
+            while (pending.Count > 0)
+            {
+                Token token = pending.Pop();
+                if (!visited.Add(token)) continue;
+                Token[]? children = (token as AggregateToken)?.Tokens.ToArray();
+                captured.Add((token, (token as PrimitiveToken)?.Value, children));
+                if (children is not null)
+                {
+                    for (int i = children.Length - 1; i >= 0; i--) pending.Push(children[i]);
+                }
+            }
+            descendants = captured.ToArray();
+        }
+
+        public bool Matches(Variable current)
+        {
+            if (!ReferenceEquals(name, current) || quote != current.QuoteChar)
+            {
+                return false;
+            }
+            foreach (var captured in descendants)
+            {
+                if (captured.Value != (captured.Source as PrimitiveToken)?.Value)
+                {
+                    return false;
+                }
+                if (captured.Children is { } children && captured.Source is AggregateToken aggregate)
+                {
+                    List<Token> live = aggregate.TokenList;
+                    if (children.Length != live.Count) return false;
+                    for (int i = 0; i < children.Length; i++)
+                    {
+                        if (!ReferenceEquals(children[i], live[i])) return false;
+                    }
+                }
+            }
+            return true;
+        }
     }
 
     private static Dictionary<string, string?> GetGlobalArgs(StagesView stagesView, char escapeChar, IDictionary<string, string?> variables,
         ResolutionOptions options)
     {
         Dictionary<string, string?> globalArgs = new();
-        foreach (ArgDeclaration arg in stagesView.GlobalArgs.SelectMany(inst => inst.Args))
+        foreach (ArgDeclaration arg in stagesView.GlobalArgs.SelectMany(inst => inst.ArgTokens))
         {
-            if (variables.TryGetValue(arg.Name, out string? overridenValue))
+            if (ResolutionGuard.TryGetValue(variables, arg.Name, out string? overridenValue))
             {
-                globalArgs.Add(arg.Name, overridenValue);
+                SetArgBinding(globalArgs, arg.Name, overridenValue);
             }
-            else
+            else if (arg.HasAssignmentOperator)
             {
-                string? resolvedValue = arg.ValueToken?.ResolveVariables(escapeChar, globalArgs, options);
-                globalArgs.Add(arg.Name, resolvedValue);
+                string value = ResolveArgDefault(arg, escapeChar, globalArgs, options);
+                globalArgs[arg.Name] = value;
             }
         }
 
         return globalArgs;
+    }
+
+    private static void SetArgBinding(Dictionary<string, string?> bindings, string name, string? value)
+    {
+        if (value is null)
+        {
+            bindings.Remove(name);
+        }
+        else
+        {
+            bindings[name] = value;
+        }
+    }
+
+    private static string ResolveArgDefault(ArgDeclaration arg, char escapeChar,
+        IDictionary<string, string?> bindings, ResolutionOptions options, ArgDeclaration? syntaxArg = null,
+        Action? onCustomResolution = null)
+    {
+        if (arg.ValueToken is not LiteralToken valueToken)
+        {
+            return String.Empty;
+        }
+
+        bool updateInline = options.UpdateInline;
+        bool resolveSyntax = updateInline || syntaxArg is not null && syntaxArg != arg;
+        Dictionary<AggregateToken, Dictionary<int, Stack<TokenResolution>>>? resolutions = resolveSyntax
+            ? new(ReferenceComparer<AggregateToken>.Instance) : null;
+        void RecordResolution(AggregateToken owner, int index, TokenResolution resolution)
+        {
+            if (!resolutions!.TryGetValue(owner, out Dictionary<int, Stack<TokenResolution>>? positions))
+            {
+                positions = new();
+                resolutions.Add(owner, positions);
+            }
+            if (!positions.TryGetValue(index, out Stack<TokenResolution>? occurrences))
+            {
+                occurrences = new();
+                positions.Add(index, occurrences);
+            }
+            occurrences.Push(resolution);
+        }
+        IDictionary<string, string?> syntaxBindings = bindings;
+        string[]? syntaxVariableNames = null;
+        void CaptureSyntaxBindings()
+        {
+            if (syntaxArg is not null && syntaxArg != arg && ReferenceEquals(syntaxBindings, bindings))
+            {
+                syntaxVariableNames ??= syntaxArg.ValueToken is { } syntaxValue
+                    ? InstructionCollectionEditing.Descendants(syntaxValue).OfType<VariableRefToken>()
+                        .Select(variable => variable.VariableName).Distinct(StringComparer.Ordinal).ToArray()
+                    : Array.Empty<string>();
+                if (syntaxVariableNames.Length > 0)
+                {
+                    Dictionary<string, string?> captured = new(syntaxVariableNames.Length, StringComparer.Ordinal);
+                    foreach (string name in syntaxVariableNames)
+                    {
+                        if (bindings.TryGetValue(name, out string? binding))
+                        {
+                            captured.Add(name, binding);
+                        }
+                    }
+                    syntaxBindings = captured;
+                }
+            }
+        }
+        // Non-inline stage defaults leave native trivia references to their reparsed copy.
+        string value = ResolveArgValue(valueToken, escapeChar, bindings, options,
+            recordResolution: updateInline ? RecordResolution : null,
+            onCustomResolution: onCustomResolution,
+            onBeforeCustomResolution: CaptureSyntaxBindings,
+            resolveTriviaVariables: syntaxArg is null || syntaxArg == arg || updateInline) ?? String.Empty;
+
+        if (resolutions is not null && (updateInline || !options.UpdateInline))
+        {
+            LiteralToken syntaxValue = options.UpdateInline ? valueToken : syntaxArg?.ValueToken ?? valueToken;
+            if (syntaxValue != valueToken)
+            {
+                if (IsNativeConstant(valueToken) && IsNativeConstant(syntaxValue))
+                {
+                    return value;
+                }
+                // Reparsed copies have distinct token owners and need their own occurrence snapshots.
+                ResolveArgValue(syntaxValue, escapeChar, syntaxBindings, options,
+                    recordResolution: RecordResolution, shouldRecordSyntax: static () => true);
+            }
+            if (!syntaxValue.UsesCustomResolution &&
+                (!updateInline || options.UpdateInline || syntaxValue != valueToken))
+            {
+                syntaxValue.ResolveVariablesInContext(false, escapeChar, bindings, new ResolutionOptions
+                {
+                    UpdateInline = true,
+                    RemoveEscapeCharacters = options.RemoveEscapeCharacters,
+                    TokenValueResolver = (owner, index, token) =>
+                    {
+                        if (!resolutions.TryGetValue(owner, out var positions) ||
+                            !positions.TryGetValue(index, out var occurrences) || occurrences.Count == 0 ||
+                            !ReferenceEquals(occurrences.Peek().Source, token))
+                        {
+                            return null;
+                        }
+                        TokenResolution resolution = occurrences.Pop();
+                        return new TokenResolution(resolution.Source, resolution.SyntaxValue, resolution.SemanticValue,
+                            syntaxValue != valueToken || resolution.UpdateInline);
+                    }
+                });
+            }
+        }
+
+        return value;
+    }
+
+    private static bool IsNativeConstant(Token token) =>
+        token is LiteralToken literal && !literal.UsesCustomResolution && literal.Tokens.All(IsNativeConstant) ||
+        token is PrimitiveToken and not ResolvedStringToken and not NewLineToken &&
+            token.GetType().Assembly == typeof(Token).Assembly;
+
+    private static string? ResolveArgValue(Token token, char escapeChar,
+        IDictionary<string, string?> bindings, ResolutionOptions options,
+        Action<AggregateToken, int, TokenResolution>? recordResolution = null,
+        Action? onCustomResolution = null, Action? onBeforeCustomResolution = null,
+        Action<Func<string?>>? recordSyntax = null, Func<bool>? shouldRecordSyntax = null,
+        bool resolveTriviaVariables = true)
+    {
+        int customResolutionVersion = 0;
+        bool hasResolvedReference = false;
+        void RecordCustomResolution()
+        {
+            if (hasResolvedReference)
+            {
+                onBeforeCustomResolution?.Invoke();
+            }
+            customResolutionVersion++;
+            onCustomResolution?.Invoke();
+        }
+
+        Func<string?>? resolvedSyntax = null;
+        string? resolvedRootValue = null;
+        bool resolvedRoot = false;
+        string? ResolveToken(AggregateToken aggregate)
+        {
+            bool hasConsumerSerialization = aggregate.UsesCustomResolution ||
+                aggregate is VariableRefToken serializedVariable && serializedVariable.HasModifierTokens &&
+                VariableRefToken.IsPatternModifier(serializedVariable.Modifier) &&
+                AnalysisExpressionEvaluator.ContainsConsumerSerialization(aggregate);
+            if (hasConsumerSerialization)
+            {
+                onBeforeCustomResolution?.Invoke();
+            }
+            Func<string?>? modifierSyntax = null;
+            bool selectedModifier = false;
+            bool ShouldRecordModifierSyntax() => options.UpdateInline ||
+                (shouldRecordSyntax?.Invoke() ?? recordSyntax is not null);
+            string? ResolveModifier(LiteralToken modifier)
+            {
+                selectedModifier = true;
+                return ResolveArgValue(modifier, escapeChar, bindings, options,
+                    recordResolution, RecordCustomResolution, onBeforeCustomResolution,
+                    syntax => modifierSyntax = syntax, shouldRecordSyntax ?? ShouldRecordModifierSyntax,
+                    resolveTriviaVariables);
+            }
+            string? value;
+            using (aggregate.UsesCustomResolution ||
+                aggregate is VariableRefToken variable && variable.HasModifierTokens
+                ? options.UseModifierValueResolver(aggregate, escapeChar, bindings, ResolveModifier) : null)
+            {
+                value = ResolutionGuard.Resolve(aggregate, escapeChar, bindings, options);
+            }
+            if (hasConsumerSerialization)
+            {
+                RecordCustomResolution();
+            }
+            bool removeEscapes = options.RemoveEscapeCharacters;
+            resolvedSyntax = !aggregate.UsesCustomResolution && selectedModifier
+                ? () => ResolutionOptions.FormatValue(escapeChar, modifierSyntax?.Invoke() ?? String.Empty, removeEscapes)
+                : null;
+            if (ReferenceEquals(aggregate, token))
+            {
+                resolvedRootValue = value;
+                resolvedRoot = true;
+            }
+            hasResolvedReference = true;
+            return value;
+        }
+
+        string result = AnalysisExpressionEvaluator.ResolveVariables(token, escapeChar, ResolveToken,
+            resolveAggregate: ResolveToken, getCustomResolutionVersion: () => customResolutionVersion,
+            getResolvedSyntaxFactory: () => resolvedSyntax, syntaxOptions: options,
+            recordTokenResolution: recordResolution, recordSyntax: recordSyntax,
+            onConsumerSerialization: RecordCustomResolution, shouldRecordSyntax: shouldRecordSyntax,
+            resolveTriviaVariables: resolveTriviaVariables);
+        return resolvedRoot ? resolvedRootValue : result;
     }
 }

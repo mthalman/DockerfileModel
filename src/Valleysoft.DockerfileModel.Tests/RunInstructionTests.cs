@@ -506,7 +506,7 @@ public class RunInstructionTests
             },
             new ParseTestScenario<RunInstruction>
             {
-                Text = "RUN `\n[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
+                Text = "RUN `\n[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo hello\"]",
                 EscapeChar = '`',
                 TokenValidators = new Action<Token>[]
                 {
@@ -515,7 +515,7 @@ public class RunInstructionTests
                     token => ValidateAggregate<LineContinuationToken>(token, "`\n",
                         token => ValidateSymbol(token, '`'),
                         token => ValidateNewLine(token, "\n")),
-                    token => ValidateAggregate<ExecFormCommand>(token, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]",
+                    token => ValidateAggregate<ExecFormCommand>(token, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo hello\"]",
                         token => ValidateSymbol(token, '['),
                         token => ValidateWhitespace(token, " "),
                         token => ValidateQuotableAggregate<LiteralToken>(token, "/bi`\nn/bash", StringParsers.DoubleQuote,
@@ -534,7 +534,7 @@ public class RunInstructionTests
                         token => ValidateWhitespace(token, " "),
                         token => ValidateSymbol(token, ','),
                         token => ValidateWhitespace(token, " "),
-                        token => ValidateLiteral(token, "echo he`\"llo", StringParsers.DoubleQuote),
+                        token => ValidateLiteral(token, "echo hello", StringParsers.DoubleQuote),
                         token => ValidateSymbol(token, ']'))
                 },
                 Validate = result =>
@@ -542,7 +542,7 @@ public class RunInstructionTests
                     Assert.Empty(result.Comments);
                     Assert.Equal("RUN", result.InstructionName);
                     TestHelper.AssertCommandType(result.Command, CommandType.ExecForm);
-                    TestHelper.AssertCommandText(result.Command, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo he`\"llo\"]");
+                    TestHelper.AssertCommandText(result.Command, "[ \"/bi`\nn/bash\", `\n \"-c\" , \"echo hello\"]");
                     Assert.IsType<ExecFormCommand>(result.Command);
                     ExecFormCommand cmd = (ExecFormCommand)result.Command;
                     Assert.Equal(
@@ -550,7 +550,7 @@ public class RunInstructionTests
                         {
                             "/bin/bash",
                             "-c",
-                            "echo he`\"llo"
+                            "echo hello"
                         },
                         cmd.Values.ToArray());
                 }

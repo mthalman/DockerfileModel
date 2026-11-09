@@ -1,0 +1,9 @@
+{
+  "id": "local-env-unmatched-embedded-single-quote",
+  "instructionType": "ENV",
+  "inputBase64": "RU5WIG5hbWU9Zm9vJ2Jhcg==",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

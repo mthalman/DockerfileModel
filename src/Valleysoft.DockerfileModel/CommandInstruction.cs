@@ -1,6 +1,3 @@
-using System.Text;
-using System.Text.Json;
-
 using Valleysoft.DockerfileModel.Tokens;
 
 
@@ -62,165 +59,21 @@ public abstract class CommandInstruction : Instruction
     protected static TextParser<Command> GetCommandParser(char escapeChar) =>
         GetCommandParser(escapeChar, false);
 
+    internal static TextParser<Command> GetConstructedExecFormParser(char escapeChar) =>
+        CommandParsers.MaybeJson(
+            ExecFormCommand.GetParser(escapeChar, useJsonStringSyntax: true).Cast<ExecFormCommand, Command>(),
+            ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Command>(), escapeChar);
+
+    private protected static TextParser<IEnumerable<Token>> GetConstructedExecFormArgsParser(char escapeChar) =>
+        ArgTokens(GetConstructedExecFormParser(escapeChar).AsEnumerable(), escapeChar);
+
     internal static TextParser<Command> GetCommandParser(char escapeChar, bool diagnostic)
     {
-        TextParser<Command> execFormParser = ExecFormCommand.GetParser(escapeChar).Cast<ExecFormCommand, Command>();
+        TextParser<Command> execFormParser = ExecFormCommand.GetParser(escapeChar, useJsonStringSyntax: true)
+            .Cast<ExecFormCommand, Command>();
         TextParser<Command> shellFormParser = (diagnostic ? ShellFormCommand.GetDiagnosticParser(escapeChar) : ShellFormCommand.GetParser(escapeChar))
             .Cast<ShellFormCommand, Command>();
 
-        return input =>
-        {
-            Result<Command> execResult = execFormParser(input);
-            if (execResult.HasValue)
-            {
-                return execResult;
-            }
-
-            string remainingText = input.Source!.Substring(input.Position.Absolute);
-            if (ShouldFallbackToShell(remainingText, escapeChar))
-            {
-                return shellFormParser(input);
-            }
-
-            return execResult;
-        };
-    }
-
-    private static bool ShouldFallbackToShell(string text, char escapeChar)
-    {
-        if (!CouldStartExecForm(text))
-        {
-            return true;
-        }
-
-        try
-        {
-            string jsonText = NormalizeLineContinuations(text, escapeChar);
-            byte[] utf8Json = Encoding.UTF8.GetBytes(jsonText);
-            var reader = new Utf8JsonReader(utf8Json);
-            using JsonDocument document = JsonDocument.ParseValue(ref reader);
-            if (!IsAllowedTrailingTrivia(jsonText, utf8Json, reader.BytesConsumed))
-            {
-                return true;
-            }
-
-            JsonElement root = document.RootElement;
-
-            return root.ValueKind != JsonValueKind.Array ||
-                root.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String);
-        }
-        catch (JsonException)
-        {
-            return true;
-        }
-    }
-
-    private static bool CouldStartExecForm(string text)
-    {
-        for (int index = 0; index < text.Length; index++)
-        {
-            char ch = text[index];
-            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
-            {
-                continue;
-            }
-
-            return ch == '[';
-        }
-
-        return false;
-    }
-
-    private static string NormalizeLineContinuations(string text, char escapeChar)
-    {
-        int continuationIndex = text.IndexOf(escapeChar);
-        if (continuationIndex < 0)
-        {
-            return text;
-        }
-
-        var builder = new System.Text.StringBuilder(text.Length);
-        for (int index = 0; index < text.Length; index++)
-        {
-            if (text[index] != escapeChar)
-            {
-                builder.Append(text[index]);
-                continue;
-            }
-
-            int lookahead = index + 1;
-            while (lookahead < text.Length && (text[lookahead] == ' ' || text[lookahead] == '\t'))
-            {
-                lookahead++;
-            }
-
-            if (lookahead < text.Length && text[lookahead] == '\r')
-            {
-                int lineFeed = lookahead + 1;
-                if (lineFeed < text.Length && text[lineFeed] == '\n')
-                {
-                    builder.Append('\n');
-                    index = lineFeed;
-                    continue;
-                }
-            }
-            else if (lookahead < text.Length && text[lookahead] == '\n')
-            {
-                builder.Append('\n');
-                index = lookahead;
-                continue;
-            }
-
-            builder.Append(text[index]);
-        }
-
-        return builder.ToString();
-    }
-
-    private static bool IsAllowedTrailingTrivia(string text, byte[] utf8Text, long bytesConsumed)
-    {
-        int index = Encoding.UTF8.GetCharCount(utf8Text, 0, checked((int)bytesConsumed));
-        bool atLineStart = false;
-
-        while (index < text.Length)
-        {
-            char ch = text[index];
-            if (ch == ' ' || ch == '\t')
-            {
-                index++;
-                continue;
-            }
-
-            if (ch == '\r')
-            {
-                index++;
-                if (index < text.Length && text[index] == '\n')
-                {
-                    index++;
-                }
-                atLineStart = true;
-                continue;
-            }
-
-            if (ch == '\n')
-            {
-                index++;
-                atLineStart = true;
-                continue;
-            }
-
-            if (ch == '#' && atLineStart)
-            {
-                while (index < text.Length && text[index] != '\r' && text[index] != '\n')
-                {
-                    index++;
-                }
-                continue;
-            }
-
-            return false;
-        }
-
-        return true;
+        return CommandParsers.MaybeJson(execFormParser, shellFormParser, escapeChar);
     }
 }

@@ -1,0 +1,6 @@
+{
+  "id": "volume-json-variables",
+  "instructionType": "VOLUME",
+  "inputBase64": "Vk9MVU1FIFsiJFJPT1QvZGF0YSIsICIke1JPT1R9L2xvZ3MiLCAiJHtST09UOi0vZmFsbGJhY2t9L2NhY2hlIiwgIiR7Uk9PVDorL2FsdGVybmF0ZX0iLCAiJHtST09ULS9mYWxsYmFja30iLCAiJHtST09UKy9hbHRlcm5hdGV9IiwgIiR7Uk9PVDo/cmVxdWlyZWR9IiwgIiR7Uk9PVD9yZXF1aXJlZH0iXQ==",
+  "escapeCharacter": "\\"
+}

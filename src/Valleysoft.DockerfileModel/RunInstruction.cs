@@ -160,15 +160,17 @@ public partial class RunInstruction : CommandInstruction
         Guard.NotNull(mounts, nameof(mounts));
 
         return GetTokens(
-            $"RUN {GetFlagArgs(mounts, network, security, escapeChar)}{StringHelper.FormatAsJson(new string[] { command }.Concat(args))}", GetInnerParser(escapeChar));
+            $"RUN {GetFlagArgs(mounts, network, security, escapeChar)}{StringHelper.FormatAsJson(new string[] { command }.Concat(args))}",
+            GetInnerParser(escapeChar, constructedExecForm: true));
     }
 
     internal static RunInstruction ParseDiagnostic(string text, char escapeChar, InstructionParseContext context) =>
         new(GetTokens(text, GetInnerParser(escapeChar, context)), escapeChar);
 
-    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null) =>
+    private static TextParser<IEnumerable<Token>> GetInnerParser(char escapeChar, InstructionParseContext? context = null,
+        bool constructedExecForm = false) =>
         Instruction("RUN", escapeChar,
-            GetArgsParser(escapeChar, context));
+            GetArgsParser(escapeChar, context, constructedExecForm));
 
     private static string GetFlagArgs(IEnumerable<Mount> mounts, string? network, string? security, char escapeChar)
     {
@@ -192,10 +194,13 @@ public partial class RunInstruction : CommandInstruction
         return builder.ToString();
     }
 
-    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar, InstructionParseContext? context) =>
+    private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar, InstructionParseContext? context,
+        bool constructedExecForm) =>
         from options in Options(escapeChar)
         from whitespace in Whitespace()
-        from command in context is { HasHeredocs: true }
+        from command in constructedExecForm
+            ? GetConstructedExecFormArgsParser(escapeChar)
+            : context is { HasHeredocs: true }
             ? context.HeredocParser(escapeChar)
             : context is null
                 ? HeredocTokenParser(escapeChar).Try().Or(ArgTokens(GetCommandParser(escapeChar, false).AsEnumerable(), escapeChar))

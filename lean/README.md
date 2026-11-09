@@ -6,15 +6,18 @@ This directory contains a formal specification of the Dockerfile grammar in [Lea
 
 The Lean spec provides:
 
-1. **Bug-finding oracle** — via differential testing, random Dockerfile inputs are parsed by both C# and Lean. Mismatches identify differences to investigate in either implementation or canonical serialization.
-2. **Machine-checked proofs** — theorems about round-trip fidelity, token concatenation, variable resolution semantics, and mutation isolation.
-3. **BuildKit-derived grammar** — the Lean parser aims to match BuildKit's Go implementation at the source commit in [`upstream-compatibility.json`](../upstream-compatibility.json). Lean can also contain defects. Investigate disagreements against the relevant upstream parser or typed-validation layer and the [known compatibility limitations](../docs/dockerfile-compatibility.md) before changing either implementation or normalizing its output.
+1. **Bug-finding oracle:** Random Dockerfile inputs are parsed by both C# and Lean. Mismatches identify differences to investigate in either implementation or canonical serialization.
+2. **Machine-checked proofs:** Theorems cover round-trip fidelity, token concatenation, variable resolution semantics, and mutation isolation.
+3. **BuildKit-derived grammar:** The Lean parser aims to match BuildKit's Go implementation at the source commit in [`upstream-compatibility.json`](../upstream-compatibility.json). Lean can also contain defects. Investigate disagreements against the relevant upstream parser or typed-validation layer and the [known compatibility limitations](../docs/dockerfile-compatibility.md) before changing either implementation or normalizing its output.
 
 This follows the [AWS Cedar pattern](https://www.amazon.science/publications/cedar-a-new-language-for-expressive-fast-extensible-and-analyzable-authorization): an executable formal spec alongside production code, validated by differential testing, graduated to machine-checked proofs.
 
 ## Prerequisites
 
-Install [elan](https://github.com/leanprover/elan) (Lean version manager). The toolchain version is pinned in `lean-toolchain`.
+Install [elan](https://github.com/leanprover/elan) (Lean version manager) using
+its installation instructions for your platform. The toolchain version is
+pinned in [`lean-toolchain`](lean-toolchain); elan downloads it on first use.
+For Linux or macOS with Bash, the upstream installer command is:
 
 ```bash
 curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
@@ -22,24 +25,53 @@ curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf 
 
 ## Build
 
+Run these commands from the `lean` directory, not the repository root. They
+work in both PowerShell and Bash:
+
 ```bash
 lake build                          # Build library + proofs
 lake build DockerfileModelDiffTest  # Build the differential test CLI
 lake build DockerfileModelTests     # Build SlimCheck property tests
+lake exe DockerfileModelTests       # Run SlimCheck property tests
 ```
+
+Successful builds exit with code 0. Building the property-test executable alone
+does not run its tests; `lake exe DockerfileModelTests` must also succeed.
 
 ## Running Differential Tests
 
-The differential test harness lives in `src/Valleysoft.DockerfileModel.DiffTest/` (C# project). It generates random inputs with FsCheck, parses with both C# and Lean, and compares canonical JSON output:
+The differential test harness lives in `src/Valleysoft.DockerfileModel.DiffTest/`
+(C# project). It generates random inputs with FsCheck, parses with both C# and
+Lean, and compares canonical JSON output. Install the .NET SDK selected by the
+root [`global.json`](../global.json) and the .NET 8 runtime, as described in
+[contributor prerequisites](../CONTRIBUTING.md#developer-prerequisites).
 
-```bash
-# From the repo root:
-dotnet run --project src/Valleysoft.DockerfileModel.DiffTest/ -- \
-  --compare --lean-cli lean/.lake/build/bin/DockerfileModelDiffTest.exe \
+Build the Lean CLI above first. Then run comparison from the repository root.
+On Windows, use PowerShell and the `.exe` suffix:
+
+```powershell
+dotnet run --project src\Valleysoft.DockerfileModel.DiffTest -- `
+  --compare --lean-cli lean\.lake\build\bin\DockerfileModelDiffTest.exe `
   --count 180 --seed 42
 ```
 
+On Linux or macOS, use Bash and omit `.exe`:
+
+```bash
+dotnet run --project src/Valleysoft.DockerfileModel.DiffTest/ -- \
+  --compare --lean-cli lean/.lake/build/bin/DockerfileModelDiffTest \
+  --count 180 --seed 42
+```
+
+The summary ends with `PASS` and exit code 0 when local regressions, upstream
+expectations (including reviewed known deviations), and generated cases agree.
+Expected upstream failures are reported separately, not counted as conformance
+passes. See [Pinned upstream corpus](#pinned-upstream-corpus).
+
 The Lean CLI (`DockerfileModelDiffTest`) reads a Dockerfile instruction from stdin and outputs the canonical JSON token tree to stdout.
+
+The remaining command examples use Bash from the repository root. On Windows,
+use the PowerShell invocation above with the same additional options.
 
 ### Persistent workers
 
@@ -75,8 +107,10 @@ dotnet run --project src/Valleysoft.DockerfileModel.DiffTest -- \
 
 The minimizer tries deterministic, instruction-shaped simplifications. A
 candidate is accepted only when it preserves the original outcome category:
-JSON mismatch, one-sided parse error, or C# parser crash. Inputs both parsers
-reject are treated as agreement. Infrastructure failures such as process
+JSON mismatch, one-sided parse error, or C# parser crash. Generated and local
+regression inputs that both parsers reject are treated as agreement. Upstream
+inputs must also match their recorded BuildKit acceptance expectation.
+Infrastructure failures such as process
 exits, malformed frames, unknown instructions, and timeouts are reported
 without being minimized.
 
@@ -132,21 +166,25 @@ commitment. See [Dockerfile compatibility](../docs/dockerfile-compatibility.md).
 The Lean parser is written to match **BuildKit's Go implementation**, not the C# library. Key behaviors derived from BuildKit:
 
 - **Variable expansion**: expanded in ADD, COPY, ENV, EXPOSE, FROM, LABEL, STOPSIGNAL, USER, VOLUME, WORKDIR. NOT expanded in RUN, CMD, ENTRYPOINT (the shell handles it). In shell-form commands, `$` is treated as a regular character.
-- **Mount flags**: `Flags` is `[]string` in Go — opaque strings. Mount value parsing (extracting `type=`, `source=`, `target=`) happens downstream in BuildKit's instructions layer, not in the Dockerfile parser. The Lean parser treats mount values as opaque literals.
+- **Mount flags**: `Flags` is `[]string` in Go, containing opaque strings. Mount value parsing (extracting `type=`, `source=`, `target=`) happens downstream in BuildKit's instructions layer, not in the Dockerfile parser. The Lean parser treats mount values as opaque literals.
 - **Flag parsing**: flags are `--name=value` key-value pairs. The value is an opaque literal string.
 
 ### Token Model
 
 The Lean `Token` type mirrors the C# hierarchy:
 
-- **PrimitiveToken** — `string`, `whitespace`, `symbol`, `newLine`
-- **AggregateToken** — `keyword`, `literal`, `identifier`, `variableRef`, `comment`, `lineContinuation`, `keyValue`, `instruction`, `construct`, `heredoc`
+- **PrimitiveToken:** `string`, `whitespace`, `symbol`, `newLine`
+- **AggregateToken:** `keyword`, `literal`, `identifier`, `variableRef`, `comment`, `lineContinuation`, `keyValue`, `instruction`, `construct`, `heredoc`
 
 The `toString` function satisfies the same concatenation property as C#: for any aggregate token, `toString` equals the concatenation of its children's `toString` values.
 
 ### Parser Combinators
 
-The parser is built from monadic combinators (`Parser/Basic.lean`, `Parser/Combinators.lean`) that mirror the Sprache combinators used in the C# `Parsing/` modules. The translation from C#'s `from...in...select` LINQ syntax maps directly to Lean's `do` notation.
+The Lean parser uses monadic combinators in `Parser/Basic.lean` and
+`Parser/Combinators.lean`. The C# `Parsing/` modules use Superpower's
+`TextParser<T>`, `Result<T>`, and native combinators. C#'s
+`from...in...select` LINQ composition corresponds to Lean's `do` notation;
+the implementations need not have identical acceptance rules.
 
 ### C# Parser Module Correspondence
 
@@ -177,13 +215,22 @@ classes still own flag grammar, corresponding to `Parser/Flags.lean` and the fla
 helpers in `Parser/DockerfileParsers.lean`. BuildKit's parser exposes opaque flag
 strings; typed validation belongs to `instructions/`.
 
+JSON `VOLUME` paths cache raw variable-reference parses from innermost to
+outermost before composing the quoted path. This avoids recursive parser calls
+for deeply nested modifiers without changing the grammar used by other
+instructions or the general token serializer.
+The quoted path is composed with JSON string rules, independently of the active
+Dockerfile continuation character, so backtick directives do not change JSON
+backslash escapes or reject literal backticks.
+
 `HeredocParsers` owns legacy heredoc parsing, including input
 advancement and memo propagation. The diagnostic path remains separate in
 `InstructionParseContext` and `ConstructReader`, where source regions drive
 heredoc token construction and recovery.
 
-When changing a module, preserve parser alternative order, `Or`/`XOr`
-backtracking, whitespace ownership, and token shapes. The Lean oracle and
+When changing a module, preserve parser alternative order, Superpower's explicit
+`Try()` backtracking around `Or()` alternatives, whitespace ownership, and token
+shapes. The Lean oracle and
 canonical JSON comparison complement, rather than replace, C# token and
 source-position assertions. See the
 [known compatibility limitations](../docs/dockerfile-compatibility.md) before

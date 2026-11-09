@@ -1,0 +1,9 @@
+{
+  "id": "local-add-quoted-heredoc-destination",
+  "instructionType": "ADD",
+  "inputBase64": "QUREIDw8RU9GICIvZGlyIG5hbWUiCmJvZHkKRU9GCg==",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

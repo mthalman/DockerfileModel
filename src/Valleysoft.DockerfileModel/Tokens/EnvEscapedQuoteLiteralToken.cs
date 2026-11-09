@@ -15,6 +15,7 @@ internal sealed class EnvEscapedQuoteLiteralToken : LiteralToken
         get => base.QuoteChar;
         set
         {
+            ResolutionGuard.BeforeMutation(this);
             if (value != base.QuoteChar)
             {
                 HasOriginalEscapedQuoteSyntax = false;

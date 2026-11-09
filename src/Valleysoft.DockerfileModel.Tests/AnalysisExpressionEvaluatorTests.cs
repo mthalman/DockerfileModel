@@ -267,6 +267,304 @@ public class AnalysisExpressionEvaluatorTests
         return AnalysisExpressionEvaluator.Evaluate(token, variables, escapeChar);
     }
 
+    [Fact]
+    public void ResolutionScanDoesNotAllocateAnUnusedDecodedCopy()
+    {
+        const int length = 256 * 1024;
+        string expected = new('x', length);
+        LiteralToken token = new(expected, canContainVariables: true);
+        AnalysisExpressionEvaluator.ResolveVariables(token, '\\', _ => String.Empty);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        string result = AnalysisExpressionEvaluator.ResolveVariables(token, '\\', _ => String.Empty);
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(expected, result);
+        Assert.InRange(allocated, 0, 5L * length);
+    }
+
+    [Fact]
+    public void UnchangedCustomCallbacksDoNotAllocateRepeatedResolutionPlans()
+    {
+        const int count = 512;
+        LiteralToken token = new(Enumerable.Range(0, count)
+            .Select(_ => new VariableRefToken("X")), canContainVariables: true, '\\');
+        int version = 0;
+        string Resolve(VariableRefToken variable)
+        {
+            version++;
+            return "x";
+        }
+        AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+            getCustomResolutionVersion: () => version);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        string result = AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+            getCustomResolutionVersion: () => version);
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(new string('x', count), result);
+        Assert.InRange(allocated, 0, 2048L * count);
+    }
+
+    [Theory]
+    [InlineData(512)]
+    [InlineData(2048)]
+    public void ChangedPendingSerializersDoNotAllocateRepeatedScans(int count)
+    {
+        bool active = false;
+        int version = 0;
+        long before = 0;
+        LiteralToken token = new(Enumerable.Range(0, count)
+            .Select(_ => (Token)new MutableSerializedString(() => active ? "new" : "old"))
+            .Append(new VariableRefToken("X")), canContainVariables: true, '\\');
+        string Resolve(VariableRefToken variable)
+        {
+            active = true;
+            version++;
+            before = GC.GetAllocatedBytesForCurrentThread();
+            return "left";
+        }
+        string Run()
+        {
+            active = false;
+            version = 0;
+            return AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+                getCustomResolutionVersion: () => version, resolveAggregate: _ => String.Empty);
+        }
+        Run();
+
+        string result = Run();
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(String.Concat(Enumerable.Repeat("new", count)) + "left", result);
+        Assert.InRange(allocated, 0, 96L * count + 4096);
+    }
+
+    private sealed class MutableSerializedString : StringToken
+    {
+        private readonly Func<string> serialize;
+
+        public MutableSerializedString(Func<string> serialize) : base("placeholder") => this.serialize = serialize;
+
+        protected override string GetUnderlyingValue(TokenStringOptions options) => serialize();
+    }
+
+    [Fact]
+    public void ConstantDefaultsDoNotAllocateUnusedCaptureGraphs()
+    {
+        const int count = 128;
+        LiteralToken token = new("value");
+        ResolutionOptions options = new();
+        string Run(bool record) => AnalysisExpressionEvaluator.ResolveVariables(token, '\\',
+            static _ => String.Empty, syntaxOptions: options,
+            recordTokenResolution: record ? static (_, _, _) =>
+                throw new InvalidOperationException("A constant default has no captures.") : null);
+        long Measure(bool record)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < count; i++) Assert.Equal("value", Run(record));
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+        Run(false);
+        Run(true);
+
+        long baseline = Measure(false);
+        long withCaptures = Measure(true);
+
+        Assert.InRange(withCaptures, 0, baseline + 128 * count);
+    }
+
+    [Fact]
+    public void ReferenceCollectionDoesNotAllocateAnalysisValues()
+    {
+        const int count = 2048;
+        LiteralToken token = new(Enumerable.Range(0, count)
+            .Select(_ => new VariableRefToken("X")), canContainVariables: true, '\\');
+        string Run() => AnalysisExpressionEvaluator.ResolveVariables(token, '\\', static _ => "x");
+        Run();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        Assert.Equal(new string('x', count), Run());
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(allocated, 0, 300L * count + 8192);
+    }
+
+    [Theory]
+    [InlineData(512)]
+    [InlineData(2048)]
+    public void LibrarySuffixPublicationsDoNotInvalidateEveryPendingCheck(int count)
+    {
+        long Measure(bool append)
+        {
+            LiteralToken token = new(Enumerable.Range(0, count)
+                .Select(_ => new VariableRefToken("X")), canContainVariables: true, '\\');
+            int version = 0;
+            long before = 0;
+            string Resolve(VariableRefToken variable)
+            {
+                if (version++ == 0)
+                {
+                    if (append) token.ReplaceResolvedTokens(token.Tokens.Append(new StringToken("suffix")).ToArray());
+                    before = GC.GetAllocatedBytesForCurrentThread();
+                }
+                return "x";
+            }
+            Assert.Equal(new string('x', count), AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+                getCustomResolutionVersion: () => version));
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+        Measure(false);
+        Measure(true);
+
+        long unchanged = Measure(false);
+        long appended = Measure(true);
+
+        Assert.InRange(appended, 0, unchanged + 8192);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void MixedNativeWrappersPreserveSourceAcrossCallbacks(bool updateInline, bool nested)
+    {
+        const int count = 512;
+        StringToken prefix = new(".");
+        LiteralToken token = new(Enumerable.Range(0, count).SelectMany(i =>
+        {
+            LiteralToken literal = new(new[] { i == 0 ? prefix : new StringToken(".") }, true, '\\');
+            return new Token[]
+            {
+                nested ? new LiteralToken(new[] { literal }, true, '\\') : literal,
+                new VariableRefToken("X")
+            };
+        }), canContainVariables: true, '\\');
+        int version = 0;
+        ResolutionOptions options = new() { UpdateInline = updateInline };
+        HashSet<VariableRefToken> resolved = new();
+        string Resolve(VariableRefToken variable)
+        {
+            Assert.True(resolved.Add(variable));
+            version++;
+            options.RemoveEscapeCharacters = version % 2 == 0;
+            return "x";
+        }
+
+        Assert.Equal(String.Concat(Enumerable.Repeat(".x", count)),
+            AnalysisExpressionEvaluator.ResolveVariables(token, '\\', Resolve,
+                getCustomResolutionVersion: () => version,
+                syntaxOptions: options));
+        Assert.Equal(count, resolved.Count);
+        Assert.Equal(".", prefix.Value);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void NestedBindingChangesPreserveOuterValuesAndSharedSources(bool worker, bool shared)
+    {
+        StringToken prefix = new("old");
+        LiteralToken outer = new(new Token[]
+        {
+            prefix, new VariableRefToken("PENDING"), new VariableRefToken("OUTER")
+        }, true, '\\');
+        LiteralToken inner = new(new Token[]
+        {
+            shared ? prefix : new StringToken("inner"), new VariableRefToken("INNER")
+        }, true, '\\');
+        int outerVersion = 0;
+        int innerVersion = 0;
+        Dictionary<string, string?> bindings = new() { ["PENDING"] = "before" };
+        string ResolveInner(VariableRefToken variable)
+        {
+            if (worker)
+            {
+                Task mutation;
+                using (ExecutionContext.SuppressFlow()) mutation = Task.Run(() => bindings["PENDING"] = "new");
+                mutation.GetAwaiter().GetResult();
+            }
+            else bindings["PENDING"] = "new";
+            innerVersion++;
+            return "i";
+        }
+        string ResolveOuter(VariableRefToken variable)
+        {
+            if (variable.VariableName == "PENDING") return bindings["PENDING"]!;
+            Assert.Equal(shared ? "oldi" : "inneri", AnalysisExpressionEvaluator.ResolveVariables(inner, '\\',
+                ResolveInner, getCustomResolutionVersion: () => innerVersion));
+            outerVersion++;
+            return "o";
+        }
+
+        Assert.Equal("oldnewo", AnalysisExpressionEvaluator.ResolveVariables(outer, '\\', ResolveOuter,
+            getCustomResolutionVersion: () => outerVersion));
+        Assert.Equal("old", prefix.Value);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnrelatedPrimitiveEditsPreserveMixedNativeDefaults(bool updateInline)
+    {
+        const int count = 512;
+        StringToken unrelated = new("other");
+        LiteralToken root = new(Enumerable.Range(0, count).SelectMany(_ => new Token[]
+        {
+            new StringToken("."), new VariableRefToken("X")
+        }), true, '\\');
+        int version = 0;
+        string Resolve(VariableRefToken variable)
+        {
+            unrelated.Value = ++version % 2 == 0 ? "even" : "odd";
+            return "x";
+        }
+
+        Assert.Equal(String.Concat(Enumerable.Repeat(".x", count)),
+            AnalysisExpressionEvaluator.ResolveVariables(root, '\\', Resolve,
+                getCustomResolutionVersion: () => version,
+                syntaxOptions: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal(count, version);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void CallbackBindingChangesPreserveCompletedValuesAndAliasedSources(bool updateInline, bool nested)
+    {
+        StringToken shared = new("|");
+        Dictionary<string, string?> bindings = new() { ["X"] = "old" };
+        Token[] suffix = new Token[]
+        {
+            new VariableRefToken("X"), new VariableRefToken("CHANGE"), new VariableRefToken("X"), shared
+        };
+        LiteralToken root = new(nested
+            ? new Token[] { shared, new LiteralToken(suffix, true, '\\') }
+            : new[] { shared }.Concat(suffix), true, '\\');
+        int version = 0;
+        string? Resolve(VariableRefToken variable)
+        {
+            if (variable.VariableName == "CHANGE")
+            {
+                bindings["X"] = "new";
+                version++;
+                return "/";
+            }
+            return bindings[variable.VariableName];
+        }
+
+        Assert.Equal("|new/old|", AnalysisExpressionEvaluator.ResolveVariables(root, '\\', Resolve,
+            getCustomResolutionVersion: () => version,
+            syntaxOptions: new ResolutionOptions { UpdateInline = updateInline }));
+        Assert.Equal("|", shared.Value);
+    }
+
     private static void AssertKnown(AnalysisValue result, string expected)
     {
         Assert.True(result.IsKnown, result.Message);

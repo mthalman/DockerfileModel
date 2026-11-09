@@ -1,0 +1,9 @@
+{
+  "id": "local-add-adjacent-quoted-fragments",
+  "instructionType": "ADD",
+  "inputBase64": "QUREICJmb28iYmFyIC9kZXN0",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

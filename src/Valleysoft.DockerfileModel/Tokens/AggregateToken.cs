@@ -1,4 +1,5 @@
 using System.Text;
+using System.Collections.ObjectModel;
 
 
 namespace Valleysoft.DockerfileModel.Tokens;
@@ -9,11 +10,14 @@ namespace Valleysoft.DockerfileModel.Tokens;
 /// </remarks>
 public abstract class AggregateToken : Token
 {
+    private GuardedChildren? childrenView;
+    private readonly List<Token> tokenList;
+
     protected AggregateToken(IEnumerable<Token> tokens)
     {
         Guard.NotNull(tokens, nameof(tokens));
 
-        this.TokenList = tokens.ToList();
+        tokenList = tokens.ToList();
     }
 
     protected static IEnumerable<Token> GetTokens<TToken>(string text, TextParser<IEnumerable<TToken>> parser)
@@ -28,13 +32,128 @@ public abstract class AggregateToken : Token
             .ToList();
     }
 
-    protected internal List<Token> TokenList { get; }
+    protected internal List<Token> TokenList
+    {
+        get
+        {
+            MaterializeTokens();
+            return tokenList;
+        }
+    }
+
+    internal virtual void MaterializeTokens() { }
+
+    internal List<Token> ResolutionChildren => tokenList;
+    internal event Action<int>? ResolutionChildRemoved;
+    internal event Action<IReadOnlyList<Token>, JsonStringVariableResolver.ChildPublications?>? ResolutionChildrenReplacing;
+
+    internal void RemoveResolvedChild(int index)
+    {
+        ResolutionGuard.BeforeChildPublication(this, index);
+        (this as LiteralToken)?.BeforeResolvedJsonChildEdit();
+        Token removed = TokenList[index];
+        TokenList.RemoveAt(index);
+        (this as LiteralToken)?.ResolvedJsonChildRemoved(removed);
+        ResolutionGuard.ChildPublished(this, index, null);
+        ResolutionChildRemoved?.Invoke(index);
+    }
+
+    internal void ReplaceResolvedChild(int index, Token replacement)
+    {
+        ResolutionGuard.BeforeChildPublication(this, index);
+        (this as LiteralToken)?.BeforeResolvedJsonChildEdit();
+        Token previous = TokenList[index];
+        TokenList[index] = replacement;
+        if (!ReferenceEquals(previous, replacement) && this is LiteralToken literal)
+        {
+            literal.ResolvedJsonChildRemoved(previous);
+            literal.ResolvedJsonChildInserted(replacement);
+        }
+        ResolutionGuard.ChildPublished(this, index, replacement);
+    }
+
+    internal void ReplaceResolvedTokens(IEnumerable<Token> tokens, JsonStringVariableResolver.ChildPublications? publications = null)
+    {
+        ResolutionGuard.BeforeChildrenPublication(this);
+        if (ResolutionChildrenReplacing is { } replacing)
+        {
+            Token[] incoming = tokens.ToArray();
+            replacing(incoming, publications);
+            tokens = incoming;
+        }
+        ReplaceChildren(tokens);
+        ResolutionGuard.ChildrenPublished(this);
+    }
 
     /// <summary>Gets the live ordered child sequence, not a snapshot or a deep copy.</summary>
     /// <remarks>Structural edits during enumeration can invalidate the enumerator.</remarks>
-    public IEnumerable<Token> Tokens => this.TokenList;
+    public IEnumerable<Token> Tokens
+    {
+        get
+        {
+            MaterializeTokens();
+            return childrenView ??= new GuardedChildren(this, tokenList);
+        }
+    }
+
+    private sealed class GuardedChildren(AggregateToken owner, IList<Token> children) : Collection<Token>(children)
+    {
+        protected override void InsertItem(int index, Token item)
+        {
+            ResolutionGuard.BeforeMutation(owner);
+            (owner as LiteralToken)?.BeforeResolvedJsonChildEdit();
+            base.InsertItem(index, item);
+            (owner as LiteralToken)?.ResolvedJsonChildInserted(item);
+        }
+
+        protected override void SetItem(int index, Token item)
+        {
+            ResolutionGuard.BeforeMutation(owner);
+            (owner as LiteralToken)?.BeforeResolvedJsonChildEdit();
+            Token previous = this[index];
+            base.SetItem(index, item);
+            if (!ReferenceEquals(previous, item) && owner is LiteralToken literal)
+            {
+                literal.ResolvedJsonChildRemoved(previous);
+                literal.ResolvedJsonChildInserted(item);
+            }
+        }
+
+        protected override void RemoveItem(int index)
+        {
+            ResolutionGuard.BeforeMutation(owner);
+            (owner as LiteralToken)?.BeforeResolvedJsonChildEdit();
+            Token removed = this[index];
+            base.RemoveItem(index);
+            (owner as LiteralToken)?.ResolvedJsonChildRemoved(removed);
+        }
+
+        protected override void ClearItems()
+        {
+            ResolutionGuard.BeforeMutation(owner);
+            base.ClearItems();
+            (owner as LiteralToken)?.OnValueReplaced();
+        }
+    }
 
     internal char EditingEscapeChar { get; set; } = Dockerfile.DefaultEscapeChar;
+
+    internal bool UsesCustomResolution =>
+        this is LiteralToken && GetType() != typeof(LiteralToken) ||
+        this is VariableRefToken && GetType() != typeof(VariableRefToken) ||
+        GetType().Assembly != typeof(Token).Assembly;
+
+    internal bool HasConsumerVariableResolution =>
+        GetType().Assembly != typeof(AggregateToken).Assembly &&
+        ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
+            .Method.DeclaringType?.Assembly != typeof(AggregateToken).Assembly;
+
+    internal bool HasCustomVariableResolution =>
+        ((Func<char, IDictionary<string, string?>?, ResolutionOptions?, string?>)ResolveVariables)
+            .Method.DeclaringType != typeof(AggregateToken);
+
+    internal bool HasDefaultAggregateRendering =>
+        ((Func<TokenStringOptions, string>)GetUnderlyingValue).Method.DeclaringType == typeof(AggregateToken);
 
     protected override string GetUnderlyingValue(TokenStringOptions options)
     {
@@ -53,11 +172,27 @@ public abstract class AggregateToken : Token
     /// <param name="variables">Variable values, or null for an empty environment.</param>
     /// <param name="options">Substitution options, or null for non-mutating defaults.</param>
     /// <returns>Resolved token text, including surrounding quotes when present; a variable token may resolve to null.</returns>
-    /// <remarks>Command instructions can suppress expansion, and raw command text may contain no variable-reference tokens. Use document resolution when ARG scope matters.</remarks>
+    /// <remarks>
+    /// Single-quoted literal contents and command instructions suppress expansion without removing reference tokens.
+    /// Quotes are preserved in returned text. Use document resolution when ARG scope matters.
+    /// </remarks>
     public virtual string? ResolveVariables(char escapeChar, IDictionary<string, string?>? variables = null, ResolutionOptions? options = null)
     {
+        using ResolutionGuard.Scope guardScope = ResolutionGuard.Enter(this);
         variables ??= new Dictionary<string, string?>();
         options ??= new ResolutionOptions();
+
+        LiteralResolutionScope? scope = LiteralResolutionScope.GetScope(this);
+        if (options.TokenValueResolver is null && (this is LiteralToken || scope is not null))
+        {
+            ShellQuoteContext context = LiteralResolutionScope.GetContext(this);
+            LiteralResolutionPlan plan = scope?.Plan is LiteralResolutionPlan prepared
+                ? prepared.ForInvocation(escapeChar)
+                : new LiteralResolutionPlan(this, escapeChar, ref context);
+            plan.BeginResolution();
+            string? value = ResolveVariablesCore(escapeChar, variables, options, plan);
+            return plan.QuoteChar is char quote ? $"{quote}{value}{quote}" : value;
+        }
 
         if (this is IQuotableToken quotableToken && quotableToken.QuoteChar.HasValue)
         {
@@ -75,6 +210,7 @@ public abstract class AggregateToken : Token
         Action<TToken>? addToken = null, Action<TToken>? removeToken = null)
         where TToken : Token
     {
+        ResolutionGuard.BeforeMutation(this);
         if (addToken is null)
         {
             addToken = token => this.TokenList.Add(token);
@@ -99,6 +235,10 @@ public abstract class AggregateToken : Token
         else if (newValue is not null)
         {
             addToken(newValue);
+        }
+        if (newValue is LiteralToken literal)
+        {
+            literal.ResolveAsJsonString = this is VolumeInstruction && InstructionCollectionEditing.IsJson(this);
         }
     }
 
@@ -155,41 +295,97 @@ public abstract class AggregateToken : Token
 
     internal void ReplaceWithToken(Token token)
     {
-        TokenList.Clear();
-        TokenList.Add(token);
+        ReplaceWithTokens(new[] { token });
     }
 
     internal void ReplaceWithTokens(IEnumerable<Token> tokens)
+    {
+        ResolutionGuard.BeforeMutation(this);
+        ReplaceChildren(tokens);
+    }
+
+    private void ReplaceChildren(IEnumerable<Token> tokens)
     {
         TokenList.Clear();
         TokenList.AddRange(tokens);
     }
 
-    private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options)
+    internal void ReplaceResolvedVariable(int index, string? value,
+        (string Value, char? QuoteChar, bool Escaped)? semanticValue, char escapeChar)
+    {
+        if (value is null)
+        {
+            RemoveResolvedChild(index);
+        }
+        else
+        {
+            ReplaceResolvedChild(index, semanticValue is { } semantic
+                ? new ResolvedStringToken(value, semantic.Value, semantic.QuoteChar, semantic.Escaped, escapeChar)
+                : new StringToken(value));
+        }
+    }
+
+    private string? ResolveVariablesCore(char escapeChar, IDictionary<string, string?> variables, ResolutionOptions options,
+        LiteralResolutionPlan? plan = null)
     {
         StringBuilder builder = new();
+        using ResolutionOptions.ModifierResolutionTraversal? traversal =
+            options.TrackModifierResolutionTraversal(this, escapeChar, variables);
+        bool json = this is VolumeInstruction && InstructionCollectionEditing.IsJson(this);
 
         for (int i = TokenList.Count - 1; i >= 0; i--)
         {
             Token token = TokenList[i];
-            string? value;
-            if (token is AggregateToken aggregateToken)
+            if (traversal is not null)
             {
-                value = aggregateToken.ResolveVariables(escapeChar, variables, options);
-                if (token is VariableRefToken && options.UpdateInline)
+                traversal.Index = i;
+            }
+            string? value;
+            ShellQuoteContext context = plan?.GetContext(i) ?? new ShellQuoteContext();
+            if (token is AggregateToken aggregateToken && !(token is VariableRefToken && plan is not null && context.SuppressExpansion))
+            {
+                bool useCapturedValue = options.TokenValueResolver is not null;
+                TokenResolution? capturedValue = useCapturedValue
+                    ? options.TokenValueResolver!(this, i, aggregateToken) : null;
+                (string Value, char? QuoteChar, bool Escaped)? semanticValue = token is VariableRefToken
+                    ? capturedValue?.SemanticValue : null;
+                bool suppressExpansion = semanticValue is { } semanticContext &&
+                    (semanticContext.QuoteChar == '\'' || semanticContext.Escaped) ||
+                    token is VariableRefToken && useCapturedValue && capturedValue is null;
+                if (useCapturedValue &&
+                    (capturedValue is null || token is VariableRefToken || aggregateToken.UsesCustomResolution))
                 {
-                    if (value is null)
+                    value = capturedValue is { } captured
+                        ? captured.SyntaxValue : options.FormatValue(escapeChar, token.ToString());
+                }
+                else
+                {
+                    plan?.BeforeCallback(token, variables, options);
+                    if (plan is not null && token is not VariableRefToken)
                     {
-                        TokenList.RemoveAt(i);
+                        using LiteralResolutionScope scope = new(aggregateToken, context, plan.GetChildPlan(i));
+                        value = token is LiteralToken literal
+                            ? literal.ResolveVariablesInContext(false, escapeChar, variables, options)
+                            : ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
                     }
                     else
                     {
-                        TokenList[i] = new StringToken(value);
+                        value = token is LiteralToken literal
+                            ? literal.ResolveVariablesInContext(
+                                json,
+                                escapeChar, variables, options)
+                            : ResolutionGuard.Resolve(aggregateToken, escapeChar, variables, options);
                     }
+                }
+                if (token is VariableRefToken && options.UpdateInline && !suppressExpansion &&
+                    (capturedValue?.UpdateInline ?? true))
+                {
+                    ReplaceResolvedVariable(i, value, semanticValue, escapeChar);
                 }
             }
             else
             {
+                plan?.BeforeCallback(token, variables, options, resolveVariables: false);
                 value = options.FormatValue(escapeChar, token.ToString());
             }
 

@@ -2054,6 +2054,97 @@ def testVolumeVariable : IO Unit := do
     assertTrue (inst.name == .volume) "volume instruction name"
   | none =>
     throw (IO.Error.userError "Parse failed: VOLUME variable should parse")
+  match parseVolume "VOLUME [\"$DATA_DIR/data\", \"${DATA_DIR:-/fallback}/logs\"]" with
+  | some inst =>
+    assertEqual (Token.toString inst.token)
+      "VOLUME [\"$DATA_DIR/data\", \"${DATA_DIR:-/fallback}/logs\"]"
+      "volume JSON variable round-trip"
+    match inst.token with
+    | .aggregate .instruction children _ =>
+      let paths := children.filter fun token =>
+        match token with
+        | .aggregate .literal _ _ => true
+        | _ => false
+      assertTrue (paths.length == 2) "volume JSON path count"
+      for path in paths do
+        match path with
+        | .aggregate .literal tokens _ =>
+          assertTrue (tokens.any fun token =>
+            match token with
+            | .aggregate .variableRef _ _ => true
+            | _ => false) "volume JSON path recognizes variables"
+        | _ => throw (IO.Error.userError "Expected volume path literal")
+    | _ => throw (IO.Error.userError "Expected volume instruction token")
+  | none =>
+    throw (IO.Error.userError "Parse failed: VOLUME JSON variables should parse")
+  for text in ["VOLUME [\"${ROOT:-}/data\"]",
+      "VOLUME [\"${ROOT:-prefix${OTHER}}/data\"]", "VOLUME [\"/$_ROOT/data\"]"] do
+    match parseVolume text with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text "volume JSON variable edge-case round-trip"
+      match inst.token with
+      | .aggregate .instruction children _ =>
+        assertTrue (children.any fun token =>
+          match token with
+          | .aggregate .literal tokens _ =>
+            tokens.any fun child =>
+              match child with
+              | .aggregate .variableRef _ _ => true
+              | _ => false
+          | _ => false) "volume JSON variable edge case is recognized"
+      | _ => throw (IO.Error.userError "Expected volume instruction token")
+    | none => throw (IO.Error.userError s!"VOLUME JSON variable edge case failed: {text}")
+  for text in ["VOLUME [\"\\\\${BROKEN\"]",
+      "VOLUME [\"prefix'${BROKEN'/data/$ROOT\"]"] do
+    match parseVolume text with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text
+        "volume JSON malformed variable text remains lossless"
+    | none => throw (IO.Error.userError s!"VOLUME JSON literal variable text failed: {text}")
+  for content in ["a\\\"b", "a`", "a`$ROOT", "a\\\"$ROOT", "${ROOT:-a\\\"b}"] do
+    let text := "VOLUME [\"" ++ content ++ "\"]"
+    match parseVolume text '`' with
+    | some inst =>
+      assertEqual (Token.toString inst.token) text "volume backtick JSON round-trip"
+      assertTrue (inst.token.children.any fun token => token == Token.mkSymbol '[')
+        "volume backtick JSON retains array form"
+    | none => throw (IO.Error.userError s!"VOLUME backtick JSON failed: {text}")
+  for content in ["$", "$-", "$/", "$$ROOT", "$9", "$_ROOT",
+      String.join (List.replicate 4096 "$/") ++ "$ROOT",
+      "${MISSING:-" ++ String.join (List.replicate 4096 "$/") ++ "$ROOT}"] do
+    let text := "VOLUME [\"" ++ content ++ "\"]"
+    match parseVolume text with
+    | some inst => assertEqual (Token.toString inst.token) text "volume reference candidate boundaries"
+    | none => throw (IO.Error.userError s!"Volume candidate boundary failed: {text}")
+  let depth := 4096
+  for protectedText in [false, true] do
+    let nested := String.join (List.replicate depth "${X:-") ++
+      "value" ++ String.ofList (List.replicate depth '}')
+    let content := if protectedText then "'" ++ nested ++ "'" else nested
+    match parseVolume ("VOLUME [\"" ++ content ++ "\"]") with
+    | some inst =>
+      match inst.token with
+      | .aggregate .instruction children _ =>
+        let paths := children.filter fun token =>
+          match token with
+          | .aggregate .literal _ _ => true
+          | _ => false
+        assertTrue (paths.length == 1) "deep volume JSON path count"
+        let mut current := paths.head?
+        let mut actualDepth := 0
+        while current.isSome do
+          match current with
+          | some (.aggregate kind children _) =>
+            if kind == .variableRef then
+              actualDepth := actualDepth + 1
+            current := children.find? fun token =>
+              match token with
+              | .aggregate .literal _ _ | .aggregate .variableRef _ _ => true
+              | _ => false
+          | _ => current := none
+        assertTrue (actualDepth == depth) "deep volume JSON variable nesting"
+      | _ => throw (IO.Error.userError "Expected deep volume instruction token")
+    | none => throw (IO.Error.userError "Deep volume JSON reference failed")
 
 open DockerfileModel.Parser.Instructions.Volume in
 /-- Test: VOLUME exec form multiple -/
@@ -2330,6 +2421,149 @@ def testCopyBasic : IO Unit := do
       "copy basic round-trip"
   | none =>
     throw (IO.Error.userError "Parse failed: COPY basic should parse")
+
+def testQuotedOperandFragments : IO Unit := do
+  let expected := Token.mkLiteral [
+    Token.mkLiteral [Token.mkString "foo"] (some ⟨'"'⟩),
+    Token.mkString "bar"
+  ]
+  match Parser.Parser.run (Parser.literalWithVariables '\\' [] .allowedInQuotes) "\"foo\"bar" with
+  | .ok token position =>
+    assertTrue (token == expected) "adjacent quoted and unquoted fragments are one literal"
+    assertTrue position.atEnd "quoted operand consumes all fragments"
+    assertRoundTrip token "\"foo\"bar" "quoted operand fragments"
+  | .error msg _ => throw (IO.Error.userError s!"Quoted operand failed: {msg}")
+  for name in ["COPY", "ADD"] do
+    let text := name ++ " <<EOF \"/dir name\"\nbody\nEOF\n"
+    let parsed := if name == "COPY" then Copy.parseCopy text else Add.parseAdd text
+    match parsed with
+    | some instruction =>
+      assertRoundTrip instruction.token text "quoted heredoc destination"
+      let operands := instruction.token.children.filter fun token =>
+        match token with
+        | .aggregate .literal _ _ => true
+        | _ => false
+      assertTrue (operands == [Token.mkLiteral [Token.mkString "/dir name"] (some ⟨'"'⟩)])
+        "heredoc destination retains quote context"
+    | none => throw (IO.Error.userError s!"Quoted heredoc destination failed: {name}")
+
+def testHeredocDestinationCannotConsumeBody : IO Unit := do
+  let malformed := "<<EOF \"/dest\nbody\"\nEOF\n"
+  match Parser.Parser.run (Parser.Heredoc.heredocWithDestination '\\') malformed with
+  | .ok _ _ => throw (IO.Error.userError "Heredoc body closed an unmatched destination quote")
+  | .error _ _ => pure ()
+  assertTrue ((Copy.parseCopy ("COPY " ++ malformed)).isNone)
+    "COPY must not fall back to operands that consume a heredoc body"
+  assertTrue ((Add.parseAdd ("ADD " ++ malformed)).isNone)
+    "ADD must not fall back to operands that consume a heredoc body"
+  assertTrue ((Copy.parseCopy "COPY <<EOF /dest").isSome)
+    "COPY retains raw marker operands without a header newline"
+  assertTrue ((Add.parseAdd "ADD <<EOF /dest").isSome)
+    "ADD retains raw marker operands without a header newline"
+
+def testUnmatchedOperandFragmentsCannotTruncate : IO Unit := do
+  for operand in ["foo\"bar", "foo'bar", "\"foo\"bar\"baz", "'foo'bar'baz", "\\conf\\\\\""] do
+    for name in ["COPY", "ADD"] do
+      let text := name ++ " " ++ operand ++ " /dest"
+      let parsed := if name == "COPY" then Copy.parseCopy text else Add.parseAdd text
+      match parsed with
+      | some instruction =>
+        assertTrue (instruction.token.toString == text)
+          "Unmatched operand fragments must not truncate an instruction"
+      | none => throw (IO.Error.userError s!"Legacy raw operand was rejected: {text}")
+
+def testNonFileEmbeddedQuotesCannotTruncate : IO Unit := do
+  for text in ["ENV name=foo\"bar", "ENV name=foo'bar", "LABEL name=foo\"bar",
+      "USER foo\"bar", "VOLUME foo\"bar"] do
+    let parsed := if text.startsWith "ENV " then Env.parseEnv text
+      else if text.startsWith "LABEL " then Label.parseLabel text
+      else if text.startsWith "USER " then User.parseUser text
+      else Volume.parseVolume text
+    match parsed with
+    | some instruction => assertRoundTrip instruction.token text "non-file embedded quote"
+    | none => throw (IO.Error.userError s!"Legacy raw operand was rejected: {text}")
+
+def testHeredocHorizontalWhitespace : IO Unit := do
+  for operands in ["\x0C\"/dir name\"", "\"/dir name\"\x0C",
+      "\"source name\"\x0C\"/dir name\""] do
+    for name in ["COPY", "ADD"] do
+      let text := name ++ " <<EOF " ++ operands ++ "\nbody\nEOF\n"
+      let parsed := if name == "COPY" then Copy.parseCopy text else Add.parseAdd text
+      match parsed with
+      | some instruction => assertRoundTrip instruction.token text "heredoc horizontal whitespace"
+      | none => throw (IO.Error.userError s!"Heredoc whitespace was rejected: {text}")
+
+def testContinuedHeredocDestination : IO Unit := do
+  for escapeChar in ['\\', '`'] do
+    let escape := String.ofList [escapeChar]
+    for newline in ["\n", "\r\n"] do
+      for (operands, destination) in [
+          (escape ++ newline ++ " /destination", "/destination"),
+          (escape ++ newline ++ "\x0C/destination", "/destination"),
+          (escape ++ newline ++ "\x0C" ++ newline ++ " /destination", "/destination"),
+          (escape ++ newline ++ "\x0C# header comment" ++ newline ++ " /destination", "/destination"),
+          (escape ++ newline ++ "# header comment" ++ newline ++ " /destination", "/destination"),
+          (escape ++ newline ++ newline ++ "# header comment" ++ newline ++ " /destination", "/destination"),
+          ("\"/dir" ++ escape ++ newline ++ " name\"", "\"/dir" ++ escape ++ newline ++ " name\"")] do
+        for name in ["COPY", "ADD"] do
+          let text := name ++ " <<EOF " ++ operands ++ newline ++ "body" ++ newline ++ "EOF" ++ newline
+          let parsed := if name == "COPY" then Copy.parseCopy text escapeChar else Add.parseAdd text escapeChar
+          match parsed with
+          | some instruction =>
+            assertRoundTrip instruction.token text "continued heredoc destination"
+            let literals := instruction.token.children.filter fun token =>
+              match token with
+              | .aggregate .literal _ _ => true
+              | _ => false
+            assertTrue (literals.map Token.toString == [destination]) "continued header retains its destination"
+            assertTrue (instruction.token.children.getLast!.toString == "body" ++ newline ++ "EOF" ++ newline)
+              "continued header text does not become body content"
+          | none => throw (IO.Error.userError s!"Continued heredoc destination failed: {text}")
+      for escapes in [escape ++ escape, escape ++ escape ++ escape] do
+        for name in ["COPY", "ADD"] do
+          let text := name ++ " <<EOF \"/dir" ++ escapes ++ newline ++ " body\"" ++ newline ++ "EOF" ++ newline
+          let parsed := if name == "COPY" then Copy.parseCopy text escapeChar else Add.parseAdd text escapeChar
+          assertTrue parsed.isNone "repeated escapes cannot let body lines close destination quotes"
+
+def testHeredocTriviaBetweenOperands : IO Unit := do
+  for escapeChar in ['\\', '`'] do
+    let escape := String.ofList [escapeChar]
+    for newline in ["\n", "\r\n"] do
+      for trivia in [newline ++ newline, newline ++ "# comment" ++ newline ++ newline,
+          "\x0C", "\x0C" ++ newline, "\x0C# comment" ++ newline,
+          newline ++ "  " ++ newline ++ "\t" ++ newline] do
+        for name in ["COPY", "ADD"] do
+          let text := name ++ " <<EOF src " ++ escape ++ newline ++ trivia ++ " /dest" ++
+            newline ++ "body" ++ newline ++ "EOF" ++ newline
+          let parsed := if name == "COPY" then Copy.parseCopy text escapeChar else Add.parseAdd text escapeChar
+          match parsed with
+          | some instruction =>
+            assertRoundTrip instruction.token text "continued heredoc trivia between operands"
+            let literals := instruction.token.children.filter fun token =>
+              match token with
+              | .aggregate .literal _ _ => true
+              | _ => false
+            assertTrue (literals.map Token.toString == ["src", "/dest"]) "continued operands retain their boundaries"
+            assertTrue (instruction.token.children.getLast!.toString == "body" ++ newline ++ "EOF" ++ newline)
+              "intervening trivia stays outside the body"
+          | none => throw (IO.Error.userError s!"Heredoc operand trivia failed: {text}")
+
+def testHeredocInlineHashOperands : IO Unit := do
+  for name in ["COPY", "ADD"] do
+    for operands in ["src #destination", "\"src\" #destination", "#source /dest"] do
+      let text := name ++ " <<EOF " ++ operands ++ "\nbody\nEOF\n"
+      let parsed := if name == "COPY" then Copy.parseCopy text else Add.parseAdd text
+      match parsed with
+      | some instruction =>
+        assertRoundTrip instruction.token text "inline hash heredoc operands"
+        let literals := instruction.token.children.filter fun token =>
+          match token with
+          | .aggregate .literal _ _ => true
+          | _ => false
+        assertTrue (literals.length == 2) "inline hash text remains an operand, not a comment"
+        assertTrue (literals.getLast!.toString == if operands == "#source /dest" then "/dest" else "#destination")
+          "hash-prefixed destination retains its role"
+      | none => throw (IO.Error.userError s!"Inline hash heredoc operands failed: {text}")
 
 open DockerfileModel.Parser.Instructions.Copy in
 /-- Test: COPY --from=builder /app /app — with from flag -/
@@ -3286,6 +3520,14 @@ def runParserTests_PhaseD : IO Unit := do
   IO.println "=== COPY Instruction Tests ==="
   IO.println ""
   testCopyBasic
+  testQuotedOperandFragments
+  testHeredocDestinationCannotConsumeBody
+  testUnmatchedOperandFragmentsCannotTruncate
+  testNonFileEmbeddedQuotesCannotTruncate
+  testHeredocHorizontalWhitespace
+  testContinuedHeredocDestination
+  testHeredocTriviaBetweenOperands
+  testHeredocInlineHashOperands
   testCopyWithFrom
   testCopyWithFromLineContinuation
   testCopyWithChown

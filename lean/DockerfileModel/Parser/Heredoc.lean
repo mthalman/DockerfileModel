@@ -67,6 +67,7 @@
 import DockerfileModel.Token
 import DockerfileModel.Parser.Basic
 import DockerfileModel.Parser.Combinators
+import DockerfileModel.Parser.DockerfileParsers
 
 namespace DockerfileModel.Parser.Heredoc
 
@@ -132,6 +133,14 @@ def heredocMarkerParser : Parser (String × Bool × Option Char × Token) := do
       | none => [Token.mkIdentifier [Token.mkString delim]])
   let markerToken := Token.mkConstruct markerChildren
   Parser.pure (delim, chomp, quoteChar, markerToken)
+
+/-- Recognize a header independently of destination validity, preventing a malformed
+    heredoc destination from falling back to ordinary file operands. -/
+def heredocHeaderParser : Parser Unit := do
+  let _ ← heredocMarkerParser
+  let _ ← many (satisfy (fun c => !isLineTerminator c) "header char")
+  let _ ← lineEnd
+  Parser.pure ()
 
 -- ============================================================
 -- Heredoc body parser: consume lines until closing delimiter
@@ -255,16 +264,53 @@ partial def heredocInstructionArg : Parser (List Token) := do
     followed by the heredoc body.
 
     Returns a flat list of tokens. -/
-partial def heredocWithDestination : Parser (List Token) := do
+partial def heredocWithDestination (escapeChar : Char := '\\') : Parser (List Token) := do
   let (delimiter, chomp, _quoteChar, markerToken) ← heredocMarkerParser
   -- Parse whitespace before destination
-  let wsChars ← many (satisfy (fun c => c == ' ' || c == '\t') "whitespace")
+  let wsChars ← many whitespaceChar
   let wsTokens := if wsChars.isEmpty then []
     else [Token.mkWhitespace (String.ofList wsChars)]
-  -- Parse destination path (rest of line)
-  let destChars ← many (satisfy (fun c => !isLineTerminator c) "destination char")
-  let destTokens := if destChars.isEmpty then []
-    else [Token.mkLiteral [Token.mkString (String.ofList destChars)]]
+  let continuedTrivia := do
+    let continuation ← lineContinuationParser escapeChar
+    let trailing ← many (do
+      let horizontal ← many whitespaceChar
+      let trivia ← optional whitespaceOrComments
+      Parser.pure (
+        (if horizontal.isEmpty then [] else [Token.mkWhitespace (String.ofList horizontal)]) ++
+        trivia.getD []))
+    Parser.pure ([continuation] ++ trailing.flatten)
+  -- Bound quotes to the complete logical header, never to heredoc body lines.
+  let headerPieces ← many (or'
+    (do
+      let trivia ← continuedTrivia
+      Parser.pure (String.join (trivia.map Token.toString)))
+    (or'
+      (do
+        let escapes ← many1 (char escapeChar)
+        if escapes.length < 2 then Parser.fail "repeated escape characters"
+        Parser.pure (String.ofList escapes))
+      (or'
+        (do
+          let escaped ← escapedChar escapeChar
+          Parser.pure escaped.toString)
+        (do
+          let c ← satisfy (fun c => !isLineTerminator c) "destination char"
+          Parser.pure (String.ofList [c])))))
+  let destinationParser := do
+    let leading ← many continuedTrivia
+    let destinations ← many (do
+      let destination ← literalWithVariables escapeChar [] .allowedInQuotes
+        (allowUnmatchedQuoteFragments := true)
+      let trailingChars ← many whitespaceChar
+      let continuations ← many continuedTrivia
+      Parser.pure (
+        [destination] ++
+        (if trailingChars.isEmpty then [] else [Token.mkWhitespace (String.ofList trailingChars)]) ++
+        continuations.flatten))
+    Parser.pure (leading.flatten ++ destinations.flatten)
+  let destTokens ← match (parseEnd destinationParser).run (String.join headerPieces) with
+    | .ok tokens _ => Parser.pure tokens
+    | .error message _ => Parser.fail message
   -- Consume newline
   let nl ← lineEnd
   let nlToken := Token.mkNewLine nl

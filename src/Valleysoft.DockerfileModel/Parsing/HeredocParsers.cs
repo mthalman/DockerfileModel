@@ -268,6 +268,9 @@ internal static class HeredocParsers
     /// </summary>
     private static void TokenizeRestOfLine(string text, List<Token> tokens, char escapeChar)
     {
+        TextParser<LiteralToken> literalParser = VariableParsers.LiteralWithVariables(
+            escapeChar, whitespaceMode: WhitespaceMode.AllowedInQuotes, allowUnmatchedQuoteFragments: true);
+        TextSpan input = new(text);
         int i = 0;
         while (i < text.Length)
         {
@@ -279,15 +282,18 @@ internal static class HeredocParsers
                     i++;
                 }
                 tokens.Add(new WhitespaceToken(text.Substring(start, i - start)));
+                input = input.Skip(i - start);
             }
             else
             {
-                int start = i;
-                while (i < text.Length && !char.IsWhiteSpace(text[i]))
+                Result<LiteralToken> result = literalParser(input);
+                if (!result.HasValue)
                 {
-                    i++;
+                    throw new ParseException(result.ToString(), result.ErrorPosition);
                 }
-                tokens.Add(new LiteralToken(text.Substring(start, i - start), canContainVariables: true, escapeChar));
+                tokens.Add(result.Value);
+                input = result.Remainder;
+                i = input.Position.Absolute;
             }
         }
     }

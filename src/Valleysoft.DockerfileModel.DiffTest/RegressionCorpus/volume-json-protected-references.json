@@ -1,0 +1,6 @@
+{
+  "id": "volume-json-protected-references",
+  "instructionType": "VOLUME",
+  "inputBase64": "Vk9MVU1FIFsiXFwke0JST0tFTiIsICJwcmVmaXgnJHtCUk9LRU4nL2RhdGEvJFJPT1QiLCAiJFJPT1QvZGF0YSJd",
+  "escapeCharacter": "\\"
+}

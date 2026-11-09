@@ -1,7 +1,10 @@
 # Migrate to collection editing
 
-This upcoming breaking change replaces collection getter types with
-`EditableList<T>` and makes their writes syntax-aware. See the
+Version 3.0.0 replaced collection getter types with `EditableList<T>` and made
+their writes syntax-aware. This guide covers migration to the current editing
+contract, including the restriction on consumer-defined subclasses introduced
+in 4.0.0. Read the [versioned migration guides](migrations/README.md) for the
+changes that apply to each release. See the
 [editing reference](editing.md) for the complete API and trivia contracts.
 
 ## Understand validation boundaries
@@ -118,7 +121,7 @@ ownership validation is local to the edited tree, not global across trees.
 
 ## Check adopted token implementations and context
 
-Structural edits reject consumer-defined `Dockerfile` and `Token` subclasses,
+Since 4.0.0, structural edits reject consumer-defined `Dockerfile` and `Token` subclasses,
 including subclasses inheriting supported built-in serialization and quoting
 implementations. Use library-defined runtime types for existing owners and
 incoming objects. Ordinary reads and serialization of consumer-defined

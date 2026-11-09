@@ -1,0 +1,9 @@
+{
+  "id": "local-run-json-missing-comma",
+  "instructionType": "RUN",
+  "inputBase64": "UlVOIFsiZWNobyIgImhlbGxvIl0=",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

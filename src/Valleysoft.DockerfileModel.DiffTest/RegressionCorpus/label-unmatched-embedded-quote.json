@@ -1,0 +1,9 @@
+{
+  "id": "local-label-unmatched-embedded-quote",
+  "instructionType": "LABEL",
+  "inputBase64": "TEFCRUwgbmFtZT1mb28iYmFy",
+  "escapeCharacter": "\\",
+  "generator": null,
+  "seed": null,
+  "caseIndex": null
+}

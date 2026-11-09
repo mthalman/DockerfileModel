@@ -196,6 +196,7 @@ internal static class InstructionCollectionEditing
 /// owner-local aliasing; writes stage separators, quoting, and payloads, then reparse and compare
 /// operand counts and values before committing. JSON operands compare folded syntax rather than
 /// legacy value projections; incoming operands must independently form one valid JSON string.
+/// Adopted literals retain the validated owner's word grammar for later value updates.
 /// Required cardinality depends on the role.
 /// </remarks>
 internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> where T : Token
@@ -240,7 +241,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         PrepareItem(plan, item);
         Insert(tokens, expected, index, item);
         expected.Insert(index, item);
-        ValidateAndCommit(plan, expected);
+        ValidateAndCommit(plan, expected, adoptedIndex: index);
     }
 
     public void Replace(int index, T item, TriviaDisposition trivia)
@@ -259,7 +260,7 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         PrepareItem(plan, item);
         tokens[ReferenceList.IndexOf(tokens, current)] = item;
         expected[index] = item;
-        ValidateAndCommit(plan, expected);
+        ValidateAndCommit(plan, expected, adoptedIndex: index);
     }
 
     public void Remove(IReadOnlyList<int> indices, TriviaDisposition trivia)
@@ -328,6 +329,10 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         }
         expected[index] = replacement;
         ValidateAndCommit(plan, expected);
+        if (current is LiteralToken literal)
+        {
+            literal.OnValueReplaced();
+        }
     }
 
     public void Move(int oldIndex, int newIndex)
@@ -571,16 +576,19 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
 
     /// <summary>Requires complete grammar consumption and the expected role values before publishing a plan.</summary>
     /// <remarks>Generic argument-line edits also validate the underlying known instruction grammar.</remarks>
-    private void ValidateAndCommit(TokenEditPlan plan, List<T> expected)
+    private void ValidateAndCommit(TokenEditPlan plan, List<T> expected, int adoptedIndex = -1)
     {
         EditValidation.ValidateTree(owner);
-        string text = plan.Render(owner);
+        Func<Token, string> render = plan.CreateRenderer();
+        string text = render(owner);
         AggregateToken parsed;
         try
         {
             parsed = owner switch
             {
-                ExecFormCommand => ExecFormCommand.Parse(text, owner.EditingEscapeChar),
+                ExecFormCommand command => command.ParseForEditing(text),
+                FileTransferInstruction when IsJson => EditValidation.ParseInstruction(text, owner.EditingEscapeChar,
+                    allowLegacyJsonOperands: true),
                 UnknownInstruction => throw new InvalidOperationException("Unknown instruction arguments are opaque."),
                 GenericInstruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar, generic: true),
                 Instruction => EditValidation.ParseInstruction(text, owner.EditingEscapeChar),
@@ -599,26 +607,54 @@ internal sealed class InstructionTokenListAdapter<T> : IEditableListAdapter<T> w
         {
             EditValidation.ParseInstruction(owner.ToString(), owner.EditingEscapeChar);
             Instruction diagnostic = EditValidation.ParseInstruction(text, owner.EditingEscapeChar);
-            EditValidation.ValidateHeredocAssociations(owner, diagnostic, plan);
+            EditValidation.ValidateHeredocAssociations(owner, diagnostic, plan, render);
         }
         else if (parsed is Instruction instruction)
         {
-            EditValidation.ValidateHeredocAssociations(owner, instruction, plan);
+            EditValidation.ValidateHeredocAssociations(owner, instruction, plan, render);
         }
         List<T> actual = Select(parsed);
-        if (actual.Count != expected.Count || actual.Where((token, index) => !SameValue(token, expected[index], plan)).Any())
+        if (actual.Count != expected.Count || actual.Where((token, index) => !SameValue(token, expected[index], render)).Any())
         {
             throw new InvalidOperationException("The edit changes operand boundaries or values.");
         }
         plan.Commit();
+        if (!IsJson)
+        {
+            List<T> committed = Select(owner);
+            for (int index = 0; index < actual.Count; index++)
+            {
+                if (committed[index] is LiteralToken literal && actual[index] is LiteralToken parsedLiteral)
+                {
+                    literal.RetainWordContext(parsedLiteral);
+                }
+            }
+        }
+        if (adoptedIndex >= 0 && IsJson && expected[adoptedIndex] is LiteralToken adoptedLiteral &&
+            actual[adoptedIndex] is LiteralToken parsedJsonLiteral)
+        {
+            adoptedLiteral.RetainWordContext(parsedJsonLiteral);
+            adoptedLiteral.UseJsonStringSyntax |= parsedJsonLiteral.UseJsonStringSyntax;
+        }
+        if (owner is VolumeInstruction volume)
+        {
+            volume.ConfigurePathResolution();
+        }
+        else
+        {
+            foreach (LiteralToken literal in InstructionCollectionEditing.Descendants(owner).OfType<LiteralToken>())
+            {
+                literal.ResolveAsJsonString = false;
+            }
+        }
     }
 
-    private bool SameValue(T left, T right, TokenEditPlan plan)
+    private bool SameValue(T left, T right, Func<Token, string> render)
     {
         if (IsJson && left is LiteralToken && right is LiteralToken)
         {
             return ConstructReader.FoldHeader(left.ToString(), 0, owner.EditingEscapeChar, out _) ==
-                ConstructReader.FoldHeader(plan.Render(right), 0, owner.EditingEscapeChar, out _);
+                ConstructReader.FoldHeader(render(right), 0, owner.EditingEscapeChar, out _);
         }
         return (left, right) switch
         {

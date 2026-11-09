@@ -7,6 +7,122 @@ namespace Valleysoft.DockerfileModel.Tests;
 /// </summary>
 public class DocumentStructuralEditingTests
 {
+    [Fact]
+    public void DocumentPreviewsRefreshAfterEachStagedBoundary()
+    {
+        RunInstruction first = RunInstruction.Parse("RUN first");
+        RunInstruction second = RunInstruction.Parse("RUN second\r\n");
+        RunInstruction third = RunInstruction.Parse("RUN third");
+        Dockerfile file = new(new DockerfileConstruct[] { first, second, third });
+        WorkdirInstruction incoming = new("/app");
+
+        file.Items.Add(incoming);
+
+        Assert.Equal("RUN first\r\nRUN second\r\nRUN third\r\nWORKDIR /app", file.ToString());
+        Assert.Equal(new DockerfileConstruct[] { first, second, third, incoming }, file.Items);
+    }
+
+    [Fact]
+    public void DocumentBoundarySummariesPreserveFirstAndLastNewlineStyles()
+    {
+        const string trivia = "\r\n\n";
+        Whitespace precedingTrivia = new("");
+        precedingTrivia.ReplaceWithTokens(new Token[] { new NewLineToken("\r\n"), new NewLineToken("\n") });
+        RunInstruction precedingRun = RunInstruction.Parse("RUN first");
+        WorkdirInstruction appended = new("/app");
+        Dockerfile preceding = new(new DockerfileConstruct[] { precedingTrivia, precedingRun });
+        preceding.Items.Add(appended);
+        Assert.Equal(trivia + "RUN first\nWORKDIR /app", preceding.ToString());
+
+        Whitespace followingTrivia = new("");
+        followingTrivia.ReplaceWithTokens(new Token[] { new NewLineToken("\r\n"), new NewLineToken("\n") });
+        RunInstruction followingRun = RunInstruction.Parse("RUN first");
+        WorkdirInstruction inserted = new("/app");
+        Dockerfile following = new(new DockerfileConstruct[] { followingRun, followingTrivia });
+        following.Items.Insert(1, inserted);
+        Assert.Equal("RUN first\r\nWORKDIR /app" + trivia, following.ToString());
+    }
+
+    [Fact]
+    public void DocumentBoundarySummariesDoNotAllocatePerUnrelatedNewline()
+    {
+        Measure(true);
+        Measure(false);
+        long withoutRepair = Measure(false);
+        long withRepair = Measure(true);
+        Assert.True(withRepair - withoutRepair < 32_768,
+            $"Repairing one seam allocated {withRepair - withoutRepair} extra bytes for unrelated newlines.");
+
+        static long Measure(bool repair)
+        {
+            string trivia = string.Concat(Enumerable.Repeat("\r\n", 8192));
+            Whitespace whitespace = new("");
+            whitespace.ReplaceWithToken(new WhitespaceToken(trivia));
+            RunInstruction first = RunInstruction.Parse(repair ? "RUN first" : "RUN first\r\n");
+            RunInstruction incoming = RunInstruction.Parse("RUN next");
+            Dockerfile file = new(new DockerfileConstruct[] { first, whitespace });
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            file.Items.Insert(1, incoming);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Equal("RUN first\r\nRUN next" + trivia, file.ToString());
+            Assert.Equal(new DockerfileConstruct[] { first, incoming, whitespace }, file.Items);
+            return allocated;
+        }
+    }
+
+    [Fact]
+    public void DocumentBoundaryRepairsAllocateLinearlyWithConstructs()
+    {
+        Measure(16);
+        long small = Measure(64);
+        long large = Measure(256);
+        Assert.True(large * 2 < small * 9,
+            $"Growing unterminated constructs fourfold allocated {small} then {large} bytes.");
+
+        static long Measure(int count)
+        {
+            DockerfileConstruct[] instructions = Enumerable.Range(0, count)
+                .Select(index => (DockerfileConstruct)RunInstruction.Parse($"RUN echo {index}")).ToArray();
+            Dockerfile file = new(instructions);
+            WorkdirInstruction incoming = new("/app");
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            file.Items.Add(incoming);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Equal(string.Concat(Enumerable.Range(0, count).Select(index => $"RUN echo {index}\n")) +
+                "WORKDIR /app", file.ToString());
+            Assert.Equal(instructions.Append(incoming), file.Items);
+            return allocated;
+        }
+    }
+
+    [Fact]
+    public void DocumentPreviewsAllocateLinearlyWithStagedOperandsAndConstructs()
+    {
+        Measure(16);
+        long small = Measure(64);
+        long large = Measure(256);
+        Assert.True(large * 2 < small * 9,
+            $"Growing operands and constructs fourfold allocated {small} then {large} bytes.");
+
+        static long Measure(int count)
+        {
+            string suffix = string.Concat(Enumerable.Range(0, count).Select(index => $"RUN echo {index}\r\n"));
+            Dockerfile file = Dockerfile.Parse("COPY old /dest\r\n" + suffix);
+            string sources = string.Join(" ", Enumerable.Range(0, count).Select(index => $"source{index}"));
+            CopyInstruction incoming = CopyInstruction.Parse($"COPY {sources} /dest");
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            file.Items[0] = incoming;
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Same(incoming, file.Items[0]);
+            Assert.Equal($"COPY {sources} /dest\r\n" + suffix, file.ToString());
+            Assert.Equal(count + 1, file.Items.Count);
+            return allocated;
+        }
+    }
+
     /// <summary>
     /// Verifies insertion creates only the necessary separator while retaining neighboring construct instances.
     /// </summary>

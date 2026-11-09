@@ -85,6 +85,16 @@ Key supporting classes:
 
 Variable resolution: `Dockerfile.ResolveVariables()` resolves ARG references either globally or for a specific instruction. Non-mutating by default; pass `UpdateInline = true` to modify the model in place.
 
+The [variable resolution contract](docs/variable-resolution.md) requires pure
+serializers and quote getters. Resolver callbacks may change the variable
+dictionary and resolution options, but all source-token state is fixed, including
+primitive values, quote characters, and child lists. Only library-owned inline
+publication may change source tokens during resolution. Reuse the shared
+resolution guard; do not introduce competing structural guards. Do not extend
+callback guarantees to side effects during serialization or getter calls.
+Non-inline custom ARG instruction subclasses use
+their serialized text as the authority, not inferred serializer-call provenance.
+
 ### Lean 4 Formal Specification
 
 The Lean spec mirrors the C# token hierarchy and parser combinators. See [`lean/README.md`](lean/README.md) for full details.
@@ -122,6 +132,22 @@ Key BuildKit behaviors the Lean parser follows:
 - **Variable expansion:** BuildKit expands variables in ADD, COPY, ENV, EXPOSE, FROM, LABEL, STOPSIGNAL, USER, VOLUME, WORKDIR. NOT in RUN, CMD, ENTRYPOINT (the shell handles expansion).
 - **Mount flags:** BuildKit's `Flags` field is `[]string` — opaque strings. Structured mount value parsing happens downstream in the instructions layer, not in the Dockerfile parser. Lean treats mount values as opaque literals.
 - **Shell form commands:** BuildKit does not parse `$VAR` references in shell-form RUN/CMD/ENTRYPOINT. The `$` character is treated as a regular character. Lean matches this behavior.
+
+## Review and completion gate
+
+Review findings are candidates until verified. Before changing production code,
+require a failing regression or measured performance/lifetime repro, compare
+against the relevant baseline, and identify the supported contract it violates.
+Group variants of one root cause; do not add a separate mechanism for each case.
+Record pre-existing defects and unsupported behavior instead of silently expanding
+the contract. Ask before changing compatibility guarantees.
+
+After fixes, run the focused tests, the existing full suite, relevant target
+builds, and any performance/lifetime checks required by the change. Finish with
+one verification-oriented review against the agreed contract, with no minimum
+finding count. Stop when those checks pass and no verified introduced
+supported-contract defects remain. A recall-only review is discovery input, not
+an automatic instruction to implement every candidate.
 
 ## Testing
 

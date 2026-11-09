@@ -19,6 +19,16 @@ public class VolumeInstruction : Instruction
     {
         PathTokens = new Valleysoft.DockerfileModel.Tokens.TokenList<LiteralToken>(this);
         Paths = InstructionCollectionEditing.Strings(PathTokens, this);
+        ConfigurePathResolution();
+    }
+
+    internal void ConfigurePathResolution()
+    {
+        bool json = InstructionCollectionEditing.IsJson(this);
+        foreach (LiteralToken path in PathTokens)
+        {
+            path.ResolveAsJsonString = json;
+        }
     }
 
     /// <summary>Gets the live editable volume path value view.</summary>
@@ -56,7 +66,14 @@ public class VolumeInstruction : Instruction
         string args = useShellForm
             ? pathArray[0]
             : StringHelper.FormatAsJson(pathArray);
-        return GetTokens($"VOLUME {args}", GetInnerParser(escapeChar));
+        // Explicit constructor operands retain the legacy literal grammar without form detection.
+        TextParser<IEnumerable<Token>> parser = useShellForm
+            ? GetInnerParser(escapeChar)
+            : Instruction("VOLUME", escapeChar,
+                ArgTokens(
+                    from tokens in JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
+                    select TokenizePaths(tokens, escapeChar), escapeChar));
+        return GetTokens($"VOLUME {args}", parser);
     }
 
     private static TextParser<IEnumerable<Token>> GetArgsParser(char escapeChar) =>
@@ -66,8 +83,15 @@ public class VolumeInstruction : Instruction
             whitespace, paths);
 
     private static TextParser<IEnumerable<Token>> GetPathsParser(char escapeChar) =>
-        JsonArray(escapeChar, canContainVariables: false, allowEmpty: true)
-             .Or(NonJsonPaths(escapeChar));
+        CommandParsers.MaybeJson(
+            from tokens in JsonArray(escapeChar, canContainVariables: false, allowEmpty: true, useJsonStringSyntax: true)
+            select TokenizePaths(tokens, escapeChar),
+            NonJsonPaths(escapeChar), escapeChar);
+
+    private static IEnumerable<Token> TokenizePaths(IEnumerable<Token> tokens, char escapeChar) =>
+        tokens.Select(token => token is LiteralToken path
+            ? JsonStringVariableResolver.Tokenize(path, escapeChar)
+            : token);
 
     private static TextParser<IEnumerable<Token>> NonJsonPaths(char escapeChar) =>
         ArgTokens(
