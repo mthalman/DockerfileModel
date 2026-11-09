@@ -28,6 +28,18 @@
   ],
   "packageRules": [
     {
+      "description": "Update FsCheck and its xUnit adapter together to satisfy exact version dependencies",
+      "matchManagers": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "FsCheck",
+        "FsCheck.Xunit"
+      ],
+      "groupName": "FsCheck packages",
+      "groupSlug": "fscheck"
+    },
+    {
       "description": "Do not pin alpine references embedded in these test fixtures",
       "matchDatasources": [
         "docker"
