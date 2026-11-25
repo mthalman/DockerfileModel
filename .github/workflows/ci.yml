@@ -121,12 +121,12 @@ jobs:
         working-directory: src
         run: |
           sudo unshare --net -- "$(command -v dotnet)" \
-            Valleysoft.DockerfileModel.DiffTest/bin/Release/net8.0/Valleysoft.DockerfileModel.DiffTest.dll \
+            Valleysoft.DockerfileModel.DiffTest/bin/Release/net10.0/Valleysoft.DockerfileModel.DiffTest.dll \
             --upstream-only --lean-cli "$GITHUB_WORKSPACE/lean/.lake/build/bin/DockerfileModelDiffTest" --workers 4
 
       - name: Run differential tests
         working-directory: src
-        run: dotnet Valleysoft.DockerfileModel.DiffTest/bin/Release/net8.0/Valleysoft.DockerfileModel.DiffTest.dll --compare --lean-cli ../lean/.lake/build/bin/DockerfileModelDiffTest --count 10000 --seed 42 --workers 4
+        run: dotnet Valleysoft.DockerfileModel.DiffTest/bin/Release/net10.0/Valleysoft.DockerfileModel.DiffTest.dll --compare --lean-cli ../lean/.lake/build/bin/DockerfileModelDiffTest --count 10000 --seed 42 --workers 4
 
   upstream-importer:
     runs-on: ubuntu-latest

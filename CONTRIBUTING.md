@@ -6,8 +6,8 @@ Contributions are welcome. Submit a pull request or open an issue as necessary.
 
 Install the .NET SDK specified by [`global.json`](global.json). From the
 repository root, run `dotnet --version` to confirm that SDK resolution succeeds.
-Install the .NET 8 runtime to run the sample and differential-test projects;
-the unit tests use .NET 10. Check installed runtimes with `dotnet --list-runtimes`.
+Install the .NET 10 runtime to run the tests and differential-test projects.
+The samples also run on .NET 11. Check installed runtimes with `dotnet --list-runtimes`.
 Packaged-documentation verification also requires PowerShell 7.4 or newer.
 
 ## Build and test
@@ -41,8 +41,8 @@ PowerShell 7.4 or newer:
 
 The script packs the existing Release build with `--no-build`, checks the
 packaged README and XML API documentation, tests rejection of invalid package
-documentation, and runs the consumer examples against the package on .NET 8
-and .NET 10. It uses a temporary package feed and cache, can restore test
+documentation, and runs the consumer examples against the package on .NET 10
+and .NET 11. It uses a temporary package feed and cache, can restore test
 dependencies from NuGet.org, and removes its temporary files when it finishes.
 A successful run ends with:
 
