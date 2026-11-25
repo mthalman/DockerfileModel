@@ -43,7 +43,7 @@ does not run its tests; `lake exe DockerfileModelTests` must also succeed.
 The differential test harness lives in `src/Valleysoft.DockerfileModel.DiffTest/`
 (C# project). It generates random inputs with FsCheck, parses with both C# and
 Lean, and compares canonical JSON output. Install the .NET SDK selected by the
-root [`global.json`](../global.json) and the .NET 8 runtime, as described in
+root [`global.json`](../global.json) and the .NET 10 runtime, as described in
 [contributor prerequisites](../CONTRIBUTING.md#developer-prerequisites).
 
 Build the Lean CLI above first. Then run comparison from the repository root.

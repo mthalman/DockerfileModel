@@ -172,9 +172,9 @@ The Lean spec includes both machine-checked proofs (`Proofs/`) and SlimCheck pro
 
 - `src/Valleysoft.DockerfileModel/` — library targeting `netstandard2.0` and `net10.0` (C# 13, nullable enabled)
 - `src/Valleysoft.DockerfileModel.Tests/` — test project targeting `net10.0` (unit and property tests)
-- `src/Valleysoft.DockerfileModel.Samples/` — xUnit consumer examples targeting `net8.0` and `net10.0`, exercised with project and package references
-- `src/Valleysoft.DockerfileModel.TestSupport/` — shared non-production generators and canonical serialization support targeting `net8.0`
-- `src/Valleysoft.DockerfileModel.DiffTest/` — differential test CLI targeting `net8.0` (compares C# vs Lean parser output)
+- `src/Valleysoft.DockerfileModel.Samples/` — xUnit consumer examples targeting `net10.0` and `net11.0`, exercised with project and package references
+- `src/Valleysoft.DockerfileModel.TestSupport/` — shared non-production generators and canonical serialization support targeting `net10.0`
+- `src/Valleysoft.DockerfileModel.DiffTest/` — differential test CLI targeting `net10.0` (compares C# vs Lean parser output)
 - `lean/` — Lean 4 formal specification (token model, parser combinators, proofs, differential test CLI)
 - `global.json` — pins .NET SDK version
 - `src/Directory.Build.props` — shared MSBuild properties (license, authors, repo URL)

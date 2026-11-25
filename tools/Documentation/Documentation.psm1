@@ -129,9 +129,8 @@ function Test-ConsumerAssets {
         [IO.Path]::TrimEndingDirectorySeparator($PackageCache)) {
         throw 'The consumer must use only its isolated package cache.'
     }
-    foreach ($framework in @('net8.0', 'net10.0')) {
-        $assetFramework = if ($framework -eq 'net8.0') { 'netstandard2.0' } else { 'net10.0' }
-        $expected = "lib/$assetFramework/Valleysoft.DockerfileModel.dll"
+    foreach ($framework in @('net10.0', 'net11.0')) {
+        $expected = 'lib/net10.0/Valleysoft.DockerfileModel.dll'
         foreach ($kind in @('compile', 'runtime')) {
             $paths = @($assets.targets[$framework][$key][$kind].Keys)
             if ($paths.Count -ne 1 -or $paths[0] -cne $expected) {

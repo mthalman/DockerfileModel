@@ -26,7 +26,7 @@ Push-Location lean
 lake build DockerfileModelDiffTest
 Pop-Location
 
-dotnet src\Valleysoft.DockerfileModel.DiffTest\bin\Release\net8.0\Valleysoft.DockerfileModel.DiffTest.dll `
+dotnet src\Valleysoft.DockerfileModel.DiffTest\bin\Release\net10.0\Valleysoft.DockerfileModel.DiffTest.dll `
   --upstream-only --lean-cli lean\.lake\build\bin\DockerfileModelDiffTest.exe
 ```
 
